@@ -328,8 +328,11 @@ a `GET` as a configuration error, and on a `POST` as that route's `400`.
   `hdmi-a-1` or `frame` by that name. The server keeps only the name; the
   output's kind, whether it is connected and its size stay on the client, which
   reports them in the client heartbeat. **No two outputs in one report share a
-  name**, which a schema cannot state and the server refuses. An output of one
-  client shows at most one wall.
+  name**, which a schema cannot state and the server refuses. **A report carries
+  at most 32 outputs and at most 32 label outputs** (since 1.3.0; the package's
+  `MAX_OUTPUTS_PER_REPORT`), because the server keeps a row for each one a report
+  names; a schema does not state it either, and the server refuses a report past
+  it whole. An output of one client shows at most one wall.
 - **A display is a record, and its identity is what the client reads from the
   device.** A display output that can say who it is reports `identity`: a Frame
   gives its device id from its REST device description (`/api/v2/`,

@@ -24,9 +24,10 @@ staging names is in `works`, slots run forward in order without overlapping and
 stay inside the horizon, and the horizon is whole days. The package's
 `semantic_errors` is the reference statement of those rules. A Player enforces
 the same ones in its reader, and an invalid fixture is marked as breaking either
-the schema or one of these. Since 1.3.0 the client heartbeat has two such rules
-as well (no two outputs, and no two label outputs, share a name), which the
-server enforces as its reader.
+the schema or one of these. Since 1.3.0 the client heartbeat has such rules
+as well (no two outputs, and no two label outputs, share a name; a report
+carries at most `MAX_OUTPUTS_PER_REPORT` of each), which the server enforces as
+its reader.
 """
 
 import json
@@ -36,10 +37,11 @@ from urllib.parse import urldefrag, urljoin
 import pytest
 from jsonschema import Draft202012Validator
 
-from arrt_contract import fixtures, root, schema, semantic_errors, validator
+from arrt_contract import MAX_OUTPUTS_PER_REPORT, fixtures, root, schema, semantic_errors, validator
 
 CONTRACT = root()
 INDEX = fixtures()
+_CLIENT_HEARTBEAT = "schemas/client-heartbeat.v1.schema.json"
 
 
 def _document(row: dict) -> dict:
@@ -399,3 +401,17 @@ def test_the_lookup_follows_a_reference_into_another_schema():
     path = ["properties", "label", "oneOf", 1, "properties", "title", "type"]
 
     assert where_it_failed(relative, path) == "schemas/manifest.v2.schema.json#/$defs/label/properties/title/type"
+
+
+@pytest.mark.parametrize(("key", "said"), [("outputs", "outputs"), ("label_outputs", "label outputs")])
+def test_a_report_of_exactly_the_most_outputs_breaks_no_rule_and_one_more_breaks_the_cap(key, said):
+    """The bound is inclusive: `MAX_OUTPUTS_PER_REPORT` of each is a report, one more is not."""
+    fixture = "thirty-three-outputs" if key == "outputs" else "thirty-three-label-outputs"
+    document = json.loads((CONTRACT / f"fixtures/client-heartbeat.v1/invalid/{fixture}.json").read_text(encoding="utf-8"))
+    assert len(document[key]) == MAX_OUTPUTS_PER_REPORT + 1
+
+    at_the_bound = {**document, key: document[key][:MAX_OUTPUTS_PER_REPORT]}
+
+    assert list(validator(_CLIENT_HEARTBEAT).iter_errors(at_the_bound)) == []
+    assert semantic_errors(at_the_bound, _CLIENT_HEARTBEAT) == []
+    assert semantic_errors(document, _CLIENT_HEARTBEAT) == [f"more than {MAX_OUTPUTS_PER_REPORT} {said}"]

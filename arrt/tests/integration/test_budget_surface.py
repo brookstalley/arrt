@@ -84,3 +84,42 @@ def test_a_run_with_every_cost_known_counts_none_unknown(http, services):
     spend = http.get(f"/api/runs/{run.id}/spend").raise_for_status().json()
 
     assert (spend["unknown_cost_calls"], spend["summary"]) == (0, "$0.05")
+
+
+def test_the_allowance_a_watch_and_a_run_each_say_their_figure_in_the_services_words(http, services):
+    """`summary` on `GET /api/unattended`, `/api/watches` and `/api/runs/{id}`, and on their MCP twins: `SpendTotal.words`.
+
+    One unattended run of one Watch, with a call whose cost is known and one
+    whose cost is unknown: each answer's figure is a floor, and its words say
+    "at least" and count the unknown call, where `spent_usd` and
+    `actual_cost_usd` carry the known figure alone.
+    """
+    from arrt.mcp import bindings
+
+    watch = services.watches.create(intent_text="Dalí", surface=InitiatedBy.WEB_UI)
+    run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.UNATTENDED, watch_id=watch.id)
+    services.discovery.record_spend(category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("0.0213"), discovery_run_id=run.id)
+    services.discovery.record_spend(
+        category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal(0), discovery_run_id=run.id, cost_status=CostStatus.UNKNOWN
+    )
+    services.discovery.cancel_run(run.id, actual_cost_usd=services.discovery.run_cost(run.id).direct)
+    said = "at least $0.0213, and 1 call whose cost is unknown"
+
+    unattended = http.get("/api/unattended").raise_for_status().json()
+    (listed,) = http.get("/api/watches").raise_for_status().json()["watches"]
+    shown = http.get(f"/api/runs/{run.id}").raise_for_status().json()["run"]
+
+    assert (unattended["spent_usd"], unattended["summary"]) == ("0.02", said)
+    assert (listed["spent_usd"], listed["summary"]) == ("0.02", said)
+    assert (shown["actual_cost_usd"], shown["summary"]) == ("0.0213", said)
+    assert bindings._unattended_standing(services, {})["summary"] == said
+    assert [each["summary"] for each in bindings._list_watches(services, {})["watches"]] == [said]
+    assert [each["summary"] for each in bindings._list_runs(services, {})["runs"] if each["run_id"] == run.id] == [said]
+
+
+def test_a_run_with_no_figure_yet_has_no_summary(http, services):
+    run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.WEB_UI)
+
+    shown = http.get(f"/api/runs/{run.id}").raise_for_status().json()["run"]
+
+    assert (shown["actual_cost_usd"], shown["summary"]) == (None, None)

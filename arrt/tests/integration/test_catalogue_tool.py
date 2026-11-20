@@ -938,6 +938,28 @@ async def test_the_queue_its_causes_and_a_causes_works_are_the_routes_answers(se
     assert page["works"][0]["acquisition"]["phase"] == "failed"
 
 
+async def test_the_queues_two_counts_are_the_listings_own_on_both_surfaces(server_url, services, store, monkeypatch):
+    """`failing` and `causes` are `QueueListing.failing` and `.cause_count`, rendered by the route and by MCP, not counted twice.
+
+    The listing's counts are checked against what it lists, then replaced, so a
+    surface still counting for itself would answer the real figures.
+    """
+    from arrt.library.acquisition.queue import QueueListing
+
+    _failing(services, store, 3, "a 404.")
+    _failing(services, store, 1, "reset.")
+    listing = services.acquisition_queue.listing()
+    assert (listing.failing, listing.cause_count) == (sum(len(group.entries) for group in listing.causes), len(listing.causes))
+    assert (listing.failing, listing.cause_count) == (4, 2)
+
+    monkeypatch.setattr(QueueListing, "failing", property(lambda _listing: 41))
+    monkeypatch.setattr(QueueListing, "cause_count", property(lambda _listing: 7))
+    queue, _ = await call(server_url, "art_catalogue", action="queue")
+    route = await _route(server_url, "/api/acquisitions")
+
+    assert (queue["failing"], queue["causes"]) == (route["failing"], route["causes"]) == (41, 7)
+
+
 async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(server_url, services, store):
     failed = _failing(services, store, 2, "a 404.")
 
@@ -952,6 +974,39 @@ async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(ser
     again, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
     assert errored is True
     assert again["error"].startswith("No work in the queue failed for that reason now")
+
+
+async def test_retrying_one_cause_leaves_the_other_causes_works_exactly_as_they_were(server_url, services, store):
+    """Two causes; one is retried over MCP. The other's works answer byte for byte as before, and each keeps its row.
+
+    The retried cause holds a work with no source, which the queue refuses,
+    so the answer's `refused` names that reason and how many it held back.
+    """
+    from datetime import UTC, datetime
+
+    import httpx
+
+    from arrt.persistence.records import QueuedAcquisition
+
+    retried_ids = _failing(services, store, 2, "a 404.")
+    sourceless = services.catalogue.add_artwork(title="Nothing to fetch it from").id
+    store.set_queued_acquisition(
+        QueuedAcquisition(artwork_id=sourceless, failures=1, next_try_at=datetime(2026, 12, 1, tzinfo=UTC), detail="a 404.")
+    )
+    other = _failing(services, store, 2, "reset.")
+    rows_before = {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other}
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        before = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+
+        answer, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+
+        after = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+    assert errored is False
+    assert (answer["retried"], answer["refused"]) == (2, [{"reason": "The work has no source to acquire from.", "works": 1}])
+    assert {str(state.phase) for state in services.acquisition_queue.state_of(retried_ids).values()} == {"queued"}
+    assert json.loads(before)["total"] == 2
+    assert after == before
+    assert {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other} == rows_before
 
 
 # -- a thing that does not exist: the service's own sentence, on both surfaces ------------------

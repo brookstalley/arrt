@@ -1470,6 +1470,17 @@ class DiscoveryService:
             total_unknown=direct.unknown_calls + sum(each.unknown_calls for each in below),
         )
 
+    def run_summary(self, run: DiscoveryRun) -> str | None:
+        """What the run record says this run was billed, in words (`SpendTotal.words`); None while it has no figure.
+
+        The figure is the run's own (`actual_cost_usd`, written when it ends),
+        and "at least" when any of its own calls never said what it cost.
+        """
+        if run.actual_cost_usd is None:
+            return None
+        unknown = self._spend_total(run.id).unknown_calls
+        return SpendTotal(cost_usd=run.actual_cost_usd, unknown_calls=unknown).words
+
     def searches_in_run(self, run_id: str) -> int:
         """How many web searches this run has made.
 

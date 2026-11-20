@@ -27,6 +27,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
 )
 from arrt.library.services.artists import ArtistService, RegistryState
+from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import Fit
 from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
 from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
@@ -504,7 +505,9 @@ class TestAfterARestart:
             registry=down,
             artists=ArtistService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
             registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted(), profile=settings.quality_profile),
-            registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
+            registry_search=RegistrySearchService(
+                store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting(), pictures=CatalogueService(store)
+            ),
         )
         kept.close()
 

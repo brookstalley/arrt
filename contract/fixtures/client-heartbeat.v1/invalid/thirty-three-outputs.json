@@ -1,0 +1,203 @@
+{
+  "reported_at": "2026-10-02T14:00:05+00:00",
+  "outputs": [
+    {
+      "name": "hdmi-a-1",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-2",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-3",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-4",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-5",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-6",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-7",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-8",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-9",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-10",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-11",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-12",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-13",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-14",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-15",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-16",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-17",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-18",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-19",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-20",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-21",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-22",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-23",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-24",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-25",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-26",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-27",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-28",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-29",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-30",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-31",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-32",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    },
+    {
+      "name": "hdmi-a-33",
+      "kind": "framebuffer",
+      "connected": false,
+      "screen": null
+    }
+  ]
+}

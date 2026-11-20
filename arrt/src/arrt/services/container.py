@@ -109,14 +109,35 @@ class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
     """
 
 
+#: How many scheduler passes (`PASS_SECONDS`, 300 s) a reconcile waits between
+#: runs: one in six, so every thirty minutes, the first at the scheduler's first
+#: pass. Measured 2026-11-20 on one developer machine (Apple silicon, in-process,
+#: the suite's `ready_work` seeding, one theme per wall, every work carried by a
+#: feed, nothing to fix, 7 timed passes after one warm pass), the pass held the
+#: store's lock for, median / worst: 2,000 works on 4 walls 414 / 497 ms, on 12
+#: walls 461 / 546 ms; 5,000 works on 4 walls 1,131 / 1,195 ms, on 12 walls
+#: 1,713 / 2,525 ms (that run under other load on the machine); 85-90 % of it the
+#: Library's per-work `playable` lookups. The deployment's NAS is slower than
+#: that machine, so a pass there costs more. Every five minutes that was an act
+#: waiting a second or more each pass; one in six spends under 0.3 s of lock a
+#: pass on average here. A drift check tolerates the wait: what it mends is a
+#: feed changed behind the server's back or an announcement a crash lost (which
+#: the start's own reconcile mends first), and either is put right within half
+#: an hour rather than five minutes, while every act's own publish is immediate.
+RECONCILE_EVERY_PASSES: Final[int] = 6
+
+
 class FeedsJob:
     """Programming's scheduled reconcile, handed to the Library's scheduler from here, the one module that sees both.
 
-    **Every published feed made true to the Library and the catalogue, once a
-    scheduler pass** (`PASS_SECONDS`): the start's whole reconciliation
-    (`FeedPublisher.reconcile`), run again, so a feed changed on disk behind the
-    server's back (removed, or an entry no longer the Library's) is put right
-    within one period rather than at the next start. The scheduler is the
+    **Every published feed made true to the Library and the catalogue, once
+    every `RECONCILE_EVERY_PASSES` scheduler passes** (thirty minutes): the
+    start's whole reconciliation (`FeedPublisher.reconcile`), run again, so a
+    feed changed on disk behind the server's back (removed, or an entry no longer
+    the Library's) is put right within that period rather than at the next start.
+    It runs at the first pass, and a pass whose reconcile raised is not counted,
+    so the next pass tries again. A pass between reconciles looks at no wall:
+    its line says 0 due. The scheduler is the
     Library's and imports nothing of Programming (`test_seam_imports.py`); this
     adapter is its job, and reads Programming only through `DisplayService`.
 
@@ -132,11 +153,18 @@ class FeedsJob:
 
     name: Final[str] = "feeds"
 
-    def __init__(self, display: DisplayService) -> None:
+    def __init__(self, display: DisplayService, *, every: int = RECONCILE_EVERY_PASSES) -> None:
         self._display = display
+        self._every = every
+        #: Passes since the last reconcile that ran to its end; due at once.
+        self._since = every
 
     def run_pass(self) -> PassResult:
+        if self._since < self._every:
+            self._since += 1
+            return PassResult(due=0, started=0, refused=0)
         done = self._display.reconcile(cause=SCHEDULED)
+        self._since = 1
         return PassResult(due=done.walls, started=len(done.republished), refused=len(done.refused))
 
 
@@ -474,7 +502,7 @@ class Services:
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
             registry_search=RegistrySearchService(
-                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service
+                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service, pictures=catalogue_service
             ),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             look=LookService(

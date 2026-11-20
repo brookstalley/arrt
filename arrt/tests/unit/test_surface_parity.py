@@ -209,7 +209,7 @@ def test_the_wanted_work_projections_carry_the_same_field_names():
 HTTP_ONLY_ON_RUN = frozenset({"is_terminal"})
 
 
-def test_the_run_projections_agree_but_for_one_named_field():
+def test_the_run_projections_agree_but_for_one_named_field(discovery):
     """Pinned while both surfaces were being changed at once, which is when it matters.
 
     `http/api.py`'s run listing carried a note saying the cap had to reach both
@@ -226,7 +226,7 @@ def test_the_run_projections_agree_but_for_one_named_field():
         started_at=WHEN,
     )
 
-    check_parity("DiscoveryRun", set(bindings._run_fields(run)), _fields(http_models.RunOut), HTTP_ONLY_ON_RUN)
+    check_parity("DiscoveryRun", set(bindings._run_fields(run, discovery)), _fields(http_models.RunOut), HTTP_ONLY_ON_RUN)
 
 
 def test_a_field_only_the_http_model_has_is_rejected():

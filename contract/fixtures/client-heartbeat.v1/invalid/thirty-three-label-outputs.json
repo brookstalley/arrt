@@ -1,0 +1,204 @@
+{
+  "reported_at": "2026-10-08T16:40:00-07:00",
+  "outputs": [],
+  "label_outputs": [
+    {
+      "name": "epd-0",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-1",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-2",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-3",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-4",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-5",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-6",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-7",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-8",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-9",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-10",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-11",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-12",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-13",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-14",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-15",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-16",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-17",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-18",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-19",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-20",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-21",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-22",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-23",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-24",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-25",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-26",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-27",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-28",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-29",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-30",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-31",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    },
+    {
+      "name": "epd-32",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    }
+  ]
+}

@@ -32,6 +32,7 @@ from typing import Final
 
 from arrt.library.registry import Registry, RegistryPerson, RegistryUnavailable, RegistryWorkMatch
 from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
+from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED
 from arrt.library.services.twins import AwaitingReview, InReview, Twins
 from arrt.persistence.catalogue import CatalogueStore
@@ -119,8 +120,12 @@ class RegistrySearchService:
         kept: KeptAnswers,
         wanted: WantedItems,
         awaiting: AwaitingReview,
+        pictures: CatalogueService,
     ) -> None:
         self._store = store
+        #: Which held work pictures a match: `CatalogueService.pictured`, the
+        #: owner of that question, which the registry pages and MCP ask too.
+        self._pictures = pictures
         self._registry = registry
         self._wanted = wanted
         self._awaiting = awaiting
@@ -174,7 +179,7 @@ class RegistrySearchService:
             maker, maker_qid = (work.creator.name, work.creator.qid) if work.creator else (None, None)
             if found := twins.held_work(work.qid, work.title, maker=maker, maker_qid=maker_qid):
                 held_works[work.qid] = found
-                pictured = next((artwork_id for artwork_id in found if self._store.get_original(artwork_id) is not None), None)
+                pictured = self._pictures.pictured(found)
                 if pictured is not None:
                     pictured_works[work.qid] = pictured
             elif (review := twins.waiting_work(work.qid, work.title, maker=maker, maker_qid=maker_qid)) is not None:

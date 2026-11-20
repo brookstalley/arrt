@@ -344,6 +344,16 @@ class QueueListing:
         return tuple(entry for entry in self.entries if entry.cause is None)
 
     @property
+    def failing(self) -> int:
+        """How many works failed or were given up on: every work the listing holds that is not in line."""
+        return sum(1 for entry in self.entries if entry.cause is not None)
+
+    @property
+    def cause_count(self) -> int:
+        """How many causes those works failed for: the number of groups `causes` lists."""
+        return len({entry.cause for entry in self.entries if entry.cause is not None})
+
+    @property
     def causes(self) -> Sequence[FailureCause]:
         grouped: dict[str, list[QueueEntry]] = {}
         for entry in self.entries:

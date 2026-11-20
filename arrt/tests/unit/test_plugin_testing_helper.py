@@ -614,6 +614,23 @@ def test_the_helper_is_not_part_of_the_interface_and_loading_the_interface_does_
     assert answer.stdout.strip() == "False"
 
 
+def test_naming_a_museum_does_not_load_the_helper():
+    """`built_in_museums()` imports each module of the sources package to read its `MUSEUM`, and never the helper.
+
+    A plugin that names a museum (`museum_name`) would otherwise pull the
+    helper, and through it the host, into every process that names one.
+    Anchored on the walk having run: the built-in names are there.
+    """
+    probe = (
+        "import sys; from arrt.library.sources.names import built_in_museums, museum_name; "
+        "print(museum_name('met'), len(built_in_museums()) > 1, 'arrt.library.sources.testing' in sys.modules, sep='|')"
+    )
+    answer = subprocess.run(  # noqa: S603 -- this interpreter, running the fixed probe above
+        [sys.executable, "-I", "-c", probe], capture_output=True, text=True, check=True
+    )
+    assert answer.stdout.strip() == "Metropolitan Museum of Art|True|False"
+
+
 def test_the_fixture_plugins_declare_the_interface_minors_the_issue_names():
     sys.path.insert(0, str(FIXTURE))
     try:

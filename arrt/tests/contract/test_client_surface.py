@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from arrt_contract import fixtures, released, root, routes, validator
+from arrt_contract import MAX_OUTPUTS_PER_REPORT, fixtures, released, root, routes, validator
 from arrt_contract import schema as contract_schema
 from jsonschema import Draft202012Validator
 
@@ -154,6 +154,30 @@ def test_every_invalid_client_heartbeat_the_server_must_refuse_is_refused_with_4
     assert response.status_code == 400
     assert response.json()["error"].startswith("That is not a client heartbeat this server can read: ")
     assert not client_heartbeat_path_in(wall_settings.art_root, hall_pi.id).exists()
+
+
+def test_the_servers_bound_on_outputs_is_the_contracts():
+    """`client_heartbeat.MAX_OUTPUTS` quotes the package's `MAX_OUTPUTS_PER_REPORT`: the server cannot read it at run time."""
+    assert client_heartbeat.MAX_OUTPUTS == MAX_OUTPUTS_PER_REPORT
+
+
+#: The two fixtures past the bound, by the rule each breaks, with the words the server refuses them in.
+_PAST_THE_BOUND = {
+    f"more than {MAX_OUTPUTS_PER_REPORT} outputs": f"at most {MAX_OUTPUTS_PER_REPORT} outputs",
+    f"more than {MAX_OUTPUTS_PER_REPORT} label outputs": f"at most {MAX_OUTPUTS_PER_REPORT} label outputs",
+}
+
+
+@pytest.mark.parametrize("row", [row for row in REFUSED if row["constraint"] in _PAST_THE_BOUND], ids=lambda row: row["path"])
+def test_a_report_past_the_bound_on_outputs_is_refused_for_that_reason_and_no_other(heartbeat_url, token, hall_pi, row):
+    response = httpx.post(heartbeat_url, json=_fixture(row["path"]), headers=_bearer(token))
+
+    assert response.status_code == 400
+    assert _PAST_THE_BOUND[row["constraint"]] in response.json()["error"], response.json()
+
+
+def test_the_index_holds_both_reports_past_the_bound_on_outputs():
+    assert sorted(row["constraint"] for row in REFUSED if row["constraint"] in _PAST_THE_BOUND) == sorted(_PAST_THE_BOUND)
 
 
 def test_the_index_holds_client_heartbeats_the_server_refuses_and_ones_it_keeps():

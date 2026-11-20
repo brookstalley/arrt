@@ -131,8 +131,14 @@ def a_facet_group(kind, options, *, total_values=None, truncated=False) -> Facet
     )
 
 
-def a_run(**overrides) -> RunOut:
-    """A run, defaulting to one stopped at the approval gate."""
+def a_run(*, unknown_cost_calls: int = 0, **overrides) -> RunOut:
+    """A run, defaulting to one stopped at the approval gate.
+
+    Its `summary` is derived as `DiscoveryService.run_summary` derives it, from
+    `actual_cost_usd` and the count of its own calls whose cost is unknown
+    (`unknown_cost_calls`, none by default), so a fixture cannot word a figure
+    the server would not.
+    """
     fields = {
         "run_id": "run-under-test",
         "kind": RunKind.DISCOVERY.value,
@@ -152,7 +158,12 @@ def a_run(**overrides) -> RunOut:
         "end_reason": None,
         "watch_id": None,
     }
-    return RunOut(**(fields | overrides))
+    fields |= overrides
+    actual = fields["actual_cost_usd"]
+    fields.setdefault(
+        "summary", None if actual is None else SpendTotal(cost_usd=Decimal(actual), unknown_calls=unknown_cost_calls).words
+    )
+    return RunOut(**fields)
 
 
 def fields_offered(overrides) -> bool:

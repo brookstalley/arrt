@@ -22,7 +22,7 @@ from arrt.library.services.scheduler import SCHEDULER_THREAD_NAME, PassResult, S
 from arrt.library.services.watches import WatchRefusal
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
 from arrt.programming.feeds import SCHEDULED
-from arrt.services.container import FeedsJob
+from arrt.services.container import RECONCILE_EVERY_PASSES, FeedsJob
 
 WORDS = "new abstract expressionist paintings in museum collections"
 UNATTENDED_MODEL = "some-lab/a-cheaper-model"
@@ -548,6 +548,50 @@ def test_a_feeds_pass_that_raises_is_logged_once_and_the_scheduler_goes_on(servi
     assert second["feeds"].started == 1
     assert path.exists()
     assert calls == [SCHEDULED, SCHEDULED]
+
+
+def test_the_feeds_reconcile_runs_at_the_first_pass_and_then_once_every_six(services, hung, monkeypatch):
+    """The cadence the measurement beside `RECONCILE_EVERY_PASSES` chose: thirty minutes at the scheduler's five.
+
+    Through the scheduler the server builds, so the job it is given is the one
+    held here; the passes between say 0 due and touch no wall.
+    """
+    reconcile = services.display.reconcile
+    ran: list[int] = []
+    passes = 2 * RECONCILE_EVERY_PASSES + 1
+
+    def counted(*arguments, **keywords):
+        ran.append(len(results))
+        return reconcile(*arguments, **keywords)
+
+    monkeypatch.setattr(services.display, "reconcile", counted)
+    results: list[dict[str, PassResult]] = []
+    for _ in range(passes):
+        results.append(services.scheduler.run_pass())  # noqa: PERF401 -- `counted` reads how many passes are in so far
+
+    assert RECONCILE_EVERY_PASSES == 6
+    assert ran == [0, 6, 12]
+    assert [each["feeds"].due for each in results] == [1 if index in ran else 0 for index in range(passes)]
+
+
+def test_a_feeds_pass_that_raised_is_not_counted_so_the_next_pass_reconciles(services, hung, monkeypatch):
+    reconcile = services.display.reconcile
+    calls = []
+
+    def failing_once(*arguments, **keywords):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("No space left on device")
+        return reconcile(*arguments, **keywords)
+
+    monkeypatch.setattr(services.display, "reconcile", failing_once)
+    job = FeedsJob(services.display, every=3)
+    with pytest.raises(OSError, match="No space"):
+        job.run_pass()
+    after = [job.run_pass() for _ in range(4)]
+
+    assert len(calls) == 3, "the raised pass, the one after it, and the third after that"
+    assert [each.due for each in after] == [1, 0, 0, 1]
 
 
 class _WatchedLock:

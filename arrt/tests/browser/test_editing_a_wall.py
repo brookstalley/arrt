@@ -288,6 +288,38 @@ def test_a_rotation_set_in_the_dialog_is_on_the_card_once_it_closes(ui, services
     card(ui, the_wall.name).locator(".wall-hanging dt:text-is('Changes') + dd", has_text="7 minutes").wait_for()
 
 
+def test_a_rotation_whose_feed_would_be_too_large_is_refused_in_the_services_words_and_nothing_changes(
+    ui, services, settings, the_wall, a_theme_to_hang, monkeypatch
+):
+    """`FeedTooLarge` reaches the dialog: the service's own sentence beside the act, the wall's pace and feed as they were.
+
+    The bound is lowered to just past the feed the wall has, through the seam
+    the publisher's unit tests use, so a quicker rotation (more slots) is over
+    it without building a 16 MB feed. The sentence expected is the service's,
+    read from the service refusing the same act first.
+    """
+    from arrt.programming import feeds as feeds_module
+    from arrt.programming.feeds import FeedTooLarge
+
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    path = settings.manifest_v2_path(the_wall.id)
+    before = path.read_bytes()
+    pace = services.display.get_wall(the_wall.id).rotation_interval_seconds
+    monkeypatch.setattr(feeds_module, "FEED_MAX_BYTES", len(before) + 64, raising=False)
+    with pytest.raises(FeedTooLarge) as refused:
+        services.display.set_playback(the_wall.id, rotation_interval_seconds=60)
+    sentence = str(refused.value)
+    assert "past the" in sentence
+
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("1")
+    dialog.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+
+    expect(dialog.get_by_text(sentence, exact=False)).to_be_visible()
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == pace
+    assert path.read_bytes() == before
+
+
 def test_close_and_cancel_change_nothing(ui, services, the_wall, hall):
     dialog = open_edit(ui, the_wall.name)
     dialog.get_by_label("Name", exact=True).fill("Not saved")

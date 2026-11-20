@@ -92,6 +92,29 @@ def shown_by_a_player(http):
 
 
 @pytest.fixture
+def shown_by_a_reporting_player(shown_by_a_player, services, settings):
+    """`shown_by_a_player`, past its setup: the Player holds a token and has just reported each screen.
+
+    A wall whose Player is still being set up (no token, or no report yet) is a
+    step of that Player's setup and never a trouble (Chunk 60), so a test about
+    a wall that has not reported puts it on a Player that is reporting.
+    """
+
+    def _shown(*wall_ids: str) -> str:
+        player = shown_by_a_player(*wall_ids)
+        services.access.issue(player)
+        outputs = [
+            {"name": f"hdmi-a-{index}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}
+            for index in range(1, len(wall_ids) + 1)
+        ]
+        report = {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs}
+        client_heartbeat_path_in(settings.art_root, player).write_text(json.dumps(report), encoding="utf-8")
+        return player
+
+    return _shown
+
+
+@pytest.fixture
 def accepted(service):
     """An accepted work with one source and no picture, which the queue owes a fetch."""
 
@@ -447,7 +470,7 @@ class TestHealth:
         "Each wall's own reading says whether nothing was ever written, what could not be read, or when it last reported."
     )
 
-    def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall, shown_by_a_player):
+    def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall, shown_by_a_reporting_player):
         """The reason the heartbeat became one file per wall.
 
         A one-room installation could be told "the display plane has not
@@ -457,7 +480,7 @@ class TestHealth:
         a wall with none is never named as silent (below).
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
-        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
 
         health = http.get("/api/health").json()
 
@@ -517,14 +540,16 @@ class TestHealth:
             "Every wall has reported; the least recent is 'The study', 2 minutes ago."
         )
 
-    def test_a_wall_whose_report_is_past_the_threshold_is_named_with_how_long(self, http, settings, wall, shown_by_a_player):
+    def test_a_wall_whose_report_is_past_the_threshold_is_named_with_how_long(
+        self, http, settings, wall, shown_by_a_reporting_player
+    ):
         """The sentence agrees with Walls, which says "Not reporting" past the contract's threshold.
 
         It once read "every wall has reported; the least recent is 4 days ago"
         while Walls called the same wall silent: two stories about one wall.
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
-        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
         )
@@ -689,12 +714,21 @@ class TestHealth:
         assert health["setup_steps"] == [{"about": "no_wall", "subject": None, "state": None, "words": "No wall is recorded yet"}]
 
     def test_a_wall_being_shown_by_a_player_leaves_the_setup_steps(self, http, wall, shown_by_a_player):
-        """The step is gone once taken: the wall is on a Player, whose own step (no token yet) takes its place."""
+        """The step is gone once taken: the wall is on a Player, whose own step (no token yet) takes its place.
+
+        The wall, which has not reported because its Player cannot yet, waits
+        on that Player's step (Chunk 60): it is still a setup step, in the
+        Player's state, and no longer "has no Player yet".
+        """
         player = shown_by_a_player(wall["wall_id"])
 
         steps = http.get("/api/health").json()["setup_steps"]
 
-        assert [(s["about"], s["subject"]) for s in steps] == [("player", player)]
+        assert [(s["about"], s["subject"], s["state"]) for s in steps] == [
+            ("wall", wall["wall_id"], "no_token"),
+            ("player", player, "no_token"),
+        ]
+        assert "has no Player yet" not in steps[0]["words"]
 
     def test_failed_fetches_are_counted_with_the_newest_failures_age(self, http, accepted, store):
         """Acceptance 5: three failed rows, the newest two hours old, read 3 and its age; none, no observation.

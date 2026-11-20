@@ -20,12 +20,13 @@ import re
 from datetime import datetime, timedelta
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 __all__ = [
+    "MAX_OUTPUTS_PER_REPORT",
     "ContractNotFoundError",
     "fixtures",
     "instant_key",
@@ -201,6 +202,14 @@ def _instant(text: str) -> datetime:
     return datetime.fromisoformat(text)
 
 
+#: How many outputs, and how many label outputs, one client heartbeat may carry
+#: (since 1.3.0): a rule of the client heartbeat's that its schema does not
+#: state, so a report over it breaks `semantic_errors`. Far above any Player (a
+#: Pi drives two screens and a handful of panels); the server keeps a row for
+#: each output a report names, so without it a token holder could have it keep
+#: as many as a request body holds. The server quotes this value.
+MAX_OUTPUTS_PER_REPORT: Final[int] = 32
+
 #: The schemas with rules no schema can state, by path under `root()`.
 _MANIFEST = "schemas/manifest.v2.schema.json"
 _CLIENT_HEARTBEAT = "schemas/client-heartbeat.v1.schema.json"
@@ -212,9 +221,10 @@ def semantic_errors(document: dict[str, Any], schema: str = _MANIFEST) -> list[s
     `schema` is the document's schema by its path under `root()`, as the fixture
     index names it, and is the manifest's when not given. Two have such rules:
     the manifest (major 2, below) and, since 1.3.0, the client heartbeat, where no
-    two outputs and no two label outputs share a name (`player-contract.md` §
-    Transport). Any other schema has none, which is `[]`; a path that names no
-    schema is refused (`ValueError`), because reading it as one with no rules
+    two outputs and no two label outputs share a name, and a report carries at
+    most `MAX_OUTPUTS_PER_REPORT` of each (`player-contract.md` § Transport).
+    Any other schema has none, which is `[]`; a path that names no schema is
+    refused (`ValueError`), because reading it as one with no rules
     would pass every document.
     """
     if schema == _CLIENT_HEARTBEAT:
@@ -227,15 +237,20 @@ def semantic_errors(document: dict[str, Any], schema: str = _MANIFEST) -> list[s
 
 
 def _client_heartbeat_errors(document: dict[str, Any]) -> list[str]:
-    """No two outputs share a name, nor two label outputs: a name is how a wall or a label is placed on one.
+    """No two outputs share a name, nor two label outputs; a report carries at most `MAX_OUTPUTS_PER_REPORT` of each.
 
-    For a document the schema accepts, as for the manifest's rules.
+    A name is how a wall or a label is placed on one. For a document the schema
+    accepts, as for the manifest's rules.
     """
     errors = []
     names = [output["name"] for output in document["outputs"]]
+    if len(names) > MAX_OUTPUTS_PER_REPORT:
+        errors.append(f"more than {MAX_OUTPUTS_PER_REPORT} outputs")
     if len(names) != len(set(names)):
         errors.append("two outputs share a name")
     label_names = [label_output["name"] for label_output in document.get("label_outputs", [])]
+    if len(label_names) > MAX_OUTPUTS_PER_REPORT:
+        errors.append(f"more than {MAX_OUTPUTS_PER_REPORT} label outputs")
     if len(label_names) != len(set(label_names)):
         errors.append("two label outputs share a name")
     return errors

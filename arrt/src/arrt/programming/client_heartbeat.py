@@ -34,8 +34,11 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 #: a report names can become a row the server keeps (`clients.py`), so a token
 #: holder could otherwise have it keep as many as a 256 KiB body holds
 #: (audit-8 F10). Far above any Player: a Pi drives two screens and a handful of
-#: panels. The contract's schema states no ceiling, so a report over this one
-#: is refused whole, by name, rather than read in part.
+#: panels. A rule of the contract's, not of its schema (`arrt_contract`'s
+#: `MAX_OUTPUTS_PER_REPORT`, since 1.3.0), quoted here because the server cannot
+#: read the package at run time; `tests/contract/test_client_surface.py` holds
+#: the two alike. A report over it is refused whole, by name, rather than read
+#: in part.
 MAX_OUTPUTS: Final[int] = 32
 
 #: The output kinds `player-contract.md` names: a Samsung Frame's own art store,
