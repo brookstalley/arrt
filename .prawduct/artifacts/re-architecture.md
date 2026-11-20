@@ -171,6 +171,12 @@ a ruling under the existing thin-binding norm, not a norm of its own.
    therefore reconciles every manifest against the facade at startup. The
    codebase already treats an interrupted discovery run this way. A lost event
    then delays an update until the next start, and never leaves a manifest wrong.
+   *(Since audit wave 2b, 2026-11-20, chunks 39 and 60, the same reconciliation
+   also runs while the server runs, as a scheduler job at its first pass and every
+   sixth, thirty minutes (`FeedsJob`, `RECONCILE_EVERY_PASSES`,
+   `arrt/src/arrt/services/container.py`); so a lost event delays an update by up to
+   about half an hour, not until the next start. `architecture.md` § rule 4 has its
+   measured cost.)*
 5. **Manifests point at Library-served, content-addressed media.** Programming
    never serves image bytes. Media is served by this server at
    `/media/sha256-{sha256}`, read through the Library's catalogue service, and
