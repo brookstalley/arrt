@@ -6,10 +6,11 @@ for it:
 
 - **A row is read inside the transaction that writes it back.** Requests run on
   a threadpool, so a Player's heartbeat can land between a curator's read of a
-  wall and the write of the whole row. `_between_read_and_write` starts the other
-  act on a second thread at the curator's read and gives it a second to land. Read
-  outside the transaction, it lands, and the curator's write puts the old row
-  back; read inside, it waits for the store's lock and lands after.
+  wall and the write of the whole row. `_between_read_and_write` lands the other
+  act on a second thread at the first moment the store's lock lets it in after the
+  curator's read, with no sleep and no timeout. Read outside the transaction, that
+  is at once, and the curator's write puts the old row back; read inside, it is
+  once the curator lets go of the lock, after the write.
 - **A feed is written only once the act that decided it can no longer roll back**
   (`FeedPublisher.publishing`, `programming/feeds.py`), and the walls one act changes change together.
 - **A bulk act is one announcement and one reconciliation**, so each wall's feed is
@@ -43,17 +44,65 @@ def _frame_report(identity: str, *, at: str) -> dict:
     }
 
 
-def _between_read_and_write(monkeypatch, store, method: str, act: Callable[[], object]) -> Callable[[], None]:
-    """Run `act` on another thread the first time this thread calls `store.<method>`, and give it a second to land.
+class _CuratorsLock:
+    """The store's lock, unchanged, except that it can say when the curator's thread lets go of it altogether.
 
-    Returns a function that waits for `act` to finish and raises what it raised.
-    The second is a bound, not a guess: `act` is one heartbeat or one token, a few
-    milliseconds, so it lands well inside it when nothing holds the store's lock,
-    and it is still waiting at the end of it when the curator's act does.
+    Delegates every acquire and release to the real lock and counts the
+    curator's depth; `on_free` runs on the curator's thread at the moment its
+    outermost hold ends, before it goes on, which is the first moment a thread
+    waiting on the lock could have got in.
     """
-    read = getattr(store, method)
+
+    def __init__(self, real, curator: int) -> None:
+        self._real = real
+        self._curator = curator
+        self.depth = 0
+        self.on_free: Callable[[], None] | None = None
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        got = self._real.acquire(blocking, timeout)
+        if got and threading.get_ident() == self._curator:
+            self.depth += 1
+        return got
+
+    def release(self) -> None:
+        self._real.release()
+        if threading.get_ident() == self._curator:
+            self.depth -= 1
+            if self.depth == 0 and self.on_free is not None:
+                then, self.on_free = self.on_free, None
+                then()
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *_exc: object) -> None:
+        self.release()
+
+
+def _between_read_and_write(monkeypatch, store, method: str, act: Callable[[], object]) -> Callable[[], None]:
+    """Land `act` on another thread at the first moment the store's lock lets it in after the curator's first `store.<method>`.
+
+    Read outside any transaction, the lock is free at the read, so `act` runs
+    there and then, before the curator goes on: the interleaving a threadpool
+    allows. Read inside one, the curator holds the lock, so `act` runs the moment
+    the curator lets go of it altogether, which is where a thread waiting on the
+    lock lands: after the write, when the read and the write share one
+    transaction, and between them when they do not. Nothing sleeps and nothing
+    is timed: the curator waits for `act` each time, and `act` never waits on the
+    lock. (Until 2026-11-20 this started `act` at the read and waited up to a
+    second for it to land, a timing bound.)
+
+    Returns a function, called once the curator's act has returned, that says
+    whether `act` ran and raises what it raised.
+    """
     curator = threading.get_ident()
-    fired, landed = threading.Event(), threading.Event()
+    lock = _CuratorsLock(store._store._lock, curator)
+    # The one lock `transaction()` and `reading()` both hold (`persistence/durable.py`), swapped while nothing holds it.
+    monkeypatch.setattr(store._store, "_lock", lock)
+    read = getattr(store, method)
+    fired: list[bool] = []
+    landed: list[bool] = []
     failures: list[BaseException] = []
 
     def other() -> None:
@@ -61,25 +110,28 @@ def _between_read_and_write(monkeypatch, store, method: str, act: Callable[[], o
             act()
         except BaseException as error:  # noqa: BLE001 -- carried back to the test's thread and raised there
             failures.append(error)
-        finally:
-            landed.set()
 
-    thread = threading.Thread(target=other, daemon=True)
+    def land() -> None:
+        landed.append(True)
+        thread = threading.Thread(target=other)
+        thread.start()
+        thread.join()
 
     def reading(*arguments, **keywords):
         found = read(*arguments, **keywords)
-        if threading.get_ident() == curator and not fired.is_set():
-            fired.set()
-            thread.start()
-            landed.wait(timeout=1.0)
+        if threading.get_ident() == curator and not fired:
+            fired.append(True)
+            if lock.depth == 0:
+                land()
+            else:
+                lock.on_free = land
         return found
 
     monkeypatch.setattr(store, method, reading)
 
     def finished() -> None:
-        assert fired.is_set(), f"the curator's act never called {method}, so nothing was interleaved"
-        thread.join(timeout=10)
-        assert not thread.is_alive(), "the interleaved act never finished"
+        assert fired, f"the curator's act never called {method}, so nothing was interleaved"
+        assert landed, "the curator's act never let go of the store's lock, so the other act never ran"
         if failures:
             raise failures[0]
 
