@@ -599,9 +599,9 @@ concurrent requests at a public museum API — which comes back as a rate limit 
 is indistinguishable from the contract change you were looking for.
 
 ```sh
-cd arrt && uv run pytest -m live_museum -n0     # free, needs the network
-cd arrt && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
-cd arrt && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
+cd arrt && uv run pytest tests/live -m live_museum -n0     # free, needs the network
+cd arrt && uv run pytest tests/live -m live_binary -n0     # free, needs dezoomify-rs
+cd arrt && uv run pytest tests/live -m live_api -n0        # SPENDS REAL MONEY: by hand only
 ```
 
 **A museum marker may run beside an OpenRouter marker, each serial within**
@@ -621,10 +621,14 @@ path as well** — `uv run pytest tests/live -m live_museum …`. That is assert
 `tests/test_assert_tests_ran.py`, which reads the workflow files, so a new job
 written from the line above fails at home rather than on a schedule.
 
-Run one when your work touches that client. Otherwise leave the **three
-`live_*` markers** to `.github/workflows/api-drift.yml`, which runs the two free
-tiers weekly and the paid one monthly — drift is on the provider's schedule, not
-on our commit rate.
+Run one when your work touches that client. Otherwise leave the two free
+markers, `live_museum` and `live_binary`, to `.github/workflows/api-drift.yml`,
+which runs them weekly — drift is on the provider's schedule, not on our commit
+rate. **`live_api` and `llm_eval` are run by hand and by nothing else**, on a
+person's machine with their own key (the owner's ruling of 2026-11-20: CI makes
+no paid call). No workflow holds a model key: `tests/test_ci_makes_no_paid_call.py`
+allows CI only the secrets it names (today the pool's client key, `TESTAMENT_KEY`)
+and fails by name for any other a workflow reads, on any event.
 
 **A probe red for a cause nobody has established is listed, not left to turn the
 alarm permanently red.** `.github/known-blocked.json` has one row per probe (its
