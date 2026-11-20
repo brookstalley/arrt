@@ -20,17 +20,18 @@ asking" is a call the test has not let go.
 import logging
 import threading
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fakes import a_decodable_jpeg, an_image
 
+from arrt.library.acquisition.queue import run_acquisition_queue
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.sources.loading import Deadlines, SourceRoster
+from arrt.library.sources.loading import DEADLINE_CEILING_SECONDS, Deadlines, SourceRoster, StillAsking, one_pass
 from arrt.library.sources.reading import FetchLocator
 from arrt.persistence.discovery_records import SearchOutcome, SourceSearch
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
 
 #: How many works a run goes through here: enough that "one at a time" and
 #: "one per work" cannot be mistaken for each other.
@@ -164,17 +165,18 @@ def a_run(sources: SourceRoster, kept: Kept | None = None) -> ImageSourcePool:
 
 
 def ask_about_every_work(pool: ImageSourcePool, slow: Museum, works: int = WORKS):
-    """A run's works, one after another, as phase 2 goes through them; each answer in turn."""
+    """A run's works, one after another, as phase 2 goes through them, in one pass as phase 2 asks them; each answer in turn."""
     answers = []
     started = 0
-    for n in range(works):
-        answer = pool.find_images(ImageQuery(title=f"Study {n}"), work_id=f"c{n}")
-        answers.append(answer)
-        if "slow" in answer.owed:
-            # Started and still asking: wait until its call has reached the
-            # museum, so the next work is asked with it truly under way.
-            started += 1
-            slow.searched(started)
+    with one_pass():
+        for n in range(works):
+            answer = pool.find_images(ImageQuery(title=f"Study {n}"), work_id=f"c{n}")
+            answers.append(answer)
+            if "slow" in answer.owed:
+                # Started and still asking: wait until its call has reached the
+                # museum, so the next work is asked with it truly under way.
+                started += 1
+                slow.searched(started)
     return answers
 
 
@@ -218,11 +220,24 @@ def test_once_the_owed_answer_has_come_the_next_work_asks_the_source_again(sourc
     pool = a_run(sources)
     ask_about_every_work(pool, slow, works=2)
     slow.let_go()
+    owed_no_more(sources)
 
-    answer = pool.find_images(ImageQuery(title="Study after"), work_id="c-after")
+    with one_pass():
+        answer = pool.find_images(ImageQuery(title="Study after"), work_id="c-after")
 
-    assert slow.searches == 2
     assert answer.unreachable == ()
+    slow.searched(2)
+
+
+def owed_no_more(sources: SourceRoster) -> None:
+    """Wait until the containment counts the owed call ended: a moment after the museum's own call returned."""
+    (contained,) = sources.finders
+    ended = threading.Event()
+    for _ in range(int(SETTLE / 0.01)):
+        if contained.owing() == 0:
+            return
+        ended.wait(0.01)
+    raise AssertionError("the containment still counts the call owed")
 
 
 # -- through the queue's pass: from work to work over its reader --------------------------
@@ -263,6 +278,196 @@ def test_once_the_owed_answer_has_come_the_queue_reads_there_again(services, ser
     works = [accepted(service, slow, f"Fetched {n}") for n in range(2)]
     ask_about_every_work(a_run(sources), slow, works=1)
     slow.let_go()
+    owed_no_more(sources)
 
     assert services.acquisition_queue.run().acquired == len(works)
     assert slow.reads == len(works)
+
+
+# -- when a work a pass did not ask is tried again -----------------------------------------
+
+
+def a_due_retry(store, work, *, now: datetime) -> QueuedAcquisition:
+    """A work whose last fetch failed by the schedule over an hour ago: its retry fell due before this pass."""
+    row = QueuedAcquisition(
+        artwork_id=work.id,
+        failures=1,
+        next_try_at=now - timedelta(hours=1),
+        detail="the museum answered 500",
+        outcome=FetchOutcome.FAILED,
+        plugin="slow",
+        failed_at=now - timedelta(hours=2),
+    )
+    store.set_queued_acquisition(row)
+    return row
+
+
+def passes_while_owed(queue, *, owed_for: float = DEADLINE_CEILING_SECONDS, most: int = 500) -> int:
+    """How many passes the queue's loop runs while a call stays owed for `owed_for` seconds and nothing wakes it.
+
+    The loop's own steps (`run`, then sleep `_seconds_until_due`), on time the
+    test keeps: each sleep is added up rather than slept, so an hour costs no
+    time. Counted to `most`, past which it is a busy loop whatever the bound.
+    """
+    elapsed, passes = 0.0, 0
+    while elapsed < owed_for and passes < most:
+        queue.run()
+        passes += 1
+        elapsed += queue._seconds_until_due()
+    return passes
+
+
+@pytest.mark.parametrize("tried_before", [False, True], ids=["never tried", "a due retry"])
+def test_while_the_source_still_owes_an_answer_the_queue_neither_passes_again_and_again_nor_waits_a_day(
+    services, service, store, sources, slow, tried_before
+):
+    """The refused work is due by the clock, but no pass can ask it until the owed call ends."""
+    work = accepted(service, slow, "Fetched")
+    row = a_due_retry(store, work, now=datetime.now(UTC)) if tried_before else None
+    ask_about_every_work(a_run(sources), slow, works=1)
+    queue = services.acquisition_queue
+
+    passes = passes_while_owed(queue)
+
+    # An owed call lasts at most the longest deadline a plugin may declare. A
+    # pass a minute at most over that is a bounded few, where a busy loop is
+    # one a second; and a work left a day behind the release is stranded.
+    assert passes <= 60, f"{passes} passes while one call was owed for {DEADLINE_CEILING_SECONDS:g} s"
+    assert queue._seconds_until_due() < DEADLINE_CEILING_SECONDS, "a refused work waits longer than any owed call lasts"
+    assert slow.reads == 0
+    assert store.get_queued_acquisition(work.id) == row, "the work not asked had its row rewritten"
+
+
+@pytest.mark.parametrize("tried_before", [False, True], ids=["never tried", "a due retry"])
+def test_a_work_a_pass_did_not_ask_because_its_source_owed_an_answer_is_tried_as_soon_as_the_answer_comes(
+    services, service, store, sources, slow, tried_before
+):
+    """Through the queue's own loop: it sleeps after the refused pass, and the owed call's end is what wakes it."""
+    work = accepted(service, slow, "Fetched")
+    if tried_before:
+        a_due_retry(store, work, now=datetime.now(UTC))
+    ask_about_every_work(a_run(sources), slow, works=1)
+    queue = services.acquisition_queue
+    # Acceptance nudged the queue; taken here, so the loop's second pass is the
+    # one the owed call's end wakes, and no nudge from before.
+    queue.nudge()
+    queue.wait_for_work()
+    passes = threading.Semaphore(0)
+    stop = threading.Event()
+    loop = threading.Thread(
+        target=run_acquisition_queue, args=(queue,), kwargs={"stop": stop, "after_pass": passes.release}, daemon=True
+    )
+    loop.start()
+    try:
+        assert passes.acquire(timeout=SETTLE), "the queue never ran its first pass"
+        assert slow.reads == 0, "the first pass read at a museum that owed an answer"
+
+        slow.let_go()
+
+        assert passes.acquire(timeout=SETTLE), "the queue was not woken when the owed answer came"
+        assert slow.reads == 1
+        assert store.get_queued_acquisition(work.id) is None, "the work read after the release was not acquired"
+    finally:
+        stop.set()
+        queue.nudge()
+        loop.join(timeout=SETTLE)
+
+
+# -- outside a pass ------------------------------------------------------------------------
+
+
+def test_outside_a_pass_a_source_owing_an_answer_is_asked_by_the_run_and_by_its_containment(sources, slow):
+    """Bounding the owed calls is a pass's, which goes from work to work; a question asked outside one is asked."""
+    pool = a_run(sources)
+    ask_about_every_work(pool, slow, works=1)
+
+    answer = pool.find_images(ImageQuery(title="Asked outside a pass"), work_id="c-outside")
+
+    assert answer.unreachable == (), "outside a pass a source owing an answer was not asked"
+    assert answer.owed == ("slow",)
+    slow.searched(2)
+
+
+# -- one refusal, one line -----------------------------------------------------------------
+
+
+class Unsaid:
+    """The slow museum's contained finder, saying nothing of what it owes.
+
+    So the run's own check before it asks reads none owed, as it does for a
+    worker that got past that check just before another call became owed, and
+    the refusal comes from the containment's count instead.
+    """
+
+    offers_images = True
+
+    def __init__(self, inner) -> None:
+        self._inner = inner
+        self.provider = inner.provider
+
+    def find_images(self, query: ImageQuery):
+        return self._inner.find_images(query)
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        return None
+
+
+def test_a_refusal_the_containment_makes_for_a_run_is_journalled_once(sources, slow, caplog):
+    ask_about_every_work(a_run(sources), slow, works=1)
+    (contained,) = sources.finders
+    racing = ImageSourcePool([Unsaid(contained), Quick()], window_seconds=0.0)
+
+    with caplog.at_level(logging.INFO), one_pass():
+        answer = racing.find_images(ImageQuery(title="Raced"), work_id="c-raced")
+
+    assert answer.unreachable == ("slow",)
+    assert slow.searches == 1, "the containment did not refuse the raced call"
+    lines = [
+        (record.name, record.event)
+        for record in caplog.records
+        if getattr(record, "event", None) in ("image_pool.still_asking", "source.plugin_still_asking")
+    ]
+    assert lines == [("arrt.library.discovery.pool", "image_pool.still_asking")], lines
+
+
+def test_a_refusal_listened_to_after_the_owed_call_ended_calls_back_at_once(sources, slow):
+    """The call can end between the refusal and the caller's listening: nobody would call back later, so it is now."""
+    ask_about_every_work(a_run(sources), slow, works=1)
+    reader = sources.route("https://slow.example/w1").reader
+    with one_pass(), pytest.raises(StillAsking) as refused:
+        reader.read("https://slow.example/w1")
+    slow.let_go()
+    owed_no_more(sources)
+    heard = threading.Event()
+
+    assert refused.value.when_answered(heard.set)
+    assert heard.is_set(), "a listener that came after the owed call ended was never called back"
+
+
+def test_a_refusal_listened_to_while_the_call_is_owed_calls_back_when_it_ends_and_not_before(sources, slow):
+    ask_about_every_work(a_run(sources), slow, works=1)
+    reader = sources.route("https://slow.example/w1").reader
+    with one_pass(), pytest.raises(StillAsking) as refused:
+        reader.read("https://slow.example/w1")
+    heard = threading.Event()
+
+    refused.value.when_answered(heard.set)
+    assert not heard.is_set(), "called back while the call was still owed"
+    slow.let_go()
+
+    assert heard.wait(SETTLE), "never called back when the owed call ended"
+
+
+def test_an_owed_call_that_passes_its_deadline_calls_back_as_one_that_answers_does(slow):
+    """Past its deadline the call is a straggler, bounded apart, and owed no longer: the refused work may be asked."""
+    short = SourceRoster.of(finders=[slow], readers={"slow": (slow.claims, slow)}, deadlines=Deadlines(finder=0.2, reader=600.0))
+    ask_about_every_work(a_run(short), slow, works=1)
+    with one_pass(), pytest.raises(StillAsking) as refused:
+        short.route("https://slow.example/w1").reader.read("https://slow.example/w1")
+    heard = threading.Event()
+
+    refused.value.when_answered(heard.set)
+
+    # Inside the time the museum holds the search, so only the deadline can end it.
+    assert heard.wait(SETTLE / 2), "never called back when the owed call passed its deadline"
+    assert slow.inside == 1, "the search answered; this was to be its deadline passing"

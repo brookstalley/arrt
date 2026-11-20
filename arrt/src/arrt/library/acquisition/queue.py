@@ -65,7 +65,7 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.sources.loading import NotAskedThisPass, one_pass
+from arrt.library.sources.loading import NotAskedThisPass, StillAsking, one_pass
 from arrt.library.sources.names import museum_name
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
 from arrt.persistence.errors import StorageFault
@@ -179,6 +179,17 @@ IDLE_SECONDS: Final[float] = 86_400.0
 #: The shortest wait between passes, so a retry falling due a moment from now is
 #: never a busy loop.
 _MIN_WAIT_SECONDS: Final[float] = 1.0
+
+#: How long the queue waits at most, after a pass that did not ask a work (its
+#: plugin still owed another work an answer, or the pass held the plugin back),
+#: before a pass looks again. Such a work is due by its clock, so without this
+#: the shortest wait applied and the queue passed once a second for as long as
+#: the plugin owed its answer, up to `DEADLINE_CEILING_SECONDS`. The owed call's
+#: end wakes the queue (`StillAsking.when_answered`); this bounds what a lost
+#: wake costs, and what a held-back plugin's next pass waits for. Five minutes:
+#: at most twelve passes over the longest call a plugin may owe, against 3,600
+#: at one a second, and a work at most five minutes late if the wake is lost.
+NOT_ASKED_RECHECK_SECONDS: Final[float] = 300.0
 
 #: What the queue's thread is called, in `journalctl` and in a stack dump, and
 #: what a test looks for to say it was or was not started.
@@ -426,6 +437,11 @@ class AcquisitionQueue:
         #: In memory only: after a restart a retried work simply waits its turn
         #: in acceptance order, which is the low-impact half of the ordering.
         self._front: list[str] = []
+        #: The works the last pass did not ask (`NotAskedThisPass`), each left
+        #: exactly as it was: due by its clock, and not woken by it
+        #: (`_seconds_until_due`). In memory only, as nothing about the work was
+        #: learnt: a restart's first pass asks each again.
+        self._not_asked: frozenset[str] = frozenset()
 
     # -- what a surface calls --------------------------------------------------
 
@@ -605,6 +621,16 @@ class AcquisitionQueue:
             fetching, pause = self._fetching, self._pause
         now = self._clock()
         entries = []
+        # Each plugin's museum asked once per listing: the owner the wiring
+        # hands in reads every plugin's state to name one, and a listing can
+        # hold thousands of failures at a handful of plugins.
+        museums: dict[str, str] = {}
+
+        def museum_of(plugin: str) -> str:
+            if plugin not in museums:
+                museums[plugin] = self._museum_of(plugin)
+            return museums[plugin]
+
         # Each state from the row `works_to_acquire` already read, rather than
         # through `state_of`, which reads it again: the listing is every work
         # owed, and at thousands of them the second read per work is most of
@@ -625,7 +651,7 @@ class AcquisitionQueue:
                     pause=pause,
                     wait=self._wait(work.queued, now, artwork.wikidata_qid),
                 )
-                entries.append(_entry(artwork.title, state, self._museum_of))
+                entries.append(_entry(artwork.title, state, museum_of))
         return QueueListing(pause=pause, entries=tuple(entries))
 
     def failed_states(self) -> tuple[AcquisitionState, ...]:
@@ -697,6 +723,7 @@ class AcquisitionQueue:
             due = self._in_turn([work for work in candidates if self._wait(work.queued, now, work.wikidata_qid) is _Wait.DUE])
             acquired = failed = gave_up = 0
             paused: QueuePause | None = None
+            not_asked: set[str] = set()
             # One pass for the plugins (`one_pass`): after three could-not-be-asked
             # answers in a row from one plugin, the rest of this pass does not ask
             # it, and each work it would have read is left exactly as it was.
@@ -709,7 +736,7 @@ class AcquisitionQueue:
                     except _Paused as halted:
                         paused = halted.pause
                         break
-                    except NotAskedThisPass:
+                    except NotAskedThisPass as refused:
                         # Nothing was asked, so nothing is counted or recorded, and
                         # the empty row `_attempt` writes first for a work that had
                         # none goes too: the work is left exactly as it was.
@@ -717,6 +744,11 @@ class AcquisitionQueue:
                             artwork_id=work.artwork_id
                         ):
                             self._store.remove_queued_acquisition(work.artwork_id)
+                        # Asked again when the plugin's owed call ends, which
+                        # wakes the queue, and at most after the recheck either way.
+                        not_asked.add(work.artwork_id)
+                        if isinstance(refused, StillAsking):
+                            refused.when_answered(self.nudge)
                         continue
                     if outcome is _Outcome.DONE:
                         acquired += 1
@@ -724,6 +756,8 @@ class AcquisitionQueue:
                         failed += 1
                     else:
                         gave_up += 1
+            with self._state_lock:
+                self._not_asked = frozenset(not_asked)
             if paused is None:
                 # Every attempt got past the deployment's checks, or nothing was
                 # due for a pause to hold back: either way it is over.
@@ -980,15 +1014,24 @@ class AcquisitionQueue:
         return sorted(due, key=lambda work: rank.get(work.artwork_id, len(rank)))
 
     def _seconds_until_due(self) -> float:
-        """How long `wait_for_work` sleeps: a paused queue's interval, or until a clock next makes a work due (`_standing`)."""
+        """How long `wait_for_work` sleeps: a paused queue's interval, or until a clock next makes a work due (`_standing`).
+
+        A work the last pass did not ask is due by its clock and no pass can ask
+        it until its plugin answers, so its clock is not read: the owed call's
+        end wakes the queue, and `NOT_ASKED_RECHECK_SECONDS` bounds the wait.
+        """
         if self.pause is not None:
             return PAUSED_RETRY_SECONDS
         now = self._clock()
+        with self._state_lock:
+            not_asked = self._not_asked
         upcoming = [
             at
             for work in self._store.works_to_acquire()
-            if (at := self._standing(work.queued, now, work.wikidata_qid)[1]) is not None
+            if work.artwork_id not in not_asked and (at := self._standing(work.queued, now, work.wikidata_qid)[1]) is not None
         ]
+        if not_asked:
+            upcoming.append(now + timedelta(seconds=NOT_ASKED_RECHECK_SECONDS))
         if not upcoming:
             return IDLE_SECONDS
         return min(IDLE_SECONDS, max(_MIN_WAIT_SECONDS, (min(upcoming) - now).total_seconds()))
@@ -1212,6 +1255,7 @@ __all__ = [
     "ACQUISITION_QUEUE_THREAD_NAME",
     "GIVE_UP_AFTER",
     "IDLE_SECONDS",
+    "NOT_ASKED_RECHECK_SECONDS",
     "OUTCOME_CAUSES",
     "PAUSED_RETRY_SECONDS",
     "RETRY_AFTER",

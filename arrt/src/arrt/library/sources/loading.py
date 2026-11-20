@@ -402,17 +402,36 @@ class StillAsking(NotAskedThisPass):
     it was, and the image pool answers it as this source not asked, writing no
     search. Nothing is known of what the plugin holds for this work, and the
     plugin has said nothing wrong, so nothing is counted against it either.
+
+    **When the later pass comes** is the caller's to arrange, and the refusal
+    carries what it needs: `when_answered` calls back once the plugin owes
+    fewer than `OWED_CALLS_PER_PLUGIN` calls, the moment its containment sees
+    the owed call end (it answers, or its deadline passes). A refusal made
+    without a containment to ask (the image pool's own, before it asks) has
+    none, and says so by answering False.
     """
 
-    def __init__(self, plugin: str, owed: int) -> None:
+    def __init__(self, plugin: str, owed: int, *, when_answered: Callable[[Callable[[], None]], None] | None = None) -> None:
         self.plugin = plugin
         self.owed = owed
+        self._when_answered = when_answered
         Exception.__init__(
             self,
             f"the {museum_name(plugin)} plugin was not asked about this work: it is still answering "
             f"{'an earlier work' if owed == 1 else f'{owed} earlier works'} whose run did not wait for it, and a later "
             "pass asks it about this one",
         )
+
+    def when_answered(self, callback: Callable[[], None]) -> bool:
+        """Call `callback` once the plugin owes no call that refuses this one (now, if it already does not); whether it will.
+
+        Called on whichever thread ends the owed call, so `callback` must not
+        block: the acquisition queue's `nudge` sets an event and returns.
+        """
+        if self._when_answered is None:
+            return False
+        self._when_answered(callback)
+        return True
 
 
 class PassHold:
@@ -511,6 +530,11 @@ def one_pass(*, after: int = HOLD_BACK_AFTER) -> Iterator[PassHold]:
             )
 
 
+def in_a_pass() -> bool:
+    """Whether the calling code is within a pass (`one_pass`): what decides whether an owed call holds the next back."""
+    return _PASS.get() is not None
+
+
 def _pass_ask(plugin: str) -> None:
     """Raise `NotAskedThisPass` when the pass the caller is in holds `plugin` back; nothing outside a pass."""
     hold = _PASS.get()
@@ -606,6 +630,12 @@ class _Call:
         return not self.finished and not self.abandoned and self.stopped_waiting is not None and self.stopped_waiting()
 
 
+def _call_back(listening: Iterable[Callable[[], None]]) -> None:
+    """Tell each refused caller listening (`_Calls.when_none_owed`) that the plugin owes fewer calls; outside the lock."""
+    for callback in listening:
+        callback()
+
+
 class _Calls:
     """One plugin's calls, each run on a thread of its own and waited for no longer than its deadline.
 
@@ -626,7 +656,12 @@ class _Calls:
     on. While `OWED_CALLS_PER_PLUGIN` such calls run, a pass's call (a finder's
     search or a reader's read, within `one_pass`: `admit`) is not started, and
     raises `StillAsking`. Outside a pass nothing is refused for it, as nothing
-    is held back.
+    is held back: what multiplies calls at one museum is a pass going from
+    work to work, and a question asked outside one (a look, a preview, Ask) is
+    one at a time already, a look's to each source on one thread. The refused
+    caller hears when the owed call ends (`StillAsking.when_answered`): each
+    call that stops being owed, by answering or by passing its deadline, calls
+    back whoever is listening once fewer than the bound are owed.
     """
 
     def __init__(self, plugin: str, limit: int, wait_for: WaitFor = _wait) -> None:
@@ -637,28 +672,63 @@ class _Calls:
         self._stragglers = 0
         #: Every call started and not yet ended, past its deadline included, by its identity.
         self._calls: dict[int, _Call] = {}
+        #: Who a refusal told to wait for fewer owed calls (`when_none_owed`), each once.
+        self._listening: list[Callable[[], None]] = []
 
     def owed(self) -> int:
         """How many of the plugin's calls are owed now: inside their deadline, their caller no longer waiting."""
         with self._lock:
-            return sum(1 for call in self._calls.values() if call.owed())
+            return self._owed()
+
+    def _owed(self) -> int:
+        """`owed`, under the lock its caller holds."""
+        return sum(1 for call in self._calls.values() if call.owed())
+
+    def when_none_owed(self, callback: Callable[[], None]) -> None:
+        """Call `callback` once fewer than `OWED_CALLS_PER_PLUGIN` calls are owed: at once if that is so now.
+
+        Checked and kept under the lock the calls end under, so a call ending
+        between a refusal and this registration still calls back: at once, here.
+        """
+        with self._lock:
+            if self._owed() >= OWED_CALLS_PER_PLUGIN:
+                if callback not in self._listening:
+                    self._listening.append(callback)
+                return
+        callback()
+
+    def _answered(self) -> list[Callable[[], None]]:
+        """Under the lock, after a call stopped being owed: the listeners to call back now, taken off the list."""
+        if not self._listening or self._owed() >= OWED_CALLS_PER_PLUGIN:
+            return []
+        listening, self._listening = self._listening, []
+        return listening
 
     def admit(self, operation: str) -> _Call:
         """A call a pass may hold back (a search or a read), counted as under way before it starts; or `StillAsking`.
 
         Within a pass, a call is not started while the plugin owes
-        `OWED_CALLS_PER_PLUGIN` calls, and raises `StillAsking`, journalled with
-        how many it owes. Checked and counted under one lock, so two callers
-        (a run's worker and the queue's pass) cannot both see none owed and
-        start two. The call it answers must be handed to `run` at once.
+        `OWED_CALLS_PER_PLUGIN` calls, and raises `StillAsking`. Checked and
+        counted under one lock, so two callers (a run's worker and the queue's
+        pass) cannot both see none owed and start two. The call it answers must
+        be handed to `run` at once.
+
+        Journalled here (`source.plugin_still_asking`) only for a caller that
+        waits for every call it makes, the queue's pass: a run's worker (one
+        that says when it stops waiting) hands the refusal to its run, which
+        journals it as every refusal of a run is journalled, naming the work
+        (`image_pool.still_asking`), so one refusal is one line.
         """
         pending = _Call(stopped_waiting=_STOPPED_WAITING.get())
         with self._lock:
-            owed = sum(1 for each in self._calls.values() if each.owed())
+            owed = self._owed()
             if owed < OWED_CALLS_PER_PLUGIN or _PASS.get() is None:
                 self._calls[id(pending)] = pending
                 return pending
             under_way = len(self._calls)
+        refused = StillAsking(self._plugin, owed, when_answered=self.when_none_owed)
+        if pending.stopped_waiting is not None:
+            raise refused
         log.info(
             "source plugin %s was not asked during %s on this pass: %d of its calls %s owed to a run that did not "
             "wait; the work is left as it was",
@@ -674,7 +744,7 @@ class _Calls:
                 "under_way": under_way,
             },
         )
-        raise StillAsking(self._plugin, owed)
+        raise refused
 
     def run(self, operation: str, deadline: float, call: Callable[[], _Answer], *, admitted: _Call | None = None) -> _Answer:
         """What `call` answers, or raises, if it does so within `deadline` seconds; else `_DeadlinePassed`.
@@ -704,7 +774,9 @@ class _Calls:
                 late = pending.abandoned
                 if late:
                     self._stragglers -= 1
+                answered = self._answered()
             pending.done.set()
+            _call_back(answered)
             if late:
                 ended = "answered" if pending.error is None else f"raised {describe_exception(pending.error)}"
                 log.warning(
@@ -724,6 +796,9 @@ class _Calls:
                 if not pending.finished:
                     pending.abandoned = True
                     self._stragglers += 1
+                # Past its deadline it is a straggler, and no longer owed.
+                answered = self._answered() if pending.abandoned else []
+            _call_back(answered)
             if pending.abandoned:
                 raise _DeadlinePassed(f"it did not answer within {deadline:g} seconds")
         if pending.error is not None:

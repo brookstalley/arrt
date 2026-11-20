@@ -34,6 +34,7 @@ from arrt.library.acquisition.queue import (
     ACQUISITION_QUEUE_THREAD_NAME,
     GIVE_UP_AFTER,
     IDLE_SECONDS,
+    NOT_ASKED_RECHECK_SECONDS,
     OUTCOME_CAUSES,
     PAUSED_RETRY_SECONDS,
     RETRY_RULES,
@@ -47,6 +48,7 @@ from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResu
 from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
+from arrt.library.sources.loading import NotAskedThisPass
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import (
@@ -826,6 +828,22 @@ class TestThePause:
 
         assert queue._seconds_until_due() == IDLE_SECONDS
 
+    def test_a_due_retry_the_pass_held_its_plugin_back_from_waits_the_recheck_not_a_second(
+        self, queue, work, store, fetcher, clock
+    ):
+        """A held-back plugin's work is left due by its clock, which is no reason to pass again at once."""
+        artwork_id = work()
+        row = QueuedAcquisition(
+            artwork_id=artwork_id, failures=1, next_try_at=clock.now - timedelta(minutes=5), detail="the museum answered 500"
+        )
+        store.set_queued_acquisition(row)
+        fetcher.answers = [NotAskedThisPass("gallery_site", 3)]
+
+        assert queue.run().failed == 0
+
+        assert queue._seconds_until_due() == NOT_ASKED_RECHECK_SECONDS
+        assert store.get_queued_acquisition(artwork_id) == row
+
     def test_a_work_given_up_on_never_wakes_the_queue(self, queue, work, store, clock):
         artwork_id = work()
         store.set_queued_acquisition(
@@ -1399,3 +1417,47 @@ class TestFailuresGroupedByOutcomeAndPlugin:
             ("the bytes are no image", None),
             ("the museum answered 500", None),
         ]
+
+
+def test_a_listing_names_each_plugins_museum_once_however_many_of_its_works_failed(
+    services, service, store, sources, monkeypatch
+):
+    """Naming a museum reads every plugin's state (`HealthService.museum_of`), so a listing names each once, not per work."""
+    failed = {"tate": 5, "met": 3}
+    for plugin, count in failed.items():
+        for n in range(count):
+            artwork = service.add_artwork(title=f"{plugin} {n}")
+            service.add_source(
+                artwork_id=artwork.id,
+                url=f"https://{plugin}.example/{artwork.id}",
+                provider=plugin,
+                source_class=SourceClass.INSTITUTIONAL,
+                acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+                rights_status=RightsStatus.PUBLIC_DOMAIN,
+                is_primary=True,
+            )
+            store.set_queued_acquisition(
+                QueuedAcquisition(
+                    artwork_id=artwork.id,
+                    failures=1,
+                    detail=f"the {plugin} plugin could not read this source",
+                    outcome=FetchOutcome.UNASKED,
+                    plugin=plugin,
+                    failed_at=_A_MOMENT,
+                )
+            )
+    observed = []
+    observe = sources.observe
+
+    def counted():
+        observed.append(1)
+        return observe()
+
+    monkeypatch.setattr(sources, "observe", counted)
+
+    causes = services.acquisition_queue.listing().causes
+
+    assert sorted((group.plugin, len(group.entries)) for group in causes) == sorted(failed.items())
+    assert len(observed) == len(
+        failed
+    ), f"{len(observed)} readings of every plugin for one listing of {sum(failed.values())} failures"
