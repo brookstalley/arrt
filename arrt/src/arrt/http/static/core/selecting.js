@@ -75,6 +75,10 @@ async function worksOfFilter(filter) {
  *     results, a Topic's). Not offered by default: a theme's page asks for a
  *     selection too, and has a *Hang…* of its own, which hangs the theme, so a
  *     second one beside it on that page would name two acts alike;
+ *   - `hangOn`: `{ wall_id, name }` when the works are being chosen for one
+ *     wall (Artworks, opened from that wall's card): *Hang…* names it and hangs
+ *     there without asking which (`hangOnAWall`'s `wallId`), and `onHung(build)`
+ *     is told instead of the bar saying "Hung…", since the page leaves;
  *   - `onAdded(theme, added)`, `onArchived(ids)`, `onRemoved(id)` and
  *     `afterRemoval({ removed, complete })`: what the page does about an act's
  *     outcome, since only it knows its tiles and its counts.
@@ -128,7 +132,14 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   // *Hang…* puts the ticked works on a wall until something else is hung there
   // (`core/selection.js`). It names no count, as *Add to theme…* does not: the
   // question it opens does, and says how many were left out.
-  const hang = held && held.hang ? el("button", { class: "action quiet selection-hang", type: "button", "aria-haspopup": "dialog", text: "Hang…" }) : null;
+  //
+  // Chosen for one wall (`held.hangOn`, from that wall's card on Walls), it names
+  // the wall, as the page's note above does, since it asks no longer which.
+  const hangOn = held && held.hang ? held.hangOn || null : null;
+  const hang =
+    held && held.hang
+      ? el("button", { class: "action quiet selection-hang", type: "button", "aria-haspopup": "dialog", text: hangOn ? `Hang on ${hangOn.name}…` : "Hang…" })
+      : null;
   // Whether each ticked work can hang (`canHang`), by id, kept as the ticks are drawn.
   const hangable = new Map();
   const archive = held ? el("button", { class: "action quiet selection-archive", type: "button" }) : null;
@@ -353,7 +364,15 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
         artworkIds: ids,
         title: works,
         leftOut,
+        wallId: hangOn ? hangOn.wall_id : null,
         then: (build) => {
+          // Chosen for a wall: the page takes the curator back to it, where its
+          // card says what it now hangs and what of it cannot be shown.
+          if (hangOn && held.onHung) {
+            clearAll();
+            held.onHung(build);
+            return;
+          }
           const stuck = build.exclusions.length;
           const details = [...new Set(build.exclusions.map((exclusion) => exclusion.detail))].join(" ");
           done(
@@ -453,6 +472,15 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     toggle,
     bar,
     selecting: () => selecting,
+
+    /* Turn the mode on as *Select* would, for a page that opens already
+     * selecting (Artworks, choosing works for a wall). Called once the page is
+     * drawn, since the mode marks the toolbar that holds it. */
+    start() {
+      if (selecting) return;
+      selecting = true;
+      apply();
+    },
 
     /* The tick for one held work. `className` places it: Artworks' tiles lay it
      * over the picture. A work arriving on a later page while *Select all* is
