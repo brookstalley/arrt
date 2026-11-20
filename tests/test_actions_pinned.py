@@ -154,13 +154,27 @@ def jobs_that_can_write_issues_while_holding_a_secret(workflow: dict) -> list[st
     return found
 
 
-def test_no_job_that_holds_a_secret_can_write_issues():
+def writers_holding_a_secret_in(directory: pathlib.Path) -> list[str]:
+    """Each job that can write issues while holding a secret, in every workflow GitHub would run: `.yml` and `.yaml`."""
     offenders = []
-    for path in sorted((GITHUB / "workflows").glob("*.yml")):
+    for path in sorted([*directory.glob("*.yml"), *directory.glob("*.yaml")]):
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         offenders += [f"{path.name}: {job}" for job in jobs_that_can_write_issues_while_holding_a_secret(workflow)]
+    return offenders
+
+
+def test_no_job_that_holds_a_secret_can_write_issues():
+    offenders = writers_holding_a_secret_in(GITHUB / "workflows")
 
     assert offenders == [], "\n".join(offenders)
+
+
+def test_a_yaml_workflow_is_read_for_a_writer_holding_a_secret(tmp_path):
+    """GitHub runs `.yaml` workflows too, so a writer holding a key in one is found as in a `.yml`."""
+    paid = {"permissions": {"issues": "write"}, "steps": [{"env": {"K": "${{ secrets.OPENROUTER_API_KEY }}"}}]}
+    (tmp_path / "nightly.yaml").write_text(yaml.safe_dump({"jobs": {"paid": paid}}), encoding="utf-8")
+
+    assert writers_holding_a_secret_in(tmp_path) == ["nightly.yaml: paid (reads OPENROUTER_API_KEY)"]
 
 
 def test_the_drift_workflow_still_has_a_job_that_can_write_issues():
