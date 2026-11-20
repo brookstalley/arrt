@@ -13,8 +13,8 @@
  *
  * **It holds no spend record.** `information-architecture.md` said it did, and
  * `services/health.py` deliberately leaves spend off this reading; a Get's cost
- * is on its own page, and the month's spend is the sidebar's (audit
- * 2026-11-19, F12).
+ * is on its own page, and the months' spend is System › Spend's, which this page
+ * links to (audit 2026-11-19, F12; wave 2b, chunk 36).
  *
  * **Status, under System**, where every *arr app keeps its health checks
  * (`information-architecture.md` § The *arr layout). The top-bar indicator and
@@ -523,6 +523,14 @@ function watchesPanel(health) {
   ]);
 }
 
+/* The way to what was spent: Status holds no spend, and says where it is. */
+function spendPanel() {
+  return el("div", { class: "panel spend-reading" }, [
+    el("h2", { text: "Spend" }),
+    el("p", {}, [link({ view: "spend" }, { class: "action quiet", text: "System › Spend" })]),
+  ]);
+}
+
 export async function viewHealth(generation) {
   const [health, yields] = await Promise.all([api("/api/health"), sourceYields()]);
   const titles = await showingTitles(Array.isArray(health.walls) ? health.walls : []);
@@ -545,6 +553,7 @@ export async function viewHealth(generation) {
     failedFetchesPanel(health),
     sourcesPanel(health, yields),
     watchesPanel(health),
+    spendPanel(),
     picturesPanel(health),
     el("div", { class: "panel" }, [
       el("h2", { text: "Backup" }),

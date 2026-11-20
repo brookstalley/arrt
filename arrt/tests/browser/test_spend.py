@@ -11,7 +11,7 @@ budget is spent, in the server's words.
 
 import pytest
 from conftest import Ui
-from payloads import a_candidate, a_run, a_run_view, an_estimate
+from payloads import a_candidate, a_run, a_run_view, a_spend, a_spend_history, an_estimate
 
 from arrt.http.models import BudgetOut, CostTiersOut
 from arrt.persistence.discovery_records import RunStatus
@@ -97,18 +97,23 @@ def test_the_real_server_without_a_key_says_nothing_spends(ui):
 
 
 @pytest.mark.parametrize("state", ["known", "uncapped", "not_configured", "unavailable"])
-def test_the_budget_line_is_a_link_to_the_history_of_gets_in_every_state(ui, state):
-    """Checking spend has somewhere to go (audit-6 finding 10): History, filtered to Gets."""
+def test_the_budget_line_is_a_link_to_the_spend_page_in_every_state(ui, state):
+    """Checking spend has somewhere to go (audit-6 finding 10): System › Spend, since Chunk 36 of wave 2b.
+
+    It was History filtered to Gets until a page of what was spent existed.
+    """
     ui.serve("**/api/budget", a_budget(state, remaining="12.4" if state == "known" else None))
+    ui.serve("**/api/spend", a_spend_history())
     ui.open("#collection")
     line = ui.page.locator("#sidebar .budget a.budget-line")
     expect(line).to_have_count(1)
-    expect(line).to_have_attribute("href", "#history?kind=gets")
+    expect(line).to_have_attribute("href", "#spend")
 
     line.click()
 
-    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
-    expect(ui.page.locator("#view ul.history-kinds a[aria-current='page']")).to_have_text("Gets")
+    ui.page.wait_for_function("() => window.location.hash === '#spend'")
+    expect(ui.page.locator("#view h1")).to_have_text("Spend")
+    expect(ui.page.locator("#sidebar a[data-view='spend'][aria-current='page']")).to_have_text("Spend", use_inner_text=True)
 
 
 def test_the_budget_line_is_a_tab_stop_after_the_sidebar_s_pages(ui):
@@ -120,7 +125,7 @@ def test_the_budget_line_is_a_tab_stop_after_the_sidebar_s_pages(ui):
     ui.page.keyboard.press("Tab")
 
     focused = ui.page.evaluate("() => document.activeElement.className + ' ' + document.activeElement.getAttribute('href')")
-    assert focused == "budget-line #history?kind=gets"
+    assert focused == "budget-line #spend"
 
 
 def test_following_the_budget_line_on_a_phone_closes_the_drawer_it_was_in(ui):
@@ -132,7 +137,7 @@ def test_following_the_budget_line_on_a_phone_closes_the_drawer_it_was_in(ui):
 
     ui.page.click("#sidebar .budget a.budget-line")
 
-    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
+    ui.page.wait_for_function("() => window.location.hash === '#spend'")
     expect(ui.page.locator("#sidebar")).not_to_have_attribute("data-open", "")
 
 
@@ -183,6 +188,67 @@ def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):
     ui.page.wait_for_function("() => document.querySelector('#sidebar .budget-line').textContent === '$1.00 left this month'")
 
 
+# -- a Get's cost, in the server's sentence ---------------------------------------
+
+
+def _cost_row(ui):
+    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd")
+
+
+def _a_finished_get(ui, spend, *, own="0.0134"):
+    """A finished Get whose run record says `own` and whose family total is `spend`, as the server answers both."""
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True, approval_required=False, actual_cost_usd=own)
+    ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run, works=[a_candidate()]))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", spend)
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+
+
+@pytest.mark.parametrize(
+    ("spend", "own", "said"),
+    [
+        pytest.param(
+            a_spend(cost_usd="0.25", unknown_cost_calls=2),
+            "0.0134",
+            "$0.01, at least $0.25, and 2 calls whose cost is unknown with the Gets that retried it",
+            id="retries cost more and two calls are unknown",
+        ),
+        pytest.param(
+            a_spend(cost_usd="0.0134", unknown_cost_calls=1),
+            "0.0134",
+            "at least $0.0134, and 1 call whose cost is unknown",
+            id="the same figure, one call unknown: the sentence stands for the whole",
+        ),
+        pytest.param(
+            a_spend(cost_usd="0", unknown_cost_calls=3),
+            None,
+            "at least $0.00, and 3 calls whose cost is unknown",
+            id="nothing recorded of its own, three calls unknown",
+        ),
+        pytest.param(
+            a_spend(cost_usd="0.25", unknown_cost_calls=1),
+            None,
+            "None recorded for this Get, at least $0.25, and 1 call whose cost is unknown with the Gets that retried it",
+            id="nothing of its own, its retries cost and one call is unknown",
+        ),
+    ],
+)
+def test_a_gets_cost_is_said_in_the_servers_sentence_when_a_call_is_unknown(ui, spend, own, said):
+    """Chunk 36: no screen words a total from `cost_usd` itself; the server's `summary` says "at least"."""
+    _a_finished_get(ui, spend, own=own)
+
+    expect(_cost_row(ui)).to_have_text(said, use_inner_text=True)
+
+
+def test_a_gets_cost_with_no_unknown_call_says_no_at_least(ui):
+    """The paired negative, with a positive anchor: the row is there and says its figure."""
+    _a_finished_get(ui, a_spend(cost_usd="0.25"))
+
+    expect(_cost_row(ui)).to_have_text("$0.01, $0.25 with the Gets that retried it", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("at least", use_inner_text=True)
+
+
 # -- tiers -----------------------------------------------------------------------
 
 
@@ -219,7 +285,7 @@ def test_no_other_run_offers_approve_or_decline(ui, status):
     terminal = status is not RunStatus.RESOLVING_IMAGES
     run = a_run(status=status.value, is_terminal=terminal, approval_required=False)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run, works=[a_candidate()]))
-    ui.serve(f"**/api/runs/{RUN_ID}/spend", {"scope": "run_family", "cost_usd": "0", "run_id": RUN_ID})
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0"))
     ui.open(f"#get/{RUN_ID}")
     # The run's own page is drawn when it says what was asked: only then does a missing act mean it was left off.
     expect(ui.view).to_contain_text("Something by Dalí", use_inner_text=True)

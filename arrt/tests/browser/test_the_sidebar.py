@@ -50,7 +50,7 @@ PAGES = {
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
     "Settings": ["Players", "Sources", "Watches", "General", "Taste"],
-    "System": ["Status"],
+    "System": ["Status", "Spend"],
 }
 
 #: Every sidebar page: its route, and a heading that proves it painted.
@@ -74,6 +74,7 @@ SIDEBAR_PAGES = [
     ("taste", "Taste"),
     ("wanted", "Wanted"),
     ("health", "Status"),
+    ("spend", "Spend"),
 ]
 
 SECTION_LINKS = "nav.sidebar a.section-link"

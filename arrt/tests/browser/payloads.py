@@ -34,9 +34,14 @@ from arrt.http.models import (
     RunTallyOut,
     RunViewOut,
     SearchUsageOut,
+    SpendByCategoryOut,
+    SpendHistoryOut,
+    SpendMonthOut,
+    SpendOnGetOut,
     SpendOut,
     ThemeDetailOut,
     ThemeOut,
+    UnknownCostCallOut,
     VerdictOut,
     WorkOut,
     WorkPageOut,
@@ -474,3 +479,77 @@ def a_look(qid, sources=(), pictures=(), *, state=None, note=None, held=()) -> d
         sources=list(sources),
         pictures=list(pictures),
     ).model_dump()
+
+
+def _spent(cost_usd, unknown_cost_calls) -> str:
+    """The server's sentence for a figure, from the service's own function and never typed here."""
+    return SpendTotal(cost_usd=Decimal(cost_usd), unknown_calls=unknown_cost_calls).words
+
+
+def a_category_spend(category="discovery_tokens", *, calls=1, cost_usd="0.0213", unknown_cost_calls=0) -> SpendByCategoryOut:
+    """One row of `GET /api/spend`'s `categories`: what one kind of spending cost in a month."""
+    return SpendByCategoryOut(
+        category=category,
+        calls=calls,
+        cost_usd=cost_usd,
+        unknown_cost_calls=unknown_cost_calls,
+        summary=_spent(cost_usd, unknown_cost_calls),
+    )
+
+
+def a_get_spend(
+    run_id="run-under-test",
+    *,
+    kind="discovery",
+    intent="Something by Dalí",
+    watch_id=None,
+    started_at="2026-11-05T10:00:00+00:00",
+    calls=1,
+    cost_usd="0.0213",
+    unknown_cost_calls=0,
+) -> SpendOnGetOut:
+    """One row of `GET /api/spend`'s `gets`: what one Get spent itself in a month."""
+    return SpendOnGetOut(
+        run_id=run_id,
+        kind=kind,
+        intent=intent,
+        watch_id=watch_id,
+        started_at=started_at,
+        calls=calls,
+        cost_usd=cost_usd,
+        unknown_cost_calls=unknown_cost_calls,
+        summary=_spent(cost_usd, unknown_cost_calls),
+    )
+
+
+def an_unknown_call(
+    spend_id="spend-1", *, category="discovery_tokens", occurred_at="2026-11-05T10:01:00+00:00", model_id="the-model", run_id=None
+) -> UnknownCostCallOut:
+    """One row of `GET /api/spend`'s `unknown_calls`: a call sent that never said what it cost."""
+    return UnknownCostCallOut(spend_id=spend_id, category=category, occurred_at=occurred_at, model_id=model_id, run_id=run_id)
+
+
+def a_spend_month(year=2026, month=11, *, categories=(), gets=(), unknown_calls=()) -> SpendMonthOut:
+    """One month of `GET /api/spend`: its total is its categories', in the server's sentence, as the server sums it.
+
+    The unknown calls listed must be the ones the categories count, so a month
+    that lists two and counts one cannot be built: no server says it.
+    """
+    cost = sum((Decimal(each.cost_usd) for each in categories), Decimal(0))
+    unknown = sum(each.unknown_cost_calls for each in categories)
+    assert len(unknown_calls) == unknown, f"the categories count {unknown} unknown calls and the month lists {len(unknown_calls)}"
+    return SpendMonthOut(
+        year=year,
+        month=month,
+        cost_usd=str(cost),
+        unknown_cost_calls=unknown,
+        summary=_spent(cost, unknown),
+        categories=list(categories),
+        gets=list(gets),
+        unknown_calls=list(unknown_calls),
+    )
+
+
+def a_spend_history(*months, older_months=0) -> dict:
+    """`GET /api/spend`: the months newest first; with none given, the current month with nothing spent in it."""
+    return SpendHistoryOut(months=list(months) or [a_spend_month()], older_months=older_months).model_dump(mode="json")
