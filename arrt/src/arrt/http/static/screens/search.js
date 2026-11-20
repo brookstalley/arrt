@@ -125,6 +125,7 @@ export async function viewSearch(generation) {
     held: themes
       ? {
           themes: offeredThemes(themes),
+          hang: true,
           filter: null,
           total: 0,
           // An archived work leaves circulation, and so leaves the Held group.
@@ -343,7 +344,14 @@ function workRows(library, found, selection) {
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
         artworkId: isHeld ? work.held_artwork_ids[0] : null,
         box: isHeld
-          ? selection.heldBox({ artwork_id: work.held_artwork_ids[0], title: named(work.title, work.qid), artist: work.creator })
+          ? selection.heldBox({
+              artwork_id: work.held_artwork_ids[0],
+              title: named(work.title, work.qid),
+              artist: work.creator,
+              // Whether *Hang…* may send it: the search names the held work that
+              // has a picture, so this one has one when it is that one.
+              image: { available: work.pictured_artwork_id === work.held_artwork_ids[0] },
+            })
           : gettable(work)
             ? selection.registryBox(work.qid, named(work.title, work.qid))
             : null,

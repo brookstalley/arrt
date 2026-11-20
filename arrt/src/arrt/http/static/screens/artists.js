@@ -162,6 +162,7 @@ async function oneArtist(artistId, generation) {
     held: works.works.length
       ? {
           themes: offeredThemes(themes),
+          hang: true,
           filter: worksFilterBody("", null, null, { artistId, status: "accepted" }),
           total: works.total,
           // Archived works leave circulation, and so leave *In your library*.

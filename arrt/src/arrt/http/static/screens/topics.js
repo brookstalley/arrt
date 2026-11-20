@@ -336,6 +336,7 @@ function topicSelection(heldWorks, grid, themes, name) {
       themes && heldWorks.length
         ? {
             themes: offeredThemes(themes),
+            hang: true,
             filter: null,
             total: 0,
             // Archived works leave circulation, and so leave *In your library*.

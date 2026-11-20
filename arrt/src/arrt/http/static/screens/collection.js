@@ -876,6 +876,7 @@ export async function viewCollection(generation) {
     held: {
       themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
       shownTheme,
+      hang: true,
       filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall(), shown: shownPeriod() }),
       total: page.total,
       onAdded: (into, added) => moveThemeCount(into, added),
