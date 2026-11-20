@@ -147,7 +147,7 @@ def test_the_package_words_the_player_states_from_1_3_0_and_the_server_names_the
     """Holds the parametrised test above to something: it has no case until the package states the Player's words.
 
     Before 1.3.0 the package says nothing of a Player's states, so the server's
-    keys are the plan's (`build-plan-audit-wave-2b.md` § Goals); from 1.3.0 the
+    keys are its own; from 1.3.0 the
     package must state them, and the same five.
     """
     released = tuple(int(part) for part in importlib.metadata.version("arrt-contract").split(".")[:3])

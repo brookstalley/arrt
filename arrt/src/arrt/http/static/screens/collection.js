@@ -1171,8 +1171,8 @@ function railContents(page, chosen) {
 }
 
 /* The way past the filters, for a keyboard: the rail is about eighty buttons
- * on a library of any size, and the first work comes after all of them
- * (audit-6 22). It is the rail's first stop, drawn only while it has focus
+ * on a library of any size, and the first work comes after all of them.
+ * It is the rail's first stop, drawn only while it has focus
  * (`.skip-filters`), and it puts the keyboard on the works themselves, so the
  * next Tab is the first tile. Like the page's own skip link it leaves the
  * address alone: the router would read its `href` as a page.

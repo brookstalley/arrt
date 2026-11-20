@@ -1,7 +1,7 @@
-"""System › Spend, in a real browser (Chunk 36 of wave 2b).
+"""System › Spend, in a real browser.
 
 What was spent, month by month, where it went, which Gets spent it, and the
-calls whose cost nobody was told (Chunk 35's), each said in the server's own
+calls whose cost nobody was told, each said in the server's own
 sentence. The page lists them apart from the rest, offers no limit to set, and
 works by keyboard alone and at phone width.
 

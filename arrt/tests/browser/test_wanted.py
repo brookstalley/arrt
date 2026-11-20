@@ -536,7 +536,7 @@ def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted
 
 
 def test_search_all_says_which_work_is_gone_and_still_starts_the_rest(ui, wanted, discovery, propose):
-    """A work gone between the listing and the press is not found (404 since Chunk 37), not a fault.
+    """A work gone between the listing and the press is not found (404), not a fault.
 
     Its sentence is shown where a refusal's is, and the Get after it still starts.
     The answer served for the first Get is the server's own for a candidate work

@@ -5,7 +5,7 @@ to `ServiceError` or to any class the source derives from it (`NotFound`,
 `FeedTooLarge`, `ThumbnailUnavailable`, and whatever is added later), and the
 `detail` of an `Unplayable`, which `themes.py` raises as it stands. The sites
 are derived from the source on every run, never listed by hand, so a refusal
-added tomorrow is read tomorrow. Chunk 37 of `build-plan-audit-wave-2b.md`.
+added tomorrow is read tomorrow.
 
 1. **A not-found raised as a plain `ServiceError` is refused**, naming its site.
    `/api` answers a `NotFound` with 404 and a plain `ServiceError` with 400
@@ -23,7 +23,7 @@ module-level constant it names (`_SCENE_NOT[...]`), and the returned text of a
 function it calls by name (`no_wall(...)`). A message the source cannot resolve
 (`str(exc)`, `answer.detail`) is not read at that site; where it is built, it is.
 
-3. **No sentence a person reads, built anywhere, says it either** (Chunk 64, the
+3. **No sentence a person reads, built anywhere, says it either** (the
    section at the end of this file): every prose string in every module, minus
    documentation, a logger's arguments, the start-up refusals and a few reasoned
    sentences. That section says what it reads, what it leaves out and how it knows,
@@ -236,7 +236,7 @@ def test_no_refusal_names_the_catalogue_a_collection_or_a_playlist(refusal):
 
 # -- the sentences a person reads, wherever they are built -----------------------
 #
-# Chunk 64. The guards above read refusals. Five other sentences a person reads on a screen
+# The guards above read refusals. Five other sentences a person reads on a screen
 # (Status's description of a household with no wall, the notice after accepting a work the
 # Library nearly holds, the backup trouble and its panel, the fetch queue's reason for pausing)
 # said "the catalogue" after the refusals stopped, because nothing read them. This reads every

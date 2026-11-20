@@ -218,7 +218,7 @@ def test_retry_all_on_a_cause_no_work_holds_is_refused_with_why(http, accepted):
 
 
 def test_what_a_failed_fetch_said_reaches_the_work_and_its_cause_names_the_outcome_and_the_museum(http, accepted, store):
-    """Wave 2b, Chunk 32: works that could not be asked at one museum are one cause, however each was worded."""
+    """Works that could not be asked at one museum are one cause, however each was worded."""
     failed_at = datetime(2026, 11, 19, 9, 30, tzinfo=UTC)
     works = [accepted(f"Unasked {number}") for number in range(2)]
     for work, said in zip(works, ("Art Institute answered 503", "Art Institute took 240 s"), strict=True):

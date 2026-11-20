@@ -221,8 +221,8 @@ class SpendTotal:
         ("$1,234.56"), and to a hundredth of a cent below, where a month of mat
         calls lives.
 
-        **Something spent below the finest figure is never said as nothing**
-        (wave 2b, Chunk 66): rounded down it would read "$0.00", the words of a
+        **Something spent below the finest figure is never said as nothing**:
+        rounded down it would read "$0.00", the words of a
         month with no spend, and rounded up it would name a sum nobody was
         billed. It is "under $0.0001"; with calls whose cost is unknown, the
         floor is "more than $0.00".

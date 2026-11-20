@@ -390,8 +390,8 @@ def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_readi
     # off the household's screens: a Player reports, and the wall is still named.
     # Of a wall a Player shows, which is the study's case (the fixture's default).
     expect(panel("The study")).to_contain_text("No Player has ever reported for this wall.", use_inner_text=True)
-    # A wall no Player shows is a step, in the contract's word, since audit wave
-    # 2b (chunk 31); the sentence above was said of it too until then.
+    # A wall no Player shows is a step, in the contract's word, and the sentence
+    # above is not said of it.
     expect(panel("The hall").locator(".wall-state")).to_have_text(re.compile(r"No Player yet$"), use_inner_text=True)
     expect(panel("The hall")).not_to_contain_text("has ever reported", use_inner_text=True)
 
@@ -629,10 +629,10 @@ def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_r
     which is exactly the shape of silence an empty list would sail through.
 
     **Not well, and not a problem either** (the coordinator's ruling of
-    2026-11-20 in audit wave 2b, chunk 31): adding a wall is a step to take,
+    2026-11-20): adding a wall is a step to take,
     which the server counts no trouble for, so the badge carries no number and
     the indicator says the step. The words are the server's: its `setup_steps`
-    carries `no_wall` (chunk 40), and the indicator, the System link and Status
+    carries `no_wall`, and the indicator, the System link and Status
     each read that one entry, where the client once decided it from an empty
     `walls` and worded it itself ("No wall is recorded").
     """
@@ -659,16 +659,15 @@ def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_r
     expect(ui.page.locator("#view .troubles")).to_contain_text("Nothing needs attention.", use_inner_text=True)
 
 
-# -- one health model: the server's troubles, counted once (audit wave 2b, chunk 31) ----------
+# -- one health model: the server's troubles, counted once ----------------------------------
 
 
 def test_a_wall_no_player_shows_is_said_as_a_step_and_never_counted(ui, a_health_reading, a_wall_reading):
     """A wall no Player shows yet is a setup step (`unassigned`), never a fault, so it raises no count; and it is not well either.
 
-    Red until chunk 31: the indicator read the wall's absent report itself and
-    said "The study has not reported", with a 1 on the System link. Rewritten in
-    chunk 41 (it was `test_a_wall_no_player_shows_puts_nothing_on_the_top_bar_or_the_badge`,
-    and asserted the indicator read "Well" and the link "System: all well"): a
+    Neither "The study has not reported" with a 1 on the System link (the
+    indicator reading the wall's absent report itself), nor "Well" and "System:
+    all well": a
     household whose only open item is a step still to take is not well, so the
     indicator says the server's step, in the setup reading, and the link's name
     counts it apart from the problems.
@@ -737,11 +736,10 @@ def _failed_works(count):
 
 
 def test_failed_fetches_put_a_count_on_the_badge_and_status_opens_the_queue(ui, a_health_reading):
-    """Two thousand failed fetches once raised nothing (audit-6 3): now one trouble, linked to where they are retried.
+    """Two thousand failed fetches once raised nothing: now one trouble, linked to where they are retried.
 
-    Red until chunk 31, and red with the count removed: the indicator counted
-    walls, the backup, sources and Watches, and said "Well" over a queue of
-    failures.
+    Red with the count removed: an indicator that counted walls, the backup,
+    sources and Watches alone said "Well" over a queue of failures.
     """
     reading = a_health_reading(failed=_failed_works(3))
     assert [trouble["about"] for trouble in reading["troubles"]] == ["failed_fetches"]
@@ -771,7 +769,7 @@ def test_the_badge_the_top_bar_and_status_say_the_same_troubles(ui, a_health_rea
     fault, or dropped it, disagrees. Nothing here depends on how many troubles
     one cause makes: the expected values are read off the answer.
 
-    Chunk 41 added the second list: the troubles are the number on the badge and
+    Two lists: the troubles are the number on the badge and
     the top bar's sentence, the steps the top bar's second phrase, the badge's
     name ("and 1 step to finish") and Status's own list, never the other's.
     """
@@ -1192,9 +1190,8 @@ def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_tha
     expect(system_link(ui)).to_have_attribute("aria-label", "System: 2 problems")
     words = ui.page.locator("#status")
     expect(words).to_contain_text("The gallery source could not be loaded", use_inner_text=True)
-    # By the museum, as the server words its troubles (`services/health.py`):
-    # "The artic source …" until audit wave 2b (chunk 31), when the indicator
-    # began saying the server's words rather than its own.
+    # By the museum, as the server words its troubles (`services/health.py`),
+    # never "The artic source …": the indicator says the server's words, not its own.
     expect(words).to_contain_text("The Art Institute of Chicago source has faulted since startup", use_inner_text=True)
     expect(words).not_to_contain_text("commons", use_inner_text=True)
     expect(words).not_to_contain_text("Wikimedia Commons", use_inner_text=True)

@@ -447,7 +447,7 @@ def test_a_fifth_call_while_four_are_still_running_is_not_made_and_every_work_st
     """Two Gets, three works then two, because one Get is one pass.
 
     Since 2026-11-20 a pass stops asking a plugin after three could-not-be-asked
-    answers in a row (`one_pass`, Chunk 33), so one Get of five hung works makes
+    answers in a row (`one_pass`), so one Get of five hung works makes
     three calls and never reaches the fourth still running. The straggler bound
     is the process's, across passes: the second Get's first call is the fourth
     still running, and its second is the fifth, which is not made.
@@ -509,7 +509,7 @@ def test_a_reader_that_raises_is_a_fault_on_status_and_the_steady_work_still_arr
 
     The fault reaches the work as `faulted`, apart from could-not-be-asked, and
     waits for Arrt's next load of its plugins rather than the schedule: asking
-    the same plugin again cannot help (wave 2b, Chunk 32).
+    the same plugin again cannot help.
     """
     plugin.CONTROL.mode = "answers"
     plugin.CONTROL.misbehaving_holds = {TITLES[ONLY_THERE]}

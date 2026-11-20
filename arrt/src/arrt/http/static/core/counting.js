@@ -14,7 +14,7 @@
  */
 
 /* A count as a person reads it: "2,000", never "2000". The one way a number is
- * written in the browser (audit 2026-11-19, audit-6 16: "2,000 works" beside
+ * written in the browser (one number was written four ways: "2,000 works" beside
  * "Select all 2000 works", "Retry 2000" and "Not on any wall (1999)"), so a
  * sentence that prints a count says it through this, or through `counted`,
  * which does. `en-US` and not the browser's locale: the page is in English, and

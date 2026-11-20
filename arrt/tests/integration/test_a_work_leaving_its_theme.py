@@ -1,8 +1,8 @@
-"""A wall's history says a work left its theme, whichever way it left (audit wave 2b, Chunk 39).
+"""A wall's history says a work left its theme, whichever way it left.
 
 Until 2026-11-20 only *Not this one again*, answered *from this theme*, wrote
 `work.left_theme`, and only for the wall it was asked on. The MCP break removed
-that answer's `scope` (Chunk 45), so an agent now takes a work out of a theme
+that answer's `scope`, so an agent now takes a work out of a theme
 with the theme's Remove, which wrote nothing: a wall's history then said a work
 was hung and never that it left. Every way of taking a work out of a theme now
 writes one line per work for every wall the theme hangs on, from one place
@@ -133,7 +133,7 @@ async def test_art_theme_remove_over_mcp_writes_the_line_on_every_wall_the_theme
 async def test_not_again_over_mcp_keeps_the_work_off_every_wall_and_writes_that_not_that_it_left_its_theme(
     server_url, services, two_walls_one_theme
 ):
-    """`art_display(action='not_again')` keeps the work off every wall and leaves it in its theme (Chunk 45's break).
+    """`art_display(action='not_again')` keeps the work off every wall and leaves it in its theme (the MCP break).
 
     So the wall it was asked on says it was kept off (`work.excluded`), and no
     wall says it left its theme: that line is `art_theme(action='remove')`'s.

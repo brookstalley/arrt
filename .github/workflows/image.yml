@@ -7,13 +7,12 @@
 # differently from the pool's environment is caught before deploy. It is a Docker build of
 # about seven runner-minutes (pull request 446). The owner, 2026-11-20
 # (`.prawduct/owner-rulings.md`): "We should minimize CI and prioritize local tests. We are
-# almost out of ci minutes." So it no longer runs on a pull request into `develop`, not even
-# one that changes the Dockerfile or a lockfile, as it did until build-plan-audit-wave-2b's
-# Chunk 56.
+# almost out of ci minutes." So it does not run on a pull request into `develop`, not even
+# one that changes the Dockerfile or a lockfile.
 #
 # The pool runs the same stage too, since the owner granted this project the host executor
-# (2026-11-20, `.prawduct/owner-rulings.md`): the `image` suite in `.testament.toml`
-# (build-plan-audit-wave-2b's Chunk 65), run from a machine doing the work, never by CI,
+# (2026-11-20, `.prawduct/owner-rulings.md`): the `image` suite in `.testament.toml`,
+# run from a machine doing the work, never by CI,
 # whose key holds no owner secret (`docs/testing.md` § The image's test stage on the pool).
 # This workflow stays the release's own build of it, and the only place the built app image
 # meets a real Arrt Player.
@@ -21,7 +20,7 @@
 # What that leaves to a pull request into `main`, or to the `image` suite when someone runs
 # it, stated, since an ordinary pull request no longer builds the image:
 # - the one class the image caught that nothing else did, a test reading a file the image
-#   does not carry (wave 1's four tests on `.env.example`; Chunk 32's on
+#   does not carry (four tests reading `.env.example`, and one reading
 #   `docs/source-plugins.md`), is held on every pull request by a root test instead,
 #   `tests/test_the_image_carries_what_tests_read.py`, which reads the test stage's COPY
 #   lines against every path the server's tests and tools build from their own location;

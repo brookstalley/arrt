@@ -138,7 +138,7 @@ _EXPECTED_SCHEMA = {
         "selection_rationale",
         "last_fetch_status",
         "last_fetched_at",
-        # Widened with what the last fetch said, beside the coarse status (wave 2b, Chunk 32).
+        # Widened with what the last fetch said, beside the coarse status.
         "last_fetch_outcome",
     },
     "originals": {
@@ -186,7 +186,7 @@ _EXPECTED_SCHEMA = {
     # preparation (2026-10-02). A new table, so it reaches an older file by
     # `CREATE TABLE IF NOT EXISTS` and the legacy-file test below holds it to that.
     # Widened with what the last failed fetch said, its plugin, the item a work
-    # was settled under and when it last failed (wave 2b, Chunk 32).
+    # was settled under and when it last failed.
     "acquisition_queue": {
         "artwork_id",
         "failures",
@@ -199,7 +199,7 @@ _EXPECTED_SCHEMA = {
         "failed_at",
     },
     # The tables below were in the file before they were listed here; the check
-    # was a subset until 2026-11-19 (carried item C8). Each is an addition an
+    # was a subset until 2026-11-19. Each is an addition an
     # older release ignores.
     # A work's facets (subject, movement, ...), each with where it came from.
     "work_facets": {"id", "artwork_id", "kind", "value", "value_qid", "derivation", "source_note", "created_at"},

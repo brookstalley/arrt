@@ -205,8 +205,8 @@ def _opened_by_this_code(path, clock):
 #: dropped, the shape generation raised (a later release, which is this code with
 #: its generation one higher), or both. The file, the columns it loses, whether
 #: the generation rises, and the clause the sentence must carry. A rise is said
-#: as one, "raises ... from N to M", where 2a's sentence said "drops catalogue
-#: shape generation N" (carried item C12).
+#: as one, "raises ... from N to M", never "drops catalogue shape generation
+#: N", which reads as the generation falling.
 _RISE = f"raises the catalogue shape generation from {file.SCHEMA_GENERATION} to {file.SCHEMA_GENERATION + 1}"
 REPLACED = {
     "a dropped column": (

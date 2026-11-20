@@ -480,7 +480,7 @@ def test_the_fetches_section_says_what_it_holds_before_its_parts(ui):
     assert order[:3] == ["H2", "summary", "H3"]
 
 
-# -- what the fetch said (wave 2b, Chunk 32) ---------------------------------------------
+# -- what the fetch said ----------------------------------------------------------------
 
 
 def _said(store, work, outcome, detail, *, failures=1, plugin="artic"):

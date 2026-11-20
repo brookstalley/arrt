@@ -3,7 +3,7 @@
  * failed fetches, the image sources, the Watches, the kept pictures and the
  * backup.
  *
- * **One health model** (audit 2026-11-19, audit-5 F4 and audit-6 3): a wall's
+ * **One health model**: a wall's
  * state is its display state and a Player's its Player state, as the server
  * states them on `GET /api/health` and as Walls and Players draw them, in the
  * contract's words (`core/states.js`). "Needs attention" is the server's
@@ -14,7 +14,7 @@
  * **It holds no spend record.** `information-architecture.md` said it did, and
  * `services/health.py` deliberately leaves spend off this reading; a Get's cost
  * is on its own page, and the months' spend is System › Spend's, which this page
- * links to (audit 2026-11-19, F12; wave 2b, chunk 36).
+ * links to.
  *
  * **Status, under System**, where every *arr app keeps its health checks
  * (`information-architecture.md` § The *arr layout). The top-bar indicator and
@@ -90,7 +90,7 @@ function reportedFacts(reported) {
  * contract. What the screen is doing is the wall's display state, which the
  * server reads (`display_state`), never the superseded `television_reachable`,
  * `television_showing_art` and `has_label_surface`: those say less, and can
- * disagree with it (audit 2026-11-19, audit-5 F4: "Showing art" over a screen
+ * disagree with it ("Showing art" was once drawn over a screen
  * that is off). A label panel is an output of its Player, said under Players
  * below with each of the Player's outputs. Everything else the Player reported
  * stays in debug's Details. */
@@ -142,7 +142,7 @@ async function showingTitles(walls) {
  * that shows it has no token or no report yet) is drawn as the step it is,
  * with a setup step's mark and the server's words linking to that Player,
  * never as its `silent`: it has not reported because its Player cannot yet,
- * and that Player's step under "Still to set up" names it (wave 2b, Chunk 62). */
+ * and that Player's step under "Still to set up" names it. */
 function wallStateLine(shown, waiting) {
   if (waiting) {
     return el("p", { class: "wall-state setup", "data-state": waiting.state }, [

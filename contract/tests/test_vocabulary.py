@@ -49,7 +49,7 @@ def test_unassigned_is_the_one_setup_step():
 # -- a Player's states (contract 1.3.0) ---------------------------------------------
 #
 # What the server says of a Player, and a Player's settings page of itself. The keys,
-# the words and the setup flags are the audit wave 2b plan's decision (the household
+# the words and the setup flags are a recorded decision (the household
 # reads one story about its walls and Players); the server's health model quotes
 # them with a test against this file, so they are written out here once more as the
 # decision stated them, and a change to any is a change to this test too.

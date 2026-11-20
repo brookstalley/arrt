@@ -563,7 +563,7 @@ class TestTheFloor:
         assert choice.cost_usd == Decimal("0.0001")
 
 
-# -- a call sent that never said what it cost (audit-2 S5) ---------------------------
+# -- a call sent that never said what it cost -----------------------------------------
 
 
 def _then(*steps) -> OpenRouterClient:

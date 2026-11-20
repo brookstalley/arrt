@@ -287,7 +287,7 @@ def test_a_refusal_before_generation_carries_no_spend():
     ids=["timed out", "hung up"],
 )
 def test_a_call_that_fails_after_it_was_sent_carries_one_row_whose_cost_is_unknown(unanswered):
-    """The provider had the request and may have billed it (audit-2 S5): a row, at 0, its cost unknown, its model."""
+    """The provider had the request and may have billed it: a row, at 0, its cost unknown, its model."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         raise unanswered

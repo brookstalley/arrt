@@ -437,8 +437,8 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
     check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))
 
 
-#: The could-not-be-asked and answered counts (wave 2b, Chunk 32) and the search
-#: record's (Chunk 33), as fields: HTTP carried them first, MCP since Chunk 53.
+#: The could-not-be-asked and answered counts and the search record's, as
+#: fields, on HTTP and MCP alike.
 #: Each named so the value test below holds every one to its own reading.
 SOURCE_PLUGIN_COUNTS = ("unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered")
 SOURCE_PLUGIN_SEARCH_COUNTS = ("searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at")
@@ -503,11 +503,11 @@ def test_a_plugin_never_searched_reads_alike_on_both_surfaces():
 
 
 def test_a_works_place_in_the_queue_agrees_value_for_value():
-    """`art_catalogue(action='get')`'s `acquisition` is `AcquisitionStateOut`: Chunk 32's outcome, plugin and failure time too.
+    """`art_catalogue(action='get')`'s `acquisition` is `AcquisitionStateOut`: the outcome, plugin and failure time too.
 
     Every field filled, so a formatter that dropped one or wrote a constant
-    fails here, not only one that misnamed it. No test held this pair until
-    wave 2b's Chunk 53: the route gained three fields and the tool did not.
+    fails here, not only one that misnamed it. Unheld, the route once gained
+    three fields and the tool did not.
     """
     from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
     from arrt.persistence.records import FetchOutcome
@@ -578,8 +578,8 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
 
     Derived from `HealthReading`'s own fields, so a reading added to the panel
     fails here until the binding says whether its twin carries it. Every one is
-    placed since wave 2b's Chunk 53 gave the status each Player's state and the
-    failed fetches; there is no "not yet" list any more.
+    placed, each Player's state and the failed fetches among them; there is no
+    "not yet" list.
 
     The readings the panel derives rather than holds (`troubles()`,
     `setup_steps()`, `describe()`) are not fields, so they are held here by
@@ -677,9 +677,9 @@ def test_the_look_projections_agree_value_for_value_but_for_the_image_block():
 
 #: The names MCP's wall answers and HTTP's spell differently, per record, MCP's
 #: name first. One fact, two names, on purpose: MCP's wall answers say
-#: `artwork_id` for a work since wave 2b (the owner's ruling 3 of 2026-11-19), the
-#: name every MCP action takes, and `/api`, whose only reader is the browser,
-#: keeps `work_id` (`build-plan-audit-wave-2b.md`'s Goals, "Tradeoffs accepted").
+#: `artwork_id` for a work (the owner's ruling 3 of 2026-11-19), the name every
+#: MCP action takes, and `/api`, whose only reader is the browser, keeps
+#: `work_id`, a tradeoff accepted so the browser gains no rename.
 #: Every other name on these records is the same on both. `check_renamed` refuses
 #: a rename that no longer describes the two surfaces. Each record is compared
 #: below, but `Upcoming`, which `tests/integration/test_walls_last_shown.py`
@@ -775,7 +775,7 @@ def test_a_walls_display_state_agrees_value_for_value_but_for_the_one_rename():
 
 #: `WallHeartbeatOut.heartbeat` is one nested record on HTTP; the status carries
 #: it flattened onto the wall, in these names, MCP's first. `has_reported` is
-#: `absent` negated, the status's name since before wave 2b.
+#: `absent` negated, the status's own name.
 STATUS_WALL_HEARTBEAT: dict[str, str] = {
     "observation": "description",
     "has_reported": "absent",
@@ -791,7 +791,7 @@ STATUS_WALL_LEAVES_OF_THE_HEARTBEAT: dict[str, str] = {
 }
 
 #: The one name MCP's wall and `WallOut` spell differently, MCP's first: what
-#: hangs on the wall. Named before the two were paired here (wave 2b, Chunk 66).
+#: hangs on the wall, named on each side before the two were paired here.
 WALL_RECORD_RENAMES: dict[str, str] = {"hanging": "theme"}
 
 
@@ -815,9 +815,9 @@ def check_status_wall(tool: dict, route: dict) -> None:
 
 
 def test_a_status_wall_is_the_health_answers_wall_by_name_and_by_value(services):
-    """`art_display(action='status')`'s walls against `WallHeartbeatOut`, `waiting_for` included (Chunk 66).
+    """`art_display(action='status')`'s walls against `WallHeartbeatOut`, `waiting_for` included.
 
-    Unpaired until Chunk 66, so `waiting_for` reached the health answer with
+    Unpaired, a field such as `waiting_for` reached the health answer with
     neither a twin nor an exemption and nothing said so. A field added to a
     wall's health answer now fails here by name until the status carries it.
     """
@@ -846,7 +846,7 @@ def test_a_field_added_to_a_walls_health_answer_and_not_to_the_status_is_refused
 
 
 def test_a_wall_reads_alike_on_the_walls_answer_and_mcp_walls_but_for_the_one_rename(services):
-    """`art_display(action='walls')` against `WallOut`, by name, and `waiting_for` by value (Chunk 66)."""
+    """`art_display(action='walls')` against `WallOut`, by name, and `waiting_for` by value."""
     wall, player = _a_wall_waiting_for_its_player(services)
     now = services.health.observe_walls(wall.id)
     [view] = now.views
@@ -949,7 +949,7 @@ def test_the_spend_projections_agree_but_for_the_named_fields():
     projected = set(tool) - {"success"}
     assert projected >= MCP_ONLY_ON_SPEND, "an MCP-only field named here that MCP no longer has is a stale exemption"
     check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut))
-    # Value for value: the unknown-cost count and "at least" in words (Chunk 35's), on both since Chunk 53.
+    # Value for value: the unknown-cost count and "at least" in words, on both.
     route = http_api._spend(report).model_dump()
     assert {name: tool[name] for name in route} == route
     assert (tool["unknown_cost_calls"], tool["summary"]) == (1, report.summary)
@@ -1062,9 +1062,9 @@ def test_the_watch_projections_agree_value_for_value():
 
 # -- every read route has a twin, or a reason it has none --------------------------------
 #
-# The tests above hold the fields of records both surfaces answer. Nothing held
-# the routes themselves against the actions until wave 2b's Chunk 53: `GET
-# /api/spend` landed with no MCP twin and no exemption, and nothing said so.
+# The tests above hold the fields of records both surfaces answer. Unheld, the
+# routes themselves let `GET /api/spend` land with no MCP twin and no exemption,
+# and nothing said so.
 # These tables are read against the application's own routes (`create_app`), so
 # a new read route fails by name until it is paired or given a reason here, and
 # an entry naming a route or an action that no longer exists fails as stale.
@@ -1136,8 +1136,8 @@ READS_NOT_FOR_AN_AGENT: dict[str, str] = {
 }
 
 #: Read routes an agent would ask and the surface does not answer yet: owed,
-#: each with what it is. Recorded in the Chunk 53 report as follow-up work; none
-#: is a field or route wave 2b added, which the tables above all twin.
+#: each with what it is, as follow-up work; none is a field or route the tables
+#: above twin.
 READS_OWED_TO_MCP: dict[str, str] = {
     "/api/artists": "the Library's artists, with what each holds; art_catalogue lists works, filterable by artist_id",
     "/api/artists/{artist_id}": "one Library artist, with what they hold and the work they are pictured by",

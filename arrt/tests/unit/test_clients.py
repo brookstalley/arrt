@@ -435,7 +435,7 @@ def _panels(count):
 def test_a_report_of_more_outputs_than_the_cap_is_refused_by_name_and_keeps_nothing(
     clients, pi, wall_settings, services, key, many, word
 ):
-    """Audit-8 F10: every output a report names can become a row the server keeps; one report may name at most the cap."""
+    """Every output a report names can become a row the server keeps; one report may name at most the cap."""
     # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
     services.access.issue(pi.id)
     displays_before = len(services.clients.placements.survey().displays)

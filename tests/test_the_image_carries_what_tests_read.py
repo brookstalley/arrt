@@ -4,11 +4,11 @@
 out as the image lays it out: `arrt/` is `/app`, and only what a `COPY` brings in exists. On
 the pool the same tests run in the whole checkout, so a test that reads a file the image does
 not carry passes there and fails only in the image. That is the one class of defect the
-image's build caught that nothing else did: in wave 1, four tests reading `.env.example`
-from the repository root; in build-plan-audit-wave-2b, Chunk 32's test reading
+image's build caught that nothing else did: four tests reading `.env.example`
+from the repository root, and a test reading
 `docs/source-plugins.md`. Each was found after the fact and fixed by a `COPY` added by hand.
 
-Since Chunk 56 the image is built on a pull request into `main` only (`image.yml`, by the
+The image is built on a pull request into `main` only (`image.yml`, by the
 owner's ruling of 2026-11-20), so this file holds that guarantee before `develop` instead,
 by reading both sides as data:
 

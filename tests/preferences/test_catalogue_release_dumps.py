@@ -4,8 +4,8 @@
 release left (`arrt/tests/fixtures/catalogues/`, SQL dumps made by that
 release's own code, `arrt/tools/old_catalogue.py`) with today's code.
 `releases.json` names, for each release, its dump, or the earlier release's
-dump whose shape it shares. Nothing failed when a release shipped without one
-(2a's boundary review, R-8), so the list grew by hand or not at all, and the
+dump whose shape it shares. Nothing failed when a release shipped without one,
+so the list grew by hand or not at all, and the
 norm row promising "a catalogue every past release left opens" held only the
 releases someone had remembered.
 
@@ -27,9 +27,7 @@ own commit, before its tag exists: the tool makes the newest release in
 dump when its shape differs from the release before it (the next release's
 will, by `catalogue_opened`).
 
-**Why "at or below", where the plan said "below"** (`build-plan-audit-wave-2b.md`
-§ Goals, the release-list DECISION; the change is reported as a mid-build
-decision). "Below" bites one release late: cutting 0.12.0 without its dump
+**Why "at or below", where the rule was first written "below".** "Below" bites one release late: cutting 0.12.0 without its dump
 would be green, and only 0.13.0's cut would be refused, after 0.12.0 had
 shipped with no catalogue in the chain. Its cost: the release commit cannot be
 pushed green until `old_catalogue.py` has run in it, with the earlier tags

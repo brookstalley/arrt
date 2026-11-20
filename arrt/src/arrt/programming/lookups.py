@@ -1,10 +1,8 @@
 """Programming's existence-checking lookups: a wall, a theme, what hangs on a wall, the draft.
 
 **One home**, so a lookup that refuses has one sentence and one error, and a
-change to either (`build-plan-audit-wave-2b.md`, Chunk 37: not found is 404) is
-made once. Until 2026-11-20 they were methods of `FeedPublisher`, and every
-other collaborator, including the ones that never publish, looked walls and
-themes up through the publisher (the 2a boundary review, R-3).
+change to either (not found is 404 on `/api`) is made once, and a collaborator
+that never publishes does not look walls and themes up through the publisher.
 
 `Lookups` holds the store and nothing else. The facade (`display.py`) builds one
 over its one store and hands that one to every collaborator, `FeedPublisher`

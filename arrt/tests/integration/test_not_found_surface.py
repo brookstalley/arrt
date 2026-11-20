@@ -5,7 +5,7 @@ between its refusals: the caller named a thing, by its id or by the name that is
 its identity, that is not there. `app.py`'s handler answers it with 404 in the
 one error shape, `{"error": <the service's sentence>}`, and only under `/api`;
 a refusal a Player's route meets keeps the contract's 400 (`player-contract.md`,
-`contract/transport.json`). Chunk 37 of `build-plan-audit-wave-2b.md`.
+`contract/transport.json`).
 """
 
 import httpx

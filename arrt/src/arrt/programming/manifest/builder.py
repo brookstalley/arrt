@@ -154,7 +154,7 @@ class ManifestBuild:
             # method correct when a theme has exclusions and wrong when it does
             # not, which is the harder of the two to notice.
             if self.considered == 1:
-                # "All 1 work" is no sentence a person says (wave 2b, Chunk 66).
+                # "All 1 work" is no sentence a person says.
                 return "The one work in this theme is on the wall."
             return f"All {counted(self.considered, 'work')} in this theme are on the wall."
         # A partitive, so the verb agrees with the numerator: "1 of 3 works in

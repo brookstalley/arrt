@@ -9,8 +9,8 @@ that differs, a state the package has and `states.js` lacks, and a state
 enums (`ScreenState`, `PlayerState`) and the label schema's states are held to
 the same keys, so all four name one set of states.
 
-Until audit wave 2b (chunk 31) this read `STATE_WORDS` in `screens/walls.js`,
-whose implicit guarantee was that every state the server can send has a word on
+It once read `STATE_WORDS` in `screens/walls.js`, whose implicit guarantee was
+that every state the server can send has a word on
 Walls and that a state with no word reads as "Not known". Both are kept: the
 first is the key equality below, the second is `states.js`'s fallback, read
 here, and the browser test of a state from a later minor

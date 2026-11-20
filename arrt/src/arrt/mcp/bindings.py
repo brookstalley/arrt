@@ -218,7 +218,7 @@ def _get_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
         artwork=artwork,
         acquisition=_acquisition_fields(services.acquisition_queue.state_of([artwork_id]).get(artwork_id)),
         # The Get the work was accepted from, as `WorkDetailOut.get` says it; null
-        # for a work that came another way, or before the history (wave 2b, Chunk 40).
+        # for a work that came another way, or before the history.
         get=(
             None
             if brought is None or brought.run_id is None
@@ -324,7 +324,7 @@ def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None
         "condition": state.condition,
         "remedy": state.remedy,
         # What the last failed fetch said, which decides when it is tried again;
-        # the plugin that said it; when the failure was recorded (wave 2b, Chunk 32).
+        # the plugin that said it; when the failure was recorded.
         "outcome": None if state.outcome is None else str(state.outcome),
         "plugin": state.plugin,
         "failed_at": _moment(state.failed_at),
@@ -701,8 +701,8 @@ def _release_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str
 
 
 def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # Off every wall, and only that: the theme scope was `art_theme(action='remove')`
-    # under a second name, and went in wave 2b. The answer keeps `scope` and
+    # Off every wall, and only that: taking a work out of a theme is
+    # `art_theme(action='remove')`'s. The answer keeps `scope` and
     # `left_theme` (null), so no key an existing reader reads disappears with it.
     done = services.display.not_this_one_again(
         arguments["artwork_id"], wall_id=arguments["wall_id"], scope=NotAgainScope.EVERY_WALL
@@ -1058,7 +1058,7 @@ def _registry_artist(services: Services, arguments: Mapping[str, Any]) -> dict[s
                 "sitelinks": entry.sitelinks,
                 "image": entry.image,
                 "held_artwork_ids": list(view.held.get(entry.qid, ())),
-                # The held work the row pictures itself by, or null (wave 2b, Chunk 40).
+                # The held work the row pictures itself by, or null.
                 "pictured_artwork_id": services.catalogue.pictured(view.held.get(entry.qid, ())),
                 "wanted": entry.qid in view.wanted,
                 "in_review": _in_review_fields(view.waiting.get(entry.qid)),
@@ -1193,14 +1193,14 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
         "last_fault_age_seconds": health.last_fault_age_seconds,
         "last_fault": reading.last_fault,
         # Since startup: how often it could not be asked, the last time and what
-        # it said then, and how often it answered (wave 2b, Chunk 32).
+        # it said then, and how often it answered.
         "unasked": reading.unasked,
         "last_unasked_at": _moment(reading.last_unasked_at),
         "last_unasked_age_seconds": health.last_unasked_age_seconds,
         "last_unasked": reading.last_unasked,
         "answered": reading.answered,
         # The search record's counts, which a restart keeps; zero for a plugin
-        # never searched, as `GET /api/sources` says it (wave 2b, Chunk 33).
+        # never searched, as `GET /api/sources` says it.
         "searched": 0 if searches is None else searches.searched,
         "searches_answered": 0 if searches is None else searches.answered,
         "searches_unasked": 0 if searches is None else searches.unasked,
@@ -1231,7 +1231,7 @@ def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
         year=report.year,
         month=report.month,
         # Calls sent that never said what they cost: with any, cost_usd is a
-        # floor, and the summary says "at least" (wave 2b, Chunk 35).
+        # floor, and the summary says "at least".
         unknown_cost_calls=report.unknown_cost_calls,
         summary=report.summary,
     )
@@ -1568,17 +1568,17 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
                 "wall_id": each.wall.id,
                 "wall_name": each.wall.name,
                 "observation": each.heartbeat.describe(),
-                # `display_plane_has_reported` until wave 2b: the display plane is the Player now.
+                # Whether the wall's Player has reported for it.
                 "has_reported": not each.heartbeat.absent,
                 "reported_at": _moment(each.heartbeat.reported_at),
                 "age_seconds": each.heartbeat.age_seconds,
                 "problem": each.heartbeat.problem,
                 "reported": each.heartbeat.contents,
                 # The wall's display state, as `art_display(action='walls')` and
-                # `GET /api/health` state it (wave 2b, Chunk 30).
+                # `GET /api/health` state it.
                 "display_state": _display_state_fields(each.state),
                 # Whom the wall waits for while its Player is set up, or None, in
-                # `GET /api/health`'s names (wave 2b, Chunk 66).
+                # `GET /api/health`'s names.
                 "waiting_for": _wall_wait_fields(waiting.get(each.wall.id)),
             }
             for each in seen
@@ -1587,7 +1587,7 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
         # A store with no ceiling is watched, not bounded, and "is anything
         # wrong" includes a disk refusing it.
         pictures=_pictures_fields(reading.pictures),
-        # Wave 2b (Chunks 30 and 40): each Player's state, the queue's failed
+        # Each Player's state, the queue's failed
         # fetches (null when it holds none), and the two lists the top bar is
         # made of, each the reading's own: what needs attention, and the steps
         # of setting up not yet taken, which are never a fault.
@@ -1852,7 +1852,7 @@ def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, 
         },
         # The Player's state and each output's, the service's (`player_state.py`),
         # and its settings page's address when it reported one that passes the
-        # contract's pattern; as `GET /api/clients` carries both (wave 2b, Chunk 30).
+        # contract's pattern; as `GET /api/clients` carries both.
         "state": _player_state_fields(view.player),
         "settings_url": reading.settings_url,
     }

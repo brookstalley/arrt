@@ -29,12 +29,12 @@ from arrt.services.errors import ServiceError
 #: regression this guards. A new entry therefore belongs in the same commit as
 #: the tool; an *edited* one never belongs at all.
 #:
-#: `art_players` joined in wave 2b, with the one break the owner allowed (ruling
+#: `art_players` joined with the one break the owner allowed (ruling
 #: 3 of 2026-11-19): every act on a wall went to `art_display`, and the Player
 #: actions left it for this tool so the wall acts fit its description budget.
 #: No name here was renamed or removed.
 #:
-#: `art_spend` joined after the break, as an addition (wave 2b, Chunk 53):
+#: `art_spend` joined after the break, as an addition:
 #: System › Spend's history had no honest home on an existing tool, and
 #: `art_discovery`'s description was at its budget (`tools.py`'s `ART_SPEND`).
 FROZEN_TOOL_NAMES = {
@@ -196,7 +196,7 @@ _SHOW_NOW_TIP_PREPARES_FOR = {
     UnplayableReason.STALE_RENDITION: "earlier acquisition",
     # An id that resolves to nothing. Refused before the facade existed too, by
     # the catalogue's own lookup; naming it as a reason is what put it in the tip.
-    # "library holds" since wave 2b's Chunk 53, when the tip took ruling 2's word.
+    # "library holds": the tip says ruling 2's word.
     UnplayableReason.NOT_IN_CATALOGUE: "library holds",
 }
 
@@ -357,8 +357,8 @@ def test_the_delete_tip_states_the_refusal_the_service_actually_makes(display, w
         for token in tokens:
             assert token in tips, f"the delete tip does not prepare a caller for {cause!r}"
     # And the tip's remedy is one the surface offers: an instruction naming an
-    # action that does not exist is worse than none. Both are the wall tool's
-    # since wave 2b, and the tip names the tool with them.
+    # action that does not exist is worse than none. Both are the wall tool's,
+    # and the tip names the tool with them.
     assert {entry.name for entry in ART_DISPLAY.actions} >= {"activate", "unhang"}
     assert "art_display(action='activate')" in tips
     assert "art_display(action='unhang')" in tips
@@ -502,8 +502,8 @@ def test_the_players_tool_declares_itself_destructive_since_it_can_forget_a_clie
     """`remove_client` and `issue_client_token` cannot be undone, so the hint must not say otherwise.
 
     A client that auto-approves non-destructive tools would otherwise rotate a
-    working Player's token, refusing it, without asking anyone. On `art_display`
-    until wave 2b; the wall tool stays destructive for `delete_wall`.
+    working Player's token, refusing it, without asking anyone. The wall tool,
+    which carried them before the break, stays destructive for `delete_wall`.
     """
     assert {"remove_client", "issue_client_token"} <= set(ART_PLAYERS.action_names)
     assert ART_PLAYERS.destructive is True
@@ -513,7 +513,7 @@ def test_the_players_tool_declares_itself_destructive_since_it_can_forget_a_clie
 
 #: What `art_watches(action='delete')` was said to do before the screens' word
 #: for it, Forget (the vocabulary's: Forget drops a record the household made of
-#: something outside, a Watch among them), reached MCP (wave 2b, Chunk 62).
+#: something outside, a Watch among them), reached MCP.
 _RETIRED_WATCH_WORDS = ("remove a watch", "what was removed", "a deleted watch", "removes a watch")
 
 
@@ -612,7 +612,7 @@ def test_an_id_the_catalogue_does_not_hold_is_refused_in_the_words_the_tip_uses(
     assert excluded.detail in str(refused.value)
 
 
-# -- what the grouping guaranteed without anyone writing it down (wave 2b, Chunk 45) --
+# -- what the grouping guaranteed without anyone writing it down ------------------------
 
 
 @pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
@@ -634,7 +634,7 @@ def test_every_action_ask_may_call_is_one_the_surface_takes():
 
 #: What no description may carry, each with why. An environment variable's name
 #: is the operator's, read in the deployment's files, never a step an agent can
-#: take (ledger L14: `art_catalogue`'s topics tip named one). The owner's rulings
+#: take (`art_catalogue`'s topics tip once named one). The owner's rulings
 #: 1 and 2 of 2026-11-19: a theme, never a playlist, and the household's holdings
 #: are the Library, never the collection or the catalogue. `art_catalogue` is a
 #: tool name, frozen, and the `\b` keeps it out: `_` is a word character.
@@ -660,7 +660,7 @@ def refused_words(text: str) -> list[tuple[str, str]]:
 
 @pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
 def test_no_description_names_a_variable_or_a_retired_word(record):
-    """Acceptance 3 of Chunk 53, over every tool: theme and the Library, and no environment variable."""
+    """Over every tool: theme and the Library, and no environment variable."""
     assert refused_words(what_an_agent_reads(record)) == []
 
 

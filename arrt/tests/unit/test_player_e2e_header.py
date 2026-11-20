@@ -6,8 +6,7 @@ them: with the marker expression the suite runs by default (the `addopts`, so a 
 there, or to the module's own marks, is tested too), under xdist and without it, with
 the expression that selects the test, and with a selection that never reaches it.
 Then that neither file reads pytest's private modules, which is what this replaced
-(C17 of build-plan-audit-wave-2b: the header compiled the marker expression with
-`_pytest.mark.expression`).
+(the header compiled the marker expression with `_pytest.mark.expression`).
 """
 
 import ast

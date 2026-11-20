@@ -175,7 +175,7 @@ def a_reporting_wall(services, a_shown_wall):
     Reported through the route a Player's POST takes, so `/api/walls` and
     `/api/health` both say it, as a real server would. These tests served a
     health answer saying the wall had reported beside a walls answer saying it
-    had not, which the card reads its state from since audit wave 2b (chunk 31).
+    had not, which the card reads its state from.
     """
     feed = json.loads(services.display.published_manifest_v2(a_shown_wall.id))
     services.display.record_heartbeat(
@@ -190,7 +190,7 @@ def a_quiet_wall(services, a_shown_wall):
     """The shown wall, its Player reporting while nothing has ever been written for the wall: a wall gone quiet.
 
     A Player with a token that has not reported at all is a step of its setup,
-    and its walls wait for it (wave 2b, Chunk 62): reason three is a Player that
+    and its walls wait for it: reason three is a Player that
     reports and a wall it does not speak for.
     """
     [hall] = [view.client for view in services.clients.list_clients() if view.client.name == "Hall Pi"]
@@ -348,7 +348,7 @@ def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui,
     that showed the pictures and said nothing would be reporting the server's
     intention as the television's state. The way to its reading is a link named
     for the page it opens, Status (audit 2026-11-19, finding 6: it was "Open the
-    reading for …"). On a Player that reports (`a_quiet_wall`) since Chunk 62:
+    reading for …"). On a Player that reports (`a_quiet_wall`):
     one that has not reported at all makes its wall wait, which is a step
     (`test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice`).
     """
@@ -365,7 +365,7 @@ def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui,
 
 @pytest.mark.parametrize("token", [True, False], ids=["awaiting_report", "no_token"])
 def test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice(ui, services, a_hung_wall, token):
-    """Chunk 62: a wall whose Player is still being set up says it waits, as Status does, never that it is not reporting.
+    """A wall whose Player is still being set up says it waits, as Status does, never that it is not reporting.
 
     Its badge is the Player's state in the contract's word with a setup step's
     mark (○), never ▲ "Not reporting"; its line is the server's words
@@ -458,7 +458,7 @@ def test_a_wall_waiting_on_several_players_names_them_a_b_and_c(ui, services, a_
 
     One waiting Player reads "Hall Pi has not reported yet. Its screens ..."
     (`test_setting_up_a_wall.py`); with several the sentence is the list's
-    (`listed`, `core/counting.js`), which no test held until chunk 41: a joiner
+    (`listed`, `core/counting.js`), held here: a joiner
     broken to join with "+" left this line's tests green.
     """
     for name in ("Hall Pi", "Study Pi", "Landing Pi"):
@@ -485,7 +485,7 @@ def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, a
     The pair the audit saw stacked (finding 6): "… so the wall is dark." over
     "… has not reported …". Each stays said, in one notice, the dark one first.
     The Player reports and nothing is written for the wall: one that has not
-    reported at all makes the wall wait, a step and no notice (Chunk 62).
+    reported at all makes the wall wait, a step and no notice.
     """
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
     hall = services.clients.add_client(name="Hall Pi")
@@ -605,7 +605,7 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_play
     The wall is on a Player's screen, since the question promises the house
     sees a change only where a Player shows the wall (audit 2026-11-19, finding
     19; the other branches are the two tests after this one). The Player has
-    its token and has reported: one with no token shows nothing yet (Chunk 66).
+    its token and has reported: one with no token shows nothing yet.
     """
     a_player_shows(the_wall.id)
     ui.open("#walls")
@@ -638,7 +638,7 @@ def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_th
 
 
 def test_hanging_on_a_wall_whose_player_has_no_token_says_it_waits_in_the_servers_words(ui, services, a_full_theme, the_wall):
-    """Chunk 66: the question told a person everyone would see a wall change that its Player cannot show yet.
+    """The question does not tell a person everyone will see a wall change that its Player cannot show yet.
 
     The words are the server's (`waiting_for.words`, `GET /api/walls`), the
     ones the health panel says; the hang is still asked, and allowed.
@@ -813,7 +813,7 @@ def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui,
 
 
 def test_a_wall_waiting_for_its_player_is_not_offered_a_skip(ui, a_shown_wall):
-    """Chunk 62 changed how the wait is said, not what the card offers: no Skip, since nothing reports what is on it."""
+    """A waiting wall is said as waiting, and the card offers no Skip, since nothing reports what is on it."""
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall p.wall-waits")
 
@@ -876,8 +876,8 @@ def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(ui, services
     """Audit-6 6: a card was a column of notices at one weight. Two faults here, one notice.
 
     The wall's Player cannot read the feed, and none of its theme reaches it,
-    each a notice of its own until audit wave 2b (chunk 31), stacked. The card
-    now says the one that comes first (`cardNotice`: a Player that cannot read
+    which would be two notices stacked. The card
+    says the one that comes first (`cardNotice`: a Player that cannot read
     the feed is mended before the theme's works matter), and the other is not
     said until it is mended.
     """

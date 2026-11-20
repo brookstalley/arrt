@@ -1,6 +1,6 @@
 """What Status says of a plugin's searches is read from the record, so the server's restart keeps it.
 
-Before the search record (audit-wave-2b Chunk 33), the could-not-be-asked count
+Before the search record, the could-not-be-asked count
 lived in the server's memory and a restart reset it, so a museum that had not
 answered a single search read as healthy every morning. Here the server runs as
 a process (`ArrtProcess`): started; the record written as phase 2 leaves it, a

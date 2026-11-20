@@ -761,7 +761,7 @@ function paint(detail, generation, { where, focus = null }) {
 /* Where the work came from and what has happened to it: the Get it was accepted
  * from (`WorkDetailOut.get`, null for a work that came another way or before the
  * log of events was kept) and the work's own History, `GET /api/history?artwork_id=`
- * (audit-5 F18: "when was this hung, and where did it come from" was not
+ * (so "when was this hung, and where did it come from" is
  * answerable from the work). The History row is always there: a held work has
  * a record of events, and an empty one says so on its own page. */
 function provenance(detail) {

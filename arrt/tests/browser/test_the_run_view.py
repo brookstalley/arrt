@@ -289,7 +289,7 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     # was one of four.)*
     cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
     expect(cost.locator("dt")).to_have_text(["Cost"], use_inner_text=True)
-    # The run's own figure in the server's words (`RunOut.summary`, Chunk 62): $0.0134 as it is, not "$0.01".
+    # The run's own figure in the server's words (`RunOut.summary`): $0.0134 as it is, not "$0.01".
     expect(cost.locator("dd")).to_have_text("$0.0134", use_inner_text=True)
 
 
@@ -512,9 +512,9 @@ def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
     """A bookmarked Get whose run is gone: one request, one page, no banner.
 
     **The answer served is the server's own.** A bookmarked `#get/<id>` outlives its run,
-    and since Chunk 37 the server says so with a 404 and its own sentence; the stub is
+    and the server says so with a 404 and its own sentence; the stub is
     what the real route answers for an id it does not hold, asked here, never a status and
-    a sentence written in this file (it was a hand-written 400 that no server sent).
+    a sentence written in this file, which could be one no server sends.
     """
     answer = ui.page.request.get(f"{ui.base_url}/api/runs/{RUN_ID}")
     assert answer.status == 404, "the server's answer for a run it does not hold is the premise of this test"

@@ -4,7 +4,7 @@ The owner's ruling of 2026-11-20 (`.prawduct/owner-rulings.md`, "CI is kept smal
 tests run on the pool first, and CI makes no paid call"): "No workflow holds a model
 key or reaches a paid service; probes and evaluations that cost money are run by
 hand." `api-drift.yml` ran the paid OpenRouter probe on a monthly cron, then (for
-one commit of wave 2b's Chunk 66) on a dispatch that asked for it; both were CI
+one commit) on a dispatch that asked for it; both were CI
 making a paid call with a key GitHub holds. The job is gone, and the probe is run
 on a person's machine: `cd arrt && uv run pytest tests/live -m live_api -n0`.
 
@@ -145,7 +145,7 @@ KEYED = {"env": {"OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}"}, "ru
 @pytest.mark.parametrize(
     ("workflow", "expected"),
     [
-        # The shape `api-drift.yml` had at Chunk 66's fourth commit: the paid job only on a dispatch that asks.
+        # A shape `api-drift.yml` once had: the paid job only on a dispatch that asks.
         (
             {
                 "on": {"schedule": [{"cron": "17 6 * * 1"}], "workflow_dispatch": {"inputs": {"include_paid": {}}}},

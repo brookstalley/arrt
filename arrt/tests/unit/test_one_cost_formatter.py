@@ -1,6 +1,6 @@
 """Every dollar figure the client shows is written by one helper, `core/spend.js`, or is the server's own sentence.
 
-Audit 2026-11-19 wave 2b, Chunk 62: Ask's reply, General's unattended allowance
+Ask's reply, General's unattended allowance
 and each Watch formatted a cost themselves (`$${watch.spent_usd}`), so a month
 with a call whose cost is unknown read as a figure where the server said "at
 least $0.42, and 2 calls whose cost is unknown" (`SpendTotal.words`, the one

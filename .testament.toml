@@ -70,7 +70,7 @@ requires = ["chrome"]
 # `arrt/tests/system/player-ref.txt` names, against the server as a process
 # (`docs/testing.md` § The real-Player test). A suite of its own so that `tests.yml`,
 # which runs every suite this file declares, runs it on every pull request inside
-# the required check (build-plan-audit-wave-2b.md, Chunk 29's DECISION). It is the
+# the required check. It is the
 # curation suite's command with `-m player_e2e`: the curation plane's addopts
 # deselect it from every other run, and this `-m` replaces theirs.
 #

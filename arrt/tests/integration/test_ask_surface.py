@@ -225,7 +225,7 @@ def test_what_a_reply_spent_is_in_the_months_spend(server_url, ask_model, servic
 
 
 def test_a_reply_step_of_unknown_cost_makes_the_months_spend_read_at_least(server_url, ask_model):
-    """Chunk 62, through the routes: the reply says "at least", and so does the Spend page's month, in one writer's words.
+    """Through the routes: the reply says "at least", and so does the Spend page's month, in one writer's words.
 
     A step the provider answered with no cost on it was recorded as nothing,
     so the month read a known figure for a call that may have been billed.

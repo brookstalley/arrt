@@ -357,7 +357,7 @@ class TestTheToolSurface:
     async def test_from_this_theme_over_the_tool_is_the_themes_remove_and_the_old_scope_names_it(
         self, server_url, settings, ready_work
     ):
-        """*From this theme* was `not_again(scope='theme')` until wave 2b, a second name for `art_theme`'s `remove`.
+        """*From this theme* was `not_again(scope='theme')` before the MCP break, a second name for `art_theme`'s `remove`.
 
         The old call is refused naming the one that does it, and that one takes the
         work out of the hidden theme a selection hangs as, by the id the wall answers.

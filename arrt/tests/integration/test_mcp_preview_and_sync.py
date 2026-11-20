@@ -260,7 +260,7 @@ def test_sync_says_it_republishes_what_is_hanging_and_preview_says_it_writes_not
 
 
 def test_hang_selection_is_on_the_wall_tool_the_theme_tool_points_there_and_show_now_says_it_lasts_one_slot():
-    """Until wave 2b `hang_selection` was `art_theme`'s and its summary named it; every act on a wall is `art_display`'s now."""
+    """Every act on a wall is `art_display`'s, `hang_selection` among them, and the theme tool's summary points there."""
     assert "hang_selection" in ART_DISPLAY.action_names
     assert "hang_selection" not in ART_THEME.action_names
     assert "art_display" in ART_THEME.summary

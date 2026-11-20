@@ -979,7 +979,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     other.
     """
     theme, works = a_theme_holding_one_work
-    # What the server answers for a work it does not hold (Chunk 37): 404, in the
+    # What the server answers for a work it does not hold: 404, in the
     # sentence `themes.py` raises, which is readiness's own.
     refusal = not_in_catalogue(works[2].id).detail
     writes = []
@@ -1090,7 +1090,7 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
 
 
 def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in_artworks(ui):
-    """ "2,000 works" beside "Select all 2000 works" and "Starry (2000)" was audit-6 16: four ways of writing one number.
+    """ "2,000 works" beside "Select all 2000 works" and "Starry (2000)" is four ways of writing one number: one way here.
 
     One page of the 2,000 is stubbed (the client reads `total` and each option's
     `count`), with a facet that holds all of them. Every place Artworks prints
@@ -1115,7 +1115,7 @@ def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in
     expect(ui.view).not_to_contain_text(re.compile(r"\b2000\b"))
 
 
-# -- the way past the filters (audit-6 22) -----------------------------------------
+# -- the way past the filters ---------------------------------------------------------
 
 
 def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_facet(ui):

@@ -168,7 +168,7 @@ def test_invalid_manifests_say_whether_a_player_must_refuse_them():
 #
 # A Player's readers are written by hand, so a schema's constraint that no invalid
 # fixture breaks is one no Player is ever tested to enforce. Until 1.3.0 most had
-# none (audit-3: about 20 of 26 in client.v1, 17 of 22 and 81 of 86 elsewhere).
+# none (counted 2026-11-19: about 20 of 26 in client.v1, 17 of 22 and 81 of 86 elsewhere).
 #
 # A constraint is one assertion keyword at one place in a schema, named by its
 # schema file and the JSON pointer to the keyword, such as

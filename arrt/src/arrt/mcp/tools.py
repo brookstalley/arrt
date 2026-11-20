@@ -1358,8 +1358,8 @@ _SCENE_ID = Param(
 )
 
 #: What a caller still sending `work_id` for a catalogue work is told. Wall
-#: answers said `work_id` for the work's catalogue id until wave 2b (the owner's
-#: ruling 3 of 2026-11-19) and say `artwork_id` now, the name every action here
+#: answers said `work_id` for the work's catalogue id before the owner's
+#: ruling 3 of 2026-11-19 and say `artwork_id` now, the name every action here
 #: takes; an agent reading an old answer's name and sending it back is refused
 #: with the new one rather than with "does not take" alone.
 _WORK_ID_IS_ARTWORK_ID: Final = {
@@ -1369,8 +1369,8 @@ _WORK_ID_IS_ARTWORK_ID: Final = {
     )
 }
 
-#: The acts on a wall `art_theme` carried until wave 2b, gathered on
-#: `art_display` by the owner's ruling 3 of 2026-11-19. Each is refused here
+#: The acts on a wall `art_theme` carried before the owner's ruling 3 of
+#: 2026-11-19 gathered them on `art_display`. Each is refused here
 #: naming where it went (`registry.resolve_action`), never answered as unknown.
 MOVED_FROM_THEME: Final = dict.fromkeys(
     (
@@ -1588,7 +1588,7 @@ _PREVIEW_THEME_ID = Param(
     description="Which theme to look at. Omit to look at the one hanging on that wall.",
 )
 
-#: The Player actions `art_display` carried until wave 2b, moved to
+#: The Player actions `art_display` carried before the break, moved to
 #: `art_players` so that every act on a wall fits on this tool beside the walls
 #: (the owner's ruling 3 of 2026-11-19; the byte count that decided it is in
 #: `api-contract.md` § The surface).
@@ -1932,7 +1932,7 @@ ART_DISPLAY: Final = ToolRecord(
                 ),
             ),
             retired={
-                # Wave 2b: the theme scope was art_theme(action='remove') under a second name.
+                # The theme scope was art_theme(action='remove') under a second name.
                 "scope": (
                     "it always keeps the work off every wall now. To take a work out of the theme hanging on a "
                     "wall, call art_theme(action='remove', theme_id=…, artwork_id=…) with the hanging theme_id "
@@ -2055,7 +2055,7 @@ ART_DISPLAY: Final = ToolRecord(
 )
 
 
-#: The installed Players (clients) and where each wall shows: added in wave 2b
+#: The installed Players (clients) and where each wall shows: taken
 #: from `art_display`'s client and assignment actions, unrenamed, so that every
 #: act on a wall fits on `art_display` (the owner's ruling 3 of 2026-11-19).
 ART_PLAYERS: Final = ToolRecord(
@@ -2542,7 +2542,7 @@ ART_WATCHES: Final = ToolRecord(
     ),
 )
 
-#: System › Spend's twin (wave 2b, Chunk 53): what was spent, month by month.
+#: System › Spend's twin: what was spent, month by month.
 #:
 #: **A tool of its own, and that is a decision with a cost.** `art_discovery`
 #: already answers one run's or one month's figure (`spend`), but its description

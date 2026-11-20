@@ -1097,7 +1097,7 @@ class TestTheRunningQueue:
             halt()
 
 
-# -- what the fetch said decides when it is tried again (wave 2b, Chunk 32) ------------
+# -- what the fetch said decides when it is tried again --------------------------------
 
 
 #: What each rule leaves a work as, straight after the failure: its phase, and

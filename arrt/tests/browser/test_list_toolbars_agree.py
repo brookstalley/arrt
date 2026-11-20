@@ -58,8 +58,8 @@ def sides(ui, *, selecting=False):
     """The names of the visible controls on each side of the page's toolbar, in order.
 
     The acts on what is ticked live in the toolbar's `.selection` bar, hidden until *Select* is
-    on: they are read only when `selecting`, so each of a page's two reads is whole (Chunk 34 of
-    `build-plan-audit-wave-2b.md` added *Hang…* to the second).
+    on: they are read only when `selecting`, so each of a page's two reads is whole (*Hang…* is
+    in the second).
     """
     skip = ".toolbar-menu" if selecting else ".selection, .toolbar-menu"
     return ui.page.locator("#view .page-toolbar").evaluate(f"""(bar) => {{
@@ -113,7 +113,7 @@ SELECTING = ("Artworks", "Search", "Artist")
 
 def test_hang_is_among_every_selection_s_acts_on_the_left_and_select_stays_last(ui, dali):
     """Ruling 6 of 2026-11-19: *Select* is last on the right; what it selects acts on the left.
-    *Hang…* is one of those acts (the IA gives it to any selection, audit 5 F9), so it stands
+    *Hang…* is one of those acts (the IA gives it to any selection), so it stands
     on the left of each list, before *Add to theme…*, never among the controls after *Select*.
 
     Read from the pages in *Select* mode and held to each other: a page that put *Hang…* after

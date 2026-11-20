@@ -461,7 +461,7 @@ def test_each_mode_has_its_own_headline():
 # -- the workflow --------------------------------------------------------------------------
 
 FALLBACK_IF = "${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}"
-#: The whole of a fallback step's `run`, its suite's name after the last word (Chunk 52).
+#: The whole of a fallback step's `run`, its suite's name after the last word.
 FALLBACK_RUN = ('OUT="$RUNNER_TEMP/$OUT_DIR"', 'python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite ')
 
 
@@ -571,7 +571,7 @@ def test_a_fallback_that_runs_the_browser_suite_is_refused():
         check_the_fallback(workflow, MANIFEST)
 
 
-#: The fallback steps' `run` as they were written by hand until Chunk 52 (`tests.yml` at 410cfc32),
+#: The fallback steps' `run` as they were written by hand (`tests.yml` at 410cfc32),
 #: and two variations: each names a path or a pytest command of its own, which can drift from the
 #: manifest unseen. Every one is refused.
 _STEPS_OF_THEIR_OWN = {
@@ -632,8 +632,8 @@ def _guard_step(workflow):
 
 
 #: In fallback mode the guard passes over a report that holds a failure: it checks that each
-#: suite ran something and skipped nothing it should not, not that it passed (observed by the
-#: integration of Chunk 52, running the fallback locally: curation 6,930 passed, 1 failed, guard
+#: suite ran something and skipped nothing it should not, not that it passed (observed
+#: running the fallback locally: curation 6,930 passed, 1 failed, guard
 #: green). So the fallback step's own exit code is what turns the job red, and these hold that
 #: nothing in the workflow lets it go.
 @pytest.mark.parametrize("which", ["governance", "curation", "contract", "pool", "guard"])
@@ -711,7 +711,7 @@ def test_without_the_ruling_the_manifests_real_player_suite_would_be_owed_a_fall
         check_the_fallback(_workflow(), MANIFEST)
 
 
-# -- the fallback's commands are the manifest's (Chunk 52: C22, native review N8) -----------------
+# -- the fallback's commands are the manifest's --------------------------------------------------
 #
 # What the hand-written steps guaranteed without saying so, and what holds each now:
 #
@@ -727,7 +727,7 @@ def test_without_the_ruling_the_manifests_real_player_suite_would_be_owed_a_fall
 # - the curation suite ran in parallel (`-n auto` from its addopts): the manifest's `-n 0` is
 #   dropped by name (`test_the_translation_drops_only_the_manifests_dash_n_0`).
 
-#: The suites' fallback commands before Chunk 52 (`tests.yml` at 410cfc32, the steps above in
+#: The suites' fallback commands as written by hand (`tests.yml` at 410cfc32, the steps above in
 #: `_STEPS_OF_THEIR_OWN`) and after, as data: what each runs, from where, over what, writing
 #: what. The after is `fallback_commands` on this repository's `.testament.toml`. The project
 #: environment, the config file, the selection (as paths from the root), the report and the
@@ -792,7 +792,7 @@ def _what_runs(cwd: str, argv: list[str]) -> dict:
 
 @pytest.mark.parametrize("suite", sorted(_BEFORE_AND_AFTER))
 def test_the_derived_commands_run_what_the_hand_written_steps_ran(suite):
-    """The comparison, as data: the runner does the same work after Chunk 52 as before it, suite by suite."""
+    """The comparison, as data: the runner does the same work from the manifest as by hand, suite by suite."""
     expected = _BEFORE_AND_AFTER[suite]
     *setup, after = pof.fallback_commands(MANIFEST, suite, pathlib.Path("/out"))
     before = _what_runs(*expected["before"])
@@ -1081,7 +1081,7 @@ def test_progress_is_read_in_both_shapes_the_client_prints(shape):
 
 
 #: The first lines `testament run --json=summary --junit-xml … --no-fallback` printed with the
-#: five suites of Chunk 29's manifest, copied from the observed run of 2026-11-19 (testament
+#: five suites the manifest then declared, copied from the observed run of 2026-11-19 (testament
 #: 0.58.0, requests 96f5041e…, e861507f…, b08c7d62…, 4deff0eb…, 1a644963…), two of its nine
 #: FAILED lines kept, the runner's name replaced. Before the real-Player suite, a pull
 #: request's run printed four `accepted` lines; it prints five.
@@ -1210,9 +1210,9 @@ def test_the_real_pool_lets_a_run_that_finishes_be_read_from_its_envelope(tmp_pa
     assert (attempt.killed, attempt.accepted, pof.classify(attempt)) == (None, True, "passed")
 
 
-# -- each retry's warning reaches the step's log when it is said (Chunk 52) --------------------
+# -- each retry's warning reaches the step's log when it is said -------------------------------
 #
-# Observed by Chunk 52 on 2026-11-19 with testament 0.58.0, at tree 851962e46404, from this repository:
+# Observed on 2026-11-19 with testament 0.58.0, at tree 851962e46404, from this repository:
 # `testament run --json=summary --coordinator 127.0.0.1:9 --no-fallback --suite contract` (request
 # fb1186e3…) exited 75, printed nothing at all on stderr, and wrote the envelope below (its `report`
 # left out); `testament run --json=summary --suite contract` (request fd7c4b30…) printed the two
@@ -1561,7 +1561,7 @@ def test_a_fallback_that_does_not_provision_a_type_checked_project_is_refused(pr
         check_the_fallback_provisions_the_type_gate(MANIFEST)
 
 
-# -- the suites CI never runs: the image suite (build-plan-audit-wave-2b, Chunk 65) ----------
+# -- the suites CI never runs: the image suite -----------------------------------------------
 #
 # A host suite runs on the pool only for a run signed with its submitter's owner secret, and
 # CI's key holds none. Asked for from a machine with none, the image suite ended the whole

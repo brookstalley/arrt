@@ -313,7 +313,7 @@ def system_rows() -> set[str]:
 
 
 def test_the_layout_table_lists_every_system_page_the_sidebar_lists():
-    """Both directions, over the one section whose pages Chunk 36 grew: Status, then Spend.
+    """Both directions, over the System section: Status, then Spend.
 
     The three per-screen tables are checked above by name; § The *arr layout's
     table is the one place that says where each page sits and what it follows, so

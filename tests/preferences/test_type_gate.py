@@ -74,8 +74,8 @@ STRICT_FLAGS = (
     "extra_checks",
 )
 
-#: What `[tool.mypy]` checks: the plane's source and, since 2026-11-20 (wave 2b
-#: Chunk 50), the system tests, which run the server as a process. Until then it
+#: What `[tool.mypy]` checks: the plane's source and, since 2026-11-20, the system
+#: tests, which run the server as a process. Until then it
 #: was `["src/arrt"]`, and the system tests held 26 errors nothing reported.
 CHECKED_FILES = ["src/arrt", "tests/system"]
 
@@ -242,7 +242,7 @@ def test_an_allowance_naming_this_projects_code_is_refused(named):
 
 
 def test_the_contract_package_ships_its_type_marker_so_the_allowance_does_not_name_it():
-    """Chunk 59 shipped `py.typed`; the type check is clean without an allowance for `arrt_contract` (measured on the pool's
+    """The package ships `py.typed`; the type check is clean without an allowance for `arrt_contract` (measured on the pool's
     environment and on a fresh sync of the fallback's groups alone, 167 files), so one would only hide a lost marker."""
     marker = ROOT / "contract" / "src" / "arrt_contract" / "py.typed"
     assert marker.is_file(), f"{marker.relative_to(ROOT)} is gone, so `arrt_contract` is untyped to the type check again"

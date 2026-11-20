@@ -373,7 +373,7 @@ def test_after_a_skip_next_is_redrawn_from_the_new_schedule(ui, services, the_wa
     # The step's answer is waited for by itself, so a red here says which link
     # broke (#442): no POST at all is the click lost, an answer that is not ok
     # is the server refusing, and an ok answer with no "Skipped." below is the
-    # card. 1,478 loaded runs on the pool did not reproduce it (chunk 51).
+    # card. 1,478 loaded runs on the pool did not reproduce it.
     def is_the_step(response):
         return response.request.method == "POST" and response.url.endswith(f"/api/walls/{the_wall.id}/next")
 

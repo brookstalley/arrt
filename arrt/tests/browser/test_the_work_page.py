@@ -745,7 +745,7 @@ def test_the_description_is_set_in_the_label_serif_at_a_reading_measure(ui, serv
     assert width <= 68 * ch + 1
 
 
-# -- where it came from, and what has happened to it (audit-5 F18) ----------------
+# -- where it came from, and what has happened to it ------------------------------
 
 
 def test_a_work_accepted_from_a_get_links_to_it_and_every_work_links_to_its_history(ui, api, resolved_work, hangable):

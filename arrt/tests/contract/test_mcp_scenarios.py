@@ -597,7 +597,7 @@ def _keys_anywhere(value: object, *, skip: frozenset[str] = frozenset()) -> set[
 async def test_a_theme_is_hung_and_a_scene_applied_on_one_tool_and_the_old_calls_name_it(server_url, ready_work):
     """Ruling 3's break, as a caller meets it: every act on a wall is `art_display`'s, and says `artwork_id`.
 
-    Until wave 2b `activate` and the scene acts were `art_theme`'s and the wall
+    Before it `activate` and the scene acts were `art_theme`'s and the wall
     answers said `work_id`. The old calls are made first, as a script written
     before the break would make them, and each is refused naming the call that
     works; then that call is made and the wall's answers are walked for the old name.
