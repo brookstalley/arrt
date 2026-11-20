@@ -10,6 +10,69 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Audit wave 2b, at a browser on the NAS — added 2026-11-20
+
+**`build-plan-audit-wave-2b.md`**, the chunks named in each item. On the NAS once the
+release carrying 2b is deployed, at a desktop and on a phone (or the browser's narrow
+view, 390 px). Each item says what to look at and what to report; none is a gate.
+*Chunk 62 changes how many setup steps one cause makes and what a waiting wall's own
+panel on Status says; check those when its entry is added here.*
+
+- **Walls, one card per wall (Chunk 31).** A wall no Player shows has the badge *No
+  Player yet*, in the setup style, not the problem one; a card carries at most one
+  notice and one filled act. Does a card still read top to bottom as what hangs, what
+  shows, what to do? On Settings › Players, a Player whose heartbeat names its settings
+  page has a link to it, opening in a new tab; one that names none has no link.
+- **Status, the one health model (Chunks 31 and 41).** *Needs attention* lists only
+  faults, *Still to set up* the steps not taken; each wall's state uses the same words
+  as Walls; the Players panel lists every output of every Player; failed fetches show
+  their count and the newest's age and link to Activity › Queue. The top bar's glyph is
+  ▲ with a count for troubles, ○ with no count when only steps remain, ● when well. With
+  the real household, say whether anything reads as a fault that is not one.
+- **Hang a selection (Chunk 34).** On Artworks, an Artist's works, a search's results
+  and a Topic: *Select*, tick some works, *Hang…*; the dialog asks which wall and says how
+  many were left out (no picture, or not held); *Select all* on an Artist sends only the
+  works it can hang. At phone width, does the selection toolbar keep *Hang…* reachable
+  and *Select* last on the right?
+- **Choose works from a wall (Chunk 57).** On a wall's card, *Choose works* beside the
+  Hanging picker opens Artworks selecting, with the note "Choosing works to hang on
+  {wall}…" taking the keyboard; *Leave {wall} as it is* returns to Walls; *Hang on
+  {wall}…* hangs the ticked works and returns to that wall's card with focus on its
+  heading. Try Back, the sidebar and a reload mid-way: each leaves the wall as it was.
+  Back after a hang returns to the choosing page with its note; say whether that reads
+  as a fault.
+- **System › Spend (Chunk 36).** Listed under System in the sidebar, reached also from
+  the sidebar's budget line and from Status's *Spend* panel. Read-only tables: this
+  month and up to eleven earlier months that spent anything, each month's categories,
+  its Gets, and the calls whose cost is unknown; at phone width each row is a card. If a
+  month had a timed-out call, it reads "at least $X, and N calls whose cost is unknown";
+  set that against OpenRouter's activity page for the same month and say whether the
+  provider billed it.
+- **Small client items (Chunk 41).** Every count is written one way (`en-US` grouping,
+  `core/counting.js`); a Player and a Watch are *Forgotten* (*Forget…*), a wall and a
+  theme *Deleted*, a work *Removed* from a theme or a wall; the Work page links *Came from* (its
+  Get) and *History* (that work's history only); Artworks has a second skip link past
+  its filters. Say if a screen still says "catalogue" or "collection" for the Library.
+
+### The compose file on the NAS against the hardened example — added 2026-11-20
+
+**`build-plan-audit-wave-2b.md` Chunk 42; `deploy/nas/compose.example.yaml`.** The
+example now drops every capability, runs on a read-only root and mounts a 64 MB `/tmp`
+tmpfs; the operator's own compose file (in the private homelab repository) is the one
+that runs. Bring it to the example's shape, then:
+
+- **The user owns its two mounts.** With every capability dropped, root's override of
+  file permissions is gone, so the `user:` the file names must own the art root and the
+  backup directory on the host, or the first write fails. `ls -ln` both and compare the
+  uid with the file's `user:`.
+- **It starts and serves.** The container starts, `/healthz` answers, a Get's fetch
+  writes a master under the art root, and the nightly backup lands in the backup
+  directory. `docker diff` on the running container lists nothing outside `/tmp` (a
+  tmpfs is not listed).
+- **What was not measured, which this is the first run of:** a long run, a restore
+  into the read-only container, and a private source plugin that writes anywhere else.
+  If one fails with a read-only error, say which path it wanted.
+
 ### Restoring the catalogue from a backup, on the machine that runs the server — added 2026-11-19
 
 **`build-plan-audit-wave-2.md`, Chunk 06; the steps are `operational-spec.md` §
@@ -81,9 +144,14 @@ envelopes recorded from real runs, and **never on GitHub**. Before the check
 named *Lint, then every suite* is made required on `develop` and `main`: on a
 scratch branch make the workflow see `TESTAMENT_CONSOLE=https://console.invalid`
 and look for the retries (about ten minutes), the job's summary opening "The pool
-was unavailable; ran here, on GitHub's runner, without the browser suite", the
-three *Fallback* steps passing, the guard warning that the browser suite did not
-run, and how long the fallback takes (curation's time on a runner is unmeasured);
+was unavailable; ran here, on GitHub's runner, without the browser and real-Player
+suites" (`.github/scripts/pool_or_fallback.py`, its `HEADLINES`; it said "without the
+browser suite" until audit wave 2b's Chunk 29 added the `player` suite, which the
+fallback also leaves out, by the owner's ruling of 2026-11-20), a "**not run**" row for
+each of those two suites, the three *Fallback* steps passing (each now runs
+`pool_or_fallback.py fallback --suite <name>`, the manifest's own command, Chunk 52),
+the second check, *The browser suite ran on the pool*, red and naming both, and how
+long the fallback takes (curation's time on a runner is unmeasured);
 then one ordinary pool run, and a deliberately red test, which must stay red with
 no fallback steps. A pull request from a fork always ends "Nothing ran" (no key),
 so it can never pass a required check.

@@ -395,6 +395,7 @@ must be re-derived rather than extended:
 
 The third trigger above, "any credential becoming reachable from a tool", fired
 without this section being re-derived. `art_display(action='issue_client_token')`
+(on `art_players` since audit wave 2b's one MCP break, 2026-11-20, unrenamed)
 is on MCP (`mcp/bindings.py`): it mints a Player's token and returns it, once, into
 the agent's context and so into its provider's transcript. The audit of
 2026-11-19 found it. **Decided 2026-11-19 in the audit's plan (`build-plan-audit-wave-1.md`, vetoable by the owner):

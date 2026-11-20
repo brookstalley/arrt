@@ -243,8 +243,15 @@ takes — and refuses one of five words or fewer that opens with "The ".
   only held works says so: *Search your library*. These land page by page with
   the three plans that ruling names; until each lands, the page it changes keeps
   its old words. The server's records, routes and MCP tools keep `client` and
-  `not-again` (`POST /api/walls/{id}/not-again`, `art_theme(action='not_again')`), as
-  `run` did above: they are a contract with what already calls them.
+  `not-again` (`POST /api/walls/{id}/not-again`, `art_display(action='not_again')`), as
+  `run` did above: they are a contract with what already calls them. *(Since audit
+  wave 2b, 2026-11-20, chunks 45 and 39: the MCP action is on `art_display`, not
+  `art_theme`, and takes no `scope`: it keeps a work off every wall, writing
+  `work.excluded`, and the work stays in its theme. HTTP's route keeps its `scope`:
+  `every_wall` does the same, and `theme` takes the work out of the theme hanging on
+  that wall, writing `work.left_theme` on each wall the theme hangs on. On MCP that
+  removal is `art_theme(action='remove')`, which writes the same `work.left_theme`
+  lines, as removing a work on the Theme page does: `data-model.md` § HistoryEvent.)*
 - **The words for a work's images** *(2026-11-19, `build-plan-audit-wave-1.md`;
   confirmed by the owner the same day, ruling 6 of 2026-11-19 in
   `owner-rulings.md`)*. The image acquired of a work, the Original in the records,

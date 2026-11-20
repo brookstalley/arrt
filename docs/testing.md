@@ -25,11 +25,24 @@ asserts what survived, what was dropped, and the copy taken first;
 `test_restore.py` takes a backup generation from a running server, restores it by
 the runbook's steps (written as code in that file) in the same art root and in a
 new one, and starts the server on it. Nothing there reads git or the network at
-test time; a new release whose schema changed gets its dump by adding its tag to
-the tool and running it where the tags are. The tests start the server as a
+test time. **Every release has a row** in `arrt/tests/fixtures/catalogues/releases.json`,
+its own dump or the earlier release's whose shape it shares, and
+`tests/preferences/test_catalogue_release_dumps.py` holds every release the change log
+records at or below `arrt/pyproject.toml`'s version to one; so a release cut adds its
+tag to `RELEASES` in the tool and runs the tool in the release's own commit, before the
+tag exists (the tool makes the newest untagged release from `HEAD`), where the other
+tags are fetched. The tests start the server as a
 process, so they hold what an in-process fixture cannot: that a stale
 `-journal` beside a restored catalogue silently undoes the restore
-(`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`). The real
+(`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`).
+**The process boundary has guards of its own** (`arrt/tests/system/server_process.py`):
+before a server starts, the environment it will be given is resolved with the server's
+own `Settings.from_env`, and a path setting that would land outside the test's scratch
+root is refused by name; when a server test ends, every wall's feed under every art
+root that server served is held to the Player contract (`feed_guard.published_problems`),
+because the in-process feed guard cannot reach a child process's copy of the builder;
+and a start counts only on that server's own listening line. The system tests are
+type-checked with the source (`[tool.mypy] files` in `arrt/pyproject.toml`). The real
 Player's test is another marker of the same directory
 (§ The real-Player test).
 
@@ -39,6 +52,16 @@ Player's test is another marker of the same directory
 workers interleave output and a `pdb` breakpoint has no terminal to stop in.
 Not through testament, which drops `-n` and sends the selection to the pool. The root suite runs in a fraction of
 a second and is left serial.
+
+**The curation suite has areas**, one per test directory (`[suites.curation.areas]` in
+`.testament.toml`): `unit`, `integration`, `contract`, `system`, `eval`, `scaffold`, and
+`other` for whatever a later directory adds, first match winning. They change nothing
+about how the suite runs. They select (`testament run --suite curation --area unit`, or
+`--not-area system`), break a run's report down, and divide its history (`testament
+time --by area`).
+
+**There are five suites on the pool:** governance (the root), curation, browser,
+contract, and `player`, the real-Player test (§ The real-Player test).
 
 **The root suite holds no product code, and it is not optional.** It carries
 `tests/preferences/`, where this repo's artifact-versus-code contracts
@@ -60,8 +83,9 @@ NAS runs, as the app's unprivileged user, laid out as the image lays it out:
 `arrt/` is `/app`, and nothing beside it exists unless a `COPY` brings it in.
 CI builds it only on a pull request into `main` and by hand
 (`.github/workflows/image.yml`, by the owner's ruling of 2026-11-20 that CI is
-kept small); before that it is about seven minutes of GitHub's runner on every
-pull request. Run it yourself, by hand on the branch, when you change the
+kept small); before that it also built on any pull request that changed the
+image's inputs (the Dockerfile, a lockfile, an interpreter pin, the workflow),
+about seven minutes of GitHub's runner each, and seconds otherwise. Run it yourself, by hand on the branch, when you change the
 Dockerfile, a lockfile or the interpreter pin.
 
 The one class it caught that nothing else did, a test reading a file the image
@@ -151,11 +175,26 @@ black only, with `--only-group dev`. mypy runs in the governance suite
 project's own configuration, and fails naming the modules with errors. It runs
 mypy without syncing, so on a fresh clone it fails until the environments exist,
 and says so: `cd arrt && uv sync --group dev --group browser` and `cd contract &&
-uv sync --group dev`. The fallback's governance step syncs both first.
+uv sync --group dev`. The fallback's governance step syncs both first, with the
+`dev` group alone (`FALLBACK_SETUP`), so **the type check must also pass where
+Playwright is not installed**: `tests/preferences/test_type_gate_in_the_fallback.py`
+reads the groups from `FALLBACK_SETUP` itself, the packages they install from each
+`uv.lock`, and every import mypy follows (a `TYPE_CHECKING` one included), and fails
+naming any third-party import that environment would not have and that is not in the
+`ignore_missing_imports` allowance. Two chunks together made that step red once while
+the pool stayed green.
 
 **`-n0` matters here.** These tests time real two-second poll intervals, and
 `-n auto` — which a command-line `-m` leaves in place — turns those windows into
 flakes when workers contend for cores.
+
+**Run the guards that read what you add, not only the files you edit.** A new or
+changed browser test is read by `arrt/tests/unit/test_browser_reads_retry.py` (no
+one-shot read of the page, no fixed sleep, unless its line says why) and by
+`arrt/tests/unit/test_client_vocabulary.py`; a field added to an answer is read by
+every test that compares that answer whole. Both are in the curation suite, not the
+browser suite, so a run of the browser files alone does not run them. Two chunks of
+audit wave 2b reached integration with one red each, from such a guard.
 
 **A behaviour is not covered because a browser test exercises it.** Prove it with
 `tools/mutation_sweep.py`, which drives a JavaScript module as happily as a

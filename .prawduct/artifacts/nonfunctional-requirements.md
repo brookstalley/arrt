@@ -911,6 +911,24 @@ the only channel through which it can behave responsibly.
 The estimate must be *bounded* rather than *typical*, which is what the per-run
 search cap is for. A number a run can freely exceed is not an estimate.
 
+> **A cost nobody was told is reported as unknown, never as nothing** *(audit wave 2b,
+> 2026-11-20, Chunks 35, 36 and 60)*. A paid call that was sent and ended without an
+> answer saying what it cost (a read timeout, a dropped connection, a 5xx or 408, an
+> unreadable 2xx body) records a spend row whose `cost_status` is `unknown`
+> (`data-model.md` § SpendRecord), and every figure that sums the ledger counts those
+> calls apart: one function words each figure, `SpendTotal.words`
+> (`arrt/src/arrt/library/services/discovery.py`), "$0.42" or "at least $0.42, and 2
+> calls whose cost is unknown". A run's cost, its family's, a month's, the unattended
+> allowance's and a Watch's say it that way on both surfaces (`summary` on `SpendOut`,
+> `RunOut`, `UnattendedOut` and `WatchOut`), and **System › Spend** (`#spend`,
+> `GET /api/spend`, `art_spend(action='history')`) lists each month's categories, each
+> Get's own calls, and every call whose cost is unknown, so a person can set them
+> against the provider's activity page. Nothing here enforces a ceiling: the ceiling is
+> still the provider's credit limit on the key (§ Direction). An answered refusal (402,
+> 403, any other 4xx but 408) is not counted, on the assumption, measured only for 402
+> and 403, that a refused call is not billed. What Ask's replies record, and what the
+> client shows of their cost, is Chunk 62's, building as this is written.
+
 ### Decided — engine choice: Parallel (2026-08-02)
 
 **Discovery pins `parallel`, and the reasoning came out the opposite way round
