@@ -4,6 +4,37 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-20: six answers while part 2b was finishing
+
+Six questions stood, each with the advisor's recommendation, at the end of every report
+while part 2b (`build-plan-audit-wave-2b.md`) was being integrated. The owner: "Yes to all
+recommendations, you can do the grant". As ruled:
+
+1. **This project may use the pool's host executor, and the advisor may grant it.** Asked so
+   that the server image's test stage can run on the pool, outside a container, at no cost
+   in GitHub's minutes. Granted the same day: the pool's allowlist now gives this project
+   the container and the host executors. What it permits is this repository's tests
+   running image builds directly on a runner. Built in that plan as Chunk 65; until it
+   lands, the image's test stage is still first met at a pull request into `main`.
+2. **A wall may keep its first picture up to one interval longer when a neighbour is
+   refused.** The schedule fix lines a republished wall up with the wall built just
+   before it; when a same-pace neighbour is refused, the wall acted on is built against
+   that neighbour's published schedule. Accepted as built.
+3. **One scratch pull request, once, at the end of part 2b**, to see the reworked CI
+   fallback run on GitHub's runner. It is closed unmerged. This is the one exception the
+   same day's ruling on CI's minutes allows itself here.
+4. **MCP keeps the new tool `art_spend`.** It adds one entry to every client's tool
+   listing; the Spend history is not discovery, and `art_discovery`'s description was at
+   the client's limit.
+5. **The periodic reconcile of feeds may make an act wait, once per half hour, until its
+   lookups are batched.** Measured in-process on one machine with nothing to fix: about
+   0.4 s at 2,000 works and 1.1 to 2.5 s at 5,000, the store's lock held throughout,
+   and longer on the deployment's slower machine. Batching the lookups is a third part's.
+6. **The delegate-verification policy's count is corrected.** `project-preferences.md`
+   `## Workflow`, `Delegate verification`, said a change to `contract/` "runs all four"
+   suites; there are five since the real-Player suite. The norm's text now says five.
+   This is a count brought up to date, and changes nothing else the policy says.
+
 ## 2026-11-20: an agent may post its measurements on the issue it is working
 
 A build delegate working a flaky test (#442) posted what it had measured as a comment on

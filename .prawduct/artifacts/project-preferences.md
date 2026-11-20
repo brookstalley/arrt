@@ -321,7 +321,7 @@ Developer preferences for how code is written in this project. Captured during d
     subagent it names.** That agent merges delegate branches as they land and
     runs, on the merged head, what the merged change can break. A change inside
     one project runs that project's suite. `static/` adds the browser suite.
-    `contract/` runs all four. The full `testament run` runs once at the
+    `contract/` runs all five. The full `testament run` runs once at the
     boundary, before the PR. The live markers run only when the change touches
     the code they cover, and only by hand (`CLAUDE.md`).
 

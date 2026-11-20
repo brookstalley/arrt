@@ -475,6 +475,21 @@ left as planned and this section is the later word.
   files that chunk did not own. Chunk 64 changes them and holds the rest by a guard.
 - **2026-11-20 (Chunk 64 added):** a last sweep of what the final passes of integration
   listed and no chunk owned.
+- **2026-11-20, six rulings** (`.prawduct/owner-rulings.md`, "six answers while part 2b
+  was finishing"): the host executor granted; the lingering first picture accepted; one
+  scratch pull request for the fallback; `art_spend` kept; the half-hourly reconcile's
+  wait accepted until its lookups are batched; the delegate-verification count corrected.
+- **2026-11-20 (Chunk 54), found in the records:** the drift workflow still ran the paid
+  model probe on a monthly schedule, against the same day's ruling that CI makes no paid
+  call. Chunk 64 takes it off the schedule. The change record closes no issue outright:
+  #313 and #318 are built in part, #438 in its first item, and #442's cause is not
+  established; what is left of each is on the third part's list.
+- **2026-11-20 (Chunk 54), started early and on a stronger model:** dispatched before
+  Chunks 62 and 64 merged, holding the sections they change, and on an Opus-class model
+  where the plan named a Sonnet-class one, because its checklist was 49 entries across a
+  dozen records, each verified against the code.
+- **2026-11-20 (Chunk 65 added):** the image's test stage as a suite on the pool, now that
+  ruling 1 above permits it. Chunk 56's decision recorded why it could not be done then.
 
 ## The items 2a carried forward, and where each went
 
@@ -1923,6 +1938,41 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   `arrt/tests/unit/test_client_vocabulary.py`; every test file that reads one of the five
   sentences (by grep); `arrt/tests/unit/test_surface_parity.py`; the governance suite
   whole; mypy, ruff and black in `arrt/`.
+
+### Chunk 65: The image's test stage runs on the pool
+
+- **Type:** code
+- **Closes:** the gap Chunk 56 recorded (the image's test stage is first met at a pull
+  request into `main`), by the owner's ruling of 2026-11-20 granting the host executor.
+- **Model:** Opus-class, high: a suite that builds outside a container, routed to the
+  runners that can, and a fallback that must leave it out by name.
+- **Waits for:** 56, 52 and 43 (they own the files it edits).
+- **Owns:** `.testament.toml` (a sixth suite only), `.github/scripts/pool_or_fallback.py`
+  (the suite's name where the fallback leaves suites out, only), `tests/test_ci_fallback.py`,
+  `tests/test_default_suite_ci_scope.py`, a new test file under `tests/` that is the
+  suite, `docs/testing.md` (the suite's section), `.github/workflows/tests.yml` (only if
+  the suite's request needs a line there).
+- **Deliverables:**
+  - A suite that builds the server image's test stage on a runner's host and fails when
+    the stage fails, routed to runners that have Docker, with the build's output in the
+    failure text.
+  - It runs with the other suites on a full `testament run` from a machine doing the
+    work; whether CI's own key can run a host suite is established, and if it cannot, CI
+    leaves the suite out by name and its summary says so, as it does for the browser
+    suite after a fallback.
+  - The fallback never runs it (nothing on GitHub's runner builds the image for a pull
+    request into `develop`): left out by name, held by the derivation's test.
+  - The cost is measured: the suite's time on the pool, cold and warm, and what it adds
+    to a full run.
+- **Acceptance:** the suite passes on the pool on the branch's head; with a line of the
+  Dockerfile's test stage broken it fails naming the build step; with a test added that
+  reads a repository-root file the image does not carry, it fails (the fault Chunk 56's
+  guard was written for, now met directly); the fallback's derived commands for the other
+  five suites are byte-identical before and after; a run on a machine with no owner
+  secret says why the suite did not run, and is not a pass.
+- **Verification ceiling:** the new suite on the pool; the governance suite whole; the
+  fallback's three suites locally; `actionlint` if a workflow changed; ruff and black at
+  the root.
 
 ### Chunk 54: Records, and the change record
 
