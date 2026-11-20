@@ -711,7 +711,7 @@ reads; this paragraph says neither.*
 | `acquisition.queue_failed`, `acquisition.queue_gave_up` | as above | now carry `outcome` and `rule`, the retry rule the outcome chose (`RETRY_RULES`, `library/acquisition/queue.py`) |
 | `image_pool.link_gone` | INFO | a source answered that every page the work's Wikidata item links at it is gone (interface 1.6), named apart from could-not-be-asked |
 | `image_pool.owed` | INFO | phase 2 stopped waiting for a source at the look's 30 s window; its answer is owed to the work's search record |
-| `phase_two.judged` | as before | gains `owed`, the sources still owed an answer when the run settled the work (`library/discovery/phase_two.py`) |
+| `phase_two.judged` | as before | gains `owed`, the sources still owed an answer when the run settled the work, and `gone`, those that answered every linked page is gone (`library/discovery/phase_two.py`) |
 | `image_pool.late` | WARNING | gains `recorded`: whether the late answer was written to the search record for the work's next pass, or discarded |
 | `image_pool.search_unrecorded` | WARNING | a search's record could not be written; dropped by name, never raised on the run (`library/discovery/pool.py`) |
 | `source.plugin_held_back` | WARNING | once per pass per plugin: after three could-not-be-asked answers in a row (`HOLD_BACK_AFTER`) the rest of the pass did not ask it, with `not_asked` and `after`; the works not asked are left exactly as they were (`library/sources/loading.py`) |

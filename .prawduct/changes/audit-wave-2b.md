@@ -164,7 +164,10 @@ sites in six modules); the 25 direct clock reads in Programming's modules, and
 `TasteService.set_affinity`'s own clock and id; the prototype-scale test's
 `build_large_catalogue`; the browser tests that seed a time from `datetime.now`.
 
-**For the owner:** Q1 (the four norm texts in `project-preferences.md`, and with it the
+**For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`; one
+thing that ruling settles is not done: `.github/workflows/api-drift.yml` still schedules the
+paid OpenRouter probe on the 1st of each month, where the ruling says no workflow reaches a
+paid service, and #150 stays open until it stops): Q1 (the four norm texts in `project-preferences.md`, and with it the
 forbidden-columns check in `test_catalogue_store.py`), Q3 (which household settings are set
 where), granting this project the pool's host executor so the image's test stage could run
 on the pool, and whether to spend one scratch pull request (about fifteen runner-minutes)
