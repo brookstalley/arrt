@@ -137,7 +137,8 @@ jobs:
         env:
           TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}
           TESTAMENT_CONSOLE: ${{ vars.TESTAMENT_CONSOLE }}
-          TESTAMENT_COORDINATOR: ${{ vars.TESTAMENT_COORDINATOR }}
+          # SCRATCH, never to merge: an address that cannot answer, to see the fallback on GitHub.
+          TESTAMENT_COORDINATOR: tls://coordinator.invalid:443
           TESTAMENT_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
