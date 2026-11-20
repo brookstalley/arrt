@@ -53,9 +53,10 @@ outcome and plugin rather than by the reason's text. Source plugin interface **1
 `LinkGone` (additive: a 1.5 plugin loads and behaves as before). Phase two answers with the
 sources that answered within the look's 30-second window and keeps the slower answers in a
 durable search record (`source_searches`), read on the work's next pass; the could-not-be-
-asked counts survive a restart. Within one pass of the queue, a plugin that could not be
-asked three times in a row is not asked again that pass (`HOLD_BACK_AFTER`), and the works
-it was not asked about are left exactly as they were (33). `arrt.library.sources.testing`
+asked counts survive a restart. Within one pass (the acquisition queue's, or phase 2's
+over one run's works), a plugin that could not be asked three times in a row is not asked
+again that pass (`HOLD_BACK_AFTER`), and the works it was not asked about are left exactly
+as they were (33). `arrt.library.sources.testing`
 is a supported helper that drives the real host code for a plugin's own tests (44).
 
 **Hang on any selection, and from a wall (34, 57).** *Hang…* is in the selection toolbar of
@@ -118,24 +119,39 @@ UX walk names the states it must visit (43, 63).
 **The compose example, hardened (42).** Every capability dropped, a read-only root, and a
 64 MB `/tmp` tmpfs, which SQLite's sort spill was measured to need (`operational-spec.md`).
 
-**Records (54).** The artifacts say what this part built, each against the code it
-describes; the 2a plan's § Wave 2b points here.
+**Records (54).** The artifacts, `docs/testing.md`, `docs/source-plugins.md`,
+`docs/ux-walkthrough.md` and `deploy/README.md` say what this part built, each against
+the code it describes; the 2a plan's § Wave 2b points here.
 
 ### What is left open, and why
 
 **Issues the plan named, none closed here:**
-- **#318** (Queue groups by message text): the grouping by outcome and plugin is built and
-  tested, but a failure recorded before the outcome column groups by its words as before,
-  and the deployed library's failures are all such rows until each is tried again. Its
-  second acceptance, measured against the real library, is the operator's after a Retry.
-- **#313** (a durable record of each search): the record, its bound and its counts are built
-  and survive a restart, but the sources table shows no *Searches*, *Hit rate* or *Median
-  latency* columns, which its acceptance names; the counts reach Status only in the
-  source's sentence.
-- **#438** (cacheability): the two services' clocks and ids are injected, and about half the
-  curation suite still cannot be cached: testament's cache advice names a clock read as
-  the cause in about 2,250 cases and a real server process or a socket in about 3,100
-  (the plan's dated decision for Chunk 43). The rest is the shared fixtures' clock, in the third part.
+- **#318** (Queue groups by message text) asks for grouping by a recorded cause key and
+  for a measurement against the real library's failures. Chunk 32 built the first for
+  every failure recorded since: the acquisition queue's row keeps the fetch's `outcome`
+  and the `plugin` that said it beside the sentence, and Queue groups a classified
+  failure by the two (`FailureCause`, `arrt/src/arrt/library/acquisition/queue.py`). A
+  row recorded before the column has neither and groups by its words, as before, until
+  the work is tried again. The measurement needs the owner's own library, which no
+  delegate reaches; it is the operator's, after a Retry of the real queue.
+- **#313** (a durable record of each search) asks for the record and for three columns on
+  Status's sources table. The record exists (`source_searches`; `SourceSearch` and
+  `SearchTally`, `arrt/src/arrt/persistence/discovery_records.py`): per source,
+  `searched`, `answered`, `unasked` and `owed`, and when it last answered and was last
+  asked, counted over the newest search of each work (the only one kept) for the 100
+  works it was asked about most recently, and it survives a restart. Not built: a
+  latency (each row keeps when it was asked and when it answered, and nothing computes
+  the difference), a split of `answered` into found something and found nothing (each
+  row keeps how many images it gave, and the tally does not divide by it), and the
+  *Searches*, *Hit rate* and *Median latency* columns; the counts reach Status only in
+  the source's sentence. The remainder is on the third part's list below.
+- **#438** (cacheability): the two services' clocks and ids are injected, and the
+  integrator's full run on the head with chunk 43 merged (`c4ceada5`, `--no-cache`;
+  request ids `27dbbdf2`, `f9ae3248`, `5df08bac`, `27a9d59e`, `123b9e2c`) measured 49.6%
+  uncacheable, 5,454 of 11,007. By reason, that run's figures: clock 2,257, subprocess
+  1,695, socket 1,412, entropy 90; so about 3,100 are uncacheable for a real server
+  process or a socket, which no clock seam frees. The clock's share is the shared
+  fixtures', in the third part.
 - **#442** (a Skip test's flake) is **not established**. Ruled out, measured on the pool:
   CPU load alone, disk-sync load alone and many Chromiums, each well above the natural
   failures' load (chunk 51); ruled out from the code: the step that could fail to move on,
@@ -157,8 +173,9 @@ models, `api.py` by resource, the facade's removal, #307); the docstring sweep (
 configuration that imports no service; Ask's and MCP's executors; the six read routes with
 no MCP twin (`/api/artists`, `/api/artists/{id}`, `/api/works/{id}/mat`,
 `/api/works/{id}/placements`, `/api/sources/yields`, `/api/budget`), and an inventory of
-the write routes, which the route inventory does not read; the shared fixtures' clock and
-id source; batching the reconcile's per-work lookups (the cost below); the Library's
+the write routes, which the route inventory does not read; #313's remainder (a search's
+latency, answered split into found and found nothing, and the sources table's *Searches*,
+*Hit rate* and *Median latency* columns); the shared fixtures' clock and id source; batching the reconcile's per-work lookups (the cost below); the Library's
 sentences that name a museum through `museum_name(` without the declared name (14 call
 sites in six modules); the 25 direct clock reads in Programming's modules, and
 `TasteService.set_affinity`'s own clock and id; the prototype-scale test's
