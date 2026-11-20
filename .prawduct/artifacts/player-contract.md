@@ -103,14 +103,23 @@ field asks for it as a change to the package.
   holds a Player to the bytes it was tested against is its `uv.lock`, which
   records the commit the tag resolved to.
 - **A release is copied into `contract/released/<version>/` when it is cut**:
-  its `fixtures/` (index included) and `routes.json` as they are at the tag, and
-  a `sha256.json` of each file's hash, written then and never again. The
-  package's suite holds HEAD to every copy (`contract/tests/test_released.py`):
-  every valid fixture of a release of this major still validates, every invalid
-  one is still refused unless the loosening is recorded with its reason, and no
-  route or fixture of it is gone. That is the mechanical form of "a minor is
-  additive". The releases before 1.2.0 were copied from their tags when 1.2.0
-  was built.
+  its `fixtures/` (index included) and `routes.json` as they are at the tag,
+  from 1.2.0 on its `transport.json` and `vocabulary.json` too (1.2.0 introduced
+  them, so 1.0.0's and 1.1.0's copies have neither), and a `sha256.json` of each
+  file's hash, written then and never again. The package's suite holds HEAD to
+  every copy (`contract/tests/test_released.py`): every valid fixture of a
+  release of this major still validates, every invalid one is still refused
+  unless the loosening is recorded with its reason, and no route or fixture of
+  it is gone; every route and case of a release's table is still in HEAD's, with
+  the same status and body, unless HEAD's row carries a `corrected` record naming
+  a later version and what the release answered (the table owns the list of
+  corrections; `contract/tests/test_transport.py` states it again and holds the
+  two equal); and every state, word and pairing field of a release's vocabulary
+  is still there unchanged, though one may be added. The prose of a row or a
+  state (`means`, `player`) may be clarified without a record. That is the
+  mechanical form of "a minor is additive". The releases before 1.2.0 were
+  copied from their tags when 1.2.0 was built, and 1.2.0's table and
+  vocabulary were added to its copy, from the tag, before 1.3.0 was cut.
 - **Read the data through the package:** `root()` is the directory holding
   `schemas/`, `fixtures/`, `vectors/` and `routes.json`, and it refuses by name
   a build without them. `validator(path)` registers every schema, so a
