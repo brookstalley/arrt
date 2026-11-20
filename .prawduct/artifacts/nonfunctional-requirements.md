@@ -926,8 +926,17 @@ search cap is for. A number a run can freely exceed is not an estimate.
 > against the provider's activity page. Nothing here enforces a ceiling: the ceiling is
 > still the provider's credit limit on the key (§ Direction). An answered refusal (402,
 > 403, any other 4xx but 408) is not counted, on the assumption, measured only for 402
-> and 403, that a refused call is not billed. What Ask's replies record, and what the
-> client shows of their cost, is Chunk 62's, building as this is written.
+> and 403, that a refused call is not billed. **Ask records a call of unknown cost as
+> unknown, never as a known $0** (Chunk 62, `app._record_ask_cost`): one row for what
+> the reply's calls were billed, and one row marked unknown for each call the provider
+> answered without a cost or that was sent and never answered. **Every cost a person
+> reads is `SpendTotal.words`**, the server's `summary` shown as sent: Ask's reply,
+> General's allowance, each Watch and a Get's figure included. The words round down, to
+> the cent from a dollar up and to a hundredth of a cent below one, so a figure that some
+> screens said as "under $0.01" now reads, for example, "$0.0024". A figure the server
+> sends bare (an estimate, a cap, what is left) goes through the client's one helper,
+> `dollars()` in `core/spend.js`; `arrt/tests/unit/test_one_cost_formatter.py` refuses a
+> dollar formatted in any other client module.
 
 ### Decided — engine choice: Parallel (2026-08-02)
 
