@@ -69,6 +69,8 @@ class Reader(Protocol):
 
         Raises `ImageSearchFailure` when the holder could not be asked, or answered
         with something other than the page expected (a page saying "this site is
-        unavailable" is that, never "no image"). May do I/O; it is called once per
-        acquisition, not to decide whether the URL is this plugin's.
+        unavailable" is that, never "no image"), and `LinkGone` (1.6) when the
+        holder says the page is not there: a 404 or 410, or its own "no such
+        object". May do I/O; it is called once per acquisition, not to decide
+        whether the URL is this plugin's.
         """

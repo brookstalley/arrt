@@ -37,7 +37,11 @@ from arrt.library.sources.reading import Reader
 #: this Arrt is refused at load by name rather than faulting on its first call,
 #: and `SourcePlugin.deadlines`, for a plugin whose calls take longer than the
 #: host's default deadlines.
-API_VERSION: Final[tuple[int, int]] = (1, 5)
+#: 1.6 added `LinkGone`, a finder's or reader's answer that the holder says the
+#: page is gone, which settles the work for that source where "could not be
+#: asked" would have it asked again for ever. A plugin written for 1.5 never
+#: raises it, and is treated exactly as before.
+API_VERSION: Final[tuple[int, int]] = (1, 6)
 
 
 @dataclass(frozen=True, slots=True)

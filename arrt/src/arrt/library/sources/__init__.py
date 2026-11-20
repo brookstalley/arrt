@@ -25,6 +25,7 @@ from arrt.library.discovery.images import (
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    LinkGone,
 )
 from arrt.library.registry import ItemId, Registry, RegistryUnavailable
 from arrt.library.sources.iiif import CanvasImage, ImageService, manifest_images, manifest_metadata
@@ -57,6 +58,7 @@ __all__ = [
     "ImageSearchFailure",
     "ImageService",
     "ItemId",
+    "LinkGone",
     "LocatorKind",
     "OfferedGroup",
     "Reader",

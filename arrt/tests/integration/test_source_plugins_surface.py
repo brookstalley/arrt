@@ -14,8 +14,12 @@ from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from arrt.library.sources import SourceContext
+from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
+
+#: The could-not-be-asked and answered counts, as fields: on `/api/sources` first
+#: (wave 2b, Chunk 32); Chunk 53 gives the tool their twins and removes this.
+HTTP_ONLY = frozenset({"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"})
 
 
 @pytest.fixture
@@ -43,7 +47,7 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
     listing = (await request("GET", f"{server_url}/api/sources")).json()
     by_name = {source["name"]: source for source in listing["sources"]}
 
-    assert listing["interface_version"] == "1.5"
+    assert listing["interface_version"] == "{}.{}".format(*API_VERSION)
     # 1.4: every plugin carries the name a curator knows it by.
     assert by_name["met"]["museum"] == "Metropolitan Museum of Art"
     assert all(source["museum"] for source in listing["sources"])
@@ -57,6 +61,11 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
         "last_fault_at": None,
         "last_fault_age_seconds": None,
         "last_fault": None,
+        "unasked": 0,
+        "last_unasked_at": None,
+        "last_unasked_age_seconds": None,
+        "last_unasked": None,
+        "answered": 0,
         "description": None,
         "distribution": "arrt",
         "version": importlib.metadata.version("arrt"),
@@ -76,5 +85,11 @@ async def test_the_tool_answers_what_the_route_answers(server_url):
 
     assert model["success"] is True
     assert model["interface_version"] == browser["interface_version"]
-    assert model["sources"] == browser["sources"]
+    assert model["sources"] == [
+        {name: value for name, value in each.items() if name not in HTTP_ONLY} for each in browser["sources"]
+    ]
+    assert all(
+        set(each) >= HTTP_ONLY and not HTTP_ONLY & set(model_each)
+        for each, model_each in zip(browser["sources"], model["sources"], strict=True)
+    ), "an exemption for a field the tool now carries, or one the route no longer does"
     assert model["count"] == len(browser["sources"])

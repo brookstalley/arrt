@@ -10,12 +10,14 @@
 # root scan then walks, and a fixture is not a project. The `[project]` table
 # keeps pyproject's shape, so it reads as the metadata a build would carry.
 #
-# Four plugins in one distribution, because a deadline is declared on the
-# `SourcePlugin` itself, at import, and one plugin cannot declare two:
-#   misbehaving  the plugin the test steers, call by call (`arrt_misbehaving.CONTROL`)
-#   steady       a well-behaved plugin beside it, whose answers must still arrive
+# Six plugins in one distribution, because a deadline and an interface minor are
+# declared on the `SourcePlugin` itself, at import, and one plugin cannot declare two:
+#   misbehaving  the plugin the test steers, call by call (`arrt_misbehaving.CONTROL`); 1.5
+#   steady       a well-behaved plugin beside it, whose answers must still arrive; 1.4
 #   patient      declares the ceiling and takes all of it
 #   overdue      declares more than the ceiling, and is refused at load
+#   gone         1.6: answers that a work's pages are gone (`LinkGone`), finder and reader
+#   newer        needs interface 1.7, and is refused at load
 [project]
 name = "arrt-misbehaving"
 version = "0.1.0"
@@ -28,3 +30,5 @@ misbehaving = "arrt_misbehaving:MISBEHAVING"
 steady = "arrt_misbehaving:STEADY"
 patient = "arrt_misbehaving:PATIENT"
 overdue = "arrt_misbehaving:OVERDUE"
+gone = "arrt_misbehaving:GONE"
+newer = "arrt_misbehaving:NEWER"

@@ -154,6 +154,27 @@ class ImageSearchFailure(Exception):
     """
 
 
+class LinkGone(ImageSearchFailure):
+    """The holder said the page is not there (source interface 1.6): an answer, not a failure to ask.
+
+    **A finder raises it when every page the work's registry item links at this
+    holder is gone** (a 404 or 410 from each, or the holder's own "no such
+    object"), and only then: one gone page beside another that answered is the
+    other's answer. **A reader raises it when the page it was given is gone.**
+    The holder answered, and what it said is that it no longer has the page, so
+    Arrt treats the work as settled for this source until the work's Wikidata
+    item changes, where "could not be asked" would have it asked again for ever
+    (`source-plugins.md` § Answers).
+
+    **A subclass of `ImageSearchFailure`, so it costs a plugin one word.** Where
+    a plugin raised `ImageSearchFailure` for a dead link it raises this, and its
+    own `except ImageSearchFailure` still catches it. An Arrt older than 1.6 has
+    no such class: a plugin that must load on one takes
+    `getattr(arrt.library.sources, "LinkGone", ImageSearchFailure)`, and there
+    the dead link reads as "could not be asked", as it always did.
+    """
+
+
 class ImageQueryUnanswerable(Exception):
     """This source cannot look this kind of work up at all.
 
@@ -200,7 +221,8 @@ class Finder(Protocol):
     def find_images(self, query: ImageQuery) -> Iterable[FoundImage | FoundPage]:
         """Every instance this provider holds for the work, unjudged and unranked, and any page it found and cannot read.
 
-        Raises `ImageSearchFailure` when the provider could not be asked, and
+        Raises `ImageSearchFailure` when the provider could not be asked,
+        `LinkGone` when every page the work's item links at it is gone (1.6), and
         `ImageQueryUnanswerable` when it cannot look a work like this one up.
         An empty answer means it looked and holds nothing, and only that.
         """

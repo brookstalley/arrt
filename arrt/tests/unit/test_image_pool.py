@@ -15,9 +15,9 @@ import pytest
 from fakes import an_image
 
 from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
-from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
+from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure, LinkGone
 from arrt.library.discovery.phase_two import PhaseTwoEngine
-from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.discovery.pool import AskOutcome, ImageSourcePool, NoSourceCanAnswer
 from arrt.library.services.quality import QualityProfile
 
 #: The engine tests' 42" geometry: the floor sits at about 1,260 px on the long edge.
@@ -208,3 +208,60 @@ def test_what_a_source_logs_on_its_worker_carries_the_run_it_works_for():
         ImageSourcePool([Seeing("first"), Seeing("second")]).find_images(query())
 
     assert seen == ["run-7", "run-7"]
+
+
+# -- 1.6: a source answering that the work's pages at it are gone --------------------
+
+
+class GoneSource(Source):
+    """Answers that every page the work's item links at it is gone (`LinkGone`)."""
+
+    offers_images = True
+
+    def find_images(self, query: ImageQuery):
+        raise LinkGone(f"every {self._name} page for this work answered 404")
+
+
+class GonePages(GoneSource):
+    """A finder of pages only, answering the same."""
+
+    offers_images = False
+
+
+def test_a_source_whose_pages_are_gone_answered_and_is_named_apart(caplog):
+    with caplog.at_level(logging.INFO):
+        answer = ImageSourcePool([GoneSource("first"), Source("second")]).find_images(query())
+
+    assert (answer.images, answer.unreachable, answer.gone) == ((), (), ("first",))
+    assert [record.provider for record in caplog.records if getattr(record, "event", "") == "image_pool.link_gone"] == ["first"]
+
+
+def test_a_source_whose_pages_are_gone_is_an_answer_even_alone():
+    """Every source of images answering "gone" is every source answering: nobody holds it now."""
+    answer = ImageSourcePool([GoneSource("only")]).find_images(query())
+
+    assert (answer.images, answer.unreachable, answer.gone) == ((), (), ("only",))
+
+
+def test_a_finder_of_pages_answering_gone_says_nothing_about_an_image():
+    with pytest.raises(NoSourceCanAnswer, match="pages only"):
+        ImageSourcePool([GonePages("pages")]).find_images(query())
+
+
+def test_one_source_asked_alone_answers_link_gone_as_itself():
+    """What a look reads (`ImageSourcePool.ask`): its own outcome, never "could not be asked"."""
+    said = ImageSourcePool([GoneSource("first")]).ask("first", query())
+
+    assert (said.outcome, said.failure) == (AskOutcome.LINK_GONE, "every first page for this work answered 404")
+
+
+def test_a_work_only_a_gone_source_might_hold_is_settled_as_held_by_nobody():
+    """Audit-4 finding 4: such a work waited for ever, as if the source were down."""
+    resolution = resolve(GoneSource("first"), Source("second"))
+
+    assert resolution.instances == []
+
+
+def test_beside_a_source_that_is_down_a_gone_one_still_leaves_the_work_unsettled():
+    with pytest.raises(ImageSearchFailure, match="second"):
+        resolve(GoneSource("first"), Source("second", fails=True))

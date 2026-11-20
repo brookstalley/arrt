@@ -169,16 +169,29 @@ paintings cites the gallery's artist page, not a page per work
   get (`security-model.md` § Source plugins).
 - **A Get has none.** It searches nothing on the web.
 
-### Three answers, plus a fault
+### Four answers, plus a fault
 
-A plugin's call ends in one of three answers, as the pool keeps them today
-(`library/discovery/pool.py`):
+A plugin's call ends in one of four answers, as the pool keeps them
+(`library/discovery/pool.py`, `AskOutcome`):
 
 | Answer | Means | Raised as |
 |---|---|---|
 | **holds nothing** | asked, and there is nothing | an empty result |
+| **the page is gone** (1.6) | the holder says the page is not there: every page the item links, for a finder; the one page, for a reader | `LinkGone`, a subclass of `ImageSearchFailure` |
 | **could not be asked** | down, refused, or answered with something other than the page expected | `ImageSearchFailure` |
 | **cannot answer this kind of work** | this finder cannot look up a work like this one, or this reader does not recognise the URL | `ImageQueryUnanswerable`; a reader returns *not mine* |
+
+**The page is gone is an answer** (1.6, wave 2b). A run counts the source as
+answering, holding nothing, and names it apart (`PoolAnswer.gone`), so a work
+whose only MoMA or Met page is dead settles instead of being searched again
+for ever (audit-4 finding 4). Acquisition records each fetch's outcome in its
+own column beside the coarse status (`FetchOutcome`, `sources.last_fetch_outcome`:
+`ok`, `partial_tiles`, `none_held`, `unasked`, `faulted`, `link_gone`, `failed`),
+and the acquisition queue retries by it (`queue.RETRY_RULES`); the outcomes and
+their rules are tabled for plugin authors in `docs/source-plugins.md` § Answers,
+which a test holds to the code. A fault reaches acquisition as `PluginFaulted`,
+the host's own subclass of `ImageSearchFailure`, and is recorded `faulted`, apart
+from `unasked`.
 
 **A page that is not the page expected is "could not be asked", never "holds
 nothing"** (the procurement corpus's gap 5: gerhard-richter.com answers HTTP 200
@@ -455,14 +468,21 @@ open data, which the NGA's is, is offered for exactly that.
   in debug, which needs every source to have a name (#355).*
 - **1.5 (2026-11-19) added `SourcePlugin.api_minor` and `SourcePlugin.deadlines`.**
   `api_minor` is the newest minor a plugin reads; one needing a newer minor than
-  this Arrt is refused at load naming both ("it needs source interface 1.6, and
-  this Arrt is 1.5") rather than loaded to fault on its first call, and an import
+  this Arrt is refused at load naming both ("it needs source interface 1.7, and
+  this Arrt is 1.6") rather than loaded to fault on its first call, and an import
   failing on a keyword `SourcePlugin` does not take says the plugin may need a
   newer Arrt. `deadlines` maps `finder`, `reader`, `preview` or `browse` to the
   seconds the host waits for that kind of call, above zero and at most 3,600; a
-  value outside that, or another key, is refused at load by name (§ Three
+  value outside that, or another key, is refused at load by name (§ Four
   answers, plus a fault). A plugin built for 1.4 loads unchanged and gets the
   defaults.
+- **1.6 (wave 2b) added `LinkGone`**, a finder's or reader's answer that the
+  holder says the page is gone (§ Four answers, plus a fault). A subclass of
+  `ImageSearchFailure`, so a plugin raising it on an older Arrt that knows no
+  such name (taking `getattr(arrt.library.sources, "LinkGone",
+  ImageSearchFailure)`) reads there as "could not be asked", as before. A plugin
+  built for 1.5 never raises it, loads unchanged, and is treated exactly as
+  before.
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks `arrt.library` (and
@@ -471,7 +491,7 @@ open data, which the NGA's is, is offered for exactly that.
   types above. Anything a plugin imports from elsewhere in `arrt` is not part of
   the interface and may break in any release. A test holds the built-in plugins to
   this, because they are what authors copy.
-- **The error model** is the three answers and the fault above.
+- **The error model** is the four answers and the fault above.
 
 ## Deploying a private plugin
 
