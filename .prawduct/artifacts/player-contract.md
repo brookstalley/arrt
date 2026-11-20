@@ -178,7 +178,8 @@ field asks for it as a change to the package.
   `contract/tools/freeze_release.py`. Additive but for two answers, each a bounded
   exception recorded in `build-plan-audit-wave-2b.md` § Decisions made mid-build: one
   corrected (the wall heartbeat's `not_an_object`, below) and one narrowed (the cap of
-  32 outputs and 32 label outputs, below).
+  32 outputs and 32 label outputs, below); a third, `staging-repeated`, waits for the
+  owner (below).
   - `contract/vocabulary.json`, `vocabulary()`: `player_states`, a Player's five
     states as the server reads them, each with its `word`, `setup` and `means`:
     `no_token` "No token yet" and `awaiting_report` "Waiting for its first report"
@@ -194,11 +195,33 @@ field asks for it as a change to the package.
     `Content-Type` is read, as the client heartbeat's route already read it.
   - The must-refuse fixtures: **170 invalid fixtures added** (counted against
     `contract-v1.2.0`'s `fixtures/index.json`): `client-heartbeat.v1` 21,
-    `client.v1` 20, `heartbeat.v1` 47, `label.v1` 14, `manifest.v2` 68 (28 of them
-    `player_must_refuse`, 40 not: a setting, the playlist, the schema minor, a
-    label's text, a mat colour, a master's bytes and dimensions). Each is a valid fixture with one change, and
+    `client.v1` 20, `heartbeat.v1` 47, `label.v1` 14, `manifest.v2` 68 (25 of them
+    `player_must_refuse`, 43 not: a setting, the playlist, the schema minor, a
+    label's text, a mat colour, a master's bytes and dimensions, `generated_at`,
+    and a master's `content_type`). Each is a valid fixture with one change, and
     every invalid row in the index now carries `constraint` (the schema keyword it
     breaks, or the rule) and `refused_because`.
+  - **Three of those were marked must-refuse in the draft and are not**, by the
+    index's own rule, unchanged since 1.2.0's `_about` ("a Player refuses what it
+    acts on"): `generated-at-malformed` and `generated-at-not-text`, because no rule
+    of § Major 2 reads `generated_at` (it is not a slot's instant), and
+    `work-media-content-type-unknown`, because a Player decodes the bytes and checks
+    their `sha256`, and an enum a later minor may widen (moving media, #424) must be
+    tolerated by a reader or that minor is not additive for it. Arrt Player's reader
+    accepts all three. The server's writer is still held to the schema, which
+    refuses all three (`arrt/tests/contract/test_feed_writer_obligations.py`), and
+    `contract/tests/test_schemas_and_fixtures.py` holds every must-refuse row to a
+    field a rule of this file reads. A Player that comes to act on `generated_at`
+    needs a reader rule in a later minor, which would be a narrowing to record.
+  - **`staging-repeated` stays must-refuse, and is put to the owner** beside the
+    cap. 1.2.0 did not oblige a reader to refuse it: its schema's `uniqueItems` on
+    `staging` was a writer's obligation, its index had no such fixture, and neither
+    § Staging nor § Rules a schema cannot state says a repeated item is refused. So
+    marking it is a third narrowing of a reader, to be ratified, or marked false
+    and left to a Player as its own choice. Arrt Player's reader accepts it today.
+  - `contract/transport.json`: the client heartbeat's two `400` rows say what a
+    changed report is: everything in it but `reported_at`, which every report
+    carries anew (§ Transport). The answer a Player meets does not change.
   - Two semantic rules of the client heartbeat, in `semantic_errors(document,
     schema=…)` (the default schema is unchanged): no two outputs share a name, nor
     two label outputs; and a report carries at most `MAX_OUTPUTS_PER_REPORT` (32)
@@ -241,16 +264,18 @@ refuses ("carries no media with a sha256 and a url"). A Player moving its pin to
 
 ### What a Player does at 1.3.0
 
-**Nothing a Player reads, writes or requests must change**, and 1.3.0 is not cut
+**Nothing a Player reads, writes or requests must change**, but for one row the
+owner has yet to rule on (`staging-repeated`, under § Releases), and 1.3.0 is not cut
 yet: a Player moves its pin when `contract-v1.3.0` exists. What its suite must do
 then, if it holds every must-refuse fixture to a stated reason as Arrt Player's
 does: **give a reason to each new invalid fixture its table reads** (the 170 above;
-the 68 of `manifest.v2` with `player_must_refuse` say which a reader enforces, a
-split Arrt drew and the Player's coordinator is asked to confirm), and
-to the four client-heartbeat fixtures that pass the schema and break a semantic
-rule. Its writer should send no more than 32 outputs or label outputs and no two of
-one name, which a Player with one display and one label already does. A Player
-moving its pin may:
+of the 68 of `manifest.v2`, the 25 with `player_must_refuse` true are the ones a
+reader enforces, a split Arrt drew and the Player's coordinator is asked to
+confirm), and to the four client-heartbeat fixtures that pass the schema and break
+a semantic rule. Its writer should send no more than 32 outputs or label outputs and
+no two of one name, which a Player with one display and one label already does, and
+should send a refused client heartbeat again only when the report changes in
+something other than `reported_at` (§ Transport). A Player moving its pin may:
 
 - quote `vocabulary()`'s `player_states` for its own settings page, which speaks of
   the Player as the server's Players page does, with a test against the package;
@@ -364,6 +389,14 @@ a `GET` as a configuration error, and on a `POST` as that route's `400`.
   limit of this server's, `http/player.py` `BODY_LIMIT_BYTES`, and not a rule of
   any schema: a Player is never asked to know it, `contract/` carries no such number,
   and so changing it cuts no `contract-v` tag.
+- **A refused client heartbeat is sent again when the report changes, and a report
+  whose only change is its `reported_at` has not changed** (since 1.3.0, the
+  `not_json` and `not_a_client_heartbeat` rows). The server writes nothing of a
+  refused report and answers the same report the same way whatever its
+  `reported_at`, so resending it each cycle tells the server nothing new; a
+  report's age is already what says the Player is alive. The cost: a server
+  upgraded to accept a report it refused hears from that Player when its report
+  next changes or it restarts, not within one interval.
 - **Wall tokens are retired, and this is a breaking change** for a Player
   configured with a wall token (`WALL_TOKEN`): every request it makes is `401`
   from the change on, and its operator moves it to a client token. No

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 import httpx
 import pytest
-from arrt_contract import root, routes, transport, validator
+from arrt_contract import fixtures, root, routes, transport, validator
 
 from arrt.http import player
 
@@ -299,3 +299,38 @@ def test_a_failure_inside_the_server_is_answered_in_the_unanswered_class(world, 
     assert TABLE["unanswered"]["status_class"] == "5xx"
     assert 500 <= response.status_code < 600
     _check_body(world, "client", TABLE["unanswered"]["body"], response)
+
+
+def _client_heartbeat_row(case: str) -> dict:
+    return next(answer for answer in TABLE["routes"]["client_heartbeat"]["answers"] if answer["case"] == case)
+
+
+#: A report the server refuses for what it says, not for how it is spelled: two outputs of one name.
+_REFUSED_REPORT = _fixture(
+    next(row["path"] for row in fixtures() if row.get("server_must_refuse") and row["constraint"] == "two outputs share a name")
+)
+
+
+def test_a_refused_report_sent_again_with_only_its_reported_at_moved_is_answered_the_same(world):
+    """The row tells a Player a report is the same when all but `reported_at` is, so this server must answer it the same.
+
+    A server whose refusal turned on `reported_at` would make the Player's held
+    report a different question each cycle, and the row would be wrong to let it
+    stop asking.
+    """
+    assert "everything in it but reported_at" in _client_heartbeat_row("not_a_client_heartbeat")["player"]
+    first, again = (
+        world.post("client_heartbeat", world.token, json.dumps({**_REFUSED_REPORT, "reported_at": instant}).encode())
+        for instant in ("2026-11-20T09:00:00Z", "2026-11-20T09:00:30.5+01:00")
+    )
+
+    assert first.status_code == again.status_code == _client_heartbeat_row("not_a_client_heartbeat")["status"]
+    assert first.json() == again.json()
+
+
+def test_the_same_bytes_that_are_not_json_are_answered_the_same(world):
+    assert "everything in it but reported_at" in _client_heartbeat_row("not_json")["player"]
+    first, again = (world.post("client_heartbeat", world.token, b"not json at all") for _ in range(2))
+
+    assert first.status_code == again.status_code == _client_heartbeat_row("not_json")["status"]
+    assert first.json() == again.json()

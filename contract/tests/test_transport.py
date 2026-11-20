@@ -141,3 +141,25 @@ def test_both_heartbeat_routes_refuse_a_body_that_is_not_a_json_object_alike():
     client = next(answer for answer in TABLE["routes"]["client_heartbeat"]["answers"] if answer["case"] == "not_json")
 
     assert (wall["status"], wall["body"]) == (client["status"], client["body"]) == (400, "error")
+
+
+#: The client heartbeat's answers that refuse a report the server cannot read.
+REFUSED_REPORTS = ("not_json", "not_a_client_heartbeat")
+
+
+def test_a_refused_client_heartbeat_is_sent_again_when_the_report_changes_and_reported_at_alone_is_no_change():
+    """Every report carries a new `reported_at`, so "when the report changes" read literally lets a Player resend every cycle.
+
+    Both refusals tell a Player the same thing, and say that a report is the same
+    when all but `reported_at` is; the field named is one the report must carry.
+    """
+    route = TABLE["routes"]["client_heartbeat"]
+    told = {answer["player"] for answer in route["answers"] if answer["case"] in REFUSED_REPORTS}
+    statuses = {answer["status"] for answer in route["answers"] if answer["case"] in REFUSED_REPORTS}
+
+    assert statuses == {400}
+    assert len(told) == 1, f"the two refusals tell a Player different things: {told}"
+    (said,) = told
+    assert "send again when the report changes" in said
+    assert "A report is the same when everything in it but reported_at is" in said
+    assert "reported_at" in schema(route["request_schema"])["required"]
