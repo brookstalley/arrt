@@ -26,10 +26,12 @@ Player's steps are in its repository.
   curation suite inside it with `--target test --build-context repo=.`, as the
   app's own user. CI builds that target natively on amd64 on every pull request
   into `main`, which is a release, so the image is built before every release
-  without anyone remembering to; on a pull request into any other branch it builds
-  only when the image's environment changes: its Dockerfile, interpreter pin or
-  dependency files (`.github/workflows/image.yml`). A change to source or tests
-  alone does not build it there, and the workflow can also be run by hand. On an arm Mac it builds under emulation, takes far longer, and
+  without anyone remembering to, and when the workflow is run by hand
+  (`.github/workflows/image.yml`); on a pull request into any other branch it does
+  not run at all, whatever changed (since 2026-11-20, by the owner's ruling that CI
+  is kept small). So a Dockerfile, lockfile or interpreter change is first built at
+  the release's pull request unless you run the workflow, or the build below, by
+  hand on the branch. On an arm Mac it builds under emulation, takes far longer, and
   a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 
