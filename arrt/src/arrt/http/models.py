@@ -1457,8 +1457,9 @@ class FailedFetchesOut(BaseModel):
 
     `newest_age_seconds` is the age of the newest failure among the works whose
     failure instant is recorded; `age_unknown` counts those whose instant is
-    not (today every work the queue gave up on), so "2,000 failed, newest an
-    hour ago" and "2,000 failed, when is not recorded" read apart.
+    not (only works that failed before the queue recorded when, and that give
+    no next try to read it back from), so "2,000 failed, newest an hour ago" and
+    "2,000 failed, when is not recorded" read apart.
     """
 
     #: Every work the Queue lists as failed: `will_retry` plus `given_up`.

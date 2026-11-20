@@ -45,7 +45,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from arrt import observations
-from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState, QueueListing
+from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
@@ -157,18 +157,20 @@ class PicturesReading:
 def failure_instant(state: AcquisitionState) -> datetime | None:
     """When this work's last fetch failed, or None when that is not known.
 
-    **A derivation standing in for a stored instant.** The queue's row keeps no
-    time of failure (`QueuedAcquisition`), so it is read back from the retry
-    schedule the queue applies at each failure (`AcquisitionQueue._record_failure`:
-    `next_try_at` is the failure's instant plus `RETRY_AFTER[failures - 1]`). A
-    work the queue gave up on has no `next_try_at`, so its instant is not known.
-    `arrt/tests/unit/test_failed_fetches.py` drives the real queue with a fake
-    clock, so a change to the retry rule turns it red while this derivation lives.
+    **The queue's own record of it** (`failed_at`), which
+    `AcquisitionQueue._record_failure` writes at every failure, the one it gives
+    up on included, whatever the failure's outcome.
 
-    Chunk 40 of the audit's wave 2b replaces this body with a read of the
-    `failed_at` the queue row gains in chunk 32, keeping the derivation only for
-    rows written before that column existed; its meaning to callers stays the same.
+    **A derivation only for a row written before that column existed**, which
+    holds none: its instant is read back from the retry schedule the queue
+    applied at that failure (`next_try_at` is the failure's instant plus
+    `RETRY_AFTER[failures - 1]`). Such a row given up on has no `next_try_at`
+    either, so its instant is not known, and no instant is guessed.
+    `arrt/tests/unit/test_failed_fetches.py` drives the real queue for the
+    first and seeds rows without the column for the second.
     """
+    if state.failed_at is not None:
+        return state.failed_at
     if state.phase is not AcquisitionPhase.FAILED or state.next_try_at is None:
         return None
     if not 1 <= state.failures <= len(RETRY_AFTER):
@@ -180,8 +182,8 @@ def failure_instant(state: AcquisitionState) -> datetime | None:
 class FailedFetches:
     """The works whose picture the queue failed to fetch: how many, and when the newest failed, where known.
 
-    Counted from `failed_states`, the works Activity › Queue lists as failed or
-    given up on, so the badge and the page cannot disagree. A health
+    Counted from `AcquisitionQueue.failed_states`, the works Activity › Queue
+    lists as failed or given up on, so the badge and the page cannot disagree. A health
     observation, because 2,000 failed fetches once raised nothing anywhere
     (audit 2026-11-19, audit-6 finding 3).
     """
@@ -197,8 +199,10 @@ class FailedFetches:
     newest_failed_at: datetime | None
     newest_age_seconds: float | None
     #: Of `count`, how many failed at an instant that is not recorded, so
-    #: `newest_age_seconds` cannot speak for them (today, every work given up on).
-    #: Equal to `count`: the age of the newest failure is not known at all.
+    #: `newest_age_seconds` cannot speak for them: only rows that failed before
+    #: the queue recorded `failed_at` and give no retry to read it back from
+    #: (`failure_instant`). When it equals `count`, the age of the newest
+    #: failure is not known at all.
     age_unknown: int
 
     def describe(self) -> str:
@@ -215,23 +219,8 @@ class FailedFetches:
         )
 
 
-def failed_states(listing: QueueListing) -> tuple[AcquisitionState, ...]:
-    """Every work the Queue lists as failed or given up on, as its state: what the health count is counted from.
-
-    **Read from `AcquisitionQueue.listing()`, standing in for a cheaper read.**
-    The listing is the Queue page's own, so the count cannot disagree with it,
-    but it reads every owed work's title, which the count never uses: measured
-    on 2026-11-19 at 2,000 failed works, `GET /api/health` (which the top bar
-    reads on every page) took 87-93 ms with it against 0.3 ms without, where
-    `works_to_acquire()` alone is 11 ms. Chunk 40 of the audit's wave 2b adds
-    `AcquisitionQueue.failed_states()`, the same states with no title read, and
-    `container.py` hands that to `HealthService` instead of the listing.
-    """
-    return tuple(entry.state for cause in listing.causes for entry in cause.entries)
-
-
 def failed_fetches(states: Sequence[AcquisitionState], *, now: datetime) -> FailedFetches | None:
-    """What the queue holds as failed, from `failed_states`, or None when it holds none: then there is no observation."""
+    """What the queue holds as failed (`AcquisitionQueue.failed_states`), or None when it holds none: no observation."""
     if not states:
         return None
     instants = [instant for instant in map(failure_instant, states) if instant is not None]
@@ -401,16 +390,17 @@ class HealthService:
         pictures: PictureStore,
         watches: Callable[[], WatchesReading],
         players: Callable[[], Sequence[ClientView]] = tuple,
-        queue: Callable[[], QueueListing] | None = None,
+        queue: Callable[[], Sequence[AcquisitionState]] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._display = display
         #: Every Player with its state (`ClientService.list_clients`).
         self._players = players
-        #: The queue's listing (`AcquisitionQueue.listing`), which the failed
-        #: fetches are counted from. None observes none, for a caller testing
-        #: another part of the panel; `container.py` always gives one, and
-        #: `test_browser_surface.py` reads it through the real server.
+        #: The queue's failed works (`AcquisitionQueue.failed_states`), which the
+        #: failed fetches are counted from: a read of no work's title, because
+        #: the top bar reads this on every page. None observes none, for a
+        #: caller testing another part of the panel; `container.py` always gives
+        #: one, and `test_browser_surface.py` reads it through the real server.
         self._queue = queue
         #: What the Watches need a person to know (`WatchService.reading`).
         self._watches = watches
@@ -448,7 +438,7 @@ class HealthService:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""
         if self._queue is None:
             return None
-        return failed_fetches(failed_states(self._queue()), now=self._now())
+        return failed_fetches(self._queue(), now=self._now())
 
     def observe_pictures(self) -> PicturesReading:
         """The picture store's size and file count, from a walk at most ten minutes old."""

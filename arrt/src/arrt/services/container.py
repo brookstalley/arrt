@@ -429,7 +429,7 @@ class Services:
                 # Every Player's state, and the queue's failed works: the two
                 # halves of the one health model the top bar counts.
                 players=clients.list_clients,
-                queue=acquisition_queue.listing,
+                queue=acquisition_queue.failed_states,
             ),
             runner=runner_service,
             acquisition=acquisition_service,

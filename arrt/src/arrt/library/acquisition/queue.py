@@ -55,7 +55,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from enum import StrEnum
+from enum import Enum, StrEnum, auto
 from typing import Final, Protocol
 
 from arrt import atomic
@@ -67,7 +67,7 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.library.sources.names import museum_name
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
 from arrt.persistence.errors import StorageFault
-from arrt.persistence.records import Artwork, ArtworkStatus, FetchOutcome, QueuedAcquisition
+from arrt.persistence.records import ArtworkStatus, FetchOutcome, QueuedAcquisition
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -198,6 +198,12 @@ class Preparer(Protocol):
     """What the queue needs of preparation: `PreparationService.prepare`."""
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult: ...
+
+
+class _Unread(Enum):
+    """`_wait`'s mark for a caller that read no Wikidata item, so a settled row reads its own."""
+
+    UNREAD = auto()
 
 
 class AcquisitionPhase(StrEnum):
@@ -563,7 +569,7 @@ class AcquisitionQueue:
                 if queued is None and self._store.get_original(artwork_id) is not None:
                     continue
                 states[artwork_id] = _state(
-                    artwork_id, queued, fetching=fetching, pause=pause, wait=self._wait(queued, now, artwork)
+                    artwork_id, queued, fetching=fetching, pause=pause, wait=self._wait(queued, now, artwork.wikidata_qid)
                 )
         return states
 
@@ -596,10 +602,43 @@ class AcquisitionQueue:
                     work.queued,
                     fetching=fetching,
                     pause=pause,
-                    wait=self._wait(work.queued, now, artwork),
+                    wait=self._wait(work.queued, now, artwork.wikidata_qid),
                 )
                 entries.append(_entry(artwork.title, state))
         return QueueListing(pause=pause, entries=tuple(entries))
+
+    def failed_states(self) -> tuple[AcquisitionState, ...]:
+        """Every work the queue holds as failed or given up on, as its state, reading no work's title.
+
+        **The works `listing()` lists under a cause, and nothing else**: the same
+        rows, through the same `_wait` and `_state`, so the health count and
+        Activity › Queue's "Failed (N)" cannot disagree
+        (`test_failed_fetches.py` holds the two alike). What it leaves out is
+        what the count never reads: each work's title, and the reason reworded
+        around it, so `detail` is the holder's words as recorded. It reads
+        `works_to_acquire()` once, which already carries each work's Wikidata
+        item for a settled row, and no work a second time: at 2,000 failed
+        works the listing's per-work reads were most of `GET /api/health`'s time.
+        """
+        with self._state_lock:
+            fetching, pause = self._fetching, self._pause
+        now = self._clock()
+        found = []
+        with self._store.reading():
+            for work in self._store.works_to_acquire():
+                if work.queued is None or not work.queued.failures:
+                    # Never failed: in line, whatever else it is.
+                    continue
+                state = _state(
+                    work.artwork_id,
+                    work.queued,
+                    fetching=fetching,
+                    pause=pause,
+                    wait=self._wait(work.queued, now, work.wikidata_qid),
+                )
+                if state.phase in (AcquisitionPhase.FAILED, AcquisitionPhase.GAVE_UP):
+                    found.append(state)
+        return tuple(found)
 
     # -- the worker ------------------------------------------------------------
 
@@ -833,11 +872,12 @@ class AcquisitionQueue:
         artwork = self._store.get_artwork(artwork_id)
         return None if artwork is None else artwork.wikidata_qid
 
-    def _wait(self, queued: QueuedAcquisition | None, now: datetime, artwork: Artwork | None = None) -> _Wait:
+    def _wait(self, queued: QueuedAcquisition | None, now: datetime, qid: str | _Unread | None = _Unread.UNREAD) -> _Wait:
         """Whether a work is tried on this pass, waits, or waits for Retry: its outcome's rule, applied.
 
-        `artwork` is the work as the caller read it, for the item a settled work
-        is compared against; read here only for a settled row, which is rare.
+        `qid` is the work's Wikidata item as the caller read it, for the item a
+        settled work is compared against; read here only for a settled row when
+        the caller read none.
         """
         if queued is None:
             return _Wait.DUE
@@ -849,7 +889,7 @@ class AcquisitionQueue:
             # under an earlier load (or not recorded when) is due now.
             return _Wait.DUE if queued.failed_at is None or queued.failed_at < self._loaded_at else _Wait.LATER
         if rule is RetryRule.SETTLED:
-            current = artwork.wikidata_qid if artwork is not None else self._qid_of(queued.artwork_id)
+            current = self._qid_of(queued.artwork_id) if qid is _Unread.UNREAD else qid
             return _Wait.DUE if current != queued.settled_qid else _Wait.GIVEN_UP
         if queued.failures >= GIVE_UP_AFTER:
             return _Wait.GIVEN_UP

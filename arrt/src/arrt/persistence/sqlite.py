@@ -1011,7 +1011,7 @@ class SqliteCatalogue(TableAdapter):
         # which then fall back to when the work was catalogued; `rowid` breaks a
         # tie within one clock tick.
         rows = self._store.select_rows(
-            'SELECT a."id" AS work_id, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
+            'SELECT a."id" AS work_id, a."wikidata_qid" AS work_qid, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
             'q."failures", q."next_try_at", q."detail", q."source_id", '
             'q."outcome", q."plugin", q."settled_qid", q."failed_at" '
             "FROM artworks a "
@@ -1026,6 +1026,7 @@ class SqliteCatalogue(TableAdapter):
                 artwork_id=row["work_id"],
                 holds_original=bool(row["held"]),
                 queued=None if row["queued_id"] is None else _queued({**row, "artwork_id": row["queued_id"]}),
+                wikidata_qid=row["work_qid"],
             )
             for row in rows
         ]
