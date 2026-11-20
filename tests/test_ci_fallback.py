@@ -36,6 +36,7 @@ import shlex
 import subprocess
 import sys
 import tomllib
+import xml.etree.ElementTree as ET
 
 import pytest
 import yaml
@@ -365,11 +366,18 @@ def test_the_suites_the_pool_keeps_to_itself_are_suites_it_would_otherwise_run_h
         assert not MANIFEST["suites"][name].get("requires"), f"{name!r} needs a labelled runner; POOL_ONLY adds nothing"
 
 
+def check_the_words_for_the_suites_left_out(manifest: dict) -> None:
+    """Raise unless `LEFT_OUT` names exactly the suites the manifest's fallback leaves out."""
+    _, not_run = pof.fallback_plan(manifest)
+    assert sorted(pof.LEFT_OUT) == sorted(not_run), (
+        f"LEFT_OUT names {sorted(pof.LEFT_OUT)}, and the fallback leaves out {sorted(not_run)}: a headline would "
+        "omit a suite that did not run, or name one that did"
+    )
+
+
 def test_the_words_for_the_suites_left_out_are_the_suites_the_fallback_leaves_out():
     """`LEFT_OUT` quotes the manifest and `POOL_ONLY`: every headline and the second job's message name exactly those."""
-    _, not_run = pof.fallback_plan(MANIFEST)
-
-    assert sorted(pof.LEFT_OUT) == sorted(not_run)
+    check_the_words_for_the_suites_left_out(MANIFEST)
     for name, words in pof.LEFT_OUT.items():
         for text in (pof.HEADLINES["pool"], pof.HEADLINES["fallback"], pof.BROWSER_NO_VERDICT):
             assert words in text, f"{text!r} does not name the {name} suite"
@@ -437,26 +445,23 @@ def test_each_mode_has_its_own_headline():
 # -- the workflow --------------------------------------------------------------------------
 
 FALLBACK_IF = "${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}"
+#: The whole of a fallback step's `run`, its suite's name after the last word (Chunk 52).
+FALLBACK_RUN = ('OUT="$RUNNER_TEMP/$OUT_DIR"', 'python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite ')
 
 
 def _steps(workflow: dict) -> list[dict]:
     return workflow["jobs"]["pool"]["steps"]
 
 
-def _pytest_selection(run: str) -> tuple[str, list[str], dict[str, str]]:
-    """A fallback step's suite name, the paths it selects from the repo root, and its report."""
-    cwd = ""
-    for line in run.splitlines():
-        words = shlex.split(line.strip())
-        if words[:1] == ["cd"]:
-            cwd = words[1].rstrip("/") + "/"
-        if "pytest" in words:
-            after = words[words.index("pytest") + 1 :]
-            paths = list(itertools.takewhile(lambda w: not w.startswith("-"), after))
-            options = {after[i]: after[i + 1] for i in range(len(after) - 1) if after[i] in ("-o", "--junitxml")}
-            name = options.get("-o", "").removeprefix("junit_suite_name=")
-            return name, [f"{cwd}{p}" for p in paths], options
-    raise AssertionError(f"a fallback step runs no pytest: {run!r}")
+def _fallback_suite(step: dict) -> str:
+    """The suite a fallback step names; raise if the step runs a command, a path or a marker of its own."""
+    lines = [line.strip() for line in str(step.get("run", "")).splitlines() if line.strip()]
+    rest = lines[1].removeprefix(FALLBACK_RUN[1]) if len(lines) == 2 else ""
+    assert len(lines) == 2 and lines[0] == FALLBACK_RUN[0] and lines[1].startswith(FALLBACK_RUN[1]) and len(rest.split()) == 1, (
+        f"`{step.get('name')}` runs {lines!r} of its own: a fallback step names its suite to "
+        "`pool_or_fallback.py fallback` and nothing else, which runs .testament.toml's command and selection"
+    )
+    return rest
 
 
 def check_the_fallback(workflow: dict, manifest: dict) -> None:
@@ -468,7 +473,11 @@ def check_the_fallback(workflow: dict, manifest: dict) -> None:
     ), "no pool step hands the run to pool_or_fallback.py"
     assert "if" not in pool[0], "the pool step carries a condition, so the decision may never be made"
 
-    runs_tests = [s for s in steps if "pytest" in str(s.get("run", "")) or "testament run" in str(s.get("run", ""))]
+    runs_tests = [
+        s
+        for s in steps
+        if any(word in str(s.get("run", "")) for word in ("pytest", "testament run", "pool_or_fallback.py fallback"))
+    ]
     fallback = [s for s in runs_tests if s is not pool[0]]
     for step in fallback:
         assert step.get("if") == FALLBACK_IF, (
@@ -480,17 +489,14 @@ def check_the_fallback(workflow: dict, manifest: dict) -> None:
             assert word not in text.lower(), f"`{step.get('name')}` reaches the browser suite ({word}) on GitHub's runner"
 
     reports, _ = pof.fallback_plan(manifest)
-    ran = {}
+    ran: list[str] = []
     for step in fallback:
-        name, paths, options = _pytest_selection(step["run"])
-        assert name in reports, f"`{step.get('name')}` writes a report for {name!r}, which is no suite the fallback runs"
-        assert options.get("--junitxml") == f"$OUT/{reports[name]}", f"the {name} suite's report is not where the guard reads it"
-        ran[name] = paths
+        name = _fallback_suite(step)
+        assert name in reports, f"`{step.get('name')}` runs the suite {name!r}, which is no suite the fallback runs"
+        assert name not in ran, f"two fallback steps run the {name} suite"
+        assert isinstance(step.get("timeout-minutes"), int), f"`{step.get('name')}` has no time limit of its own"
+        ran.append(name)
     assert sorted(ran) == sorted(reports), f"the fallback runs {sorted(ran)}, and the manifest asks for {sorted(reports)}"
-    for name, paths in ran.items():
-        assert (
-            paths == manifest["suites"][name]["default_selection"]
-        ), f"the fallback's {name} suite selects {paths}, the pool's {manifest['suites'][name]['default_selection']}"
 
     summary = [s for s in steps if "pool_or_fallback.py summary --out" in str(s.get("run", ""))]
     assert summary, "no step writes the summary, so a fallback run would not say the browser suite did not run"
@@ -507,6 +513,10 @@ def test_the_workflow_falls_back_only_on_the_decision():
 
 def _fallback_steps(workflow):
     return [s for s in _steps(workflow) if s.get("if") == FALLBACK_IF]
+
+
+def _step_for(workflow, suite):
+    return next(s for s in _fallback_steps(workflow) if s["run"].rstrip().endswith(f"--suite {suite}"))
 
 
 @pytest.mark.parametrize(
@@ -528,17 +538,51 @@ def test_a_fallback_reachable_from_a_failed_verdict_is_refused(condition):
 
 def test_a_fallback_that_runs_the_browser_suite_is_refused():
     workflow = _workflow()
-    step = _fallback_steps(workflow)[1]
-    step["run"] = step["run"].replace("tests/unit", "tests/browser tests/unit")
+    step = _step_for(workflow, "curation")
+    step["run"] = step["run"].replace("--suite curation", "--suite browser")
     with pytest.raises(AssertionError, match="browser"):
         check_the_fallback(workflow, MANIFEST)
 
 
-def test_a_fallback_with_the_browser_marker_is_refused():
+#: The fallback steps' `run` as they were written by hand until Chunk 52 (`tests.yml` at 410cfc32),
+#: and two variations: each names a path or a pytest command of its own, which can drift from the
+#: manifest unseen. Every one is refused.
+_STEPS_OF_THEIR_OWN = {
+    "governance by hand": (
+        "governance",
+        'OUT="$RUNNER_TEMP/$OUT_DIR"\nuv sync --frozen --project arrt --group dev\n'
+        "uv sync --frozen --project contract --group dev\n"
+        'uv run --frozen pytest tests -q -o junit_suite_name=governance --junitxml "$OUT/fallback/governance.xml"\n',
+    ),
+    "curation by hand": (
+        "curation",
+        'OUT="$RUNNER_TEMP/$OUT_DIR"\ncd arrt\nuv run --frozen pytest tests/unit tests/integration tests/contract '
+        "tests/system tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation "
+        '--junitxml "$OUT/fallback/curation.xml"\n',
+    ),
+    "contract by hand": (
+        "contract",
+        'OUT="$RUNNER_TEMP/$OUT_DIR"\ncd contract\n'
+        'uv run --frozen pytest tests -q -o junit_suite_name=contract --junitxml "$OUT/fallback/contract.xml"\n',
+    ),
+    "a path after the suite": (
+        "curation",
+        f"{FALLBACK_RUN[0]}\n{FALLBACK_RUN[1]}curation arrt/tests/unit\n",
+    ),
+    "a pytest line beside the driver": (
+        "contract",
+        'OUT="$RUNNER_TEMP/$OUT_DIR"\npython3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite contract\n'
+        "uv run --frozen --project contract pytest contract/tests -q\n",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_STEPS_OF_THEIR_OWN))
+def test_a_fallback_step_that_names_a_path_or_a_pytest_command_of_its_own_is_refused(case):
+    suite, run = _STEPS_OF_THEIR_OWN[case]
     workflow = _workflow()
-    step = _fallback_steps(workflow)[1]
-    step["run"] = step["run"].replace(" -q ", " -q -m browser ")
-    with pytest.raises(AssertionError, match="browser"):
+    _step_for(workflow, suite)["run"] = run
+    with pytest.raises(AssertionError, match="of its own"):
         check_the_fallback(workflow, MANIFEST)
 
 
@@ -549,11 +593,10 @@ def test_a_fallback_missing_a_suite_is_refused():
         check_the_fallback(workflow, MANIFEST)
 
 
-def test_a_fallback_selecting_less_than_the_pool_is_refused():
+def test_a_fallback_step_without_a_time_limit_of_its_own_is_refused():
     workflow = _workflow()
-    step = _fallback_steps(workflow)[1]
-    step["run"] = step["run"].replace(" tests/eval", "")
-    with pytest.raises(AssertionError, match="selects"):
+    del _step_for(workflow, "contract")["timeout-minutes"]
+    with pytest.raises(AssertionError, match="no time limit of its own"):
         check_the_fallback(workflow, MANIFEST)
 
 
@@ -577,14 +620,13 @@ def test_a_manifest_suite_the_fallback_forgets_is_refused():
         check_the_fallback(_workflow(), manifest)
 
 
-#: The fallback step the real-Player suite would need, by the project's command: what the
-#: owner's ruling of 2026-11-20 keeps off GitHub's runner.
+#: The fallback step the real-Player suite would need: what the owner's ruling of 2026-11-20
+#: keeps off GitHub's runner.
 _A_PLAYER_STEP = {
     "name": "Fallback: the real-Player suite, here",
     "if": FALLBACK_IF,
     "timeout-minutes": 10,
-    "run": 'OUT="$RUNNER_TEMP/$OUT_DIR"\ncd arrt\nuv run --frozen pytest tests/system/test_a_real_player.py -m player_e2e '
-    '-n 0 -q -o junit_suite_name=player --junitxml "$OUT/fallback/player.xml"\n',
+    "run": f"{FALLBACK_RUN[0]}\n{FALLBACK_RUN[1]}player\n",
 }
 
 
@@ -592,7 +634,7 @@ def test_a_fallback_that_runs_the_real_player_suite_on_githubs_runner_is_refused
     workflow = _workflow()
     steps = _steps(workflow)
     steps.insert(steps.index(_fallback_steps(workflow)[-1]) + 1, _A_PLAYER_STEP)
-    with pytest.raises(AssertionError, match="writes a report for 'player', which is no suite the fallback runs"):
+    with pytest.raises(AssertionError, match="runs the suite 'player', which is no suite the fallback runs"):
         check_the_fallback(workflow, MANIFEST)
 
 
@@ -601,6 +643,246 @@ def test_without_the_ruling_the_manifests_real_player_suite_would_be_owed_a_fall
     monkeypatch.setattr(pof, "POOL_ONLY", {})
     with pytest.raises(AssertionError, match=r"the manifest asks for \['contract', 'curation', 'governance', 'player'\]"):
         check_the_fallback(_workflow(), MANIFEST)
+
+
+# -- the fallback's commands are the manifest's (Chunk 52: C22, native review N8) -----------------
+#
+# What the hand-written steps guaranteed without saying so, and what holds each now:
+#
+# - each suite wrote a report named for it, where the guard and the summary read it
+#   (`test_each_suite_writes_the_report_named_for_it_where_the_guard_reads_it`, and run for
+#   real in `test_the_subcommand_runs_a_manifest_of_its_own_and_writes_the_suites_report`);
+# - each step had its own time limit within the job's (`check_the_fallback`, and
+#   `test_the_deadline_leaves_the_job_time_for_the_fallback_and_the_summary`);
+# - the governance step synced both projects' environments first (`FALLBACK_SETUP`,
+#   `check_the_fallback_provisions_the_type_gate`);
+# - the browser suite never ran here, nor the real-Player suite (`fallback_commands` refuses
+#   both, and `test_the_subcommand_refuses_a_suite_left_out_and_runs_nothing`);
+# - the curation suite ran in parallel (`-n auto` from its addopts): the manifest's `-n 0` is
+#   dropped by name (`test_the_translation_drops_only_the_manifests_dash_n_0`).
+
+#: The suites' fallback commands before Chunk 52 (`tests.yml` at 410cfc32, the steps above in
+#: `_STEPS_OF_THEIR_OWN`) and after, as data: what each runs, from where, over what, writing
+#: what. The after is `fallback_commands` on this repository's `.testament.toml`. The project
+#: environment, the config file, the selection (as paths from the root), the report and the
+#: parallelism are the same; what changed is the starting directory, so the test ids are the
+#: pool's (`arrt/tests/...`, not `tests/...`).
+_BEFORE_AND_AFTER = {
+    "governance": {
+        "before": (".", ["uv", "run", "--frozen", "pytest", "tests", "-q"]),
+        "project": ".",
+        "config": "pyproject.toml",
+        "selection": ["tests"],
+    },
+    "curation": {
+        "before": (
+            "arrt",
+            ["uv", "run", "--frozen", "pytest", "tests/unit", "tests/integration", "tests/contract", "tests/system"]
+            + ["tests/eval", "tests/test_scaffold.py", "-q"],
+        ),
+        "project": "arrt",
+        "config": "arrt/pyproject.toml",
+        "selection": [
+            "arrt/tests/unit",
+            "arrt/tests/integration",
+            "arrt/tests/contract",
+            "arrt/tests/system",
+            "arrt/tests/eval",
+            "arrt/tests/test_scaffold.py",
+        ],
+    },
+    "contract": {
+        "before": ("contract", ["uv", "run", "--frozen", "pytest", "tests", "-q"]),
+        "project": "contract",
+        "config": "contract/pyproject.toml",
+        "selection": ["contract/tests"],
+    },
+}
+
+
+def _what_runs(cwd: str, argv: list[str]) -> dict:
+    """What a uv-run pytest command does, resolved from the repository root."""
+    head, pytest_args = argv[: argv.index("pytest")], argv[argv.index("pytest") + 1 :]
+    project = head[head.index("--project") + 1] if "--project" in head else cwd
+    options, paths, words = {}, [], iter(pytest_args)
+    for word in words:
+        if word in ("-c", "-o", "--junitxml", "-n", "-m"):
+            options[word] = next(words)
+        elif word.startswith("-"):
+            options[word] = True
+        else:
+            paths.append(str(pathlib.PurePosixPath(cwd) / word).removeprefix("./"))
+    config = options.get("-c") or str(pathlib.PurePosixPath(project) / "pyproject.toml").removeprefix("./")
+    return {
+        "frozen": "--frozen" in head,
+        "project": project,
+        "config": config,
+        "selection": paths,
+        "parallel": options.get("-n"),
+        "marker": options.get("-m"),
+        "quiet": options.get("-q"),
+    }
+
+
+@pytest.mark.parametrize("suite", sorted(_BEFORE_AND_AFTER))
+def test_the_derived_commands_run_what_the_hand_written_steps_ran(suite):
+    """The comparison, as data: the runner does the same work after Chunk 52 as before it, suite by suite."""
+    expected = _BEFORE_AND_AFTER[suite]
+    *setup, after = pof.fallback_commands(MANIFEST, suite, pathlib.Path("/out"))
+    before = _what_runs(*expected["before"])
+    derived = _what_runs(".", after)
+
+    for key in ("frozen", "parallel", "marker", "quiet"):
+        assert derived[key] == before[key], f"the {suite} suite's {key} was {before[key]!r} and is {derived[key]!r}"
+    assert (before["project"], before["config"], before["selection"]) == (
+        expected["project"],
+        expected["config"],
+        expected["selection"],
+    )
+    assert (derived["project"], derived["config"], derived["selection"]) == (
+        expected["project"],
+        expected["config"],
+        expected["selection"],
+    )
+    assert derived["parallel"] is None, "a `-n` here overrides the project's addopts, so the run is not what it was"
+    assert setup == ([list(c) for c in pof.FALLBACK_SETUP[suite]] if suite in pof.FALLBACK_SETUP else [])
+
+
+@pytest.mark.parametrize("suite", ["governance", "curation", "contract"])
+def test_the_translation_drops_only_the_manifests_dash_n_0(suite):
+    """On the manifest's own lines: the derived pytest is the suite's command, less `-n 0`, then its selection and report."""
+    entry = MANIFEST["suites"][suite]
+    derived = pof.fallback_pytest(suite, entry, "R.xml")
+    command = entry["command"]
+    kept = [w for i, w in enumerate(command) if not (w == "-n" or (i > 0 and command[i - 1] == "-n"))]
+
+    assert derived[: len(kept)] == kept
+    assert derived[len(kept) :] == [*entry["default_selection"], "-o", f"junit_suite_name={suite}", "--junitxml", "R.xml"]
+    assert len(command) - len(kept) == (2 if "-n" in command else 0)
+    assert "-n" not in derived
+
+
+def test_a_change_to_a_suites_selection_changes_what_the_fallback_runs_with_no_edit_to_the_workflow():
+    """Acceptance 1, with a manifest of its own: the workflow is this repository's, unchanged."""
+    suites = {name: dict(suite) for name, suite in MANIFEST["suites"].items()}
+    suites["curation"]["default_selection"] = ["arrt/tests/unit", "arrt/tests/a_new_directory"]
+    manifest = {**MANIFEST, "suites": suites}
+
+    check_the_fallback(_workflow(), manifest)
+    derived = pof.fallback_commands(manifest, "curation", pathlib.Path("/out"))[-1]
+    assert derived[derived.index("-q") + 1 : derived.index("-o")] == ["arrt/tests/unit", "arrt/tests/a_new_directory"]
+    assert "arrt/tests/integration" not in derived
+
+
+#: This repository's `.testament.toml`, with a sixth suite after the five.
+_SIXTH = (
+    '\n[suites.sixth]\nadapter = "pytest"\ncommand = ["uv", "run", "--frozen", "pytest", "-q"]\n'
+    'default_selection = ["tests/sixth"]\n'
+)
+
+
+def test_a_sixth_suite_is_owed_a_fallback_step_or_must_be_named_as_left_out():
+    """A suite added to the manifest later is run by the fallback, or named as left out; never silently neither."""
+    text = (REPO / ".testament.toml").read_text(encoding="utf-8")
+    runnable = tomllib.loads(text + _SIXTH)
+    labelled = tomllib.loads(text + _SIXTH + 'requires = ["gpu"]\n')
+
+    reports, not_run = pof.fallback_plan(runnable)
+    assert reports["sixth"] == "fallback/sixth.xml" and "sixth" not in not_run
+    assert pof.fallback_commands(runnable, "sixth", pathlib.Path("/out"))[-1] == [
+        *["uv", "run", "--frozen", "pytest", "-q", "tests/sixth"],
+        *["-o", "junit_suite_name=sixth", "--junitxml", "/out/fallback/sixth.xml"],
+    ]
+    with pytest.raises(AssertionError, match=r"the manifest asks for \['contract', 'curation', 'governance', 'sixth'\]"):
+        check_the_fallback(_workflow(), runnable)
+
+    reports, not_run = pof.fallback_plan(labelled)
+    assert "sixth" not in reports and "gpu" in not_run["sixth"]
+    check_the_fallback(_workflow(), labelled)
+    with pytest.raises(AssertionError, match="LEFT_OUT names"):
+        check_the_words_for_the_suites_left_out(labelled)
+    with pytest.raises(pof.FallbackRefused, match="the sixth suite is not run here: it needs a runner labelled gpu"):
+        pof.fallback_commands(labelled, "sixth", pathlib.Path("/out"))
+
+
+@pytest.mark.parametrize(
+    "change,refused",
+    [
+        ({"command": ["uv", "run", "pytest", "-n", "4", "-q"]}, "-n 4"),
+        ({"command": ["uv", "run", "pytest", "-n0", "-q"]}, "'-n0'"),
+        ({"command": ["uv", "run", "pytest", "--numprocesses=2"]}, "'--numprocesses=2'"),
+        ({"command": ["uv", "run", "pytest", "-p", "no:xdist"]}, "'no:xdist'"),
+        ({"command": ["uv", "run", "pytest", "-n"]}, "-n None"),
+        ({"adapter": "go"}, "not a pytest command"),
+        ({"command": ["uv", "run", "python", "-q"]}, "not a pytest command"),
+        ({"default_selection": []}, "not a list of paths"),
+        ({"default_selection": ["-k", "x"]}, "not a list of paths"),
+    ],
+)
+def test_a_manifest_command_the_translation_does_not_know_is_refused_by_name(change, refused):
+    suite = {**MANIFEST["suites"]["curation"], **change}
+    with pytest.raises(pof.FallbackRefused, match=refused.replace("[", r"\[")):
+        pof.fallback_pytest("curation", suite, "R.xml")
+
+
+def test_each_suite_writes_the_report_named_for_it_where_the_guard_reads_it():
+    reports, _ = pof.fallback_plan(MANIFEST)
+    for suite, report in reports.items():
+        derived = pof.fallback_commands(MANIFEST, suite, pathlib.Path("/out"))[-1]
+        assert derived[-4:] == ["-o", f"junit_suite_name={suite}", "--junitxml", f"/out/{report}"]
+
+
+def test_the_subcommand_runs_the_setup_then_the_suite_from_the_root_and_stops_at_the_first_failure(tmp_path, monkeypatch, capsys):
+    ran = []
+    codes = iter([0, 0, 0])
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(pof, "run_here", lambda command: ran.append(command) or next(codes))
+
+    assert pof.main(["fallback", "--out", str(tmp_path), "--suite", "governance"]) == 0
+    assert ran == pof.fallback_commands(MANIFEST, "governance", tmp_path)
+    assert f"$ {shlex.join(ran[-1])}" in capsys.readouterr().out
+
+    ran.clear()
+    codes = iter([3])
+    assert pof.main(["fallback", "--out", str(tmp_path), "--suite", "governance"]) == 3
+    assert len(ran) == 1, "a setup that failed was followed by the suite"
+
+
+@pytest.mark.parametrize("suite", ["browser", "player", "nosuch"])
+def test_the_subcommand_refuses_a_suite_left_out_and_runs_nothing(suite, tmp_path, monkeypatch, capsys):
+    ran = []
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(pof, "run_here", ran.append)
+
+    assert pof.main(["fallback", "--out", str(tmp_path), "--suite", suite]) == 2
+    assert ran == []
+    assert capsys.readouterr().out.startswith("::error::")
+
+
+def test_the_subcommand_runs_a_manifest_of_its_own_and_writes_the_suites_report(tmp_path):
+    """For real, with no testament: the manifest's command (here this interpreter's pytest, with the `-n 0` a pool
+    command carries), its selection, and the report the guard reads, named for the suite."""
+    (tmp_path / "checks").mkdir()
+    (tmp_path / "checks" / "test_one.py").write_text("def test_one():\n    assert True\n", encoding="utf-8")
+    (tmp_path / ".testament.toml").write_text(
+        '[suites.sixth]\nadapter = "pytest"\n'
+        f"command = {json.dumps([sys.executable, '-m', 'pytest', '-n', '0', '-q', '-p', 'no:cacheprovider'])}\n"
+        'default_selection = ["checks"]\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "fallback", "--out", str(out), "--suite", "sixth"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert " -n " not in done.stdout.splitlines()[0], "the manifest's -n 0 reached the fallback's pytest"
+    suite = ET.parse(out / "fallback" / "sixth.xml").getroot().find("testsuite")
+    assert (suite.get("name"), suite.get("tests"), suite.get("failures")) == ("sixth", "1", "0")
 
 
 # -- time: no attempt outlives the step (finding 1 of the wave-2 boundary review) ------------
@@ -855,6 +1137,143 @@ def test_the_real_pool_lets_a_run_that_finishes_be_read_from_its_envelope(tmp_pa
     assert (attempt.killed, attempt.accepted, pof.classify(attempt)) == (None, True, "passed")
 
 
+# -- each retry's warning reaches the step's log when it is said (Chunk 52) --------------------
+#
+# Observed by Chunk 52 on 2026-11-19 with testament 0.58.0, at tree 851962e46404, from this repository:
+# `testament run --json=summary --coordinator 127.0.0.1:9 --no-fallback --suite contract` (request
+# fb1186e3…) exited 75, printed nothing at all on stderr, and wrote the envelope below (its `report`
+# left out); `testament run --json=summary --suite contract` (request fd7c4b30…) printed the two
+# stderr lines below and passed; and `testament run --json=summary`, every suite, as a pull request
+# runs them (requests 04070597…, 8ddee6b4…, 5206c986…, ab6ec729…, b0ffe435…), passed and printed the
+# first lines below, its first three result-count lines and the head of its cache advice kept, the
+# rest of 136 lines left out. Each envelope is trimmed to the keys the driver reads.
+OBSERVED_UNREACHABLE = {
+    "status": "coordinator_unreachable",
+    "exit_code": 75,
+    "verdict": "unavailable",
+    "verdict_reason": "coordinator_unreachable",
+    "request_id": "fb1186e39ca94339977ce23d7fdb851a",
+    "error": {
+        "code": "coordinator_unreachable",
+        "message": "contract: 127.0.0.1:9: [Errno 61] Connect call failed ('127.0.0.1', 9)",
+        "retryable": True,
+        "ran": 0,
+    },
+}
+OBSERVED_ONE_SUITE_STDERR = (
+    "request fd7c4b30e4c44c01b7e4d1b9c25e9fe5 accepted for arrt at tree 851962e46404\ncollected 595 items\n"
+)
+OBSERVED_ONE_SUITE_PASSED = {
+    "status": "passed",
+    "exit_code": 0,
+    "verdict": "passed",
+    "verdict_reason": "passed",
+    "request_id": "fd7c4b30e4c44c01b7e4d1b9c25e9fe5",
+    "report": {"counts": {"passed": 595}},
+}
+OBSERVED_EVERY_SUITE_STDERR = """\
+[curation] request 8ddee6b4b22a496fb4ece0eb13154137 accepted for arrt at tree 851962e46404
+[player] request ab6ec72960964d678cf20fbe1d9d2f3e accepted for arrt at tree 851962e46404
+[contract] request b0ffe435ca4c4cb2bc5ff3646cb5baf6 accepted for arrt at tree 851962e46404
+[governance] request 040705974f1f4816b968db6a1346b5a4 accepted for arrt at tree 851962e46404
+[browser] request 5206c9867bd949b7bb0bed52897674d6 accepted for arrt at tree 851962e46404
+[contract] collected 595 items
+[governance] collected 898 items
+[player] collected 1 items
+[browser] collected 1600 items
+[curation] collected 6625 items
+[curation] … 1000 results
+[curation] … 2000 results
+[curation] … 3000 results
+cache advice: what keeps this run's tests from ever being reused from the cache, in the order to fix it
+  49% of this run's tests can't be cached and aren't declined
+"""
+OBSERVED_EVERY_SUITE_PASSED = {
+    "status": "passed",
+    "exit_code": 0,
+    "verdict": "passed",
+    "verdict_reason": "passed",
+    "request_id": "040705974f1f4816b968db6a1346b5a4,8ddee6b4b22a496fb4ece0eb13154137,5206c9867bd949b7bb0bed52897674d6,"
+    "ab6ec72960964d678cf20fbe1d9d2f3e,b0ffe435ca4c4cb2bc5ff3646cb5baf6",
+    "report": {"counts": {"passed": 9717, "skipped": 2}},
+}
+
+
+@pytest.mark.parametrize(
+    "stderr,envelope,collected",
+    [
+        (OBSERVED_ONE_SUITE_STDERR, OBSERVED_ONE_SUITE_PASSED, 595),
+        (OBSERVED_EVERY_SUITE_STDERR, OBSERVED_EVERY_SUITE_PASSED, 595 + 898 + 1 + 1600 + 6625),
+    ],
+    ids=["one suite", "every suite"],
+)
+def test_this_chunks_observed_runs_are_read_as_accepted_and_passed(stderr, envelope, collected, tmp_path):
+    progress = pof.Progress(echo=lambda line: None)
+    progress.read(iter(stderr.splitlines(keepends=True)))
+
+    assert progress.accepted.is_set() and progress.failures == []
+    assert sorted(progress.requests) == sorted(envelope["request_id"].split(","))
+    assert progress.collected == collected
+    assert pof.classify(run_attempt(envelope, tmp=tmp_path)) == "passed"
+    assert pof.classify(run_attempt(OBSERVED_UNREACHABLE, tmp=tmp_path)) == "retry"
+
+
+#: A stand-in `testament run`: unreachable twice, as observed, then the observed passing run of every suite.
+_RETRYING_CLIENT = """
+import pathlib, sys
+count = pathlib.Path(sys.argv[1])
+n = int(count.read_text()) + 1 if count.exists() else 1
+count.write_text(str(n))
+if n < 3:
+    print(sys.argv[2])
+    sys.exit(75)
+sys.stderr.write(sys.argv[3])
+sys.stderr.flush()
+print(sys.argv[4])
+"""
+#: The pool step's driver with the real `RealPool.run` and the default `say`, its budget and backoff shortened.
+_DRIVER = """
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+import pool_or_fallback as pof
+class Installed:
+    def __init__(self, real):
+        self.real = real
+    def install(self):
+        return pof.Attempt("install", curl_exit=0)
+    def run(self, limit_s):
+        return self.real.run(limit_s)
+real = pof.RealPool(pathlib.Path(sys.argv[2]), sys.argv[3:], accept_s=60, poll_s=0.05)
+decision = pof.drive(Installed(real), {"suites": {}}, backoff=(0.2,), budget=60)
+print("mode", decision.mode)
+"""
+
+
+def test_each_retrys_warning_reaches_the_step_log_before_the_next_attempt_prints(tmp_path):
+    """The step's log is one file both streams write to, as GitHub's is. A `print` held stdout's warnings to the
+    step's end, under one timestamp, after every line the client printed; flushed, each is in place."""
+    (tmp_path / "client.py").write_text(_RETRYING_CLIENT, encoding="utf-8")
+    (tmp_path / "driver.py").write_text(_DRIVER, encoding="utf-8")
+    log = tmp_path / "step.log"
+    with log.open("w", encoding="utf-8") as step_log:
+        subprocess.run(
+            [sys.executable, str(tmp_path / "driver.py"), str(SCRIPT.parent), str(tmp_path), sys.executable]
+            + [str(tmp_path / "client.py"), str(tmp_path / "count"), json.dumps(OBSERVED_UNREACHABLE)]
+            + [OBSERVED_EVERY_SUITE_STDERR, json.dumps(OBSERVED_EVERY_SUITE_PASSED)],
+            stdout=step_log,
+            stderr=subprocess.STDOUT,
+            timeout=60,
+            check=True,
+        )
+    lines = log.read_text(encoding="utf-8").splitlines()
+    warnings = [i for i, line in enumerate(lines) if line.startswith("::warning::the pool could not answer")]
+    accepted = lines.index(OBSERVED_EVERY_SUITE_STDERR.splitlines()[0])
+
+    assert len(warnings) == 2 and "(coordinator_unreachable)" in lines[warnings[0]], lines
+    assert max(warnings) < accepted, f"a retry's warning reached the log after the next run's progress: {lines}"
+    assert lines[-1] == "mode pool"
+
+
 class StepKilledMidway(BaseException):
     """What GitHub's step timeout is to the driver: it stops, and no line after the kill runs."""
 
@@ -1045,13 +1464,12 @@ def test_the_browser_job_is_not_the_required_check_and_reaches_nothing():
 # -- the type gate's environments on the fallback (finding 5) --------------------------------
 
 
-def check_the_fallback_provisions_the_type_gate(workflow: dict) -> None:
-    """Raise unless the fallback's governance step syncs every project the type gate runs mypy in, before pytest."""
-    step = next(s for s in _fallback_steps(workflow) if "junit_suite_name=governance" in s["run"])
-    lines = [line.strip() for line in step["run"].splitlines() if line.strip()]
-    first_pytest = next(i for i, line in enumerate(lines) if "pytest" in line)
+def check_the_fallback_provisions_the_type_gate(manifest: dict) -> None:
+    """Raise unless the fallback's governance commands sync every project the type gate runs mypy in, before pytest."""
+    commands = pof.fallback_commands(manifest, "governance", pathlib.Path("/out"))
+    first_pytest = next(i for i, c in enumerate(commands) if "pytest" in c)
     for project in ("arrt", "contract"):
-        synced = [i for i, line in enumerate(lines) if line.startswith("uv sync --frozen") and f"--project {project}" in line]
+        synced = [i for i, c in enumerate(commands) if c[:3] == ["uv", "sync", "--frozen"] and project in c]
         assert synced and synced[0] < first_pytest, (
             f"the fallback's governance step runs pytest without {project}'s environment, so the type gate's mypy "
             "cannot be spawned there"
@@ -1059,13 +1477,12 @@ def check_the_fallback_provisions_the_type_gate(workflow: dict) -> None:
 
 
 def test_the_fallback_provisions_the_environments_the_type_gate_runs_mypy_in():
-    check_the_fallback_provisions_the_type_gate(_workflow())
+    check_the_fallback_provisions_the_type_gate(MANIFEST)
 
 
 @pytest.mark.parametrize("project", ["arrt", "contract"])
-def test_a_fallback_that_does_not_provision_a_type_checked_project_is_refused(project):
-    workflow = _workflow()
-    step = next(s for s in _fallback_steps(workflow) if "junit_suite_name=governance" in s["run"])
-    step["run"] = "\n".join(line for line in step["run"].splitlines() if f"--project {project}" not in line)
+def test_a_fallback_that_does_not_provision_a_type_checked_project_is_refused(project, monkeypatch):
+    setup = tuple(c for c in pof.FALLBACK_SETUP["governance"] if project not in c)
+    monkeypatch.setitem(pof.FALLBACK_SETUP, "governance", setup)
     with pytest.raises(AssertionError, match=f"without {project}'s environment"):
-        check_the_fallback_provisions_the_type_gate(workflow)
+        check_the_fallback_provisions_the_type_gate(MANIFEST)

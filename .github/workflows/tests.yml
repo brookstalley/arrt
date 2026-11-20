@@ -26,7 +26,8 @@
 #     would hide the failure. A refused key, a wrong address or a wheel that fails its
 #     digest is not an outage: nothing runs and the job fails.
 #   - It runs lint (already done, above) and, directly with uv, every suite that needs no
-#     labelled runner and is not the pool's alone: governance, curation and contract. Not
+#     labelled runner and is not the pool's alone: governance, curation and contract, each
+#     by the manifest's own command and selection (`pool_or_fallback.py fallback`). Not
 #     the browser suite, which needs Chrome and is the heavy one, nor the real-Player
 #     suite, the pool's alone by the owner's ruling of 2026-11-20 ("We are almost out of
 #     ci minutes"). That is the trade with the 2026-11-18 ruling: minutes are spent on
@@ -133,38 +134,37 @@ jobs:
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           python3 .github/scripts/pool_or_fallback.py pool --out "$OUT" -- testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback
-      # The fallback: only after `mode=fallback`, never after a verdict. Each suite
-      # `.testament.toml` declares with no `requires` and not in the driver's `POOL_ONLY`
-      # (the real-Player suite is the pool's alone), by the project's own command from
-      # CLAUDE.md, scoped to the manifest's selection (a bare `cd arrt && uv run pytest`
-      # collects the browser and live modules, whose skips the guard fails on) and writing a
-      # report named for its suite. `!cancelled()` so one red suite does not hide the next.
-      # A step that runs to its ceiling writes no report, and the guard and the summary name it.
+      # The fallback: only after `mode=fallback`, never after a verdict. One step for each
+      # suite `.testament.toml` declares with no `requires` and not in the driver's
+      # `POOL_ONLY` (the real-Player suite is the pool's alone), so each has its own ceiling.
+      # A step names its suite and nothing else: `pool_or_fallback.py fallback` runs the
+      # manifest's own command and selection for it here, with uv and without testament,
+      # less the manifest's `-n 0` (the project's addopts parallelise here), and writes the
+      # report named for the suite, which the guard and the summary read. A change to a
+      # suite's selection reaches this job with no edit here; a suite added to the manifest
+      # needs a step here, or `tests/test_ci_fallback.py` and the guard below fail.
+      # `!cancelled()` so one red suite does not hide the next. A step that runs to its
+      # ceiling writes no report, and the guard and the summary name it.
       - name: "Fallback: the governance suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 10
-        # The type gate in this suite runs mypy in `arrt/` and `contract/` without syncing
-        # (`uv run --no-sync`), so both environments are made first, with their dev groups,
-        # which hold mypy: lint no longer makes them.
+        # The driver syncs `arrt/` and `contract/` with their dev groups first: the type gate
+        # in this suite runs mypy there without syncing (`FALLBACK_SETUP`).
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          uv sync --frozen --project arrt --group dev
-          uv sync --frozen --project contract --group dev
-          uv run --frozen pytest tests -q -o junit_suite_name=governance --junitxml "$OUT/fallback/governance.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite governance
       - name: "Fallback: the curation suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 15
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          cd arrt
-          uv run --frozen pytest tests/unit tests/integration tests/contract tests/system tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation --junitxml "$OUT/fallback/curation.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite curation
       - name: "Fallback: the contract suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 5
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          cd contract
-          uv run --frozen pytest tests -q -o junit_suite_name=contract --junitxml "$OUT/fallback/contract.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite contract
       - name: Fail if nothing actually ran
         # A suite that skipped itself reports green. This reads the record of where the suites
         # ran and the reports they wrote, and fails on any skip that is not an expected

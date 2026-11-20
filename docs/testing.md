@@ -83,8 +83,14 @@ If the console will not serve the client (no connection, a 5xx, a 408 or 429),
 the run within two minutes, it retries with backoff for up to ten minutes; a run the
 pool accepted and still holds at the pool step's twenty-minute deadline (about three
 times a healthy full run) is stopped. Either way it then runs the governance,
-curation and contract suites on GitHub's runner with uv, by the commands in
-CLAUDE.md, after the lint the job always runs there. Two suites do not run there: the
+curation and contract suites on GitHub's runner with uv, without testament, after the
+lint the job always runs there: one step a suite, each naming only its suite to
+`pool_or_fallback.py fallback`, which runs that suite's own command and selection
+from `.testament.toml`, less the manifest's `-n 0` (testament is the parallelism on
+the pool; here the curation plane's addopts give `-n auto`, as before), and writes
+the report named for it. A change to a suite's selection reaches the fallback with no
+edit to `tests.yml`; a suite added to the manifest is owed a step there, or is named
+as left out, or `tests/test_ci_fallback.py` fails. Two suites do not run there: the
 browser suite needs Chrome, which only the pool's runners carry, and the real-Player
 suite is the pool's alone by the owner's ruling of 2026-11-20 (`POOL_ONLY` in
 `pool_or_fallback.py`; § The real-Player test). The job summary opens "The pool was

@@ -1,11 +1,13 @@
 """Run every suite on testament's pool, and decide what CI does when the pool cannot answer.
 
-`tests.yml` calls this three times. `pool` installs the client from the pool's console
-and runs the suites there, retrying with backoff for up to ten minutes while the pool
-cannot give a verdict; it records what happened in `decision.json` and tells the
-workflow one of three modes. `summary` writes the job summary from that record.
-`browser-verdict` is the whole of the second, non-required job: green when the pool
-gave the verdict, red after a fallback, because then the browser suite has none.
+`tests.yml` calls this from every step that runs tests. `pool` installs the client from
+the pool's console and runs the suites there, retrying with backoff for up to ten minutes
+while the pool cannot give a verdict; it records what happened in `decision.json` and
+tells the workflow one of three modes. `fallback --suite NAME`, one step per suite after
+`mode=fallback`, runs that suite here by `.testament.toml`'s own command and selection
+(`fallback_commands`), so no step restates either. `summary` writes the job summary from
+the record. `browser-verdict` is the whole of the second, non-required job: green when
+the pool gave the verdict, red after a fallback, because then the browser suite has none.
 
 The three modes, each with its own headline, because a quiet "cannot tell" is read as
 a pass:
@@ -48,6 +50,7 @@ the ten minutes (or the deadline) the fallback claims to have waited out.
 
 Usage:
   pool_or_fallback.py pool --out DIR -- testament run ...
+  pool_or_fallback.py fallback --out DIR --suite NAME
   pool_or_fallback.py summary --out DIR
   POOL_MODE=<mode> pool_or_fallback.py browser-verdict
 """
@@ -59,6 +62,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -319,6 +323,91 @@ def fallback_plan(manifest: dict) -> tuple[dict[str, str], dict[str, str]]:
     return reports, not_run
 
 
+#: What a suite's fallback step makes before its pytest, by suite, with why. The governance
+#: suite's type gate (`tests/preferences/test_type_gate.py`) runs mypy in `arrt/` and
+#: `contract/` with `uv run --no-sync`, so both environments, with the dev groups that
+#: hold mypy, must exist first; on the pool the manifest's `[setup]` makes them, and lint
+#: here installs only ruff and black. Not `[setup]` itself: its `--group browser` installs
+#: Playwright, which nothing here runs.
+FALLBACK_SETUP = {
+    "governance": (
+        ["uv", "sync", "--frozen", "--project", "arrt", "--group", "dev"],
+        ["uv", "sync", "--frozen", "--project", "contract", "--group", "dev"],
+    ),
+}
+
+
+class FallbackRefused(ValueError):
+    """A suite the fallback must not run here, or a manifest command it cannot translate."""
+
+
+def fallback_pytest(name: str, suite: dict, report: str) -> list[str]:
+    """The suite's own command from `.testament.toml`, run here: its selection appended, its report named.
+
+    One change, and it is by name: the manifest's `-n 0` is dropped. The manifest
+    says `-n 0` because testament is the parallelism there, one batch to a slot; here
+    nothing splits the run, so the project's own addopts (`-n auto` in the curation
+    plane) apply, as they did when this step was written by hand. Kept as the manifest
+    has them: `-c`, `--rootdir=.` and `--project`, so the run starts at the repository
+    root and its test ids are the pool's. Any other parallelism flag is refused by
+    name rather than passed on, so a change to the manifest cannot make this run
+    serial, or fight xdist, without a test seeing it.
+    """
+    command = suite.get("command")
+    if suite.get("adapter") != "pytest" or not isinstance(command, list) or "pytest" not in command:
+        raise FallbackRefused(f"the {name} suite's command is not a pytest command this can run here: {command!r}")
+    selection = suite.get("default_selection")
+    if not selection or not all(isinstance(p, str) and p and not p.startswith("-") for p in selection):
+        raise FallbackRefused(f"the {name} suite's default_selection is not a list of paths: {selection!r}")
+    argv: list[str] = []
+    words = iter(command)
+    for word in words:
+        if word == "-n":
+            value = next(words, None)
+            if value != "0":
+                raise FallbackRefused(f"the {name} suite's command asks for `-n {value}`; only `-n 0` is translated")
+            continue
+        if word.startswith(("-n", "--numprocesses", "--dist", "--maxprocesses")) or "no:xdist" in word:
+            raise FallbackRefused(f"the {name} suite's command carries {word!r}, a parallelism flag this does not translate")
+        argv.append(word)
+    return [*argv, *selection, "-o", f"junit_suite_name={name}", "--junitxml", report]
+
+
+def fallback_commands(manifest: dict, name: str, out: Path) -> list[list[str]]:
+    """Every command one fallback step runs for the suite `name`, in order: its setup, then its pytest."""
+    reports, not_run = fallback_plan(manifest)
+    if name in not_run:
+        raise FallbackRefused(f"the {name} suite is not run here: it {not_run[name]}")
+    if name not in reports:
+        raise FallbackRefused(f".testament.toml declares no suite {name!r}")
+    return [
+        *(list(c) for c in FALLBACK_SETUP.get(name, ())),
+        fallback_pytest(name, manifest["suites"][name], str(out / reports[name])),
+    ]
+
+
+def run_fallback(manifest: dict, name: str, out: Path, run: Callable[[list[str]], int], say: Callable[[str], None]) -> int:
+    """Run one suite's fallback commands from the repository root; the first that fails ends it with its code."""
+    try:
+        commands = fallback_commands(manifest, name, out)
+    except FallbackRefused as e:
+        say(f"::error::{e}")
+        return 2
+    for command in commands:
+        say(f"$ {shlex.join(command)}")
+        code = run(command)
+        if code != 0:
+            return code
+    return 0
+
+
+def say_now(line: str) -> None:
+    """Print one line to the step's log now. stdout to a pipe is block-buffered, so a bare
+    `print` held every retry's warning until the step ended, under one timestamp, and
+    someone watching saw ten minutes of nothing."""
+    print(line, flush=True)
+
+
 class Pool(Protocol):
     def install(self) -> Attempt: ...
     def run(self, limit_s: float) -> Attempt: ...
@@ -331,15 +420,17 @@ def drive(
     sleep: Callable[[float], None] = time.sleep,
     budget: float = BUDGET_S,
     backoff: tuple[float, ...] = BACKOFF_S,
-    say: Callable[[str], None] = print,
+    say: Callable[[str], None] | None = None,
     deadline: float = DEADLINE_S,
     checkpoint: Callable[[list[Attempt]], None] = lambda attempts: None,
 ) -> Decision:
     """Install, run, retry while the pool cannot answer and the budget lasts; decide by the deadline.
 
     `checkpoint` is handed the attempts after each one and each wait, so the record a
-    killed step leaves names them.
+    killed step leaves names them. `say` defaults to `say_now`, so each line reaches the
+    step's log when it is said.
     """
+    say = say or say_now
     start = clock()
     attempts: list[Attempt] = []
     waits = 0
@@ -798,11 +889,19 @@ def _write_decision(out: Path, decision: Decision) -> None:
     (out / "decision.json").write_text(json.dumps(decision.to_json(), indent=2), encoding="utf-8")
 
 
+def run_here(command: list[str]) -> int:
+    """Run one command from the repository root (the step's directory), its output straight to the step's log."""
+    return subprocess.run(command).returncode
+
+
 def main(argv: list[str]) -> int:
     if argv == ["browser-verdict"]:
         code, line = browser_verdict(os.environ.get("POOL_MODE", ""))
         print(line)
         return code
+    if len(argv) == 5 and argv[0] == "fallback" and argv[1] == "--out" and argv[3] == "--suite":
+        manifest = tomllib.loads(Path(".testament.toml").read_text(encoding="utf-8"))
+        return run_fallback(manifest, argv[4], Path(argv[2]), run=run_here, say=say_now)
     if len(argv) >= 3 and argv[0] in ("pool", "summary") and argv[1] == "--out":
         out = Path(argv[2])
         out.mkdir(parents=True, exist_ok=True)
