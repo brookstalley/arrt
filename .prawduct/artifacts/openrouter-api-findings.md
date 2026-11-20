@@ -239,6 +239,52 @@ live calls were already being refused as limit-exceeded, `/key` still reported
 figure that was already wrong. That is the recorded lag, caught mid-error, and it
 is exactly why `/key` may never gate anything.
 
+## A call that fails after it was sent (read 2026-11-19; no paid probe)
+
+**Read, not measured against the provider.** Audit wave 2b, Chunk 35 (audit-2 S5),
+read the client's request path, what a timeout leaves it holding, and this file's
+record of the generation lookup, before writing the ledger's answer. No call was
+made to OpenRouter: a paid probe of what a client-side timeout is billed is the
+operator's, on the release checklist.
+
+- **What the request path holds when a call fails.** `OpenRouterClient._post`
+  (`arrt/src/arrt/library/discovery/openrouter.py`) sends one non-streaming POST
+  with `httpx.Timeout(COMPLETION_TIMEOUT_SECONDS=180, connect=5)`. httpx reads
+  the whole body before `post` returns, so a failure is either an exception from
+  `post` or a status. **A failure after the request was written leaves the
+  client holding nothing from the provider**: no body, no `usage`, and no
+  generation id, which arrives only in the 2xx body this call never got.
+- **Which failures happen after sending.** Observed on this machine against a
+  local socket (the provider's address rewritten to `127.0.0.1`, so nothing left
+  the machine; kept as tests in `arrt/tests/unit/test_openrouter_client.py`, "the
+  same, over a real socket"): a server that reads the whole request and never
+  answers raises `httpx.ReadTimeout`; one that reads it and closes the
+  connection raises `httpx.RemoteProtocolError` ("Server disconnected without
+  sending a response."); a port nobody listens on raises `httpx.ConnectError`.
+  The client now raises `CostUnknown` (a subclass of `OpenRouterError`, naming
+  the model asked) for every `httpx.HTTPError` but the before-sending ones
+  (`ConnectError`, `ConnectTimeout`, `PoolTimeout`, `UnsupportedProtocol`,
+  `LocalProtocolError`, `ProxyError`), for a 5xx or 408, and for a 2xx whose
+  body is not a JSON object. A write failure counts as after: the provider may
+  have had the whole body.
+- **Inferred, not measured: that such a call may be billed.** The audit's
+  understanding is that the provider keeps generating a non-streaming request
+  whose client has gone and bills it. Nothing here measured it; the ledger is
+  built so that either answer is honest (below). The answered refusals measured
+  above (402, 403) bill nothing, and a 4xx other than 408 is treated the same,
+  which is inferred from those two.
+- **The generation lookup cannot settle such a row.** § The generation response
+  carries its own cost records that `GET /api/v1/generation?id=` answered 404 on
+  every attempt, and a timed-out request has no id to ask about. So no lookup is
+  built.
+- **What the ledger says instead.** A row with `cost_status` `unknown` and
+  `cost_usd` 0, its model, and its run or work (`spend_records.cost_status`,
+  `CostStatus` in `persistence/discovery_records.py`); every sum counts such rows
+  apart, so a month reads "at least $X, and N calls whose cost is unknown". The
+  ledger never settles one. Reopen if the operator's paid probe shows the lookup
+  answering, or shows a timed-out call is never billed (then `unknown` rows
+  could be read as $0 known).
+
 ## What this did not establish
 
 **Two gaps this file named are now closed, recorded here rather than deleted so
