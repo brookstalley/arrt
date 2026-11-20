@@ -808,7 +808,7 @@ naming and grouping concept, not an accounts concept.
 > replaces it. **A selection lives only while it hangs**: when a wall stops
 > hanging it (another theme or selection hung there, or the wall taken down) and
 > no other wall hangs it, it and its memberships are deleted
-> (`DisplayService._retire_selection`), in the same transaction as the change. Nothing
+> (`Themes.retire_selection`, `programming/themes.py`), in the same transaction as the change. Nothing
 > can name one afterwards, so it is refused as a Get's destination and as the
 > default theme (`get_listed_theme`). History needs no row: a hang event carries the
 > selection's id and name itself. *(Until 2026-10-08 a selection that hung nowhere

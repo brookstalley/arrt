@@ -483,6 +483,27 @@ network.
   type-checking import of `container.py`, which the guard follows. Measured
   2026-11-19 by planting `works_filter` imports in a Programming module and in a
   Library module: both runs failed, naming the path.
+- **`DisplayService` is a composition facade over five collaborators** (built
+  2026-11-19, Chunks 20 and 21 of `build-plan-audit-wave-2.md`). `programming/display.py`
+  builds one of each over one store, and each public method is a one-line delegation, so
+  every surface still calls `services.display.<method>`. `programming/feeds.py`
+  (`FeedPublisher`) builds, stages and publishes each wall's feed and keeps every
+  published feed true to the Library; `themes.py` (`Themes`) holds themes, their
+  membership, what hangs on each wall and *Not this one again*; `walls.py` (`Walls`),
+  walls and their settings; `scenes.py` (`Scenes`), scenes from draft to released;
+  `reports.py` (`Reports`), what each wall's Player reports and what is answered from
+  it. Each calls only the publisher and the collaborators before it in that list, and
+  every one publishes through the one publisher, so an act has one transaction and one
+  set of feeds staged (`FeedPublisher.publishing`). The facade keeps one rule itself,
+  `on_work_changed`. All of them log as `arrt.programming.display`, which
+  `arrt/tests/unit/test_display_facade.py` holds beside the facade's signatures, its
+  delegations and its one shared store and publisher. The rule that a feed is checked
+  against the contract wherever it is built is held by the suite-wide feed guard
+  (`arrt/tests/conftest.py`, `every_feed_keeps_the_contract`), which patches the
+  builder where it now lives (`feeds.as_v2_document`); it checks feeds built in the
+  test's own process, so a feed a server *process* publishes (the system tests') is not
+  checked by it. This is cohesion, not the Library/Programming split, which is not a
+  requirement (ruling 9 of 2026-11-19).
 - **A fourth binding is not a surface:** `arrt/seed/` is a hand-run command
   that reads the 2024 index and mints its works through `CatalogueService`. It is
   bound by the same rule for the same reason — it enforces no catalogue
@@ -973,7 +994,7 @@ read by display.
   missing or empty, a thumbnail or a kept picture's tier, is staged and renamed
   the same way but not synced. The feeds one act decides are staged first
   and renamed as the last step of the transaction that decided them, so a feed
-  changes only with what recorded it: `DisplayService._publishing`.)*
+  changes only with what recorded it: `FeedPublisher.publishing`, `programming/feeds.py`.)*
 - **Contents:** a schema version, the active theme's identity, the **rotation
   settings** that drive the display timer (`rotation_interval_seconds`, `shuffle`),
   a **directive block** (below), and an ordered list of entries — for each, the
