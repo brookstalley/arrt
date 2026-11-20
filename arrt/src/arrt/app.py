@@ -244,8 +244,12 @@ def create_app(
 def _record_ask_cost(services: Services, cost: ReplyCost) -> None:
     """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's.
 
-    What its calls were billed is one row; each call it left running unanswered
-    is a row of its own at $0, its cost unknown (`CostStatus.UNKNOWN`).
+    What its calls were billed is one row, when that is more than nothing. Each
+    call whose cost is not known is a row of its own at $0 marked unknown
+    (`CostStatus.UNKNOWN`), never a known $0: a call the provider answered without
+    saying what it cost, and a call sent and never answered (the reply was
+    cancelled or failed while it ran). Either may have been billed
+    (`ReplyCost.unknown_calls`).
     """
     if cost.cost_usd > 0:
         services.discovery.record_spend(

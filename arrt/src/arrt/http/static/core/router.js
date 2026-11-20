@@ -415,9 +415,10 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
       // An address that names nothing is a page of its own, not a fault, and
       // the curator is owed what was asked for and a way on rather than the
       // previous page under the new title or a load that never ends. The
-      // server refuses a read of one thing that is not there (400, its one
-      // refusal status), as the Artist and Topic screens have always read it;
-      // a fault is a 5xx and stays the banner's.
+      // server refuses a read of one thing that is not there with 404 (a
+      // thing named that is absent, Chunk 37; it was 400 before, and a server
+      // that still answers 400 is read the same way), as the Artist and Topic
+      // screens read it; a fault is a 5xx and stays the banner's.
       if ((failure.status === 400 || failure.status === 404) && state.detailId && entry.thing) {
         render(generation, ...notFound());
         return;

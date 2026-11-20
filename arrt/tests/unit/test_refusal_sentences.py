@@ -256,7 +256,7 @@ def test_no_refusal_names_the_catalogue_a_collection_or_a_playlist(refusal):
 #   lines say a client is "removed" where a screen says a Player is forgotten: they are the
 #   code's nouns, for whoever reads the NAS's journal, and no test or record names them.
 # * The modules that run before the server answers and whose sentences reach the terminal
-#   (`OUTSIDE_MODULES`): the start-up refusals. The guard knows by
+#   (`START_UP_MODULES`): the start-up refusals. The guard knows by
 #   `test_a_start_up_module_reaches_no_person`: no refusal in the `ServiceError` family (which
 #   `/api` renders) is built in one, and no exception class one defines is named anywhere else
 #   in the source, so nothing catches it and carries its text onward.
@@ -273,18 +273,24 @@ def test_no_refusal_names_the_catalogue_a_collection_or_a_playlist(refusal):
 # fact shown: a literal saying "the catalogue" in a module no person reads is named all the same,
 # and the answer is to word it for the Library or to give it its reason below.
 
-#: Modules whose sentences go to the operator's terminal or are not prose, not to a screen.
-OUTSIDE_MODULES: dict[str, str] = {
+#: Modules that run before the server answers, whose sentences go to the operator's terminal.
+START_UP_MODULES: dict[str, str] = {
     "__main__.py": "the command line: its help text and its refusals are the operator's",
     "art_root.py": "a start-up refusal (`ArtRootError`) and the marker file's text, both for the operator",
-    "persistence/file.py": "start-up: `NewerRelease` stops the start, naming the catalogue file the operator holds",
-    "persistence/migrations.py": "start-up: a migration's refusal names the catalogue file the operator holds",
-    "persistence/backup.py": "start-up: `SnapshotFailed` stops a migration that has no copy to fall back on",
+    "persistence/file.py": "`NewerRelease` stops the start, naming the catalogue file the operator holds",
+    "persistence/migrations.py": "a migration's refusal names the catalogue file the operator holds",
+    "persistence/backup.py": "`SnapshotFailed` stops a migration that has no copy to fall back on",
+}
+
+#: Modules whose strings are code in another language, or a prompt to a model: not read by a person.
+NOT_PROSE_MODULES: dict[str, str] = {
     "persistence/sqlite.py": "SQL: a comment in a schema is code, read by nobody on a screen",
     "persistence/sqlite_discovery.py": "SQL: a statement, not a sentence",
     "library/registry/wikidata.py": "SPARQL: `?collection` is Wikidata's variable",
     "library/discovery/phase_one.py": "a prompt to a model; a person does not read it",
 }
+
+OUTSIDE_MODULES: dict[str, str] = START_UP_MODULES | NOT_PROSE_MODULES
 
 #: Where a museum speaks of its own collection.
 MUSEUM_MODULES = "library/sources/"
@@ -448,7 +454,12 @@ def test_a_sentence_planted_in_a_module_the_guard_had_not_seen_is_named(tmp_path
 
 def test_a_sentence_assembled_from_parts_is_the_one_thing_it_does_not_see(tmp_path):
     """Said out loud, so the limit is a fact the suite holds and not a hope: a joined or concatenated word is invisible."""
-    source = 'def f():\n    return "The cata" + "logue is empty"\n\ndef g():\n    return " ".join(["The", "catalogue", "is", "empty"])\n'
+    source = (
+        "def f():\n"
+        '    return "The cata" + "logue is empty"\n'
+        "def g():\n"
+        '    return " ".join(["The", "catalogue", "is", "empty"])\n'
+    )
     assert said(_planted(tmp_path, source)) == []
 
 
@@ -471,7 +482,7 @@ def test_every_exemption_still_exempts_something():
 
 
 def test_a_start_up_module_reaches_no_person():
-    """How the guard knows `OUTSIDE_MODULES`' start-up refusals reach the terminal and no screen.
+    """How the guard knows `START_UP_MODULES`' refusals reach the terminal and no screen.
 
     No refusal of the `ServiceError` family (which `/api` renders) is built in one of them, and no
     exception class one defines is named in any other module of the source, so nothing catches it
@@ -479,8 +490,7 @@ def test_a_start_up_module_reaches_no_person():
     too, but the fetch queue names it and stores its text as the pause's detail, so it is read.
     """
     modules = _parsed()
-    start_up = {module for module, reason in OUTSIDE_MODULES.items() if reason.startswith(("start-up", "a start-up", "the command"))}
-    assert {"art_root.py", "persistence/file.py", "persistence/backup.py"} <= start_up
+    start_up = set(START_UP_MODULES)
     built_here = {refusal.site.split(":")[0] for refusal in ALL}
     assert built_here.isdisjoint(start_up), built_here & start_up
     for path, tree in modules.items():

@@ -651,9 +651,11 @@ def test_a_thread_the_server_forgot_is_an_empty_page_when_it_is_opened_and_the_n
     assert gone.status == 404, "the server's answer for a thread it does not hold is the premise of this test"
     ui.page.route(
         re.compile(r"/api/ask/threads/[^/]+$"),
-        lambda route: route.fulfill(status=gone.status, content_type="application/json", body=json.dumps(gone.json()))
-        if route.request.method == "GET"
-        else route.fallback(),
+        lambda route: (
+            route.fulfill(status=gone.status, content_type="application/json", body=json.dumps(gone.json()))
+            if route.request.method == "GET"
+            else route.fallback()
+        ),
     )
 
     away_and_back(ui)

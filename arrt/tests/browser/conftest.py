@@ -570,7 +570,7 @@ class Ui:
         if same_document:
             self.page.reload()
         # The client marks <html> once it has started (`app.js`). The view is
-        # served holding a "Loading the catalogue…" placeholder, so waiting on
+        # served holding a "Loading the Library…" placeholder, so waiting on
         # its content returned before the script had run, and a test could act
         # on a top bar with nothing installed behind it. Then the first paint's
         # content, as before: `data-started` is set before the paint begins.

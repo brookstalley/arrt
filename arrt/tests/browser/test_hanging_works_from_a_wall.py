@@ -333,9 +333,7 @@ def test_a_theme_filter_chosen_while_choosing_keeps_the_wall_and_the_hang_still_
     expect(ui.page.locator(".confirm-title")).to_have_text("Hang 1 work on The study?", use_inner_text=True)
 
 
-def test_a_theme_the_address_names_that_is_gone_says_so_and_the_page_is_still_choosing_for_the_wall(
-    ui, walls, two_works
-):
+def test_a_theme_the_address_names_that_is_gone_says_so_and_the_page_is_still_choosing_for_the_wall(ui, walls, two_works):
     """A bookmark outlives its theme: the note says so (Chunk 37), and Chunk 57's flow is not what it takes down.
 
     The Artworks listing refuses an unknown theme (400 or 404) and the page then asks again
