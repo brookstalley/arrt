@@ -46,7 +46,11 @@ beside it whom it waits for (`waiting_for`), as `GET /api/walls`, MCP's `walls` 
 hang says the server's words for a waiting wall ("The hall waits for The living room Pi,
 which has no token yet.") and still says everyone sees a wall a Player shows change (66).
 A wall waits only while nothing was ever written for it; one whose reports came and
-stopped is a trouble. Works the queue holds as failed are a
+stopped is a trouble. For one repaint the question before a hang could say a wall waits
+while its badge showed a work, because one answer read the wall's report twice and a
+first report could land between the reads; each walls answer now states a wall's state
+and its wait from one reading (`HealthService.observe_walls`), which a deterministic
+interleaving test holds (`arrt/tests/integration/test_client_tools.py`, 66). Works the queue holds as failed are a
 trouble too, with their count and the newest's age, linking to Queue (`failed_fetches`;
 the instant is the queue's new `failed_at`, and a failure from before it reads "not
 known", never guessed). `GET /api/clients` serves each Player's state and its settings
@@ -222,9 +226,16 @@ prototype-scale test's `build_large_catalogue`; the browser tests that seed a ti
 `datetime.now`; about 28 client strings that say "your library" (the owner is asked
 whether the Library's capital belongs there too); the run's not-found page drawing the
 router's words; `walls.js` joining `waiting_for` from `/api/health` rather than reading it
-on the walls answer, which carries it since 66; the hang question's way in from the Work
-page, whose waiting-wall words have a test still being added; and a guard for the fixtures that write a wall's report, which chunk
-63 measured (about thirty lines, two exemptions and a marker) and did not add.
+on the walls answer, which carries it since 66; a guard for the fixtures that write a
+wall's report, which chunk 63 measured (about thirty lines, two exemptions and a marker)
+and did not add; `WallView` (`arrt/src/arrt/programming/walls.py`), which reads a wall's
+report file once for its display state and again for whether it reads its feed, so the
+wall's feed notice could in principle disagree with its state; the cost words, which say a
+spend under a hundredth of a cent two ways ("under $0.0001" alone, "more than $0.00, and
+N calls whose cost is unknown" beside unknown calls), both true and left so; and the route
+inventory, which pairs a read route with an MCP action by name only, so whether the twin
+answers the same is left to the record-parity tests, which pair only some records (a
+different gap from the write routes it does not read).
 
 **No workflow holds a model key** (66), as the owner's ruling of 2026-11-20 says: CI makes
 no paid call. `api-drift.yml` has no paid job, no monthly schedule and no input that asks
@@ -239,8 +250,11 @@ holds no model key to delete: its secrets list names `TESTAMENT_KEY` alone (read
 `gh secret list` on 2026-11-20).
 
 **For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`): Q1 (the four norm texts in `project-preferences.md`, and with it the
-forbidden-columns check in `test_catalogue_store.py`), and Q3 (which household settings are set
-where). The host executor and the one scratch pull request were ruled (rulings 1 and 3 of
+forbidden-columns check in `test_catalogue_store.py`), Q3 (which household settings are set
+where), and the delegate-verification norm (`project-preferences.md` `## Workflow`,
+`Delegate verification`), which says a change to `contract/` "runs all five" where there
+are six suites: the owner is asked whether five, the suites that read the contract, is
+what it should say. The host executor and the one scratch pull request were ruled (rulings 1 and 3 of
 "six answers"). **An assumption to see at that scratch pull request:** that CI's key
 holds no owner secret, so the pool step must never ask for the `image` suite, rests on
 testament's guide and a simulation (the identity taken from the environment, as a CI job
