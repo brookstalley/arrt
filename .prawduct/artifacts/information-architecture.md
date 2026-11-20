@@ -458,11 +458,18 @@ listed below so it can be disputed.
   the badge counts them, and Status lists them under *Needs attention*, each
   linking to where it is mended (the failed fetches to Activity › Queue). No
   screen judges a reading again. A setup step (a wall no Player shows, a Player
-  with no token or no report yet: `vocabulary.json`'s `setup` flags) is never a
-  trouble, so a household whose only open items are setup steps reads "Well".
-  One setup reading the indicator does say: no wall recorded at all, neither
-  well nor a problem (○ "No wall is recorded", no number on the badge, "System:
-  no wall is recorded"), until the server states its setup steps itself.
+  with no token or no report yet, or no wall recorded at all: `vocabulary.json`'s
+  `setup` flags) is never a trouble and never well: `GET /api/health`'s
+  `setup_steps` states each, in the household's words *(wave 2b, chunk 41; the
+  client decided "no wall recorded" for itself until chunk 40 made the server
+  state it)*. The indicator then has three readings, each a glyph and a word:
+  troubles (▲, counted on the badge), setup to finish (○, "Setting up" on a
+  phone, in the server's words, in the indicator's own text colour and not a
+  fault's, with no number on the badge and the System link named "System: 1 step
+  to finish"), and well (●). With both, the indicator says the troubles and the
+  steps after them, apart, and the link's name says both. Status lists the steps
+  under *Still to set up*, each linking to where it is taken, beside *Needs
+  attention*.
   *(Builder's collision ruling, 2026-09-30: the accessibility rule outranks
   familiarity where they meet, because the familiarity norm governs where things
   are and what they are called, not whether a state can be read. The owner can

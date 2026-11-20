@@ -529,6 +529,15 @@ header.topbar {
   display: none;
 }
 
+/* The steps still to take, said beside troubles: in the text colour and not the
+   fault's, because a step to take is no fault, and set off from the sentence
+   before it by a rule's width of space. */
+.status-indicator .status-setup {
+  color: var(--text);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-strong);
+}
+
 .status-indicator:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -3641,11 +3650,14 @@ input[type="checkbox"] {
     margin-left: 0;
   }
 
-  .status-indicator .status-words {
+  .status-indicator .status-words,
+  .status-indicator .status-setup {
     position: absolute;
     width: 1px;
     height: 1px;
     margin: -1px;
+    padding: 0;
+    border: 0;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
