@@ -630,3 +630,12 @@ def test_a_reply_with_only_an_unanswered_call_writes_no_zero_bill(services, disc
 
     [row] = discovery_store.list_spend_records()
     assert row.cost_status is CostStatus.UNKNOWN
+
+
+def test_a_reply_with_no_billed_cost_and_no_unknown_call_writes_no_row(services, discovery_store):
+    """Chunk 66: nothing billed and nothing unknown is nothing to record, never a known $0 row in the month."""
+    _record_ask_cost(
+        services, ReplyCost(cost_usd=Decimal(0), model_id=ANSWERED_BY, input_tokens=0, output_tokens=0, unknown_calls=0)
+    )
+
+    assert discovery_store.list_spend_records() == []

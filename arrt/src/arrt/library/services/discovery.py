@@ -32,6 +32,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import MAXYEAR, MINYEAR, datetime
 from decimal import ROUND_DOWN, Decimal
+from typing import Final
 
 from arrt.counting import counted
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
@@ -216,21 +217,38 @@ class SpendTotal:
         """The figure in words: "$0.42", or "at least $0.42, and 2 calls whose cost is unknown".
 
         The figure is rounded down, so "at least" stays true of it: to the cent
-        from a dollar up, and to a hundredth of a cent below, where a month of
-        mat calls lives.
+        from a dollar up, grouped by thousands as the client writes a count
+        ("$1,234.56"), and to a hundredth of a cent below, where a month of mat
+        calls lives.
+
+        **Something spent below the finest figure is never said as nothing**
+        (wave 2b, Chunk 66): rounded down it would read "$0.00", the words of a
+        month with no spend, and rounded up it would name a sum nobody was
+        billed. It is "under $0.0001"; with calls whose cost is unknown, the
+        floor is "more than $0.00".
         """
-        figure = _dollars(self.cost_usd)
-        if not self.unknown_calls:
-            return figure
-        return f"at least {figure}, and {counted(self.unknown_calls, 'call')} whose cost is unknown"
+        if 0 < self.cost_usd < _FINEST:
+            if not self.unknown_calls:
+                return f"under ${_FINEST}"
+            figure = "more than $0.00"
+        else:
+            figure = _dollars(self.cost_usd)
+            if not self.unknown_calls:
+                return figure
+            figure = f"at least {figure}"
+        return f"{figure}, and {counted(self.unknown_calls, 'call')} whose cost is unknown"
+
+
+#: The finest figure a cost is said to: a hundredth of a cent.
+_FINEST: Final[Decimal] = Decimal("0.0001")
 
 
 def _dollars(amount: Decimal) -> str:
-    """`amount` in dollars, rounded down: "$3.20", "$0.0052"."""
+    """`amount` in dollars, rounded down: "$3.20", "$0.0052", "$1,234.56"."""
     cents = amount.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
     if cents == amount or amount >= 1:
-        return f"${cents:.2f}"
-    finer = amount.quantize(Decimal("0.0001"), rounding=ROUND_DOWN).normalize()
+        return f"${cents:,.2f}"
+    finer = amount.quantize(_FINEST, rounding=ROUND_DOWN).normalize()
     return f"${cents:.2f}" if finer == cents else f"${finer:f}"
 
 
