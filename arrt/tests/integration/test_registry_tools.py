@@ -18,6 +18,7 @@ import pytest
 from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from unit.test_surface_parity import REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET, check_not_yet_on_mcp
 
 from arrt.ask.cards import items_in
 from arrt.ask.prompt import ASK_SCOPE
@@ -159,6 +160,14 @@ async def route(server_url: str, path: str, **params) -> dict:
         return (await client.get(path, params=params)).raise_for_status().json()
 
 
+def _rows_as_mcp_has_them(mcp: dict, http: dict) -> dict:
+    """`http` with each work row's fields MCP does not carry yet taken out, once each row is held to the exemption."""
+    not_yet = REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
+    for ours, theirs in zip(mcp["works"], http["works"], strict=True):
+        check_not_yet_on_mcp("Registry row", set(ours), set(theirs), not_yet)
+    return {**http, "works": [{k: v for k, v in row.items() if k not in not_yet} for row in http["works"]]}
+
+
 async def test_search_is_the_results_pages_search(server_url, held):
     payload = await call(server_url, action="search", q="bruegel")
 
@@ -176,7 +185,7 @@ async def test_find_topics_is_the_topic_search(server_url):
 async def test_an_artist_not_held_is_their_page_by_qid(server_url, held):
     payload = await call(server_url, action="artist", qid=BRUEGEL)
 
-    assert payload == await route(server_url, f"/api/registry/artists/{BRUEGEL}")
+    assert payload == _rows_as_mcp_has_them(payload, await route(server_url, f"/api/registry/artists/{BRUEGEL}"))
     assert payload["artist_id"] is None
     assert [work["qid"] for work in payload["works"]] == [HUNTERS]
 
@@ -185,7 +194,7 @@ async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server
     rothko, kept = held
 
     payload = await call(server_url, action="artist", qid=ROTHKO)
-    page = await route(server_url, f"/api/artists/{rothko.id}/registry")
+    page = _rows_as_mcp_has_them(payload, await route(server_url, f"/api/artists/{rothko.id}/registry"))
 
     # The page by QID says only "held" and asks nothing; the tool must not.
     assert payload["state"] == "known"
@@ -215,7 +224,7 @@ async def test_a_topic_is_the_pages_three_registry_sections_in_one(server_url):
     works = payload.pop("works")
     artists = payload.pop("artists")
     assert payload == await route(server_url, f"/api/topics/{RENAISSANCE}/registry")
-    assert works == await route(server_url, f"/api/topics/{RENAISSANCE}/works")
+    assert works == _rows_as_mcp_has_them(works, await route(server_url, f"/api/topics/{RENAISSANCE}/works"))
     assert artists == await route(server_url, f"/api/topics/{RENAISSANCE}/artists")
     assert [work["qid"] for work in works["works"]] == [HUNTERS]
     assert [artist["qid"] for artist in artists["artists"]] == [BRUEGEL]

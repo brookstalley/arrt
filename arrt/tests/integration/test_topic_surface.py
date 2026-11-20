@@ -28,6 +28,7 @@ from arrt.library.registry import (
     RegistryTopicWork,
     TopicKind,
 )
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 IMPRESSIONISM = "Q40415"
 MONET = "Q296"
@@ -184,6 +185,36 @@ class TestTheRegistrysHalf:
         ]
         assert works[0]["creators"] == [{"qid": MONET, "name": "Claude Monet", "artist_id": monet.id}]
         assert (works[1]["creators"], works[1]["creator_unknown"]) == ([], True)
+
+    def test_a_held_work_is_pictured_only_once_it_holds_a_master(self, http, held, service):
+        """`pictured_artwork_id`, so the Topic page asks for no thumbnail the server would refuse."""
+        _monet, sunrise = held
+
+        def pictured():
+            works = http.get(f"/api/topics/{IMPRESSIONISM}/works").raise_for_status().json()["works"]
+            return [(w["qid"], w["pictured_artwork_id"]) for w in works]
+
+        assert pictured() == [(SUNRISE, None), (LUNCHEON, None)]
+        source = service.add_source(
+            artwork_id=sunrise.id,
+            url=f"https://museum.example/{sunrise.id}.jpg",
+            provider="gallery_site",
+            source_class=SourceClass.CONTEMPORARY_WEB,
+            acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=sunrise.id,
+            source_id=source.id,
+            path=f"raw/{sunrise.id}.jpg",
+            width=4000,
+            height=3000,
+            byte_size=1_000,
+            content_hash="hash-sunrise",
+            fetch_status=FetchStatus.OK,
+        )
+        assert pictured() == [(SUNRISE, sunrise.id), (LUNCHEON, None)]
 
     def test_a_held_work_whose_qid_differs_is_not_marked(self, http, held, services):
         _monet, sunrise = held

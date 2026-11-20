@@ -22,7 +22,7 @@ that safe.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -598,7 +598,8 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
     configured, cannot be asked, or has nothing for this artist is a state the
     page shows, named in `state` and said in `note`.
     """
-    return _artist_registry(_services(request).artists.registry_view(artist_id))
+    services = _services(request)
+    return _artist_registry(services.artists.registry_view(artist_id), pictured=services.catalogue.pictured)
 
 
 @router.get("/registry/artists/{qid}")
@@ -611,7 +612,7 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
     asked. A malformed QID is a 400.
     """
     held, view = _services(request).artists.registry_view_by_qid(qid)
-    return _artist_registry(view, artist_id=held)
+    return _artist_registry(view, artist_id=held, pictured=_services(request).catalogue.pictured)
 
 
 @router.get("/registry/search")
@@ -851,17 +852,18 @@ def get_topic_works(request: Request, qid: str) -> Response:
     at once. Anything else asking gets the last line alone, as JSON.
     """
     stages = _services(request).topics.works_in_stages(qid)
+    pictured = _services(request).catalogue.pictured
     if NDJSON not in request.headers.get("accept", ""):
         last = next(stages)
         for view in stages:
             last = view
-        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+        return JSONResponse(_topic_works(last, pictured).model_dump(mode="json"))
     # A sync generator, so Starlette runs each step in its thread pool: the
     # registry's questions block, and the event loop must not wait on them.
-    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+    return StreamingResponse((_topic_works(view, pictured).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
 
 
-def _topic_works(view: TopicWorksView) -> TopicWorksOut:
+def _topic_works(view: TopicWorksView, pictured: Callable[[Sequence[str]], str | None]) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
@@ -880,6 +882,7 @@ def _topic_works(view: TopicWorksView) -> TopicWorksOut:
                 creator_unknown=entry.work.creator_unknown,
                 state=str(entry.state),
                 held_artwork_ids=list(entry.held),
+                pictured_artwork_id=pictured(entry.held),
                 wanted=entry.wanted,
             )
             for entry in view.works
@@ -935,7 +938,9 @@ def _in_review(waiting: InReview | None) -> InReviewOut | None:
     return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
 
 
-def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
+def _artist_registry(
+    view: RegistryView, *, pictured: Callable[[Sequence[str]], str | None], artist_id: str | None = None
+) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
         state=str(view.state),
@@ -958,6 +963,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     sitelinks=entry.sitelinks,
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    pictured_artwork_id=pictured(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
                     in_review=_in_review(view.waiting.get(entry.qid)),
                 )

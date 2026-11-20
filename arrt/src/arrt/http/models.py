@@ -116,6 +116,11 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
@@ -442,6 +447,11 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.

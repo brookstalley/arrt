@@ -548,6 +548,18 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         return self._store.get_original(artwork_id)
 
+    def pictured(self, artwork_ids: Sequence[str]) -> str | None:
+        """The first of these works that holds a master image, whose thumbnail can be made; None when none does.
+
+        What a registry row that is held pictures itself by, so a page asks for
+        no thumbnail the server would refuse and says *No picture* instead. An
+        id the catalogue does not hold pictures nothing rather than refusing:
+        the rows were matched a moment before, and a work archived since is no
+        reason to fail the page.
+        """
+        with self._store.reading():
+            return next((artwork_id for artwork_id in artwork_ids if self._store.get_original(artwork_id) is not None), None)
+
     def fit(self, artwork_id: str, *, profile: QualityProfile) -> Fit:
         """Judge the work's held original against the quality profile."""
         original = self.get_original(artwork_id)
