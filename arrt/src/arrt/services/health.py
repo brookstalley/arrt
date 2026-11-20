@@ -10,11 +10,19 @@ product is built to refuse, wearing the costume of the mechanism meant to catch
 it.
 
 **Observations with ages, never verdicts.** Nothing here computes healthy or
-unhealthy, and nothing compares an age to a threshold. A green dot that is green
-because nothing checked is exactly this product's characteristic failure wearing
-a UI, and it would be worse than no panel at all because it manufactures
-confidence. Each reading says what was found, when, and — when there is nothing
-to say — that there is nothing to say.
+unhealthy. A green dot that is green because nothing checked is exactly this
+product's characteristic failure wearing a UI, and it would be worse than no
+panel at all because it manufactures confidence. Each reading says what was
+found, when, and — when there is nothing to say — that there is nothing to say.
+
+**One health model** (audit 2026-11-19, audit-5 F4 and audit-6 3): each wall is
+read through its display state and each Player through its Player state, the
+same states Walls and Players serve, and `HealthReading.troubles` lists the
+faults among them by name for the top bar and the System badge to count. The
+one threshold any of it applies is the contract's staleness (`timing.json`,
+past which a wall or a Player is not reporting), which every surface shares; a
+state whose setup flag is true (a wall with no Player, a Player with no token
+or no report yet) is never a trouble, because it is a step not yet taken.
 
 **There is no budget balance here; the month's budget is the sidebar's**
 (`library/services/spending.py`, `GET /api/budget`, the owner's ruling of
@@ -33,8 +41,11 @@ binding the architecture requires.
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
+from arrt import observations
+from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState, QueueListing
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
@@ -42,7 +53,10 @@ from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
 from arrt.persistence.discovery_records import SourceYield
 from arrt.persistence.records import BackupReading
+from arrt.programming import display_state, player_state
+from arrt.programming.clients import ClientView, DisplayFault
 from arrt.programming.display import DisplayService, WallHeartbeat, describe_wall_status
+from arrt.programming.player_state import PlayerState
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +154,124 @@ class PicturesReading:
         )
 
 
+def failure_instant(state: AcquisitionState) -> datetime | None:
+    """When this work's last fetch failed, or None when that is not known.
+
+    **A derivation standing in for a stored instant.** The queue's row keeps no
+    time of failure (`QueuedAcquisition`), so it is read back from the retry
+    schedule the queue applies at each failure (`AcquisitionQueue._record_failure`:
+    `next_try_at` is the failure's instant plus `RETRY_AFTER[failures - 1]`). A
+    work the queue gave up on has no `next_try_at`, so its instant is not known.
+    `arrt/tests/unit/test_failed_fetches.py` drives the real queue with a fake
+    clock, so a change to the retry rule turns it red while this derivation lives.
+
+    Chunk 40 of the audit's wave 2b replaces this body with a read of the
+    `failed_at` the queue row gains in chunk 32, keeping the derivation only for
+    rows written before that column existed; its meaning to callers stays the same.
+    """
+    if state.phase is not AcquisitionPhase.FAILED or state.next_try_at is None:
+        return None
+    if not 1 <= state.failures <= len(RETRY_AFTER):
+        return None
+    return state.next_try_at - RETRY_AFTER[state.failures - 1]
+
+
+@dataclass(frozen=True, slots=True)
+class FailedFetches:
+    """The works whose picture the queue failed to fetch: how many, and when the newest failed, where known.
+
+    Counted from `failed_states`, the works Activity › Queue lists as failed or
+    given up on, so the badge and the page cannot disagree. A health
+    observation, because 2,000 failed fetches once raised nothing anywhere
+    (audit 2026-11-19, audit-6 finding 3).
+    """
+
+    #: Every work the Queue lists as failed: those it will try again and those it gave up on.
+    count: int
+    #: Of `count`, those the queue tries again on its own.
+    will_retry: int
+    #: Of `count`, those it gave up on, which wait for Retry.
+    given_up: int
+    #: The newest failure among the works whose failure instant is known, and its
+    #: age; both null when none is known.
+    newest_failed_at: datetime | None
+    newest_age_seconds: float | None
+    #: Of `count`, how many failed at an instant that is not recorded, so
+    #: `newest_age_seconds` cannot speak for them (today, every work given up on).
+    #: Equal to `count`: the age of the newest failure is not known at all.
+    age_unknown: int
+
+    def describe(self) -> str:
+        """The count in a sentence, with the newest failure's age, or that it is not recorded."""
+        works = "1 work" if self.count == 1 else f"{self.count:,} works"
+        said = f"The queue holds {works} whose picture could not be fetched"
+        if self.newest_age_seconds is None:
+            return f"{said}; when the newest failed is not recorded."
+        aged = observations.ago(self.newest_age_seconds)
+        if not self.age_unknown:
+            return f"{said}; the newest failed {aged}."
+        return (
+            f"{said}; the newest whose time is recorded failed {aged}, and {self.age_unknown:,} failed at a time " "not recorded."
+        )
+
+
+def failed_states(listing: QueueListing) -> tuple[AcquisitionState, ...]:
+    """Every work the Queue lists as failed or given up on, as its state: what the health count is counted from.
+
+    **Read from `AcquisitionQueue.listing()`, standing in for a cheaper read.**
+    The listing is the Queue page's own, so the count cannot disagree with it,
+    but it reads every owed work's title, which the count never uses: measured
+    on 2026-11-19 at 2,000 failed works, `GET /api/health` (which the top bar
+    reads on every page) took 87-93 ms with it against 0.3 ms without, where
+    `works_to_acquire()` alone is 11 ms. Chunk 40 of the audit's wave 2b adds
+    `AcquisitionQueue.failed_states()`, the same states with no title read, and
+    `container.py` hands that to `HealthService` instead of the listing.
+    """
+    return tuple(entry.state for cause in listing.causes for entry in cause.entries)
+
+
+def failed_fetches(states: Sequence[AcquisitionState], *, now: datetime) -> FailedFetches | None:
+    """What the queue holds as failed, from `failed_states`, or None when it holds none: then there is no observation."""
+    if not states:
+        return None
+    instants = [instant for instant in map(failure_instant, states) if instant is not None]
+    newest = max(instants, default=None)
+    return FailedFetches(
+        count=len(states),
+        will_retry=sum(1 for state in states if state.phase is AcquisitionPhase.FAILED),
+        given_up=sum(1 for state in states if state.phase is AcquisitionPhase.GAVE_UP),
+        newest_failed_at=newest,
+        newest_age_seconds=None if newest is None else (now - newest).total_seconds(),
+        age_unknown=len(states) - len(instants),
+    )
+
+
+class TroubleKind(StrEnum):
+    """What a trouble is about, so a screen can link it to where it is mended."""
+
+    WALL = "wall"
+    PLAYER = "player"
+    DISPLAY_FAULT = "display_fault"
+    BACKUP = "backup"
+    SOURCE = "source"
+    WATCH = "watch"
+    FAILED_FETCHES = "failed_fetches"
+
+
+@dataclass(frozen=True, slots=True)
+class Trouble:
+    """One thing the household is told of on the top bar and the System badge: a fault, never a setup step."""
+
+    about: TroubleKind
+    #: The wall's or Player's id, the plugin's name, the display's identity; null
+    #: for the backup, a Watch and the failed fetches.
+    subject: str | None
+    #: The wall's display state or the Player's state, for those two; null otherwise.
+    state: str | None
+    #: A short phrase, in the household's words, for the top bar's list.
+    words: str
+
+
 @dataclass(frozen=True, slots=True)
 class HealthReading:
     """Every observation the panel makes, gathered at one instant."""
@@ -165,6 +297,46 @@ class HealthReading:
     sources: Sequence[SourceHealth] = ()
     #: Whether any Watch needs a person: overdue, or held by a spent allowance.
     watches: WatchesReading = field(default_factory=WatchesReading)
+    #: Every Player with its state and each output's (`player_state.py`).
+    players: Sequence[ClientView] = ()
+    #: What the queue holds as failed, or None when it holds nothing failed.
+    failed_fetches: FailedFetches | None = None
+
+    def troubles(self) -> tuple[Trouble, ...]:
+        """Every fault this reading holds, in one list: what the top bar and the System badge count.
+
+        **Derived only from states whose setup flag is false** (`display_state.SETUP`,
+        `player_state.SETUP`): a wall with no Player, and a Player with no token or
+        no report yet, are steps not yet taken and never a trouble. A wall is one
+        when its state is in `display_state.TROUBLES`, a Player when its state is
+        in `player_state.TROUBLES`. A display two Players report is one too,
+        though its wall reads `unassigned`: that is a configuration fault, not a
+        step not yet taken (`clients.DisplayFault`).
+        """
+        found = [
+            Trouble(TroubleKind.WALL, seen.wall.id, str(seen.state.state), _wall_words(seen))
+            for seen in self.walls
+            if seen.state.state in display_state.TROUBLES
+        ]
+        faults: dict[str, DisplayFault] = {}
+        for view in self.players:
+            if view.player.state in player_state.TROUBLES:
+                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), _player_words(view)))
+            for fault in view.faults:
+                faults.setdefault(fault.identity, fault)
+        for identity, fault in faults.items():
+            names = " and ".join(client.name for client in fault.clients)
+            found.append(Trouble(TroubleKind.DISPLAY_FAULT, identity, None, f"{names} both report one display"))
+        found.extend(_backup_troubles(self.backup))
+        found.extend(_source_troubles(self.sources))
+        found.extend(Trouble(TroubleKind.WATCH, None, None, f"Watch “{words}” is overdue") for words in self.watches.overdue)
+        if self.watches.allowance_spent:
+            found.append(Trouble(TroubleKind.WATCH, None, None, "Watches wait: the unattended allowance is spent"))
+        if self.failed_fetches is not None:
+            count = self.failed_fetches.count
+            works = "1 work" if count == 1 else f"{count:,} works"
+            found.append(Trouble(TroubleKind.FAILED_FETCHES, None, None, f"{works} could not fetch a picture"))
+        return tuple(found)
 
     def describe(self) -> str:
         """One sentence across every wall, from the readings this panel holds.
@@ -175,6 +347,45 @@ class HealthReading:
         has reported" by the other has no way to tell which is lying.
         """
         return describe_wall_status(self.walls)
+
+
+def _wall_words(seen: WallHeartbeat) -> str:
+    """A wall that is not reporting, as the top bar says it: never written, unreadable, or for how long."""
+    name = seen.wall.name
+    if seen.state.last is not None and seen.heartbeat.age_seconds is not None:
+        return f"{name} has not reported for {observations.in_words(seen.heartbeat.age_seconds)}"
+    if seen.heartbeat.problem is not None:
+        return f"{name}'s last report cannot be read"
+    return f"{name} has not reported"
+
+
+def _player_words(view: ClientView) -> str:
+    """A Player in fault, as the top bar says it."""
+    name = view.client.name
+    if view.player.state is PlayerState.REPORT_UNREADABLE:
+        return f"{name}'s report cannot be read"
+    return f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
+
+
+def _backup_troubles(reading: BackupReading) -> list[Trouble]:
+    if reading.problem is not None:
+        return [Trouble(TroubleKind.BACKUP, None, None, "The backup record cannot be read")]
+    if reading.absent:
+        return [Trouble(TroubleKind.BACKUP, None, None, "The catalogue has never been backed up")]
+    return []
+
+
+def _source_troubles(sources: Sequence[SourceHealth]) -> list[Trouble]:
+    """A plugin that failed to load or has faulted; one that declined is configured off on purpose and is none."""
+    found = []
+    for source in sources:
+        reading = source.reading
+        museum = museum_name(reading.name)
+        if reading.state is PluginState.FAILED:
+            found.append(Trouble(TroubleKind.SOURCE, reading.name, None, f"The {museum} source could not be loaded"))
+        elif reading.faults > 0:
+            found.append(Trouble(TroubleKind.SOURCE, reading.name, None, f"The {museum} source has faulted since startup"))
+    return found
 
 
 class HealthService:
@@ -189,9 +400,18 @@ class HealthService:
         yields: Callable[[], Mapping[str, SourceYield]],
         pictures: PictureStore,
         watches: Callable[[], WatchesReading],
+        players: Callable[[], Sequence[ClientView]] = tuple,
+        queue: Callable[[], QueueListing] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._display = display
+        #: Every Player with its state (`ClientService.list_clients`).
+        self._players = players
+        #: The queue's listing (`AcquisitionQueue.listing`), which the failed
+        #: fetches are counted from. None observes none, for a caller testing
+        #: another part of the panel; `container.py` always gives one, and
+        #: `test_browser_surface.py` reads it through the real server.
+        self._queue = queue
         #: What the Watches need a person to know (`WatchService.reading`).
         self._watches = watches
         self._pictures = pictures
@@ -220,7 +440,15 @@ class HealthService:
             sources=self.observe_sources(),
             pictures=self.observe_pictures(),
             watches=self._watches(),
+            players=tuple(self._players()),
+            failed_fetches=self.observe_failed_fetches(),
         )
+
+    def observe_failed_fetches(self) -> FailedFetches | None:
+        """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""
+        if self._queue is None:
+            return None
+        return failed_fetches(failed_states(self._queue()), now=self._now())
 
     def observe_pictures(self) -> PicturesReading:
         """The picture store's size and file count, from a walk at most ten minutes old."""

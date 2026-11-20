@@ -43,6 +43,20 @@ _INSTANT: Final[re.Pattern[str]] = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})"
 )
 
+#: The key carrying the Player's own settings page address (contract 1.2.0, optional).
+SETTINGS_URL_KEY: Final[str] = "settings_url"
+
+#: `settings_url`'s pattern in `client-heartbeat.v1.schema.json`, quoted without
+#: its anchors (matched whole): an absolute http or https URL with a host, an
+#: optional port and path, and no user information, query or fragment. The
+#: contract makes this check the server's obligation before it serves the address
+#: as a link, and `test_client_surface.py` holds the quote to the schema's
+#: pattern. None of `"<>` or a space can pass it, so an address that passes is
+#: also text no markup can be made of.
+SETTINGS_URL: Final[re.Pattern[str]] = re.compile(
+    r"https?://[A-Za-z0-9._~%!$&'()*+,;=:\[\]-]+(/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?"
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ReportedOutput:
@@ -86,6 +100,11 @@ class ClientHeartbeatReading:
     #: Empty when none were reported, which is also what a client before label
     #: outputs existed says.
     label_outputs: Sequence[ReportedLabelOutput] = ()
+    #: The Player's own settings page, only when the last readable report carried
+    #: one that passes `SETTINGS_URL`; None otherwise. A report whose address
+    #: fails the check is kept with its outputs and serves no address
+    #: (`server_must_refuse: false` in the fixture index).
+    settings_url: str | None = None
 
     def output_names(self) -> set[str] | None:
         """The names of the outputs last reported, or None when none have been readably."""
@@ -120,6 +139,18 @@ class ClientHeartbeatReading:
 def client_heartbeat_path_in(art_root: Path, client_id: str) -> Path:
     """Where one client's heartbeat lives under a given art root."""
     return art_root / CLIENT_HEARTBEAT_FILENAME_TEMPLATE.format(client_id=client_id)
+
+
+def settings_url_of(document: dict[str, Any]) -> str | None:
+    """The report's settings page address when it passes the contract's check, else None.
+
+    Not a reason to refuse the report: a Player's wrong guess at its own address
+    must not cost it its outputs (`client-heartbeat.v1.schema.json`).
+    """
+    address = document.get(SETTINGS_URL_KEY)
+    if isinstance(address, str) and SETTINGS_URL.fullmatch(address) is not None:
+        return address
+    return None
 
 
 def problem_with(document: object) -> str | None:
@@ -210,11 +241,13 @@ def read(path: Path, *, now: datetime | None = None) -> ClientHeartbeatReading:
     problem = seen.problem
     outputs: list[ReportedOutput] = []
     label_outputs: list[ReportedLabelOutput] = []
+    settings_url = None
     if seen.contents is not None and problem is None:
         problem = problem_with(seen.contents)
         if problem is None:
             outputs = [_output(entry) for entry in seen.contents["outputs"]]
             label_outputs = [_label_output(entry) for entry in seen.contents.get("label_outputs", [])]
+            settings_url = settings_url_of(seen.contents)
     return ClientHeartbeatReading(
         path=seen.path,
         reported_at=seen.at,
@@ -223,6 +256,7 @@ def read(path: Path, *, now: datetime | None = None) -> ClientHeartbeatReading:
         problem=problem,
         absent=seen.absent,
         label_outputs=label_outputs,
+        settings_url=settings_url,
     )
 
 

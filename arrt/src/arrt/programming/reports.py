@@ -22,7 +22,8 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import adequacy, showings
-from arrt.programming.display_state import ReportedState, reported_state
+from arrt.programming.clients import Placements
+from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
@@ -80,23 +81,34 @@ class WallHeartbeat:
 
     wall: Wall
     heartbeat: HeartbeatReading
+    #: The wall's display state (`display_state_of`), read from `heartbeat` and
+    #: from whether a Player shows the wall: what every surface says of the wall,
+    #: where `heartbeat` is the raw report the panel hands through.
+    state: DisplayState
 
 
 def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
     """One sentence across every wall — an observation, never a verdict.
 
-    **It names the wall that has not reported, and that is what the heartbeat
+    **It names the wall that is not reporting, and that is what the heartbeat
     became one file per wall for.** A line saying "the study has not reported" is
     what a reader of a two-room installation needs, and one shared heartbeat could
     not have said it: the second display would have overwritten the first's
     report, so a wall that had gone quiet would have looked exactly like a wall
     that was fine.
 
-    **No threshold is applied and no word like "healthy" appears.** What is
-    stated are facts a reader cannot get wrong — a wall has written a heartbeat
-    or it has not, and if it has, how long ago in the unit a person reads it in.
-    Whether four minutes is late is the reader's to decide, because this server
-    does not know whether that television was switched off on purpose.
+    **It is read from each wall's display state, as every other surface is**
+    (`display_state.py`). A wall no Player shows is `unassigned`, a step of
+    setting it up and not a fault (`vocabulary.json`), so it is never named here
+    as not having reported: no Player was ever asked to. A wall a Player shows is
+    named when it is `silent`, which is both "nothing readable was written" and "the
+    last report is older than `STALE_AFTER_SECONDS`"; the second is said with
+    how long it has been, in the unit a person reads it in.
+
+    **No word like "healthy" appears.** The staleness threshold is the contract's
+    (`timing.json`), the one Walls and Players say "Not reporting" past, so this
+    sentence cannot call a wall current that those call silent. Whether a screen
+    being off is wrong is the reader's to decide.
 
     A function rather than a method, because the browser panel and the tool
     surface both state this and neither owns it: two hand-written sentences from
@@ -110,24 +122,41 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
         # plainly beats a sentence composed over an empty list that reads as an
         # all-clear.
         return "No wall is in the catalogue, so there is nothing for a Player to report about."
-    silent = [seen for seen in readings if seen.heartbeat.absent or seen.heartbeat.problem is not None]
+    shown = [seen for seen in readings if seen.state.state not in SETUP]
+    if not shown:
+        return "No Player shows a wall yet, so there is no report to read."
+    # Of the walls a Player shows, when some wall has none: the count is of the
+    # walls a report was expected from, never of every wall.
+    of_walls = "walls" if len(shown) == len(readings) else "walls a Player shows"
+    silent = [seen for seen in shown if seen.state.state is ScreenState.SILENT]
     if silent:
+        if len(silent) == 1:
+            return f"{_silence(silent[0])}. {_SILENCE_TOLD}"
         names = ", ".join(repr(seen.wall.name) for seen in silent)
-        counted = (
-            f"{names} has not reported"
-            if len(silent) == 1
-            else f"{len(silent)} of {len(readings)} walls have not reported: {names}"
-        )
-        return f"{counted}. Each wall's own reading says whether nothing was ever written or what could not be read."
+        return f"{len(silent)} of {len(shown)} {of_walls} have not reported: {names}. {_SILENCE_TOLD}"
     # The least recent, because a summary quoting the freshest would read as an
     # all-clear bought from whichever wall happened to report last.
-    oldest = max(readings, key=lambda seen: seen.heartbeat.age_seconds or 0.0)
-    # No wall is silent here, so `observations.observe` aged the document each one read.
+    oldest = max(shown, key=lambda seen: seen.heartbeat.age_seconds or 0.0)
+    # No shown wall is silent here, so each has a readable report, which `observations.observe` aged.
     assert oldest.heartbeat.age_seconds is not None  # noqa: S101 -- a reading neither absent nor unreadable carries its age
     aged = observations.ago(oldest.heartbeat.age_seconds)
-    if len(readings) == 1:
+    if len(shown) == 1:
         return f"{oldest.wall.name!r} last reported {aged}."
-    return f"Every wall has reported; the least recent is {oldest.wall.name!r}, {aged}."
+    every = "Every wall" if len(shown) == len(readings) else "Every wall a Player shows"
+    return f"{every} has reported; the least recent is {oldest.wall.name!r}, {aged}."
+
+
+#: What follows the names of walls not reporting: where to look for which kind of silence it is.
+_SILENCE_TOLD: Final[str] = (
+    "Each wall's own reading says whether nothing was ever written, what could not be read, or when it last reported."
+)
+
+
+def _silence(seen: WallHeartbeat) -> str:
+    """One silent wall in a clause: how long it has been, where its last report is readable and old."""
+    if seen.state.last is not None and seen.heartbeat.age_seconds is not None:
+        return f"{seen.wall.name!r} has not reported for {observations.in_words(seen.heartbeat.age_seconds)}"
+    return f"{seen.wall.name!r} has not reported"
 
 
 #: How far back a reported screen size counts toward a wall's largest
@@ -168,10 +197,14 @@ class Reports:
         decided — which is exactly the question a wall that has gone silent is
         answered by.
         """
-        return [
-            WallHeartbeat(wall=wall, heartbeat=heartbeat.read(self._settings.heartbeat_path(wall.id)))
-            for wall in self._store.list_walls()
-        ]
+        # One survey of who shows what, so every wall's state is read at one
+        # instant and by `Placements`, the one place that decides it.
+        survey = Placements(self._store, self._settings.art_root).survey()
+        found = []
+        for wall in survey.walls:
+            reading = heartbeat.read(self._settings.heartbeat_path(wall.id))
+            found.append(WallHeartbeat(wall=wall, heartbeat=reading, state=survey.wall_state(wall, reading)))
+        return found
 
     # -- what a Player reads and writes --------------------------------------------
 

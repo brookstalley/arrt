@@ -426,6 +426,10 @@ class Services:
                 yields=discovery.source_yields,
                 pictures=pictures,
                 watches=watches.reading,
+                # Every Player's state, and the queue's failed works: the two
+                # halves of the one health model the top bar counts.
+                players=clients.list_clients,
+                queue=acquisition_queue.listing,
             ),
             runner=runner_service,
             acquisition=acquisition_service,
