@@ -24,6 +24,13 @@ import pkgutil
 from collections.abc import Mapping
 from functools import cache
 from types import MappingProxyType
+from typing import Final
+
+#: Modules of the sources package that are no plugin and are never imported to
+#: read a name: `testing` is the plugin-testing helper, which imports the host,
+#: and a process naming a museum must not load it
+#: (`test_plugin_testing_helper.py`).
+_NOT_PLUGINS: Final[frozenset[str]] = frozenset({"testing"})
 
 
 @cache
@@ -38,6 +45,8 @@ def built_in_museums() -> Mapping[str, str]:
 
     names = {}
     for found in pkgutil.iter_modules(sources.__path__):
+        if found.name in _NOT_PLUGINS:
+            continue
         module = importlib.import_module(f"{sources.__name__}.{found.name}")
         provider = getattr(module, "PROVIDER", None)
         museum = getattr(module, "MUSEUM", None)
