@@ -1,0 +1,17 @@
+{
+  "client_id": "c-pi-by-the-door",
+  "name": "The Pi by the door",
+  "walls": [],
+  "labels": [
+    {
+      "label_id": "l-door-epd-0",
+      "output": "epd-0",
+      "wall_id": "w-living"
+    },
+    {
+      "label_id": "l-door-epd-1",
+      "output": "epd-1",
+      "wall_id": "w-study"
+    }
+  ]
+}
