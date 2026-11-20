@@ -216,6 +216,29 @@ def test_refusals_are_logged_once_per_subject_per_interval(store, clients, pi, w
     assert not any("stale" in message or other_token in message for message in messages)
 
 
+def test_a_refusal_and_a_token_issued_each_carry_an_event_and_never_the_token(store, clients, pi, wall_id, caplog):
+    """Every line a dashboard reads carries an event field (`observability-strategy.md`); the token is in no field."""
+    access = PlayerAccess(store, clients.placements, clock=lambda: 0.0)
+    clients.assign_wall(wall_id, client_id=pi.id, output="frame")
+    other = clients.add_client(name="The Pi in the study")
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.access"):
+        token = access.issue(other.id).token
+        access.admit(wall_id, "stale")
+        access.admit(wall_id, token)
+
+    lines = [record for record in caplog.records if record.name == "arrt.programming.access"]
+    assert [getattr(record, "event", None) for record in lines] == [
+        "client.token_issued",
+        "client.request_refused",
+        "client.request_refused",
+    ]
+    assert lines[0].client_id == other.id
+    assert [record.subject for record in lines[1:]] == ["an unknown client", "client 'The Pi in the study'"]
+    for record in lines:
+        assert token not in repr(record.__dict__), "the token reached a log record"
+
+
 # -- assignment -------------------------------------------------------------------------
 
 

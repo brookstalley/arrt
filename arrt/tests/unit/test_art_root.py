@@ -79,6 +79,17 @@ def test_init_creates_the_root_and_marks_it(root):
     assert (art_root / MARKER_NAME).is_file()
 
 
+def test_the_marker_names_the_product_and_not_a_plane(root):
+    """The one sentence of this module a person reads in the art root: "the curation plane" named an architecture this server no longer has."""
+    art_root, catalogue = root
+
+    prepare(art_root, catalogue, initialise=True)
+
+    written = (art_root / MARKER_NAME).read_text(encoding="utf-8")
+    assert "Arrt refuses to start" in written
+    assert "plane" not in written
+
+
 def test_a_marked_root_starts_without_being_asked_again(root):
     """`--init` is a once-per-deployment thing, not a flag that lives in the unit file."""
     art_root, catalogue = root
