@@ -1374,7 +1374,19 @@ def test_judging_a_work_too_small_takes_nothing_off_the_schedule(display, master
     assert tiny.id in feed(wall_id).works
 
 
-def test_a_wall_with_no_display_remembers_no_screen(display, mastered, theme_of, wall_id, store):
+def test_a_wall_unassigned_between_the_route_and_the_transaction_keeps_no_screen_and_the_report_still_lands(
+    display, mastered, theme_of, wall_id, store
+):
+    """The guard in `Reports._record_screen` that makes a wall unassigned mid-report harmless.
+
+    The route admits a report only from a Player whose output shows the wall
+    (`_admitted_to_the_wall`), and the screen is written in a later transaction that reads the wall
+    again (`wall.display_id`). A wall unassigned between the two (a race: the curator moves its
+    output, a Player is forgotten) has no display there, and a size written for it would break `reported_screens.display_id`'s NOT NULL.
+    Here the wall is simply on none, which is the state the transaction meets after that race;
+    ordinarily it is unreachable, which is why it is held by name and not by chance. Without the
+    guard the report fails with `NOT NULL constraint failed: reported_screens.display_id`.
+    """
     display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
 
     display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
