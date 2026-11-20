@@ -147,14 +147,21 @@ runner.
   shared with other builders and never removed by it. One log file,
   `<tmp>/arrt-image-stage/last-build.log`, overwritten by each build. To take all of
   it away: `docker buildx rm arrt-image-stage`.
-- **Cost, as measured on 2026-11-20** (one runner with Docker, N = 1 each): 147 s
-  cold, on a builder with no cache; 125 to 127 s with the dependency layers cached
-  and the code changed, which is nearly every run, since any change under `arrt/`
-  reruns the stage's whole suite; 2 s when nothing the stage copies changed (its
-  layers all cached); 1 s to fail when a `COPY` names a missing file. In a full
-  `testament run` it runs beside the other suites and is not the long pole: the
-  browser suite took 303 s of that run's 304 s. What it costs there is a runner
-  host's cores for about two minutes while it rebuilds.
+- **Cost, as measured on 2026-11-20**, each a run on a runner with Docker, by two
+  people at different times, so the figures differ with the runner and its load:
+  - by Chunk 65's delegate: 147 s cold, on a builder with no cache; 125 to 127 s with
+    the dependency layers cached and the code changed; 2 s when nothing the stage
+    copies changed (its layers all cached); 1 s to fail when a `COPY` names a missing
+    file;
+  - by the integrator, later: 167 s and 192 s with the code changed (two runs), and
+    5.7 s with nothing changed.
+
+  So with the code changed, which is nearly every run since any change under `arrt/`
+  reruns the stage's whole suite, it took 125 to 192 s in the runs measured, and 2 to
+  6 s cached. In a full `testament run` it runs beside the other suites; in the
+  delegate's run it was not the long pole (the browser suite took 303 s of that run's
+  304 s). What it costs there is a runner host's cores for two to three minutes while it
+  rebuilds.
 
 ## The browser suite
 
