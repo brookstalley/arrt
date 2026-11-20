@@ -1,0 +1,15 @@
+{
+  "client_id": "c-pi-hall",
+  "name": "The Pi in the hall",
+  "walls": [
+    {
+      "wall_id": "w-hall",
+      "name": "Hall",
+      "output": "hdmi-a-1",
+      "display": "d-hall-lcd"
+    }
+  ],
+  "labels": {
+    "l-epd-0": "epd-0"
+  }
+}

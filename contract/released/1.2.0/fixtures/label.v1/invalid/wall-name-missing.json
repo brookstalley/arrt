@@ -1,0 +1,13 @@
+{
+  "schema": {
+    "major": 1,
+    "minor": 0
+  },
+  "wall_id": "w-living",
+  "display_state": {
+    "state": "dark",
+    "work_id": null,
+    "since": "2026-10-08T16:00:00Z"
+  },
+  "label": null
+}
