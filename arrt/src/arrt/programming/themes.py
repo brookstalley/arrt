@@ -515,19 +515,9 @@ class Themes:
                     "so there is nothing to take it out of."
                 )
             store_write(self._store.remove_membership, theme.id, artwork_id)
-            self._feeds.withdraw(artwork_id, [hung.id for hung in self.walls_hanging(theme.id)], cause="leaving its theme")
-        self._library.record(
-            ProgrammingAct(
-                kind=EventKind.LEFT_THEME,
-                wall_id=wall_id,
-                theme_id=theme.id,
-                work_id=artwork_id,
-                # The wall's name too, as a hang carries it: a history outlives
-                # the wall it names, and once that wall is deleted this is the
-                # only place its name is kept.
-                detail={"theme_name": theme.name, "selection": theme.hidden, "wall_name": wall.name},
-            )
-        )
+            walls = self.walls_hanging(theme.id)
+            self._feeds.withdraw(artwork_id, [hung.id for hung in walls], cause="leaving its theme")
+        self._record_left(theme, [artwork_id], walls)
         return theme
 
     def exclude_work(self, artwork_id: str, *, wall_id: str | None = None) -> WorkExclusion:
@@ -736,15 +726,16 @@ class Themes:
         """
         removed: list[str] = []
         with self._feeds.publishing():
-            self._lookups.get_theme(theme_id)
+            theme = self._lookups.get_theme(theme_id)
             for artwork_id in dict.fromkeys(artwork_ids):
                 if self._store.get_membership(theme_id, artwork_id) is None:
                     continue
                 store_write(self._store.remove_membership, theme_id, artwork_id)
                 removed.append(artwork_id)
-            walls = [wall.id for wall in self.walls_hanging(theme_id)]
-            for wall_id in walls:
-                self._feeds.withdraw_v2(wall_id, set(removed), cause="leaving its theme")
+            walls = self.walls_hanging(theme_id)
+            for wall in walls:
+                self._feeds.withdraw_v2(wall.id, set(removed), cause="leaving its theme")
+        self._record_left(theme, removed, walls)
         return removed
 
     def move_in_theme(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
@@ -837,8 +828,12 @@ class Themes:
         with self._feeds.publishing():
             if self._store.get_membership(theme_id, artwork_id) is None:
                 raise ServiceError(f"Artwork {artwork_id!r} is not in theme {theme_id!r}.")
+            # A membership names a theme the store holds, so this finds it.
+            theme = self._lookups.get_theme(theme_id)
             store_write(self._store.remove_membership, theme_id, artwork_id)
-            self._feeds.withdraw(artwork_id, [wall.id for wall in self.walls_hanging(theme_id)], cause="leaving its theme")
+            walls = self.walls_hanging(theme_id)
+            self._feeds.withdraw(artwork_id, [wall.id for wall in walls], cause="leaving its theme")
+        self._record_left(theme, [artwork_id], walls)
 
     def update_theme(
         self,
@@ -928,6 +923,33 @@ class Themes:
         for membership in self._store.list_memberships(theme.id):
             store_write(self._store.remove_membership, theme.id, membership.artwork_id)
         store_write(self._store.remove_theme, theme.id)
+
+    def _record_left(self, theme: Theme, artwork_ids: Sequence[str], walls: Sequence[Wall]) -> None:
+        """Tell each wall's history that these works left the theme it hangs, once the removal has committed.
+
+        **One line per work for every wall the theme hangs on, whichever way
+        the work left**: *Not this one again* from the theme, a theme's Remove,
+        a selection removed from a theme. Each of those walls lost the work, so
+        each wall's history says so; a theme hanging nowhere is in no wall's
+        history, and says nothing. The one place these lines are written, so
+        no way of taking a work out of a theme is the one that forgets to.
+        After the commit, as `LibraryFacade.record` requires; `walls` was read
+        inside the removal's transaction.
+        """
+        for wall in walls:
+            for artwork_id in artwork_ids:
+                self._library.record(
+                    ProgrammingAct(
+                        kind=EventKind.LEFT_THEME,
+                        wall_id=wall.id,
+                        theme_id=theme.id,
+                        work_id=artwork_id,
+                        # The wall's name too, as a hang carries it: a history
+                        # outlives the wall it names, and once that wall is
+                        # deleted this is the only place its name is kept.
+                        detail={"theme_name": theme.name, "selection": theme.hidden, "wall_name": wall.name},
+                    )
+                )
 
     def _record_hang(self, build: ManifestBuild) -> None:
         """Tell the Library's history what was hung where, once the hang has committed."""

@@ -6,6 +6,7 @@ threads, as they do when deployed, and are waited for by their status.
 """
 
 import dataclasses
+import json
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
@@ -17,9 +18,11 @@ from fakes import GATE_SECONDS
 from arrt.app import create_app
 from arrt.library.discovery.engine import EngineFailure
 from arrt.library.discovery.openrouter import KeyStatus
-from arrt.library.services.scheduler import SCHEDULER_THREAD_NAME, PassResult, Scheduler
+from arrt.library.services.scheduler import SCHEDULER_THREAD_NAME, PassResult, Scheduler, start_scheduler
 from arrt.library.services.watches import WatchRefusal
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
+from arrt.programming.feeds import SCHEDULED
+from arrt.services.container import FeedsJob
 
 WORDS = "new abstract expressionist paintings in museum collections"
 UNATTENDED_MODEL = "some-lab/a-cheaper-model"
@@ -340,11 +343,12 @@ def test_an_unreviewed_find_is_absent_from_the_next_runs_request_and_a_rejected_
 
 
 def test_every_pass_logs_one_line_per_job_even_when_nothing_is_due(services, caplog):
+    """One `scheduler.pass` line per job: the Watches, then the feeds' reconcile, which looked at the one wall."""
     with caplog.at_level(logging.INFO, logger="arrt.library.services.scheduler"):
         services.scheduler.run_pass()
 
-    [line] = [record for record in caplog.records if getattr(record, "event", None) == "scheduler.pass"]
-    assert (line.job, line.due, line.started, line.refused) == ("watches", 0, 0, 0)
+    lines = [record for record in caplog.records if getattr(record, "event", None) == "scheduler.pass"]
+    assert [(line.job, line.due, line.started, line.refused) for line in lines] == [("watches", 0, 0, 0), ("feeds", 1, 0, 0)]
 
 
 def test_a_job_that_raises_is_logged_and_the_next_job_still_runs(caplog):
@@ -450,3 +454,185 @@ def test_an_unrecorded_start_is_due_again_a_cadence_after_the_run_began_not_afte
     standing = services.watches.standing(services.watches.get(watch.id))
 
     assert standing.next_due_at == run.started_at + timedelta(days=1)
+
+
+# -- the feeds' job: every published feed made true again, once a pass ------------
+#
+# The scheduler is the Library's and the job is Programming's (`FeedsJob`,
+# `services/container.py`): the start's whole reconciliation, run on every pass,
+# so a feed changed on disk behind the server's back is put right within one
+# period instead of at the next start.
+
+
+@pytest.fixture
+def hung(services, ready_work, wall_id, wall_settings):
+    """A theme of two works hung on the wall, and the path of the feed that published."""
+    display = services.display
+    theme = display.add_theme(name="Late night")
+    for title in ("Nighthawks", "Automat"):
+        display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title).id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    return theme, wall_settings.manifest_v2_path(wall_id)
+
+
+def _reconciled_lines(caplog):
+    return [record for record in caplog.records if getattr(record, "event", None) == "feeds.reconciled"]
+
+
+def test_a_feed_removed_behind_the_servers_back_is_published_again_by_the_next_pass(services, hung, wall_id, caplog):
+    theme, path = hung
+    path.unlink()
+
+    with caplog.at_level(logging.INFO):
+        results = services.scheduler.run_pass()
+
+    assert path.exists(), "the pass left the wall with no feed"
+    assert json.loads(path.read_text(encoding="utf-8"))["playlist"]["id"] == theme.id
+    assert results["feeds"] == PassResult(due=1, started=1, refused=0)
+    [line] = _reconciled_lines(caplog)
+    assert (line.cause, line.republished) == (SCHEDULED, [wall_id])
+
+
+def test_a_feed_entry_changed_on_disk_is_put_back_by_the_next_pass_and_nothing_else_moves(services, hung, caplog):
+    """A work's entry edited in the file (its mat colour) is the Library's again; the schedule is left exactly as it stood."""
+    _, path = hung
+    document = json.loads(path.read_text(encoding="utf-8"))
+    true_entries = dict(document["works"])
+    edited = next(iter(document["works"]))
+    document["works"][edited] = {**document["works"][edited], "mat_color": "#010203"}
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with caplog.at_level(logging.INFO):
+        services.scheduler.run_pass()
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after["works"] == true_entries
+    assert after["schedule"] == document["schedule"]
+    assert len(_reconciled_lines(caplog)) == 1
+
+
+def test_a_pass_with_nothing_to_correct_writes_no_feed_and_says_only_its_pass_line(services, hung, caplog):
+    _, path = hung
+    before = path.read_bytes()
+
+    with caplog.at_level(logging.INFO):
+        services.scheduler.run_pass()
+
+    assert path.read_bytes() == before
+    assert _reconciled_lines(caplog) == []
+    assert [line.job for line in caplog.records if getattr(line, "event", None) == "scheduler.pass"] == ["watches", "feeds"]
+
+
+def test_a_feeds_pass_that_raises_is_logged_once_and_the_scheduler_goes_on(services, hung, monkeypatch, caplog):
+    """A disk that refuses the write: the pass fails by name, the Watches' line is still said, and the next pass mends it."""
+    _, path = hung
+    path.unlink()
+    reconcile = services.display.reconcile
+    calls = []
+
+    def failing_once(*arguments, **keywords):
+        calls.append(keywords.get("cause"))
+        if len(calls) == 1:
+            raise OSError("No space left on device")
+        return reconcile(*arguments, **keywords)
+
+    monkeypatch.setattr(services.display, "reconcile", failing_once)
+    with caplog.at_level(logging.INFO, logger="arrt.library.services.scheduler"):
+        first = services.scheduler.run_pass()
+        second = services.scheduler.run_pass()
+
+    failed = [record for record in caplog.records if getattr(record, "event", None) == "scheduler.pass_failed"]
+    assert [record.job for record in failed] == ["feeds"]
+    assert "feeds" not in first
+    assert "watches" in first
+    assert second["feeds"].started == 1
+    assert path.exists()
+    assert calls == [SCHEDULED, SCHEDULED]
+
+
+class _WatchedLock:
+    """The store's lock, noting when the thread named `waiter` finds it held and has to wait for it."""
+
+    def __init__(self, real, waiter: str) -> None:
+        self._real = real
+        self._waiter = waiter
+        self.waiting = threading.Event()
+
+    def __enter__(self):
+        if threading.current_thread().name == self._waiter and not self._real.acquire(blocking=False):
+            self.waiting.set()
+            self._real.acquire()
+        elif threading.current_thread().name != self._waiter:
+            self._real.acquire()
+        return self
+
+    def __exit__(self, *_):
+        self._real.release()
+
+
+def test_a_pass_waits_for_an_act_in_flight_and_reconciles_what_it_committed(services, hung, store, ready_work, monkeypatch):
+    """The pass is an act: it takes the store's lock, so it decides from what an act committed, never from what it is changing.
+
+    The act holds the lock with the wall's feed gone from disk, and lets go
+    only once the pass is waiting for the lock: had the pass not waited, it
+    would have published the theme as it stood into the gap. Waiting, it runs
+    once the act has added a work and republished, and finds nothing to correct.
+    The feeds' job alone runs here: the Watches' job takes the lock too, and
+    would be the one seen waiting.
+    """
+    theme, path = hung
+    joining = ready_work("Chop Suey")
+    lock = _WatchedLock(store._store._lock, waiter="the pass")
+    monkeypatch.setattr(store._store, "_lock", lock)
+    entered = threading.Event()
+    results: list[dict[str, PassResult]] = []
+
+    def act():
+        with services.display._feeds.publishing():
+            path.unlink()
+            entered.set()
+            assert lock.waiting.wait(timeout=GATE_SECONDS), "the pass never waited for the act's lock"
+            services.display.add_to_theme(theme_id=theme.id, artwork_id=joining.id)
+
+    acting = threading.Thread(target=act)
+    acting.start()
+    assert entered.wait(timeout=GATE_SECONDS)
+    feeds_alone = Scheduler([FeedsJob(services.display)])
+    passing = threading.Thread(target=lambda: results.append(feeds_alone.run_pass()), name="the pass")
+    passing.start()
+    acting.join(timeout=GATE_SECONDS)
+    passing.join(timeout=GATE_SECONDS)
+
+    assert lock.waiting.is_set(), "the pass never waited for the act's lock"
+    [result] = results
+    assert result["feeds"].started == 0
+    assert joining.id in json.loads(path.read_text(encoding="utf-8"))["works"]
+
+
+def test_shutdown_joins_a_feeds_pass_in_flight(services, monkeypatch):
+    """Halting the scheduler waits for the reconcile it is running, then the thread is gone."""
+    entered, release = threading.Event(), threading.Event()
+    order: list[str] = []
+    reconcile = services.display.reconcile
+
+    def held(*arguments, **keywords):
+        entered.set()
+        assert release.wait(timeout=GATE_SECONDS)
+        done = reconcile(*arguments, **keywords)
+        order.append("reconciled")
+        return done
+
+    monkeypatch.setattr(services.display, "reconcile", held)
+    halt = start_scheduler(services.scheduler, interval_seconds=3600)
+    assert entered.wait(timeout=GATE_SECONDS), "the scheduler's first pass never reached the feeds' job"
+    halting = threading.Thread(target=lambda: (halt(), order.append("halted")))
+    halting.start()
+    # Bounded only in what it can catch: a halt that did not join returns at
+    # once, well inside this; one that joins is still waiting however long.
+    halting.join(timeout=0.2)
+    assert halting.is_alive(), "the halt returned while the feeds' pass was still running"
+    release.set()
+    halting.join(timeout=GATE_SECONDS)
+
+    assert order == ["reconciled", "halted"]
+    assert not _scheduler_threads()

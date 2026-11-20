@@ -23,7 +23,7 @@ from datetime import datetime
 from decimal import Decimal
 from functools import partial
 from pathlib import Path
-from typing import Protocol, TypedDict
+from typing import Final, Protocol, TypedDict
 
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
@@ -73,7 +73,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
-from arrt.library.services.scheduler import Scheduler, WatchJob
+from arrt.library.services.scheduler import PassResult, Scheduler, WatchJob
 from arrt.library.services.settings import LABEL_UNITS, Limits, SettingsService
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import BudgetService
@@ -93,6 +93,7 @@ from arrt.persistence.kept import KeptAnswers
 from arrt.programming.access import PlayerAccess
 from arrt.programming.clients import ClientService
 from arrt.programming.display import DisplayService, DisplaySettings
+from arrt.programming.feeds import SCHEDULED
 from arrt.programming.store import ProgrammingStore
 from arrt.services.health import HealthService
 
@@ -106,6 +107,37 @@ class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
     that one object serves both. When Programming's tables move to a file of
     their own, `bind` takes two stores and this type goes.
     """
+
+
+class FeedsJob:
+    """Programming's scheduled reconcile, handed to the Library's scheduler from here, the one module that sees both.
+
+    **Every published feed made true to the Library and the catalogue, once a
+    scheduler pass** (`PASS_SECONDS`): the start's whole reconciliation
+    (`FeedPublisher.reconcile`), run again, so a feed changed on disk behind the
+    server's back (removed, or an entry no longer the Library's) is put right
+    within one period rather than at the next start. The scheduler is the
+    Library's and imports nothing of Programming (`test_seam_imports.py`); this
+    adapter is its job, and reads Programming only through `DisplayService`.
+
+    **It is an act like any other**: the reconciliation is one publishing
+    transaction under the store's lock, so it waits for an act in flight to
+    commit and decides from what that act wrote, never from a state an open
+    transaction is changing. What it corrects is said with the event
+    `feeds.reconciled`; a feed it would publish over the bound is passed over
+    and said once (`feed.over_bound`). Its `scheduler.pass` line counts: due,
+    the walls looked at; started, the walls whose feed was rewritten; refused,
+    the works the Library will not show that some feed carried or might have.
+    """
+
+    name: Final[str] = "feeds"
+
+    def __init__(self, display: DisplayService) -> None:
+        self._display = display
+
+    def run_pass(self) -> PassResult:
+        done = self._display.reconcile(cause=SCHEDULED)
+        return PassResult(due=done.walls, started=len(done.republished), refused=len(done.refused))
 
 
 class _RunnerOptions(TypedDict, total=False):
@@ -228,8 +260,9 @@ class Services:
     #: The household's standing requests, which the scheduler re-runs with
     #: nobody watching. Written from the browser or over MCP alike.
     watches: WatchService
-    #: Runs each scheduled job's pass: today the Watches. Started by the app's
-    #: lifespan when it is asked to schedule, as the topic sweep is.
+    #: Runs each scheduled job's pass: the Watches, then the feeds' reconcile
+    #: (`FeedsJob`). Started by the app's lifespan when it is asked to schedule,
+    #: as the topic sweep is.
     scheduler: Scheduler
 
     @classmethod
@@ -468,7 +501,8 @@ class Services:
                         runner_service,
                         settings,
                         estimate=lambda: discovery_settings.phase1_estimate_usd,
-                    )
+                    ),
+                    FeedsJob(display_service),
                 ]
             ),
         )
