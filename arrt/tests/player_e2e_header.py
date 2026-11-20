@@ -24,11 +24,11 @@ def marks() -> frozenset[str]:
     """The marks on the real-Player test's module, by name: `pytest.mark.<name>` in its `pytestmark` list."""
     for node in ast.parse(TEST_MODULE.read_text(encoding="utf-8")).body:
         if isinstance(node, ast.Assign) and any(getattr(t, "id", None) == "pytestmark" for t in node.targets):
-            found = {
-                (call.func if isinstance(call, ast.Call) else call).attr
-                for call in getattr(node.value, "elts", [])
-                if isinstance(call.func if isinstance(call, ast.Call) else call, ast.Attribute)
-            }
+            found = set()
+            for element in getattr(node.value, "elts", []):
+                mark = element.func if isinstance(element, ast.Call) else element
+                if isinstance(mark, ast.Attribute):
+                    found.add(mark.attr)
             if found:
                 return frozenset(found)
     raise AssertionError(f"{TEST_MODULE} has no pytestmark list; has the real-Player test moved?")
