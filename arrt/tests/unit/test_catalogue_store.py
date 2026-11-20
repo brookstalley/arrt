@@ -37,6 +37,7 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.persistence.sqlite_discovery import DISCOVERY_SCHEMA
 
 _EXPECTED_SCHEMA = {
     # Widened with `family_name` and `given_name` when the e-paper label began
@@ -183,6 +184,19 @@ _EXPECTED_SCHEMA = {
     # preparation (2026-10-02). A new table, so it reaches an older file by
     # `CREATE TABLE IF NOT EXISTS` and the legacy-file test below holds it to that.
     "acquisition_queue": {"artwork_id", "failures", "next_try_at", "detail", "source_id"},
+    # The tables below were in the file before they were listed here; the check
+    # was a subset until 2026-11-19 (carried item C8). Each is an addition an
+    # older release ignores.
+    # A work's facets (subject, movement, ...), each with where it came from.
+    "work_facets": {"id", "artwork_id", "kind", "value", "value_qid", "derivation", "source_note", "created_at"},
+    # Each screen size a display's Player reported, and when it last did.
+    "reported_screens": {"display_id", "width_px", "height_px", "last_reported_at"},
+    # Scenes: a work per wall, applied together, and each wall's work in one.
+    "scenes": {"id", "status", "lifetime", "starts_at", "until", "created_at", "ended_at"},
+    "scene_pins": {"scene_id", "wall_id", "work_id"},
+    # The file's record of which release last opened it (`file.OPENED_SCHEMA`),
+    # and the shape generation that release expects.
+    "catalogue_opened": {"id", "release", "opened_at", "migrations_completed", "schema_generation"},
 }
 
 #: Columns no table may grow. `display_fit` was one once, computed at acquisition
@@ -412,7 +426,35 @@ def test_a_catalogue_written_by_an_earlier_revision_still_reads(tmp_path):
         catalogue.close()
 
 
+def _tables_made_by(schema: str) -> set[str]:
+    """The tables a schema the code declares creates, read from SQLite running it rather than from its text."""
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.executescript(schema)
+        return {name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    finally:
+        connection.close()
+
+
 def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
+    """Every table the file holds is pinned, column for column, and none is pinned that the file lacks.
+
+    **Exact, and keyed on what the code creates.** The tables are read from a
+    file the store opened, so a table any step creates (the schemas, a
+    migration, the record of the open) is seen; the pipeline's tables, those
+    `DISCOVERY_SCHEMA` creates, are pinned by `test_discovery_store.py`, and
+    which tables those are is asked of SQLite running that schema, never listed
+    here. Everything else is this list's. It was `_EXPECTED_SCHEMA.keys() <=
+    tables` until 2026-11-19, which passed five tables nobody had listed
+    (`catalogue_opened`, `reported_screens`, `scenes`, `scene_pins`,
+    `work_facets`), so a table could arrive with no one answering the migration
+    question for it.
+
+    **A change that adds a column or a table** adds it here, in the entry for
+    its table (a new table, a new entry), in the same commit as its DDL: this
+    test names what to add. A column or table in `DISCOVERY_SCHEMA` goes in
+    `test_discovery_store.py` instead.
+    """
     path = tmp_path / "catalogue.sqlite"
     catalogue = SqliteCatalogue(open_catalogue(path))
     catalogue.close()
@@ -420,9 +462,20 @@ def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
     connection = sqlite3.connect(path)
     try:
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert _EXPECTED_SCHEMA.keys() <= tables
-        for table, columns in _EXPECTED_SCHEMA.items():
-            assert {row[1] for row in connection.execute(f"PRAGMA table_info({table})")} == columns
+        held = tables - _tables_made_by(DISCOVERY_SCHEMA)
+        unlisted = sorted(held - _EXPECTED_SCHEMA.keys())
+        assert unlisted == [], f"the file holds tables _EXPECTED_SCHEMA does not list; add an entry for each: {unlisted}"
+        missing = sorted(_EXPECTED_SCHEMA.keys() - held)
+        assert missing == [], f"_EXPECTED_SCHEMA lists tables the file does not hold: {missing}"
+        differing = {
+            table: {
+                "unlisted": sorted(found - columns),
+                "missing": sorted(columns - found),
+            }
+            for table, columns in _EXPECTED_SCHEMA.items()
+            if (found := {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}) != columns
+        }
+        assert differing == {}, f"columns differ from _EXPECTED_SCHEMA (list the unlisted; explain the missing): {differing}"
     finally:
         connection.close()
 
