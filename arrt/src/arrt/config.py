@@ -21,14 +21,17 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
+from arrt.defaults import (
+    DEFAULT_PREVIEW_MAX_BYTES,
+    DEFAULT_SOURCE_ORDER,
+    DEFAULT_WALL_NAME,
+    MANIFEST_V2_FILENAME_TEMPLATE,
+    heartbeat_path_in,
+    manifest_v2_path_in,
+)
+from arrt.library.discovery_settings import DiscoverySettings
 from arrt.library.services.quality import QualityProfile
-from arrt.library.services.runner import DiscoverySettings
-from arrt.library.services.settings import Limits, SettingRefused, from_environment
-from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
-from arrt.persistence.migrations import DEFAULT_WALL_NAME
-from arrt.programming.manifest.heartbeat import heartbeat_path_in
-from arrt.programming.manifest.v2 import MANIFEST_V2_FILENAME_TEMPLATE, manifest_v2_path_in
+from arrt.library.setting_declarations import Limits, SettingRefused, from_environment
 
 #: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
 #: and the backup path need to agree on where the catalogue is, and a setting

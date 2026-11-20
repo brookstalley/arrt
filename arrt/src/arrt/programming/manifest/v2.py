@@ -16,24 +16,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
+from arrt.defaults import MANIFEST_V2_FILENAME_TEMPLATE, manifest_v2_path_in
 from arrt.library.facade import PlayableWork
 from arrt.programming.manifest.builder import media_document
 from arrt.programming.schedule import Schedule, Slot
 
-log = logging.getLogger(__name__)
+#: Re-exported from `arrt.defaults`, where they are declared: importing them from here gives the same object.
+__all__ = ["MANIFEST_V2_FILENAME_TEMPLATE", "manifest_v2_path_in"]
 
-#: One file per wall under `ART_ROOT`, named by the wall's id. Not configurable:
-#: the server and its tools have to agree where it is. One file per wall rather
-#: than one carrying every wall, so a rewrite for one room changes no other
-#: room's bytes, and so no other room's ETag.
-MANIFEST_V2_FILENAME_TEMPLATE: Final[str] = "theme-manifest-{wall_id}.v2.json"
+log = logging.getLogger(__name__)
 
 SCHEMA_MAJOR: Final[int] = 2
 SCHEMA_MINOR: Final[int] = 0
-
-
-def manifest_v2_path_in(art_root: Path, wall_id: str) -> Path:
-    return art_root / MANIFEST_V2_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
 @dataclass(frozen=True, slots=True)

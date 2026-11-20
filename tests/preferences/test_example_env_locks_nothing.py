@@ -1,7 +1,7 @@
 """`.env.example` sets no household setting, so copying it locks none.
 
 A household setting given in the environment is locked: Settings › General and
-MCP show it and refuse to change it (`arrt/src/arrt/library/services/settings.py`).
+MCP show it and refuse to change it (`arrt/src/arrt/library/setting_declarations.py`).
 The README's first step is `cp .env.example .env`, so a setting the example gave
 would arrive locked on every installation, and its control would never work.
 The example may document one, commented out.
@@ -11,10 +11,10 @@ import pathlib
 import re
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-_SETTINGS_MODULE = _ROOT / "arrt/src/arrt/library/services/settings.py"
+_SETTINGS_MODULE = _ROOT / "arrt/src/arrt/library/setting_declarations.py"
 _EXAMPLE = _ROOT / ".env.example"
 
-#: How the settings module names a setting's variable, read rather than copied,
+#: How the declarations module names a setting's variable, read rather than copied,
 #: so a setting added there is covered here with no edit.
 _DECLARED = re.compile(r'environment_variable="([A-Z][A-Z0-9_]*)"')
 

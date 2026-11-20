@@ -78,6 +78,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn, TypeVar
 
+from arrt.defaults import DEFAULT_SOURCE_ORDER
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
 from arrt.library.discovery.images import (
     DEFAULT_PREVIEW_MAX_BYTES,
@@ -95,15 +96,13 @@ from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, So
 from arrt.library.sources.reading import FetchLocator, Reader
 from arrt.logs import scrub
 
+#: Re-exported from `arrt.defaults`, where they are declared: importing them from here gives the same object.
+__all__ = ["DEFAULT_SOURCE_ORDER"]
+
 log = logging.getLogger(__name__)
 
 #: The entry-point group a plugin registers in.
 ENTRY_POINT_GROUP: Final[str] = "arrt.sources"
-
-#: The order a deployment gets when it names none: Commons first, then the Art
-#: Institute, by the owner's ruling of 2026-10-01. Order only breaks ties between
-#: images ranked level; every finder is asked at once.
-DEFAULT_SOURCE_ORDER: Final[tuple[str, ...]] = ("commons", "artic")
 
 #: The log event a contained fault carries, and the logger it is written to. The
 #: suites fail any test that logs it, and read both names from here so that moving
