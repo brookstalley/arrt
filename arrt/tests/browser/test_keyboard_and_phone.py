@@ -307,7 +307,9 @@ def test_the_status_indicator_still_says_a_change(ui, seeded_service, a_health_r
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='well']")
     ui.page.evaluate("() => { location.hash = '#walls'; }")
-    ui.page.wait_for_selector("#status[data-state='unwell']")
+    # No wall recorded is a setup step since audit wave 2b (chunk 31), neither
+    # well nor a problem: the reading still moved, and is written.
+    ui.page.wait_for_selector("#status[data-state='setup']")
 
 
 def test_a_review_note_field_is_named_for_its_work(ui):

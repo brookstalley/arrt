@@ -71,12 +71,12 @@ def screens(records):
     ]
 
 
-def test_no_screen_shows_an_iso_timestamp_outside_details(ui, records, a_health_reading):
-    reading = a_health_reading()
-    reading["walls"][0]["heartbeat"]["reported"] = {
-        "reported_at": "2026-08-12T09:14:02+00:00",
-        "current_work_id": records["work"],
-    }
+def test_no_screen_shows_an_iso_timestamp_outside_details(ui, records, a_health_reading, a_wall_reading):
+    # The work passed into the builder, so the wall's display state names it as
+    # the server's would (Status leads with it); written into the answer after
+    # it was built, the display state still named none.
+    reading = a_health_reading(walls=[a_wall_reading(reported={"current_work_id": records["work"]})])
+    assert reading["walls"][0]["display_state"]["work_id"] == records["work"]
     ui.serve("**/api/health", reading)
 
     seen = {}
