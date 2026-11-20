@@ -158,7 +158,9 @@ def vocabulary() -> dict[str, Any]:
 
     `display_states` maps each display state to its `word`, who reports it
     (`reported_by`), whether it is a setup step (`setup`) and what it `means`;
-    `pairing` names the settings page's two pairing fields.
+    `player_states` (since 1.3.0) maps each state a Player can be in to its
+    `word`, `setup` and `means`, a `{date}` in a word being the date of the
+    report it names; `pairing` names the settings page's two pairing fields.
     """
     words: dict[str, Any] = _load("vocabulary.json")
     return words
