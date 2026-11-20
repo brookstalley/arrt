@@ -21,6 +21,7 @@
 
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
+import { listed } from "./counting.js";
 import { isQid, lifeDates, named, wikidataLink } from "./registry.js";
 import { attempt } from "./acting.js";
 import { el, guard } from "./render.js";
@@ -140,7 +141,7 @@ async function describeWork(qid, artworkId) {
   if (page.state === "not_configured") return unchecked(qid);
   if (page.state === "not_found") return { words: `Wikidata has no item ${qid}.`, usable: false };
   if (page.state !== "known") return { words: page.note || "Wikidata could not be asked just now.", usable: false };
-  const by = page.creators.length ? `, by ${page.creators.map((c) => named(c.name, c.qid)).join(", ")}` : "";
+  const by = page.creators.length ? `, by ${listed(page.creators.map((c) => named(c.name, c.qid)))}` : "";
   const year = page.year ? ` (${page.year})` : "";
   const others = page.held_artwork_ids.filter((other) => other !== artworkId);
   const duplicate = others.length ? " Another work in your library already has this item; both will show as one." : "";

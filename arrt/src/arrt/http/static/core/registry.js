@@ -11,6 +11,7 @@
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
 import { GLYPHS } from "./glyphs.js";
+import { listed } from "./counting.js";
 import { el } from "./render.js";
 import { link } from "./router.js";
 
@@ -258,7 +259,7 @@ export const TOPIC_KINDS = {
  * the client has no word for is shown as the server spells it rather than
  * dropped, so a fifth kind reads oddly instead of vanishing. */
 export function topicKinds(kinds) {
-  return (kinds || []).map((kind) => (TOPIC_KINDS[kind] ? TOPIC_KINDS[kind][0] : kind)).join(" and ");
+  return listed((kinds || []).map((kind) => (TOPIC_KINDS[kind] ? TOPIC_KINDS[kind][0] : kind)));
 }
 
 /* A year as a caption reads it: Wikidata numbers the years before the common

@@ -32,6 +32,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { fitBadge, noPicture } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { listed } from "../core/counting.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { openPanel } from "../core/editing.js";
 import { hangOnWalls } from "../core/hanging.js";
@@ -486,7 +487,7 @@ function sizeCell(work, walls) {
     walls && walls.length
       ? el("span", { class: "badge badge-below_minimum" }, [
           el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
-          el("span", { text: `too small for ${walls.join(", ")}` }),
+          el("span", { text: `too small for ${listed(walls)}` }),
         ])
       : null;
   if (!fit && !small) return "";

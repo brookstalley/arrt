@@ -189,6 +189,25 @@ def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
     consequence = ui.page.locator(".confirm-consequence")
     expect(consequence).to_contain_text(first.name, use_inner_text=True)
     expect(consequence).to_contain_text(second.name, use_inner_text=True)
+    # Joined as the one joiner joins two (`listed`, `core/counting.js`), in either wall order.
+    expect(consequence).to_contain_text(
+        re.compile(rf"^(?:{first.name} and {second.name}|{second.name} and {first.name}) are showing this work, and lose it now\."),
+        use_inner_text=True,
+    )
+
+
+def test_a_work_hanging_in_three_rooms_lists_them_a_b_and_c(ui, ready_work, hang):
+    """Three rooms read "A, B and C": the joiner is a list's, not "and" between every pair."""
+    work = ready_work(title="Nighthawks")
+    walls = [hang(work), hang(work, wall_name="Study", theme_name="Small hours"), hang(work, wall_name="Hall", theme_name="Mornings")]
+
+    open_work(ui, work)
+    ask(ui, "Archive")
+
+    names = "|".join(re.escape(wall.name) for wall in walls)
+    expect(ui.page.locator(".confirm-consequence")).to_contain_text(
+        re.compile(rf"^(?:{names}), (?:{names}) and (?:{names}) are showing this work, and lose it now\."), use_inner_text=True
+    )
 
 
 def test_a_work_no_wall_is_showing_gets_no_sentence_about_walls(ui, ready_work, hang):

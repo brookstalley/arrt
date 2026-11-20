@@ -400,6 +400,31 @@ def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
     expect(card.get_by_role("link", name="Status", exact=False)).to_have_count(0)
 
 
+def test_a_wall_waiting_on_several_players_names_them_a_b_and_c(ui, services, a_hung_wall):
+    """Players added with a token and not yet reporting are listed as the one joiner lists them, and agree: "have", "Their".
+
+    One waiting Player reads "Hall Pi has not reported yet. Its screens ..."
+    (`test_setting_up_a_wall.py`); with several the sentence is the list's
+    (`listed`, `core/counting.js`), which no test held until chunk 41: a joiner
+    broken to join with "+" left this line's tests green.
+    """
+    for name in ("Hall Pi", "Study Pi", "Landing Pi"):
+        services.access.issue(services.clients.add_client(name=name).id)
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    waiting = ui.page.locator("section.wall p.wall-waiting")
+    expect(waiting).to_have_text(
+        re.compile(
+            r"^(?:Hall Pi|Study Pi|Landing Pi), (?:Hall Pi|Study Pi|Landing Pi) and (?:Hall Pi|Study Pi|Landing Pi) have not reported yet\. "
+            r"Their screens can be chosen here once they are running with their tokens and report\.$"
+        ),
+        use_inner_text=True,
+    )
+    for name in ("Hall Pi", "Study Pi", "Landing Pi"):
+        expect(waiting).to_contain_text(name, use_inner_text=True)
+
+
 def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, an_all_excluded_theme, the_wall):
     """The theme puts nothing on the wall, and its Player has not reported: one notice, both facts.
 
