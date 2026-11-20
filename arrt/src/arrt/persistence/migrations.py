@@ -32,17 +32,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal
 
-log = logging.getLogger(__name__)
+from arrt.defaults import DEFAULT_WALL_NAME
 
-#: What the deployment's one wall is called when nobody has said. Deliberately
-#: not a place — "Living room" would be a confident lie on every deployment that
-#: is not one — and deliberately not empty, because the name is the noun every
-#: confirmation about that wall is built around.
-#:
-#: Declared here rather than in `config.py` so that this module, which is where
-#: the name is first needed and where the default has to be applied, does not
-#: have to reach up into configuration for it. `config.py` reads it back down.
-DEFAULT_WALL_NAME: Final[str] = "The wall"
+#: Re-exported from `arrt.defaults`, where they are declared: importing them from here gives the same object.
+__all__ = ["DEFAULT_WALL_NAME"]
+
+log = logging.getLogger(__name__)
 
 #: The oldest SQLite measured to drop a column from this catalogue's tables.
 #: `ALTER TABLE ... DROP COLUMN` arrived in 3.35 (2021), but up to at least 3.50.4

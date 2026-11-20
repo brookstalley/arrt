@@ -34,16 +34,10 @@ from pathlib import Path
 from typing import Any, Final
 
 from arrt import observations
+from arrt.defaults import HEARTBEAT_FILENAME_TEMPLATE, heartbeat_path_in
 
-#: Written into `ART_ROOT` by the server from each Player's POST, **one file
-#: per wall**. Not configurable, for the same reason the feed's name is not: the
-#: server and its tools have to agree where it is.
-#:
-#: Per wall because health has to be able to name *which* wall is silent, and one
-#: shared file has no way to say it — the second display would simply overwrite
-#: the first's report, and a wall that had stopped reporting would look like a
-#: wall that was fine.
-HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "display-heartbeat-{wall_id}.json"
+#: Re-exported from `arrt.defaults`, where they are declared: importing them from here gives the same object.
+__all__ = ["HEARTBEAT_FILENAME_TEMPLATE", "heartbeat_path_in"]
 
 #: The key carrying the instant, and a contract rather than a preference. A writer
 #: that spells it `timestamp` produces a Player that looks *down* to the server while
@@ -116,15 +110,6 @@ class HeartbeatReading:
         # Neither absent nor unreadable: `observations.observe` aged the document it read.
         assert self.age_seconds is not None  # noqa: S101 -- a document read with no problem carries its age
         return f"This wall's Player last reported {observations.ago(self.age_seconds)}."
-
-
-def heartbeat_path_in(art_root: Path, wall_id: str) -> Path:
-    """Where one wall's heartbeat lives under a given art root.
-
-    The one place the template is filled in, so the file `record_heartbeat` writes
-    is the one every reader opens.
-    """
-    return art_root / HEARTBEAT_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
 def problem_with(document: object) -> str | None:
