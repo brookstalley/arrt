@@ -601,6 +601,22 @@ def _skip(ui, wall_name):
     return ui.page.get_by_role("button", name=f"Skip the work on {wall_name}")
 
 
+def _press_skip(ui, wall):
+    """Press Skip and wait for the step's own answer, as `test_walls_lead_with_the_work.py` does.
+
+    So a red says which link broke (#442): no POST at all is the click lost, an
+    answer that is not ok is the server refusing, and an ok answer with no
+    "Skipped." after it is the card.
+    """
+
+    def is_the_step(response):
+        return response.request.method == "POST" and response.url.endswith(f"/api/walls/{wall.id}/next")
+
+    with ui.page.expect_response(is_the_step) as answered:
+        _skip(ui, wall.name).click()
+    return answered.value
+
+
 def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_reporting_wall):
     """A Skip in the living room must not step the study.
 
@@ -614,9 +630,9 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_reporting
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
-    skip = _skip(ui, a_hung_wall.name)
-    expect(skip).to_have_text("Skip", use_inner_text=True)
-    skip.click()
+    expect(_skip(ui, a_hung_wall.name)).to_have_text("Skip", use_inner_text=True)
+    step = _press_skip(ui, a_hung_wall)
+    assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     card = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}']")
     # Asserted rather than waited for, and on the whole card first, so a red
     # prints everything the card says, a failure beside Skip included (#442).
