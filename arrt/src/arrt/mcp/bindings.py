@@ -74,11 +74,12 @@ from arrt.programming.display import (
     feed_notice,
 )
 from arrt.programming.display_state import DisplayState
+from arrt.programming.player_state import PlayerReading
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import PicturesReading, SourceHealth
+from arrt.services.health import FailedFetches, PicturesReading, SetupStep, SourceHealth, Trouble
 from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -1071,6 +1072,7 @@ def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[st
 
 def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     reading = health.reading
+    searches = health.searches
     return {
         "name": reading.name,
         "museum": museum_name(reading.name, reading.identity.museum),
@@ -1080,6 +1082,20 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
         "last_fault_at": _moment(reading.last_fault_at),
         "last_fault_age_seconds": health.last_fault_age_seconds,
         "last_fault": reading.last_fault,
+        # Since startup: how often it could not be asked, the last time and what
+        # it said then, and how often it answered (wave 2b, Chunk 32).
+        "unasked": reading.unasked,
+        "last_unasked_at": _moment(reading.last_unasked_at),
+        "last_unasked_age_seconds": health.last_unasked_age_seconds,
+        "last_unasked": reading.last_unasked,
+        "answered": reading.answered,
+        # The search record's counts, which a restart keeps; zero for a plugin
+        # never searched, as `GET /api/sources` says it (wave 2b, Chunk 33).
+        "searched": 0 if searches is None else searches.searched,
+        "searches_answered": 0 if searches is None else searches.answered,
+        "searches_unasked": 0 if searches is None else searches.unasked,
+        "searches_owed": 0 if searches is None else searches.owed,
+        "last_search_answered_at": None if searches is None else _moment(searches.last_answered_at),
         "description": health.describe(),
         "distribution": reading.identity.distribution,
         "version": reading.identity.version,
@@ -1355,7 +1371,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
 #: `GET /api/health` is, and `test_surface_parity.py` compares these two names
 #: against every field of `HealthReading`, so a signal added to the panel has to
 #: be placed here or in `_STATUS_LEAVES` with a reason.
-_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
+_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures", "players", "failed_fetches"})
 
 #: The panel's readings this action leaves out, and why.
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
@@ -1393,6 +1409,9 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
                 "age_seconds": each.heartbeat.age_seconds,
                 "problem": each.heartbeat.problem,
                 "reported": each.heartbeat.contents,
+                # The wall's display state, as `art_display(action='walls')` and
+                # `GET /api/health` state it (wave 2b, Chunk 30).
+                "display_state": _display_state_fields(each.state),
             }
             for each in seen
         ],
@@ -1400,7 +1419,41 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
         # A store with no ceiling is watched, not bounded, and "is anything
         # wrong" includes a disk refusing it.
         pictures=_pictures_fields(reading.pictures),
+        # Wave 2b (Chunks 30 and 40): each Player's state, the queue's failed
+        # fetches (null when it holds none), and the two lists the top bar is
+        # made of, each the reading's own: what needs attention, and the steps
+        # of setting up not yet taken, which are never a fault.
+        players=[_player_health_fields(view) for view in reading.players],
+        failed_fetches=None if reading.failed_fetches is None else _failed_fetches_fields(reading.failed_fetches),
+        troubles=[_trouble_fields(trouble) for trouble in reading.troubles()],
+        setup_steps=[_setup_step_fields(step) for step in reading.setup_steps()],
     )
+
+
+def _player_health_fields(view: ClientView) -> dict[str, Any]:
+    """One Player on the status, in `GET /api/health`'s `players` names (`test_surface_parity.py`)."""
+    return {"client_id": view.client.id, "name": view.client.name, "state": _player_state_fields(view.player)}
+
+
+def _failed_fetches_fields(found: FailedFetches) -> dict[str, Any]:
+    """The queue's failed fetches, in `GET /api/health`'s `failed_fetches` names (`test_surface_parity.py`)."""
+    return {
+        "count": found.count,
+        "will_retry": found.will_retry,
+        "given_up": found.given_up,
+        "newest_failed_at": _moment(found.newest_failed_at),
+        "newest_age_seconds": found.newest_age_seconds,
+        "age_unknown": found.age_unknown,
+        "description": found.describe(),
+    }
+
+
+def _trouble_fields(trouble: Trouble) -> dict[str, Any]:
+    return {"about": str(trouble.about), "subject": trouble.subject, "state": trouble.state, "words": trouble.words}
+
+
+def _setup_step_fields(step: SetupStep) -> dict[str, Any]:
+    return {"about": str(step.about), "subject": step.subject, "state": step.state, "words": step.words}
 
 
 def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
@@ -1621,6 +1674,23 @@ def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, 
                 for label in reading.label_outputs
             ],
         },
+        # The Player's state and each output's, the service's (`player_state.py`),
+        # and its settings page's address when it reported one that passes the
+        # contract's pattern; as `GET /api/clients` carries both (wave 2b, Chunk 30).
+        "state": _player_state_fields(view.player),
+        "settings_url": reading.settings_url,
+    }
+
+
+def _player_state_fields(reading: PlayerReading) -> dict[str, Any]:
+    """A Player's state, in `PlayerStateOut`'s names (`test_surface_parity.py`)."""
+    return {
+        "state": str(reading.state),
+        "since": _moment(reading.since),
+        "outputs": [
+            {"kind": str(output.kind), "name": output.name, "state": str(output.state), "connected": output.connected}
+            for output in reading.outputs
+        ],
     }
 
 

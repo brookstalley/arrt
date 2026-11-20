@@ -437,19 +437,11 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
     check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))
 
 
-#: The could-not-be-asked count and the answered count, as fields: HTTP carries
-#: them first (wave 2b, Chunk 32), and Chunk 53 gives `art_discovery`'s
-#: `source_plugins` their twins and removes this exemption.
-SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
-    {"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"}
-)
-
-#: What the search record says of a plugin's searches, as fields: HTTP carries
-#: them first (wave 2b, Chunk 33), and Chunk 53 gives `art_discovery`'s
-#: `source_plugins` their twins and removes this exemption.
-SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
-    {"searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at"}
-)
+#: The could-not-be-asked and answered counts (wave 2b, Chunk 32) and the search
+#: record's (Chunk 33), as fields: HTTP carried them first, MCP since Chunk 53.
+#: Each named so the value test below holds every one to its own reading.
+SOURCE_PLUGIN_COUNTS = ("unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered")
+SOURCE_PLUGIN_SEARCH_COUNTS = ("searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at")
 
 
 def test_the_source_plugin_projections_agree_value_for_value():
@@ -469,15 +461,13 @@ def test_the_source_plugin_projections_agree_value_for_value():
     )
     searches = SearchTally(provider="met", searched=9, answered=4, unasked=3, owed=2, last_answered_at=WHEN)
     health = SourceHealth(reading=reading, last_fault_age_seconds=12.0, last_unasked_age_seconds=7.0, searches=searches)
-    http_only = (
-        SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET | SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
-    )
 
-    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut), http_only)
+    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
     http = http_api._source_plugin(health).model_dump()
-    assert bindings._source_plugin_fields(health) == {name: value for name, value in http.items() if name not in http_only}
-    # The counts are the reading's, as fields, not only inside `description`.
-    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
+    tool = bindings._source_plugin_fields(health)
+    assert tool == http
+    # The counts are the reading's, as fields, not only inside `description`, on both surfaces.
+    assert {name: tool[name] for name in sorted(SOURCE_PLUGIN_COUNTS)} == {
         "answered": 5,
         "last_unasked": "the Met plugin could not be asked: it did not answer within 60 seconds",
         "last_unasked_age_seconds": 7.0,
@@ -485,13 +475,31 @@ def test_the_source_plugin_projections_agree_value_for_value():
         "unasked": 3,
     }
     # The search record's counts, as fields: each its own, none a default.
-    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
+    assert {name: tool[name] for name in sorted(SOURCE_PLUGIN_SEARCH_COUNTS)} == {
         "last_search_answered_at": WHEN.isoformat(),
         "searched": 9,
         "searches_answered": 4,
         "searches_owed": 2,
         "searches_unasked": 3,
     }
+
+
+def test_a_plugin_never_searched_reads_alike_on_both_surfaces():
+    """No search record: both surfaces say zero searches and no last answer, not one a null and one a zero."""
+    reading = PluginReading(
+        name="met",
+        state=PluginState.LOADED,
+        reason=None,
+        faults=0,
+        last_fault_at=None,
+        last_fault=None,
+        identity=PluginIdentity(distribution="arrt", version="0.3.0", api_major=1, provides=(PluginPart.FINDS_IMAGES,)),
+    )
+    health = SourceHealth(reading=reading, last_fault_age_seconds=None)
+
+    tool = bindings._source_plugin_fields(health)
+    assert tool == http_api._source_plugin(health).model_dump()
+    assert (tool["searched"], tool["searches_owed"], tool["last_search_answered_at"]) == (0, 0, None)
 
 
 def test_the_picture_store_readings_agree_value_for_value():
@@ -502,18 +510,6 @@ def test_the_picture_store_readings_agree_value_for_value():
     assert bindings._pictures_fields(reading) == http_api._pictures(reading).model_dump()
     assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
 
-
-#: Health readings the panel carries that `art_display(action='status')` neither
-#: places nor leaves off by name yet: each Player's state, and the queue's failed
-#: fetches. The plan's MCP chunk (`build-plan-audit-wave-2b.md`, "MCP II: the
-#: twins of 2b's new fields") places them and removes this.
-HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET = frozenset({"players", "failed_fetches"})
-
-#: Fields `GET /api/clients` answers for each Player that the MCP `clients`
-#: listing does not yet: the Player's state with each output's, and its settings
-#: page address. The same MCP chunk adds them and removes this;
-#: `test_client_tools.py` holds the two listings to it with `check_not_yet_on_mcp`.
-CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"state", "settings_url"})
 
 #: Fields each registry row of an artist's works and a topic's works answers
 #: over HTTP that `art_discovery`'s `artist` and `topic` rows do not yet: the
@@ -559,9 +555,14 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
     """`art_display(action='status')` is the panel's twin; a new panel signal must be placed, not forgotten.
 
     Derived from `HealthReading`'s own fields, so a reading added to the panel
-    fails here until the binding says whether its twin carries it, or it is
-    named above as not placed yet; a name there the binding already places, or
-    that the panel no longer has, is refused as stale.
+    fails here until the binding says whether its twin carries it. Every one is
+    placed since wave 2b's Chunk 53 gave the status each Player's state and the
+    failed fetches; there is no "not yet" list any more.
+
+    The readings the panel derives rather than holds (`troubles()`,
+    `setup_steps()`, `describe()`) are not fields, so they are held here by
+    name to the status keys that carry them; a fourth derived reading fails
+    until it is placed. `test_client_tools.py` holds the values to the route's.
     """
     from dataclasses import fields
 
@@ -569,18 +570,51 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
 
     panel = {field.name for field in fields(HealthReading)}
     carried, left = set(bindings._STATUS_CARRIES), set(bindings._STATUS_LEAVES)
-    not_yet = set(HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET)
 
-    assert not not_yet & (carried | left), "an exemption is stale: the binding places that reading now"
-    assert not_yet <= panel, "an exemption names a reading the panel does not have"
-    assert carried | left | not_yet == panel
+    assert carried | left == panel
     assert not carried & left
     assert all(reason.strip() for reason in bindings._STATUS_LEAVES.values())
+    derived = {
+        name
+        for name in dir(HealthReading)
+        if not name.startswith("_") and name not in panel and callable(getattr(HealthReading, name))
+    }
+    assert derived == set(STATUS_KEY_OF_A_DERIVED_READING)
+    from contract.test_mcp_break import surface_shape
+
+    answered = set(surface_shape()["art_display"]["actions"]["status"]["result_keys"])
+    assert set(STATUS_KEY_OF_A_DERIVED_READING.values()) <= answered
 
 
-def test_the_client_fields_not_yet_on_mcp_are_fields_the_http_model_has():
-    """The exemption cannot outlive the fields it names: each is one `ClientOut` declares."""
-    assert _fields(http_models.ClientOut) >= CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
+#: The readings `HealthReading` derives, and the `art_display(action='status')`
+#: key that carries each: the panel's sentence is the status's `observation`.
+STATUS_KEY_OF_A_DERIVED_READING = {"troubles": "troubles", "setup_steps": "setup_steps", "describe": "observation"}
+
+
+def test_a_players_state_agrees_value_for_value():
+    """`art_players(action='clients')`'s `state` is `GET /api/clients`' `PlayerStateOut`, by name and by value.
+
+    A reporting Player with a display, a label panel and an output it has not
+    reported yet, so `since`, each output's kind, state and `connected` are
+    values and not the nulls of a Player with no report.
+    """
+    from arrt.programming.player_state import OutputKind, OutputState, PlayerReading, PlayerState
+
+    reading = PlayerReading(
+        state=PlayerState.REPORTING,
+        since=WHEN,
+        outputs=(
+            OutputState(kind=OutputKind.DISPLAY, name="hdmi-a-1", state=PlayerState.REPORTING, connected=True),
+            OutputState(kind=OutputKind.LABEL, name="epd-0", state=PlayerState.REPORTING, connected=False),
+            OutputState(kind=OutputKind.DISPLAY, name="hdmi-a-2", state=PlayerState.AWAITING_REPORT, connected=None),
+        ),
+    )
+
+    tool = bindings._player_state_fields(reading)
+    check_parity("PlayerState", set(tool), _fields(http_models.PlayerStateOut))
+    check_parity("OutputState", set(tool["outputs"][0]), _fields(http_models.OutputStateOut))
+    assert tool == http_api._player_state(reading).model_dump()
+    assert tool["since"] == WHEN.isoformat()
 
 
 #: The one name a look's picture carries on MCP alone: which image block is its
