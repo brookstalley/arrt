@@ -430,14 +430,12 @@ def _served(walls, *, backup, sources, watches, player, failed):
     )
 
 
-def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
-    return {
-        "pictures_bytes": size,
-        "pictures_files": files,
-        "age_seconds": age_seconds,
-        "unreadable": 0,
-        "description": f"The picture store keeps {files} files, counted {age_seconds:.0f} seconds ago.",
-    }
+def _some_pictures(*, files=2, size=48_000, age_seconds=12.0, unreadable=0):
+    # Through the server's own reading and route projection, never a sentence
+    # written here: `PicturesReading.describe` says it, `_pictures` answers it.
+    return http_api._pictures(
+        PicturesReading(pictures_bytes=size, pictures_files=files, age_seconds=age_seconds, unreadable=unreadable)
+    ).model_dump()
 
 
 def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None, shown=True):
@@ -466,14 +464,26 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
 
 
 def _a_backup(*, absent=False, problem=None):
+    path = "/art/backup-receipt.json"
+    completed_at = None if absent else "2026-08-12T03:00:00+00:00"
+    age_seconds = None if absent else 22440.0
+    reported = None if absent else {"completed_at": completed_at}
     return {
-        "path": "/art/backup-receipt.json",
-        "completed_at": None if absent else "2026-08-12T03:00:00+00:00",
-        "age_seconds": None if absent else 22440.0,
+        "path": path,
+        "completed_at": completed_at,
+        "age_seconds": age_seconds,
         "absent": absent,
         "problem": problem,
-        "description": "No backup has been recorded." if absent else "The catalogue was last backed up 6 hours ago.",
-        "reported": None if absent else {"completed_at": "2026-08-12T03:00:00+00:00"},
+        # The server's own sentence for this reading (`BackupReading.describe`),
+        # as `_a_wall`'s is the heartbeat's, never written here.
+        "description": BackupReading(
+            path=pathlib.Path(path),
+            completed_at=None if absent else datetime.fromisoformat(completed_at),
+            age_seconds=age_seconds,
+            contents=None if absent or problem is not None else reported,
+            problem=problem,
+        ).describe(),
+        "reported": reported,
     }
 
 
