@@ -29,13 +29,16 @@ longer than that, for any finder handed to it directly.
 **A source still owing one work's answer is not asked about the next.** Going
 from work to work, a run would otherwise start a call at a slow source for every
 work while the last still ran: about its deadline over the window at once, at a
-museum behind a crawl delay. So while a plugin owes `OWED_CALLS_PER_PLUGIN`
-answers (its `owing()`, `library/sources/loading.py`), a run does not ask it: the
-work is answered with that source not asked, as a pass's hold-back answers it,
-no search is written, and the journal says so (`image_pool.still_asking`, with
-how many it owes). The cost: such a work is not asked at that source on this
-pass, where before it was asked and its answer owed, and waits for a later pass
-to ask it there. A finder handed to the pool directly says nothing of what it
+museum behind a crawl delay. So within a pass (`one_pass`, which phase 2 opens
+over a run's works), while a plugin owes `OWED_CALLS_PER_PLUGIN` answers (its
+`owing()`, `library/sources/loading.py`), a run does not ask it: the work is
+answered with that source not asked, as a pass's hold-back answers it, no
+search is written, and the journal says so once (`image_pool.still_asking`, with
+how many it owes), whether this check or the plugin's own containment refused
+it. The cost: such a work is not asked at that source on this pass, where
+before it was asked and its answer owed, and waits for a later pass to ask it
+there. Outside a pass nothing is refused for it, as the containment refuses
+nothing then. A finder handed to the pool directly says nothing of what it
 owes, and is asked for every work.
 
 **The record is written on two threads, and never interleaves a pass's own
@@ -87,6 +90,7 @@ from arrt.library.sources.loading import (
     NotAskedThisPass,
     StillAsking,
     caller_stops_waiting_when,
+    in_a_pass,
 )
 from arrt.library.sources.names import museum_name
 from arrt.persistence.discovery_records import SearchOutcome, SourceSearch
@@ -456,15 +460,18 @@ class ImageSourcePool:
     ) -> tuple[list[_Ask], dict[int, _Settled]]:
         """Ask every source on a worker of its own, counted as a run's ask before the worker starts; and those not asked.
 
-        A source still owing other works answers (`_owing`) is not asked, and is
-        answered here, on the run's thread, before any worker starts: so its
-        answer is the run's to keep, never one that could arrive after the run
-        stopped waiting and be written down as owed.
+        Within a pass, a source still owing other works answers (`_owing`) is
+        not asked, and is answered here, on the run's thread, before any worker
+        starts: so its answer is the run's to keep, never one that could arrive
+        after the run stopped waiting and be written down as owed. Outside a
+        pass it is asked, as the plugin's containment asks it then: the bound is
+        a pass's, which goes from work to work.
         """
         asks: list[_Ask] = []
         not_started: dict[int, _Settled] = {}
+        bounded = in_a_pass()
         for index, source in enumerate(self._sources):
-            if (owing := _owing(source)) >= OWED_CALLS_PER_PLUGIN:
+            if bounded and (owing := _owing(source)) >= OWED_CALLS_PER_PLUGIN:
                 refused = StillAsking(source.provider, owing)
                 not_started[index] = (
                     SourceAnswer(
