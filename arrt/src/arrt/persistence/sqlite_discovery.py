@@ -44,6 +44,7 @@ from arrt.persistence.discovery_records import (
     AffinitySentiment,
     CandidateImage,
     CandidateWork,
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
@@ -284,7 +285,14 @@ CREATE TABLE IF NOT EXISTS spend_records (
     -- Decimal text rather than a REAL. This column is money, and SQLite's only
     -- numeric types are integers and IEEE doubles.
     cost_usd          TEXT NOT NULL,
-    occurred_at       TEXT NOT NULL
+    occurred_at       TEXT NOT NULL,
+    -- `known` or `unknown` (`CostStatus`): whether cost_usd is the provider's
+    -- figure, or 0 for a call sent that never said what it cost. A column of its
+    -- own because cost_usd is NOT NULL, and a widening cannot make it nullable.
+    -- The default is what reaches a file written before this column: those
+    -- rows are the provider's own figures, and an older release writing a row
+    -- here names no status and gets the same.
+    cost_status       TEXT NOT NULL DEFAULT 'known'
 );
 
 CREATE INDEX IF NOT EXISTS spend_records_by_time ON spend_records(occurred_at);
@@ -746,6 +754,7 @@ def _spend_row(record: SpendRecord) -> dict[str, Any]:
         "units": record.units,
         "cost_usd": to_money(record.cost_usd),
         "occurred_at": to_iso(record.occurred_at),
+        "cost_status": str(record.cost_status),
     }
 
 
@@ -906,6 +915,7 @@ def _spend(row: Mapping[str, Any]) -> SpendRecord:
         input_tokens=row["input_tokens"],
         output_tokens=row["output_tokens"],
         units=row["units"],
+        cost_status=CostStatus(row["cost_status"]),
     )
 
 

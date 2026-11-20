@@ -314,6 +314,27 @@ class SpendCategory(StrEnum):
     ASK_TOKENS = "ask_tokens"
 
 
+class CostStatus(StrEnum):
+    """Whether a spend row's `cost_usd` is what the provider said the call cost.
+
+    `UNKNOWN` is a call that was sent and ended without an answer that said
+    what it cost: a read timeout, a dropped connection, a gateway's 5xx, an
+    unreadable 2xx body, an Ask reply cancelled mid-call. The provider may have
+    billed it (`openrouter-api-findings.md` § A call that fails after it was
+    sent), so the row is written, with `cost_usd` 0, and every sum counts it
+    apart: "at least $X, and N calls whose cost is unknown". Nothing ever
+    settles one: the generation lookup that might answered 404 on every
+    attempt, and a timed-out request carries no id to look up.
+
+    `KNOWN` is the column's default, so every row written before the column
+    existed, and every row an older release writes, reads as known: the figure
+    those rows hold is the provider's own.
+    """
+
+    KNOWN = "known"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class DiscoveryRun:
     """One invocation of the discovery flow, and what it cost.
@@ -534,6 +555,9 @@ class SpendRecord:
     input_tokens: int | None = None
     output_tokens: int | None = None
     units: int | None = None
+    #: Whether `cost_usd` is the provider's figure or a call whose cost nobody
+    #: was told; an unknown row holds 0 (`CostStatus`).
+    cost_status: CostStatus = CostStatus.KNOWN
 
 
 class AffinitySentiment(StrEnum):

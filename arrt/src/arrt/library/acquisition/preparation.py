@@ -43,7 +43,7 @@ from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_m
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PRESETS, MatChoice, MatEngine, below_the_floor, derive
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.persistence.records import MatColor, MatMethod, RenditionKind
 from arrt.services.errors import ServiceError
 
@@ -113,6 +113,7 @@ class SpendLedger(Protocol):
         artwork_id: str | None = None,
         model_id: str | None = None,
         units: int | None = None,
+        cost_status: CostStatus = CostStatus.KNOWN,
     ) -> object: ...
 
 
@@ -477,16 +478,28 @@ class PreparationService:
         no model chose the colour. The row names the model that was asked all the
         same, since that is who billed it. A call that never reached the model
         (no key, or a refused request) cost nothing and records nothing.
+
+        A call sent that never said what it cost (`MatChoice.unknown_cost_calls`)
+        is a row of its own, at 0 with its cost unknown, beside any row for what
+        an earlier call of the same choice was billed.
         """
-        if choice.method is not MatMethod.VISION_MODEL and choice.cost_usd == 0:
-            return
-        self._spend.record_spend(
-            category=SpendCategory.MAT_COLOR_VISION,
-            cost_usd=choice.cost_usd,
-            artwork_id=artwork_id,
-            model_id=choice.model_id or self._mat.model_id,
-            units=1,
-        )
+        if choice.method is MatMethod.VISION_MODEL or choice.cost_usd != 0:
+            self._spend.record_spend(
+                category=SpendCategory.MAT_COLOR_VISION,
+                cost_usd=choice.cost_usd,
+                artwork_id=artwork_id,
+                model_id=choice.model_id or self._mat.model_id,
+                units=1,
+            )
+        for _ in range(choice.unknown_cost_calls):
+            self._spend.record_spend(
+                category=SpendCategory.MAT_COLOR_VISION,
+                cost_usd=Decimal(0),
+                artwork_id=artwork_id,
+                model_id=self._mat.model_id,
+                units=1,
+                cost_status=CostStatus.UNKNOWN,
+            )
 
     def _make_master_if_owed(self, artwork_id: str, *, source: Path, force: bool = False) -> bool:
         """Make the work's presentation master unless a current one is on disk, or always when forced. True if made.

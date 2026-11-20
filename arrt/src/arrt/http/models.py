@@ -1707,6 +1707,11 @@ class SpendOut(BaseModel):
 
     year: int | None
     month: int | None
+    #: The calls in this scope that were sent and never said what they cost.
+    #: `cost_usd` sums the rest, so with any it is a floor and not the bill.
+    unknown_cost_calls: int
+    #: The figure in words, "at least" when any call's cost is unknown.
+    summary: str
 
 
 class InstanceOut(BaseModel):

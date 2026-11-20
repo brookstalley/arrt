@@ -15,7 +15,7 @@ import pytest
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, RejectedWork, WorkListRequest
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import OpenRouterEngine
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 
 ANSWER = {
     "strategy": "Read as prize winners announced in the past year; searched for 2026 award announcements.",
@@ -279,6 +279,47 @@ def test_a_refusal_before_generation_carries_no_spend():
         engine_over(handler).enumerate_works(asked())
 
     assert raised.value.spend == ()
+
+
+@pytest.mark.parametrize(
+    "unanswered",
+    [httpx.ReadTimeout("timed out"), httpx.RemoteProtocolError("Server disconnected without sending a response.")],
+    ids=["timed out", "hung up"],
+)
+def test_a_call_that_fails_after_it_was_sent_carries_one_row_whose_cost_is_unknown(unanswered):
+    """The provider had the request and may have billed it (audit-2 S5): a row, at 0, its cost unknown, its model."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise unanswered
+
+    with pytest.raises(EngineFailure) as raised:
+        engine_over(handler).enumerate_works(WorkListRequest(intent_text="x", search_allowance=10, model="lab/unattended"))
+
+    assert not isinstance(raised.value, BudgetExhausted)
+    [row] = raised.value.spend
+    assert (row.category, row.cost_usd, row.model_id, row.cost_status) == (
+        SpendCategory.DISCOVERY_TOKENS,
+        Decimal(0),
+        "lab/unattended",
+        CostStatus.UNKNOWN,
+    )
+
+
+def test_a_call_that_never_went_out_carries_no_spend():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("no route to host")
+
+    with pytest.raises(EngineFailure) as raised:
+        engine_over(handler).enumerate_works(asked())
+
+    assert raised.value.spend == ()
+
+
+def test_an_answered_call_s_rows_are_known():
+    """The default every other construction of a row leaves: what the provider said, and known."""
+    produced = engine_over(responding(ANSWER)).enumerate_works(asked())
+
+    assert {row.cost_status for row in produced.spend} == {CostStatus.KNOWN}
 
 
 def test_an_answer_that_cannot_be_read_still_reports_what_it_cost():

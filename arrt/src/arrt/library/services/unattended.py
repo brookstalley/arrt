@@ -23,21 +23,30 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from arrt.counting import counted
 from arrt.library.months import utc_month_of
+from arrt.library.services.discovery import SpendTotal
 from arrt.library.services.settings import UNATTENDED_ALLOWANCE, UNATTENDED_WORK, SettingsService, Switch
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
 
 
 def spent_in_month(store: DiscoveryStore, moment: datetime, counts: Callable[[DiscoveryRun], bool]) -> Decimal:
-    """What the runs `counts` picks were billed in the UTC month `moment` falls in.
+    """What the runs `counts` picks are known to have been billed in the UTC month `moment` falls in."""
+    return spend_in_month(store, moment, counts).cost_usd
+
+
+def spend_in_month(store: DiscoveryStore, moment: datetime, counts: Callable[[DiscoveryRun], bool]) -> SpendTotal:
+    """What the runs `counts` picks were billed in the UTC month `moment` falls in, and their calls whose cost is unknown.
 
     Read through each spend row's run, so a figure is never stored twice. A row
-    with no run, or whose run is gone, counts for nothing.
+    with no run, or whose run is gone, counts for nothing. A call whose cost is
+    unknown adds nothing to the figure and is counted beside it: the allowance
+    is measured against what is known, and its sentence says "at least".
     """
     since, until = utc_month_of(moment)
     picked: dict[str, bool] = {}
-    total = Decimal(0)
+    chosen = []
     for record in store.list_spend_records(since=since, until=until):
         run_id = record.discovery_run_id
         if run_id is None:
@@ -46,8 +55,8 @@ def spent_in_month(store: DiscoveryStore, moment: datetime, counts: Callable[[Di
             run = store.get_run(run_id)
             picked[run_id] = run is not None and counts(run)
         if picked[run_id]:
-            total += record.cost_usd
-    return total
+            chosen.append(record)
+    return SpendTotal.of(chosen)
 
 
 class Refusal(StrEnum):
@@ -69,6 +78,9 @@ class Standing:
     refusal: Refusal | None
     #: One sentence for the screen and the log.
     sentence: str
+    #: Calls of this month's unattended runs that were sent and never said what
+    #: they cost; `spent_usd` sums the rest, so with any it is a floor.
+    unknown_cost_calls: int = 0
 
     @property
     def remaining_usd(self) -> Decimal:
@@ -96,8 +108,11 @@ class UnattendedAllowance:
         self._now = now
 
     def spent_this_month(self) -> Decimal:
-        """What runs started unattended were billed in this UTC calendar month."""
-        return spent_in_month(self._store, self._now(), lambda run: run.initiated_by is InitiatedBy.UNATTENDED)
+        """What runs started unattended are known to have been billed in this UTC calendar month."""
+        return self._spend_this_month().cost_usd
+
+    def _spend_this_month(self) -> SpendTotal:
+        return spend_in_month(self._store, self._now(), lambda run: run.initiated_by is InitiatedBy.UNATTENDED)
 
     def spent_by_watch_this_month(self, watch_id: str) -> Decimal:
         """What the runs one Watch's passes started were billed in this UTC calendar month."""
@@ -114,7 +129,11 @@ class UnattendedAllowance:
         """
         switched_on = self._settings.value(UNATTENDED_WORK) is Switch.ON
         allowance = self._settings.value(UNATTENDED_ALLOWANCE)
-        spent = self.spent_this_month()
+        spend = self._spend_this_month()
+        spent = spend.cost_usd
+        # "at least $1.20" where a call's cost is unknown: the figure is a floor.
+        figure = f"${spent:.2f}" if not spend.unknown_calls else f"at least ${spent:.2f}"
+        unknown = f", with {counted(spend.unknown_calls, 'call')} whose cost is unknown" if spend.unknown_calls else ""
         if not switched_on:
             refusal, sentence = Refusal.OFF, "Unattended work is off, so nothing runs with nobody watching."
         elif not self._has_key:
@@ -124,8 +143,15 @@ class UnattendedAllowance:
             sentence = "The monthly allowance for unattended work is $0.00, so nothing runs with nobody watching."
         elif spent >= allowance or spent + estimate_usd > allowance:
             refusal = Refusal.ALLOWANCE_SPENT
-            sentence = f"This month's unattended allowance is spent: ${spent:.2f} of ${allowance:.2f}."
+            sentence = f"This month's unattended allowance is spent: {figure} of ${allowance:.2f}{unknown}."
         else:
             refusal = None
-            sentence = f"Unattended work may run: ${spent:.2f} of this month's ${allowance:.2f} is spent."
-        return Standing(switched_on=switched_on, allowance_usd=allowance, spent_usd=spent, refusal=refusal, sentence=sentence)
+            sentence = f"Unattended work may run: {figure} of this month's ${allowance:.2f} is spent{unknown}."
+        return Standing(
+            switched_on=switched_on,
+            allowance_usd=allowance,
+            spent_usd=spent,
+            refusal=refusal,
+            sentence=sentence,
+            unknown_cost_calls=spend.unknown_calls,
+        )

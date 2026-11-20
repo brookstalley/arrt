@@ -21,6 +21,7 @@ makes the mount work.
 import logging
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from functools import partial
 from typing import Final
 
@@ -40,7 +41,7 @@ from arrt.library.services.scheduler import start_scheduler
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 
@@ -233,11 +234,23 @@ def create_app(
 
 
 def _record_ask_cost(services: Services, cost: ReplyCost) -> None:
-    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's."""
-    services.discovery.record_spend(
-        category=SpendCategory.ASK_TOKENS,
-        cost_usd=cost.cost_usd,
-        model_id=cost.model_id,
-        input_tokens=cost.input_tokens,
-        output_tokens=cost.output_tokens,
-    )
+    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's.
+
+    What its calls were billed is one row; each call it left running unanswered
+    is a row of its own at $0, its cost unknown (`CostStatus.UNKNOWN`).
+    """
+    if cost.cost_usd > 0:
+        services.discovery.record_spend(
+            category=SpendCategory.ASK_TOKENS,
+            cost_usd=cost.cost_usd,
+            model_id=cost.model_id,
+            input_tokens=cost.input_tokens,
+            output_tokens=cost.output_tokens,
+        )
+    for _ in range(cost.unknown_calls):
+        services.discovery.record_spend(
+            category=SpendCategory.ASK_TOKENS,
+            cost_usd=Decimal(0),
+            model_id=cost.unknown_model_id,
+            cost_status=CostStatus.UNKNOWN,
+        )

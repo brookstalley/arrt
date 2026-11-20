@@ -42,7 +42,7 @@ from arrt.library.acquisition.color import (
     rgb_to_lab,
     scale_lightness,
 )
-from arrt.library.discovery.openrouter import Completion, ImageAttachment, OpenRouterClient, OpenRouterError
+from arrt.library.discovery.openrouter import Completion, CostUnknown, ImageAttachment, OpenRouterClient, OpenRouterError
 from arrt.library.services.imaging import reading
 from arrt.persistence.records import MatMethod
 
@@ -253,6 +253,7 @@ class _Why(StrEnum):
 
     NOT_CONFIGURED = "no vision model is configured"
     UNREACHABLE = "the vision model could not be reached"
+    UNANSWERED = "the vision model was asked and no answer came back"
     UNUSABLE = "the vision model's answer could not be used"
     TOO_DARK_THEN_FAILED = "the vision model chose a colour darker than the mat floor, and asking again failed"
     TOO_DARK_THEN_UNUSABLE = "the vision model chose a colour darker than the mat floor, and its second answer could not be used"
@@ -278,6 +279,10 @@ class MatChoice:
     #: than accumulated here: this module chooses a colour, and a running total
     #: belongs to whatever authorised the spending.
     cost_usd: Decimal = Decimal(0)
+    #: How many of the calls behind this choice were sent and never said what
+    #: they cost (`CostUnknown`): billed perhaps, and not in `cost_usd`. The
+    #: ledger records each as a row whose cost is unknown.
+    unknown_cost_calls: int = 0
     #: Why the model did not decide, when it did not. `None` on the model path.
     #: Kept out of `reason`, which is the *colour's* rationale and is shown to a
     #: curator — a parse failure is a fact about the call, not about the colour.
@@ -318,6 +323,12 @@ class MatEngine:
 
         try:
             completion = self._client.complete(prompt=MAT_PROMPT, schema=MAT_SCHEMA, image=attachment)
+        except CostUnknown as exc:
+            # Sent and never answered with a cost: the fallback's colour, and the
+            # call counted as one whose cost is unknown rather than as free.
+            log.info("the mat model's call for %s ended unanswered: %s", image_path.name, exc)
+            detail = f"the vision model's call ended unanswered: {exc}"
+            return self._fallback(image_path, why=_Why.UNANSWERED, detail=detail, unknown_cost_calls=1)
         except OpenRouterError as exc:
             # Includes the two money refusals. Neither is retried here: 403 means
             # the key is spent and will refuse identically, and 402 means the
@@ -361,7 +372,13 @@ class MatEngine:
             completion = client.complete(prompt=_again(dark.hex_rgb), schema=MAT_SCHEMA, image=attachment)
         except OpenRouterError as exc:
             detail = f"{first}, and asking again failed: {exc}"
-            return self._fallback(image_path, why=_Why.TOO_DARK_THEN_FAILED, detail=detail, cost_usd=dark.cost_usd)
+            return self._fallback(
+                image_path,
+                why=_Why.TOO_DARK_THEN_FAILED,
+                detail=detail,
+                cost_usd=dark.cost_usd,
+                unknown_cost_calls=int(isinstance(exc, CostUnknown)),
+            )
         spent = dark.cost_usd + completion.cost_usd
         again = _read_choice(completion)
         if again is None:
@@ -392,13 +409,16 @@ class MatEngine:
             frame.save(buffer, format="JPEG", quality=85, optimize=True)
         return ImageAttachment(base64_data=base64.b64encode(buffer.getvalue()).decode("ascii"), media_type="image/jpeg")
 
-    def _fallback(self, image_path: Path, *, why: _Why, detail: str, cost_usd: Decimal = Decimal(0)) -> MatChoice:
+    def _fallback(
+        self, image_path: Path, *, why: _Why, detail: str, cost_usd: Decimal = Decimal(0), unknown_cost_calls: int = 0
+    ) -> MatChoice:
         log.info("mat for %s fell back to the dominant colour: %s", image_path.name, detail)
         return replace(
             derive(image_path),
             method=MatMethod.DOMINANT_COLOR_FALLBACK,
             reason=_FALLBACK_REASON.format(why=why.value),
             cost_usd=cost_usd,
+            unknown_cost_calls=unknown_cost_calls,
             fallback_detail=detail,
         )
 

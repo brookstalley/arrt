@@ -70,7 +70,7 @@ from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFai
 from arrt.library.discovery.phase_two import JudgedImage, PhaseTwoEngine
 from arrt.library.discovery.pool import NoSourceCanAnswer
 from arrt.library.registry import ItemId
-from arrt.library.services.discovery import ChosenWork, DiscoveryService
+from arrt.library.services.discovery import ChosenWork, DiscoveryService, SpendTotal
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import CostTier, cost_tier
@@ -276,6 +276,10 @@ class SpendReport:
     narrower one is carried alongside rather than replaced: a run billed little
     itself whose re-searches cost ten times more is a fact worth being able to
     see.
+
+    `cost_usd` sums what the provider said; `unknown_cost_calls` counts the
+    calls in the same scope that were sent and never said what they cost, so
+    with any the figure is a floor, and `summary` says so in words.
     """
 
     scope: str
@@ -284,6 +288,12 @@ class SpendReport:
     run_direct_usd: Decimal | None = None
     year: int | None = None
     month: int | None = None
+    unknown_cost_calls: int = 0
+
+    @property
+    def summary(self) -> str:
+        """The figure in words, "at least" when any call's cost is unknown (`SpendTotal.words`)."""
+        return SpendTotal(cost_usd=self.cost_usd, unknown_calls=self.unknown_cost_calls).words
 
 
 @dataclass(frozen=True, slots=True)
@@ -624,7 +634,13 @@ class DiscoveryRunner:
                     "run's cost, or year and month on their own for a month's."
                 )
             cost = self._discovery.run_cost(run_id)
-            return SpendReport(scope="run", cost_usd=cost.total, run_id=run_id, run_direct_usd=cost.direct)
+            return SpendReport(
+                scope="run",
+                cost_usd=cost.total,
+                run_id=run_id,
+                run_direct_usd=cost.direct,
+                unknown_cost_calls=cost.total_unknown,
+            )
         if (year is None) != (month is None):
             raise ServiceError("A month needs both year and month, or neither — omitting both reports the current month.")
         now = datetime.now(UTC)
@@ -632,11 +648,13 @@ class DiscoveryRunner:
         # limit resets on. A report on the operator's local month would disagree
         # with the only figure that can actually stop spending.
         year, month = (year, month) if year is not None and month is not None else (now.year, now.month)
+        spent = self._discovery.month_spend(year=year, month=month)
         return SpendReport(
             scope="month",
-            cost_usd=self._discovery.spend_in_month(year=year, month=month),
+            cost_usd=spent.cost_usd,
             year=year,
             month=month,
+            unknown_cost_calls=spent.unknown_calls,
         )
 
     def list_runs(
@@ -1502,6 +1520,7 @@ class DiscoveryRunner:
                 input_tokens=entry.input_tokens,
                 output_tokens=entry.output_tokens,
                 units=entry.units,
+                cost_status=entry.cost_status,
             )
 
     def _end(self, run_id: str, ending: Callable[..., DiscoveryRun], event: str, reason: str) -> None:

@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Final, Protocol, runtime_checkable
 
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +114,8 @@ class EngineSpend:
     input_tokens: int | None = None
     output_tokens: int | None = None
     units: int | None = None
+    #: `UNKNOWN` for a call sent that never said what it cost, at `cost_usd` 0.
+    cost_status: CostStatus = CostStatus.KNOWN
 
 
 @dataclass(frozen=True, slots=True)
