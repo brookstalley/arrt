@@ -622,7 +622,7 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_play
     consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     # The build's own summary, evaluated by the server without writing anything,
     # rather than a sentence this screen composed about what it expects.
-    expect(consequence).to_contain_text("All 1 work in this theme is on the wall.", use_inner_text=True)
+    expect(consequence).to_contain_text("The one work in this theme is on the wall.", use_inner_text=True)
     expect(consequence).to_contain_text(f"Everyone in the house sees {the_wall.name} change.", use_inner_text=True)
 
 
