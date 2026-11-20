@@ -954,6 +954,39 @@ async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(ser
     assert again["error"].startswith("No work in the queue failed for that reason now")
 
 
+async def test_retrying_one_cause_leaves_the_other_causes_works_exactly_as_they_were(server_url, services, store):
+    """Two causes; one is retried over MCP. The other's works answer byte for byte as before, and each keeps its row.
+
+    The retried cause holds a work with no source, which the queue refuses,
+    so the answer's `refused` names that reason and how many it held back.
+    """
+    from datetime import UTC, datetime
+
+    import httpx
+
+    from arrt.persistence.records import QueuedAcquisition
+
+    retried_ids = _failing(services, store, 2, "a 404.")
+    sourceless = services.catalogue.add_artwork(title="Nothing to fetch it from").id
+    store.set_queued_acquisition(
+        QueuedAcquisition(artwork_id=sourceless, failures=1, next_try_at=datetime(2026, 12, 1, tzinfo=UTC), detail="a 404.")
+    )
+    other = _failing(services, store, 2, "reset.")
+    rows_before = {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other}
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        before = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+
+        answer, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+
+        after = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+    assert errored is False
+    assert (answer["retried"], answer["refused"]) == (2, [{"reason": "The work has no source to acquire from.", "works": 1}])
+    assert {str(state.phase) for state in services.acquisition_queue.state_of(retried_ids).values()} == {"queued"}
+    assert json.loads(before)["total"] == 2
+    assert after == before
+    assert {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other} == rows_before
+
+
 # -- a thing that does not exist: the service's own sentence, on both surfaces ------------------
 
 
