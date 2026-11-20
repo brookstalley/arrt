@@ -1705,9 +1705,9 @@ def _set_playback(services: Services, arguments: Mapping[str, Any]) -> dict[str,
 
 
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    views = services.clients.list_clients()
-    survey = services.clients.placements.survey()
-    return ok(clients=[_client_view_fields(view, survey) for view in views], count=len(views))
+    """Every Player, from one reading taken now (`ClientService.read_clients`), as `GET /api/clients` is."""
+    reading = services.clients.read_clients()
+    return ok(clients=[_client_view_fields(view, reading.survey) for view in reading.views], count=len(reading.views))
 
 
 def _add_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1814,7 +1814,7 @@ def _client_fields(client: Client) -> dict[str, Any]:
 
 
 def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, Any]:
-    """A client with what it shows, holds and last reported, as `GET /api/clients` carries it."""
+    """A client with what it shows, holds and last reported, as `GET /api/clients` carries it, all from `survey`'s reading."""
     reading = view.heartbeat
     return {
         **_client_fields(view.client),

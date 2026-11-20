@@ -17,6 +17,7 @@ here carries the fields `GET /api/clients` does.
 """
 
 import json
+from dataclasses import fields
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
@@ -30,8 +31,10 @@ from arrt import observations
 from arrt.http import api as http_api
 from arrt.mcp import bindings
 from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.programming import clients as clients_module
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
+from arrt.services.health import WallsNow
 
 _REPORT = {
     "reported_at": "2026-10-02T14:00:05+00:00",
@@ -856,3 +859,193 @@ async def test_a_walls_or_health_answer_reads_each_report_file_once_however_many
     one = await reads_of(request("POST", f"{server_url}/api/walls/{walls[0]}", json={"name": "Study"}))
     own = [f"wall {walls[0]}'s report", *(f"Player {each}'s report" for each in players)]
     assert one == dict.fromkeys(own, 1), f"one wall's answer: {one}"
+
+
+# -- one Players answer, one reading ------------------------------------------------------
+
+#: Every answer that says what a Player shows beside the wall on each of its displays.
+_PLAYER_ANSWERS = ("GET /api/clients", "art_players clients", "renaming a Player")
+
+
+async def _player_entry(server_url: str, surface: str, player: str, name: str) -> dict:
+    """The one Player's entry in `surface`'s answer; a refused answer fails here, since none should refuse."""
+    if surface == "renaming a Player":
+        answer = await request("POST", f"{server_url}/api/clients/{player}", json={"name": name})
+        assert answer.status_code == 200, answer.text
+        return answer.json()
+    if surface == "GET /api/clients":
+        answer = await request("GET", f"{server_url}/api/clients")
+        assert answer.status_code == 200, answer.text
+        players = answer.json()["clients"]
+    else:
+        players = (await ok(server_url, "clients"))["clients"]
+    [entry] = [each for each in players if each["client_id"] == player]
+    return entry
+
+
+def _says_one_instant_of_the_player(entry: dict) -> list[str]:
+    """What in one Player's entry contradicts the rest of it, in words; empty when it says one instant.
+
+    The walls it shows and the wall on each of its displays are one fact said
+    twice: a display out of fault holding a wall is a wall it shows.
+    """
+    shown = {wall["wall_id"] for wall in entry["walls"]}
+    on_displays = {display["wall_id"] for display in entry["displays"] if display["wall_id"] and display["fault"] is None}
+    return [] if shown == on_displays else [f"shows walls {sorted(shown)} beside displays holding {sorted(on_displays)}"]
+
+
+class _PlayerHousehold:
+    """A Player that has reported its screens and a wall it does not show yet, made for one landing and taken away after."""
+
+    def __init__(self, services, step: int) -> None:
+        self.services = services
+        self.name = f"Player {step}"
+        self.wall = services.display.add_wall(name=f"Wall {step}").id
+        self.player = services.clients.add_client(name=self.name).id
+        services.clients.record_heartbeat(self.player, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+
+    def assign(self) -> None:
+        self.services.clients.assign_wall(self.wall, client_id=self.player, output="hdmi-a-1")
+
+    def leave(self) -> None:
+        if any(view.wall.id == self.wall for view in self.services.display.survey_walls()):
+            self.services.display.delete_wall(self.wall)
+        self.services.clients.remove_client(self.player)
+
+
+def _shows_it_now(house: _PlayerHousehold):
+    """The Player is assigned the wall while the answer is read."""
+    return house.assign
+
+
+def _its_wall_is_deleted(house: _PlayerHousehold):
+    """The Player shows the wall; the wall is deleted while the answer is read."""
+    house.assign()
+    return lambda: house.services.display.delete_wall(house.wall)
+
+
+_PLAYER_LANDINGS = {"the Player is assigned a wall": _shows_it_now, "the wall it shows is deleted": _its_wall_is_deleted}
+
+
+@pytest.mark.parametrize("landing", _PLAYER_LANDINGS)
+@pytest.mark.parametrize("surface", _PLAYER_ANSWERS)
+async def test_whatever_lands_between_a_players_answers_reads_it_says_one_instant_of_the_player(
+    server_url, services, monkeypatch, surface, landing
+):
+    """The walls a Player shows and the wall on each of its displays are one reading's, on both surfaces.
+
+    What lands is written just before the answer's first read of a report
+    file, then before its second, and so on until the answer makes fewer reads
+    than that, as the walls answers' test does. Before, a Players answer took a
+    survey of who shows what for its views and a second for its displays, and
+    a Player assigned between the two was answered showing a wall beside a
+    display holding none. A wall deleted while the answer is read is
+    answered, never refused.
+    """
+    landings = _Landing(observations.observe)
+    monkeypatch.setattr(observations, "observe", landings)
+    wrong: list[str] = []
+    before = 0
+    while True:
+        house = _PlayerHousehold(services, before)
+        land = _PLAYER_LANDINGS[landing](house)
+        landings.arm(land, before)
+        entry = await _player_entry(server_url, surface, house.player, house.name)
+        landings.disarm()
+        wrong += [f"{surface}, landing before read {before}: {each}" for each in _says_one_instant_of_the_player(entry)]
+        house.leave()
+        if not landings.landed:
+            break
+        before += 1
+
+    assert before >= 1, f"{surface} read no report, so nothing could land while it was read"
+    assert not wrong, "\n".join(wrong)
+
+
+async def test_a_players_answer_reads_each_players_report_once_and_no_walls(server_url, services, settings, monkeypatch):
+    """Every Players answer reads each Player's report once, and no wall's: three Players, four walls.
+
+    Before, the list read each Player's report twice, once for the views and
+    once for the survey its displays were said from, and so did the answers
+    to adding and renaming one.
+    """
+    walls = [services.display.add_wall(name=name).id for name in ("Study", "Landing", "Attic")]
+    players = [services.clients.add_client(name=name).id for name in ("Study Pi", "Landing Pi", "Attic Pi")]
+    for each in players:
+        services.access.issue(each)
+        _report(settings, each, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+    for wall, player in zip(walls, players, strict=True):
+        services.clients.assign_wall(wall, client_id=player, output="hdmi-a-1")
+    every_wall = [view.wall.id for view in services.display.survey_walls()]
+    assert len(every_wall) == 4, every_wall
+    for each in every_wall:
+        settings.heartbeat_path(each).write_text(_wall_report("wrk_1", [2]), encoding="utf-8")
+    walls_reports = {str(settings.heartbeat_path(each)) for each in every_wall}
+    read = observations.observe
+    counted: list[str] = []
+
+    def counting(path, **kwargs):
+        counted.append(str(path))
+        return read(path, **kwargs)
+
+    for surface, answer in (
+        ("GET /api/clients", lambda: request("GET", f"{server_url}/api/clients")),
+        ("art_players clients", lambda: ok(server_url, "clients")),
+        ("renaming a Player", lambda: request("POST", f"{server_url}/api/clients/{players[0]}", json={"name": "Study Pi"})),
+        ("adding a Player", lambda: request("POST", f"{server_url}/api/clients", json={"name": "Hall Pi"})),
+    ):
+        counted.clear()
+        monkeypatch.setattr(observations, "observe", counting)
+        await answer()
+        monkeypatch.setattr(observations, "observe", read)
+        seen = {path: counted.count(path) for path in set(counted)}
+        every_player = {
+            str(client_heartbeat_path_in(settings.art_root, view.client.id)) for view in services.clients.list_clients()
+        }
+        assert not walls_reports & seen.keys(), f"{surface} read a wall's report"
+        assert seen == dict.fromkeys(every_player, 1), f"{surface}, P={len(every_player)} W={len(every_wall)}: {seen}"
+
+
+async def test_a_players_answer_names_every_output_it_reported_several_labels_and_no_display(server_url, services):
+    """A Player with two label panels and no screen is answered with both, on both surfaces (ruling 8)."""
+    door = services.clients.add_client(name="Door Pi").id
+    services.access.issue(door)
+    labels = [{"name": name, "kind": "epaper", "connected": True, "size": [800, 480]} for name in ("epd-0", "epd-1")]
+    services.clients.record_heartbeat(
+        door, {"reported_at": datetime.now(UTC).isoformat(), "outputs": [], "label_outputs": labels}
+    )
+
+    [tool] = [each for each in (await ok(server_url, "clients"))["clients"] if each["client_id"] == door]
+    listed = (await request("GET", f"{server_url}/api/clients")).json()["clients"]
+    [route] = [each for each in listed if each["client_id"] == door]
+    renamed = (await request("POST", f"{server_url}/api/clients/{door}", json={"name": "Door Pi"})).json()
+
+    for answer in (tool, route, renamed):
+        assert answer["displays"] == []
+        assert answer["walls"] == []
+        assert [label["output"] for label in answer["label_outputs"]] == ["epd-0", "epd-1"]
+        assert [label["name"] for label in answer["heartbeat"]["label_outputs"]] == ["epd-0", "epd-1"]
+        assert answer["heartbeat"]["outputs"] == []
+
+
+def test_a_walls_answer_judges_each_walls_state_once_and_carries_it_once(services, settings, monkeypatch):
+    """`WallsNow` holds a wall's display state in its view alone, and its wait is judged from that one.
+
+    Before, `observe_walls` judged each wall's state for its view and again
+    for a second copy it carried beside the view: two places for one fact.
+    """
+    for name in ("Study", "Landing"):
+        services.display.add_wall(name=name)
+    judged: list[str] = []
+    judge = clients_module.display_state_of
+
+    def counting(reading, *, shown):
+        judged.append(str(reading.path))
+        return judge(reading, shown=shown)
+
+    monkeypatch.setattr(clients_module, "display_state_of", counting)
+    now = services.health.observe_walls()
+
+    assert {field.name for field in fields(WallsNow)} == {"views", "waiting", "survey"}
+    assert len(now.views) >= 3, "the walls the test added, and the one a catalogue starts with"
+    assert sorted(judged) == sorted(str(settings.heartbeat_path(view.wall.id)) for view in now.views)

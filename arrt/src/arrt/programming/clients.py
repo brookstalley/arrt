@@ -256,18 +256,19 @@ class Placements:
     def placement_of(self, wall: Wall) -> WallPlacement:
         return self.survey().placement_of(wall)
 
-    def read_walls(self, wall_id: str | None = None) -> WallsReading:
-        """Every wall, or the one named, with one survey and one read of each wall's report (`WallsReading`).
+    def read_walls(self, wall_ids: frozenset[str] | None = None) -> WallsReading:
+        """Every wall, or those named, with one survey and one read of each wall's report (`WallsReading`).
 
-        **A wall's answer reads every Player's report, and no other wall's.** The
-        survey reads them all because who shows a wall depends on them: a
-        display two Players report now is in fault, and shown by neither. The
-        Player that shows the wall is judged from the same read. A wall named
-        that the survey does not hold is read as no wall: the caller has
-        already looked it up, or answers for none.
+        **An answer about some walls reads their reports and every Player's, and
+        no other wall's.** The survey reads every Player's because who shows a
+        wall depends on them: a display two Players report now is in fault, and
+        shown by neither, and no record says so but those reports. The Player
+        that shows the wall is judged from the same read. A wall named that the
+        survey does not hold is read as no wall: the caller has already looked
+        it up, or answers for none.
         """
         survey = self.survey()
-        walls = [wall for wall in survey.walls if wall_id is None or wall.id == wall_id]
+        walls = [wall for wall in survey.walls if wall_ids is None or wall.id in wall_ids]
         return WallsReading(
             survey=survey, reports={wall.id: heartbeat.read(heartbeat_path_in(self._art_root, wall.id)) for wall in walls}
         )
@@ -337,6 +338,24 @@ class ClientView:
 
 
 @dataclass(frozen=True, slots=True)
+class ClientsReading:
+    """Every Player, or the one asked for, with who shows what, every report read once: what one Players answer says.
+
+    **One answer, one reading**, as `WallsReading` is for walls. A Players
+    answer says of each Player the walls it shows, its displays and the wall on
+    each, its faults and its report. Each of those read from a reading of its
+    own let one answer contradict itself: a Player assigned between two reads
+    listed a wall it shows beside its display on no wall. Built by
+    `ClientService.read_clients`; every such answer reads it alone.
+    """
+
+    #: Who shows what, and every Player's report as read.
+    survey: PlacementSurvey
+    #: Each Player read, from `survey` and its report there, in the order clients are listed.
+    views: Sequence[ClientView]
+
+
+@dataclass(frozen=True, slots=True)
 class WallAssignment:
     """A wall just placed on a display, and anything the curator should know about it."""
 
@@ -385,13 +404,30 @@ class ClientService:
         return client
 
     def list_clients(self) -> Sequence[ClientView]:
-        """Every client, with what it shows, holds and last reported."""
-        survey = self.placements.survey()
-        return [self._view(client, survey) for client in self._store.list_clients()]
+        """Every client, with what it shows, holds and last reported (`read_clients`)."""
+        return self.read_clients().views
 
     def get_client_view(self, client_id: str) -> ClientView:
-        client = self.get_client(client_id)
-        return self._view(client, self.placements.survey())
+        """One client, with what it shows, holds and last reported (`read_clients`)."""
+        [view] = self.read_clients(client_id).views
+        return view
+
+    def read_clients(self, client_id: str | None = None) -> ClientsReading:
+        """Every client, or the one named, each view built from one survey of who shows what (`ClientsReading`).
+
+        **One store scope for the rows and one read of each Player's report.**
+        The scope excludes this process's writers for the whole read, so the
+        clients listed, the walls each shows and the wall on each of its
+        displays are one instant's; each report file is read once, inside it,
+        and each Player's view is judged from that read. A named client the
+        catalogue does not hold is refused, as `get_client` does.
+        """
+        with self._store.reading():
+            if client_id is not None:
+                self.get_client(client_id)
+            survey = self.placements.survey()
+        read = [client for client in survey.clients.values() if client_id is None or client.id == client_id]
+        return ClientsReading(survey=survey, views=[view_of(client, survey, survey.readings[client.id]) for client in read])
 
     def walls_of(self, client_id: str) -> Sequence[Wall]:
         """The walls this client shows now, in the order walls are listed."""
@@ -820,9 +856,6 @@ class ClientService:
         placed = replace(wall, display_id=display.id)
         store_write(self._store.update_wall, placed)
         return placed
-
-    def _view(self, client: Client, survey: PlacementSurvey) -> ClientView:
-        return view_of(client, survey, survey.readings.get(client.id) or self.read_heartbeat(client.id))
 
     def _notice(self, display: Display, client: Client | None) -> str | None:
         if client is None:

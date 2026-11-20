@@ -18,11 +18,13 @@ from pathlib import Path
 import pytest
 from feed_guard import problems
 
+from arrt import observations
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, SceneLifetime, SceneStatus
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming import display as display_module
 from arrt.programming import feeds as feeds_module
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.display import PREVIEW_MINUTES
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
@@ -932,3 +934,62 @@ def test_a_staged_work_kept_off_and_allowed_again_is_staged_again(display, stage
     display.allow_work(works[hall].id)
 
     assert document(hall)["staging"] == [works[hall].id]
+
+
+# -- what a scene's walls read ----------------------------------------------------------
+
+
+def test_a_scene_pinning_one_of_ten_walls_reads_that_walls_report_and_every_players_once(
+    services, display, mastered, two_walls, wall_settings, monkeypatch
+):
+    """Its wall's report and each Player's, once each; no other wall's.
+
+    Every Player's, because whether a display is in fault, and so whether a
+    Player shows the wall at all, is said only by what each Player reports now
+    (`Placements.read_walls`). Before, a scene's walls read every wall's report
+    however few it pinned.
+    """
+    hall, study = two_walls
+    others = [display.add_wall(name=f"Room {n}").id for n in range(8)]
+    every_wall = [hall, study, *others]
+    players = [services.clients.add_client(name=name).id for name in ("Hall Pi", "Study Pi")]
+    for player in players:
+        services.access.issue(player)
+    services.clients.assign_wall(hall, client_id=players[0], output="hdmi-a-1")
+    services.clients.assign_wall(study, client_id=players[1], output="hdmi-a-1")
+    scene = display.draft_scene().scene
+    display.pin_scene(scene.id, hall, mastered("Dalí").id)
+    applied = display.apply_scene(scene.id, lifetime="hold")
+    for wall in every_wall:
+        wall_settings.heartbeat_path(wall).write_text(json.dumps(_beat(scene.id)), encoding="utf-8")
+    named = {str(wall_settings.heartbeat_path(wall)): f"wall {wall}'s report" for wall in every_wall} | {
+        str(client_heartbeat_path_in(wall_settings.art_root, player)): f"Player {player}'s report" for player in players
+    }
+    read = observations.observe
+    counted: list[str] = []
+
+    def counting(path, **kwargs):
+        counted.append(str(path))
+        return read(path, **kwargs)
+
+    monkeypatch.setattr(observations, "observe", counting)
+    [seen] = display.scene_walls(applied)
+
+    assert seen.wall_id == hall
+    assert len(every_wall) == 10
+    reads = {named[path]: counted.count(path) for path in set(counted)}
+    assert reads == dict.fromkeys([f"wall {hall}'s report", *(f"Player {player}'s report" for player in players)], 1)
+
+
+def test_a_scenes_walls_keep_the_order_of_its_pins(display, staged):
+    """In the pins' order, which is not the order walls are listed in: the answer a scene's walls gave before."""
+    scene, works = staged
+    by_id = sorted(works)
+    # Named against their ids, so the walls' listing (by name) and the pins' (by wall) disagree.
+    for name, wall in zip(("Zebra room", "Aardvark room"), by_id, strict=True):
+        display.rename_wall(wall, name=name)
+    applied = display.apply_scene(scene.id, lifetime="hold")
+    listed = [view.wall.id for view in display.survey_walls() if view.wall.id in works]
+    assert listed != [pin.wall_id for pin in applied.pins], "the case itself: listing and pins in different orders"
+
+    assert [wall.wall_id for wall in display.scene_walls(applied)] == [pin.wall_id for pin in applied.pins] == by_id

@@ -1500,7 +1500,7 @@ def add_client(request: Request, body: NameClient) -> ClientOut:
     """Record a client. It has no token until one is issued."""
     services = _services(request)
     added = services.clients.add_client(name=body.name)
-    return _client(services.clients.get_client_view(added.id), services.clients.placements.survey())
+    return _one_client(services, added.id)
 
 
 @router.post("/clients/{client_id}")
@@ -1508,7 +1508,7 @@ def rename_client(request: Request, client_id: str, body: NameClient) -> ClientO
     """Rename a client. Its token and its walls are unchanged."""
     services = _services(request)
     services.clients.rename_client(client_id, name=body.name)
-    return _client(services.clients.get_client_view(client_id), services.clients.placements.survey())
+    return _one_client(services, client_id)
 
 
 @router.delete("/clients/{client_id}")
@@ -2536,11 +2536,20 @@ def _display_state(shown: DisplayState) -> DisplayStateOut:
 
 
 def _clients(services: Services) -> ClientListOut:
-    survey = services.clients.placements.survey()
-    return ClientListOut(clients=[_client(view, survey) for view in services.clients.list_clients()])
+    """Every Player's answer, from one reading taken now (`ClientService.read_clients`)."""
+    reading = services.clients.read_clients()
+    return ClientListOut(clients=[_client(view, reading.survey) for view in reading.views])
+
+
+def _one_client(services: Services, client_id: str) -> ClientOut:
+    """One Player's answer, from a reading of it taken now: after the act that answers with it has written."""
+    reading = services.clients.read_clients(client_id)
+    [view] = reading.views
+    return _client(view, reading.survey)
 
 
 def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
+    """One Player's answer, every part of it from `survey`, the one reading `view` was built from (`ClientsReading`)."""
     client = view.client
     reading = view.heartbeat
     return ClientOut(
