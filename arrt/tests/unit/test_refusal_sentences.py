@@ -301,14 +301,6 @@ OUTSIDE_SENTENCES: dict[tuple[str, str], str] = {
     ("library/services/runner.py", "The collection's own record"): "the collection a run browsed is a museum's",
     ("mcp/bindings.py", "No image instances have been found"): "the collection that has the work is a museum's",
     ("mcp/bindings.py", " Separately, the collection offered"): "the collection that offered works is a museum's",
-    (
-        "mcp/bindings.py",
-        "the catalogue's backup is the operator's",
-    ): "OWED: `mcp/bindings.py` is another chunk's file; the reason a model reads for leaving `backup` out of status",
-    (
-        "mcp/server.py",
-        "Curate a Samsung Frame TV's art collection",
-    ): "OWED: the MCP instructions are another chunk's file; they say the catalogue where a model should read the Library",
 }
 
 
