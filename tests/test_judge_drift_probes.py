@@ -378,9 +378,15 @@ def test_the_free_probe_jobs_record_pytests_exit_and_let_the_judge_decide(drift,
     assert steps.index(probe) < steps.index(judge) < steps.index(report)
 
 
-def test_the_paid_job_is_not_given_a_way_to_excuse_a_skip(drift):
-    """#150's probes skip for want of a key: that is a job that verified nothing, which no row excuses."""
-    steps = drift["jobs"]["openrouter"]["steps"]
+def test_every_drift_job_is_a_free_probe_the_judge_decides(drift):
+    """The two free jobs are the workflow's every job (wave 2b, Chunk 66).
 
-    assert not any("judge_drift_probes" in s.get("run", "") for s in steps)
-    assert any("assert_tests_ran.py" in s.get("run", "") for s in steps)
+    The paid OpenRouter job, which this file once held to have no judge (its
+    probes skip for want of a key, which no row excuses), left CI by the owner's
+    ruling of 2026-11-20 that CI makes no paid call: `live_api` runs by hand. A
+    job added here without the judge would fail its red probes outright, and one
+    holding a model key is `tests/test_ci_makes_no_paid_call.py`'s to refuse.
+    """
+    assert set(drift["jobs"]) == {"museum", "binary"}
+    for job in drift["jobs"].values():
+        assert any("judge_drift_probes.py" in s.get("run", "") for s in job["steps"])

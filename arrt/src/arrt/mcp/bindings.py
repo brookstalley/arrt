@@ -79,7 +79,7 @@ from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import FailedFetches, PicturesReading, SetupStep, SourceHealth, Trouble
+from arrt.services.health import FailedFetches, PicturesReading, SetupStep, SourceHealth, Trouble, WallWait, walls_waiting
 from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -1549,6 +1549,7 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     """
     reading = services.health.observe()
     seen = reading.walls
+    waiting = walls_waiting(seen, reading.players)
     return ok(
         # The reading's own sentence, the same one the browser panel states.
         observation=reading.describe(),
@@ -1566,6 +1567,9 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
                 # The wall's display state, as `art_display(action='walls')` and
                 # `GET /api/health` state it (wave 2b, Chunk 30).
                 "display_state": _display_state_fields(each.state),
+                # Whom the wall waits for while its Player is set up, or None, in
+                # `GET /api/health`'s names (wave 2b, Chunk 66).
+                "waiting_for": _wall_wait_fields(waiting.get(each.wall.id)),
             }
             for each in seen
         ],
@@ -1582,6 +1586,13 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
         troubles=[_trouble_fields(trouble) for trouble in reading.troubles()],
         setup_steps=[_setup_step_fields(step) for step in reading.setup_steps()],
     )
+
+
+def _wall_wait_fields(wait: WallWait | None) -> dict[str, Any] | None:
+    """The Player a wall waits for, in `WallWaitOut`'s names (`test_surface_parity.py`), or None."""
+    if wait is None:
+        return None
+    return {"client_id": wait.client_id, "name": wait.name, "state": str(wait.state), "words": wait.words}
 
 
 def _player_health_fields(view: ClientView) -> dict[str, Any]:
@@ -1641,7 +1652,8 @@ def _preview(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.display.survey_walls()
-    return ok(walls=[_wall_view_fields(services, view) for view in views], count=len(views))
+    waiting = services.health.observe_waiting()
+    return ok(walls=[_wall_view_fields(services, view, waiting) for view in views], count=len(views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -2416,8 +2428,12 @@ def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
     }
 
 
-def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
-    """One wall, what hangs on it, and whether its Player reads the feed."""
+def _wall_view_fields(services: Services, view: WallView, waiting: Mapping[str, WallWait] | None = None) -> dict[str, Any]:
+    """One wall, what hangs on it, and whether its Player reads the feed.
+
+    `waiting` is `HealthService.observe_waiting()`, read once for a list and here for one wall.
+    """
+    waiting = services.health.observe_waiting() if waiting is None else waiting
     return {
         **_wall_fields(services, view.wall),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
@@ -2431,6 +2447,8 @@ def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
         # schedule puts up next; in `GET /api/walls`' shape.
         "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
         "upcoming": [{"artwork_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
+        # Whom the wall waits for while its Player is set up, as `GET /api/walls` says it.
+        "waiting_for": _wall_wait_fields(waiting.get(view.wall.id)),
     }
 
 

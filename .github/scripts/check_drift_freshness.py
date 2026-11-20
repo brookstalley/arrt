@@ -17,12 +17,11 @@ due*, precisely so that absence over an interval is itself the fault. This is
 that idea applied to a workflow: a successful run is the positive signal, and its
 age is the thing measured.
 
-**Per tier, because the two tiers run on different clocks.** The free probes are
-weekly and the paid one monthly, so a single age threshold would either nag about
-a paid tier that is behaving or sleep through three missed weeks of the free one.
-The tiers are told apart by which *jobs* actually ran in each workflow run — a
-weekly run skips the paid job and a monthly run skips the free ones, so a run's
-mere existence says nothing about which tier it refreshed.
+**One tier, the free probes, weekly.** There was a paid tier, monthly, until the
+owner's ruling of 2026-11-20 that CI makes no paid call took the paid probe out of
+CI altogether (wave 2b, Chunk 66): it is run by hand on a person's machine, and
+nothing here can observe it. The tier is read from which *jobs* succeeded in each
+run, so a run whose free jobs failed or were skipped refreshes nothing.
 
 **A known-blocked probe is not a stale one.** `.github/known-blocked.json` lists the
 probes whose red is excused until a date (`known_blocked.py` says why the file exists
@@ -59,38 +58,18 @@ import known_blocked  # noqa: E402 -- a sibling script, importable only once its
 #: pattern rather than noise, and it is still well inside the window in which a
 #: museum contract change matters.
 #:
-#: Paid — monthly, on the 1st. Two missed months, with slack for the longest
-#: month pair (62 days), a delayed run, and the fact that this check only fires on
-#: a push to `main` rather than continuously. It is deliberately loose: this tier
-#: spends real money, it moves slower than the free ones, and a late alarm about
-#: it costs far less than a monthly false one.
-STALE_AFTER = {"free": timedelta(days=21), "paid": timedelta(days=75)}
+#: A scheduled tier that has *never* succeeded is a fault too: a workflow sitting
+#: on an unmerged branch has never run and never will, which is the fault this
+#: file exists for, and the remedy — dispatching it once by hand, as
+#: `api-drift.yml`'s header already prescribes — is free and takes seconds.
+STALE_AFTER = {"free": timedelta(days=21)}
 
-#: Which job in `api-drift.yml` stands for which tier. A run refreshed a tier only
-#: if that tier's job actually *succeeded* in it — `skipped` is the normal state
-#: for the other tier's job in any given run, and `failure` is a run that told us
-#: something but re-verified nothing.
+#: Which job in `api-drift.yml` stands for which scheduled tier. A run refreshed a
+#: tier only if that tier's job actually *succeeded* in it: `skipped`, `cancelled`
+#: and `failure` are runs that re-verified nothing.
 TIER_JOBS = {
     "free": ("Museum APIs (free)", "dezoomify-rs (free)"),
-    "paid": ("OpenRouter (spends money)",),
 }
-
-#: Whether a tier that has *never* succeeded is a fault, or merely a clock that
-#: has not started. The two tiers answer differently, and the difference is money.
-#:
-#: The free tier: yes. A workflow sitting on an unmerged branch has never run and
-#: never will, which is the fault this file exists for, and the remedy —
-#: dispatching it once by hand, as `api-drift.yml`'s header already prescribes —
-#: is free and takes seconds.
-#:
-#: The paid tier: no, and this is the correction to a first version that failed
-#: on both. That version went red the moment it reached `main` and the *only*
-#: ways to clear it were to wait for the first of the month or to spend real
-#: money on a manual dispatch. A check whose green costs money is a check that
-#: gets ignored, and an ignored check takes the free tier's finding down with it.
-#: An un-started paid clock is silent; once it has succeeded once, staleness is
-#: measured against it like any other.
-FAIL_WHEN_NEVER_RUN = {"free": True, "paid": False}
 
 
 def newest_success(runs: list[dict], job_names: tuple[str, ...]) -> datetime | None:
@@ -126,19 +105,13 @@ def main(runs: list[dict], now: datetime, blocked: Path | None = None) -> int:
         limit = STALE_AFTER[tier]
 
         if last is None:
-            if not FAIL_WHEN_NEVER_RUN[tier]:
-                print(
-                    f"{tier}: has never run, which is not reported as a fault — see FAIL_WHEN_NEVER_RUN. "
-                    "It starts being measured once it has succeeded once."
-                )
-                continue
             print(
                 f"::error::The {tier} API-drift probes have never completed successfully. "
                 "GitHub fires `schedule` only for workflows on the default branch, so this is "
                 "what a drift workflow that has not yet been merged — or one whose first run "
                 "failed — looks like. Dispatch it by hand once (Actions -> API drift -> Run "
                 "workflow) to prove the wiring, rather than waiting a week to find a typo. "
-                "That dispatch is free: leave 'Also run the OpenRouter probes' unticked."
+                "That dispatch is free."
             )
             worst = 1
             continue

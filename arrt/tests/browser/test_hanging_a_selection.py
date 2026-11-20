@@ -249,6 +249,27 @@ def test_hang_waits_for_a_tick_and_asks_naming_the_works_and_the_wall(ui, servic
     expect(ui.page.locator(".confirm-consequence")).to_contain_text(f"{wall.name} shows it until something else is hung there")
 
 
+@pytest.mark.parametrize("two_on", ["artworks"], indirect=True)
+def test_a_selection_hung_on_a_wall_whose_player_has_no_token_says_it_waits_and_hangs(ui, api, services, two_on):
+    """Chunk 66, through a list's *Hang…*: the server's words for the wait, not "Everyone in the house sees"; it still hangs."""
+    address, works = two_on
+    wall = the_wall(services)
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
+    words = services.health.observe_waiting()[wall.id].words
+    open_selecting(ui, address)
+    tick(ui, works[0])
+    ui.page.click("#view .selection button.selection-hang")
+
+    consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
+    expect(consequence).to_contain_text(f"{words}.", use_inner_text=True)
+    assert words == f"{wall.name} waits for Hall Pi, which has no token yet"
+    expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
+    ui.page.click(".confirm-actions button:text-is('Hang')")
+    expect(ui.page.locator(".selection-status")).to_have_text(f"Hung 1 work on {wall.name}.", use_inner_text=True)
+    assert hanging_on(api, wall.id) == [works[0].id]
+
+
 def test_declining_the_question_sends_nothing(ui, api, services, two_on_artworks):
     address, works = two_on_artworks
     wall = the_wall(services)
