@@ -26,6 +26,18 @@ already bounded by its own deadline (`library/sources/loading.py`), which says
 what becomes of a call that outlives it; the pool's is a backstop a little
 longer than that, for any finder handed to it directly.
 
+**A source still owing one work's answer is not asked about the next.** Going
+from work to work, a run would otherwise start a call at a slow source for every
+work while the last still ran: about its deadline over the window at once, at a
+museum behind a crawl delay. So while a plugin owes `OWED_CALLS_PER_PLUGIN`
+answers (its `owing()`, `library/sources/loading.py`), a run does not ask it: the
+work is answered with that source not asked, as a pass's hold-back answers it,
+no search is written, and the journal says so (`image_pool.still_asking`, with
+how many it owes). The cost: such a work is not asked at that source on this
+pass, where before it was asked and its answer owed, and waits for a later pass
+to ask it there. A finder handed to the pool directly says nothing of what it
+owes, and is asked for every work.
+
 **The record is written on two threads, and never interleaves a pass's own
 writes.** A search answered within the window is recorded by the run, on its
 own thread, after the run stops waiting; a late one by the source's worker, when
@@ -69,7 +81,13 @@ from arrt.library.discovery.images import (
     LinkGone,
     offers_images,
 )
-from arrt.library.sources.loading import FINDER_DEADLINE_SECONDS, NotAskedThisPass
+from arrt.library.sources.loading import (
+    FINDER_DEADLINE_SECONDS,
+    OWED_CALLS_PER_PLUGIN,
+    NotAskedThisPass,
+    StillAsking,
+    caller_stops_waiting_when,
+)
 from arrt.library.sources.names import museum_name
 from arrt.persistence.discovery_records import SearchOutcome, SourceSearch
 
@@ -192,6 +210,9 @@ class SourceAnswer:
     #: The pass held this source back (`NotAskedThisPass`): it was not asked at
     #: all, so it reads as could-not-be-asked here and no search is recorded.
     not_asked: bool = False
+    #: When it was not asked because it still owes other works answers
+    #: (`StillAsking`), how many it owes; 0 otherwise.
+    still_asking: int = 0
 
 
 #: What the record keeps for each of the pool's answers. Checked complete at
@@ -224,6 +245,15 @@ class _Ask:
 type _Settled = tuple[SourceAnswer | None, BaseException | None]
 #: Where a run's workers put what each source said, by the source's place in the pool.
 type _Heard = queue.SimpleQueue[tuple[int, SourceAnswer | None, BaseException | None]]
+
+
+def _owing(source: Finder) -> int:
+    """How many answers a source owes other works now (a plugin's `owing()`), or 0 for one that does not say."""
+    owing = getattr(source, "owing", None)
+    if not callable(owing):
+        return 0
+    said = owing()
+    return said if isinstance(said, int) and not isinstance(said, bool) else 0
 
 
 def _own_deadline(source: Finder) -> float:
@@ -266,9 +296,10 @@ class ImageSourcePool:
         #: that wakes a waiting look when a source's count falls to nothing.
         self._run_asks: Counter[str] = Counter()
         self._runs_done = threading.Condition()
-        #: How long a run waits for its sources: the slowest source's own deadline
-        #: and the margin, unless a test fixes it. A run waits for every source
-        #: before it answers, so the slowest is what it waits for in any case.
+        #: How long a run waits for its sources at most: the slowest source's own
+        #: deadline and the margin, unless a test fixes it. A run that has heard
+        #: a source of images answers at its window; one that has not, or one
+        #: whose work is owed an answer, waits on, and never past this.
         self._deadline = (
             deadline_seconds
             if deadline_seconds is not None
@@ -355,11 +386,7 @@ class ImageSourcePool:
                 # works like this one, which is neither "holds none" nor "down".
                 declined.append(answer.provider)
             else:
-                log.warning(
-                    "an image source could not be asked for a work: %s",
-                    answer.failure,
-                    extra={"event": "image_pool.unreachable", "provider": answer.provider, "work_title": query.title},
-                )
+                _journal_unasked(answer, query)
                 # Only a source of images leaves the work in doubt. A finder
                 # of pages that could not be asked holds no image either way,
                 # and counting it would keep a work waiting that every source
@@ -404,8 +431,8 @@ class ImageSourcePool:
         patient = self._owed_by(work)
         asked_at = self._now()
         heard: _Heard = queue.SimpleQueue()
-        asks = self._start(query, heard, work, asked_at)
-        settled, at_window = self._wait(heard, patient)
+        asks, not_started = self._start(query, heard, work, asked_at)
+        settled, at_window = self._wait(heard, patient, not_started)
         owed = self._stop_waiting(asks, settled, at_window=at_window, work_id=work, asked_at=asked_at)
         # What arrived between the wait and the stop stands.
         while True:
@@ -424,10 +451,33 @@ class ImageSourcePool:
             answers.append(said or self._not_heard(source, owed=source.provider in owed))
         return answers, owed
 
-    def _start(self, query: ImageQuery, heard: _Heard, work_id: str | None, asked_at: datetime) -> list[_Ask]:
-        """Ask every source on a worker of its own, counted as a run's ask before the worker starts."""
+    def _start(
+        self, query: ImageQuery, heard: _Heard, work_id: str | None, asked_at: datetime
+    ) -> tuple[list[_Ask], dict[int, _Settled]]:
+        """Ask every source on a worker of its own, counted as a run's ask before the worker starts; and those not asked.
+
+        A source still owing other works answers (`_owing`) is not asked, and is
+        answered here, on the run's thread, before any worker starts: so its
+        answer is the run's to keep, never one that could arrive after the run
+        stopped waiting and be written down as owed.
+        """
         asks: list[_Ask] = []
+        not_started: dict[int, _Settled] = {}
         for index, source in enumerate(self._sources):
+            if (owing := _owing(source)) >= OWED_CALLS_PER_PLUGIN:
+                refused = StillAsking(source.provider, owing)
+                not_started[index] = (
+                    SourceAnswer(
+                        provider=source.provider,
+                        outcome=AskOutcome.UNREACHABLE,
+                        offers_images=offers_images(source),
+                        failure=str(refused),
+                        not_asked=True,
+                        still_asking=owing,
+                    ),
+                    None,
+                )
+                continue
             # Counted here, before the worker starts, so a look asking in the gap
             # between this call and the worker sees the run already.
             asks.append(ask := _Ask(index=index, provider=source.provider, release=self._counted(source.provider)))
@@ -443,11 +493,17 @@ class ImageSourcePool:
                 name=f"image-source-{source.provider}",
                 daemon=True,
             ).start()
-        return asks
+        return asks, not_started
 
-    def _wait(self, heard: _Heard, patient: frozenset[str]) -> tuple[dict[int, _Settled], bool]:
-        """The answers heard before the run stops waiting, and whether it stopped at the window rather than the deadline."""
-        settled: dict[int, _Settled] = {}
+    def _wait(
+        self, heard: _Heard, patient: frozenset[str], settled_already: Mapping[int, _Settled]
+    ) -> tuple[dict[int, _Settled], bool]:
+        """The answers heard before the run stops waiting, and whether it stopped at the window rather than the deadline.
+
+        `settled_already` are the sources answered before any was asked (not
+        asked at all), which the run never waits for.
+        """
+        settled: dict[int, _Settled] = dict(settled_already)
         started = time.monotonic()
         window, ends = started + self._window, started + self._deadline
         while len(settled) < len(self._sources):
@@ -574,10 +630,16 @@ class ImageSourcePool:
                 else:
                     images.append(found)
         except NotAskedThisPass as exc:
-            # The pass held the plugin back: nothing was asked, so this source
-            # could not be asked about this work, and no search is recorded.
+            # The pass held the plugin back, or it still owes another work an
+            # answer (`StillAsking`): nothing was asked, so this source could not
+            # be asked about this work, and no search is recorded.
             return SourceAnswer(
-                provider=provider, outcome=AskOutcome.UNREACHABLE, offers_images=offers, failure=str(exc), not_asked=True
+                provider=provider,
+                outcome=AskOutcome.UNREACHABLE,
+                offers_images=offers,
+                failure=str(exc),
+                not_asked=True,
+                still_asking=exc.owed if isinstance(exc, StillAsking) else 0,
             )
         except ImageQueryUnanswerable:
             outcome, failure = AskOutcome.DECLINED, None
@@ -640,6 +702,9 @@ class ImageSourcePool:
         asked_at: datetime,
     ) -> None:
         """`ask`, for a run, on a worker of its own: the answer goes to `heard`, or to the record when the run stopped waiting."""
+        # Read by the plugin's containment for every call this worker makes: once
+        # the run has answered without this source, the call is owed.
+        caller_stops_waiting_when(lambda: ask.abandoned)
         started = time.monotonic()
         said: SourceAnswer | None = None
         raised: BaseException | None = None
@@ -680,6 +745,33 @@ class ImageSourcePool:
             raise ValueError(
                 f"No image source named {provider!r} is wired; the sources are {', '.join(self.providers)}."
             ) from None
+
+
+def _journal_unasked(answer: SourceAnswer, query: ImageQuery) -> None:
+    """Say in the journal why a source has nothing to say about a work: it could not be asked, or was not.
+
+    A source not asked because it still owes another work an answer
+    (`SourceAnswer.still_asking`) is in doubt as one that could not be asked is,
+    and journalled as what it is, with how many answers it owes.
+    """
+    if answer.still_asking:
+        log.info(
+            "an image source was not asked about a work: it still owes %d earlier %s an answer",
+            answer.still_asking,
+            "work" if answer.still_asking == 1 else "works",
+            extra={
+                "event": "image_pool.still_asking",
+                "provider": answer.provider,
+                "work_title": query.title,
+                "owed": answer.still_asking,
+            },
+        )
+        return
+    log.warning(
+        "an image source could not be asked for a work: %s",
+        answer.failure,
+        extra={"event": "image_pool.unreachable", "provider": answer.provider, "work_title": query.title},
+    )
 
 
 def _search_of(work_id: str, said: SourceAnswer, *, asked_at: datetime, answered_at: datetime, late: bool) -> SourceSearch:
