@@ -6,6 +6,14 @@ package), from a checkout that has the tag::
     git fetch origin --tags
     python3 contract/tools/freeze_release.py 1.3.0
 
+and then, in the same checkout, compare every committed copy with what this writes
+from its tag, byte for byte::
+
+    cd contract && uv run pytest -m release_tags
+
+No other run makes that comparison: the pool and CI have no tags, so the marker is
+deselected by default, and selected where a tag is missing it fails naming the tag.
+
 It reads the tag through `git archive`, never the working tree, so what is copied
 is what a Player pinned to the tag installs. A copy holds the fixtures with their
 index, `routes.json`, and the files the tag has of `transport.json` and

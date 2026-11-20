@@ -125,9 +125,14 @@ field asks for it as a change to the package.
   tag through `git archive`, never the working tree, writes `contract/released/<version>/`
   and its `sha256.json` (the tag, the commit it names, each file's hash sorted by
   path), and refuses a directory that already exists, so a copy is written once.
-  `contract/tests/test_freeze_release.py` runs it on a repository made for the test,
-  and again on each committed copy's real tag, comparing every byte, `sha256.json`
-  included; where the tag is not fetched that comparison is skipped by name, not passed.
+  `contract/tests/test_freeze_release.py` runs it on a repository made for the test
+  on every run. **After a freeze, in the same checkout, run
+  `cd contract && uv run pytest -m release_tags`**: it writes each committed copy again
+  from its real tag and compares every byte, `sha256.json` included. That comparison is
+  run by hand and by nothing else, because the pool and CI's checkout have no tags: the
+  marker is deselected by default, and selected where a tag is not fetched it fails
+  naming the tag. Every run holds each copy to its own `sha256.json`
+  (`contract/tests/test_released.py`), which needs no tag.
 - **The package ships `py.typed`** (PEP 561), so a consumer's type checker reads its
   annotations (`contract/tests/test_typed.py`); a consumer needs no allowance to import it.
 - **Read the data through the package:** `root()` is the directory holding
