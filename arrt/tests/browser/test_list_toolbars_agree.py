@@ -54,12 +54,18 @@ NAME_OF = """(button) => {
 }"""
 
 
-def sides(ui):
-    """The names of the visible controls on each side of the page's toolbar, in order."""
+def sides(ui, *, selecting=False):
+    """The names of the visible controls on each side of the page's toolbar, in order.
+
+    The acts on what is ticked live in the toolbar's `.selection` bar, hidden until *Select* is
+    on: they are read only when `selecting`, so each of a page's two reads is whole (Chunk 34 of
+    `build-plan-audit-wave-2b.md` added *Hang…* to the second).
+    """
+    skip = ".toolbar-menu" if selecting else ".selection, .toolbar-menu"
     return ui.page.locator("#view .page-toolbar").evaluate(f"""(bar) => {{
           const name = {NAME_OF};
           const read = (side) => [...side.querySelectorAll('button')]
-            .filter((button) => button.offsetParent !== null && !button.closest('.selection, .toolbar-menu'))
+            .filter((button) => button.offsetParent !== null && !button.closest('{skip}'))
             .map(name);
           return {{
             left: read(bar.querySelector('.page-toolbar-actions')),
@@ -99,6 +105,42 @@ def test_the_list_pages_hold_their_controls_in_one_order_on_the_right(ui, dali):
     # Enough to compare: the pages between them show every control, and Select on three.
     assert set().union(*(side["right"] for side in read.values())) == controls
     assert sum("select" in side["right"] for side in read.values()) == 3
+
+
+#: The lists that have a selection to act on (the Artists index has none).
+SELECTING = ("Artworks", "Search", "Artist")
+
+
+def test_hang_is_among_every_selection_s_acts_on_the_left_and_select_stays_last(ui, dali):
+    """Ruling 6 of 2026-11-19: *Select* is last on the right; what it selects acts on the left.
+    *Hang…* is one of those acts (the IA gives it to any selection, audit 5 F9), so it stands
+    on the left of each list, before *Add to theme…*, never among the controls after *Select*.
+
+    Read from the pages in *Select* mode and held to each other: a page that put *Hang…* after
+    *Select*, on the right, or in another place among the acts, fails by name."""
+    read = {}
+    for page, (address, painted) in list_pages(dali).items():
+        if page not in SELECTING:
+            continue
+        open_list(ui, address, painted)
+        ui.page.click("#view button.select-toggle")
+        expect(ui.page.locator("#view button.select-toggle"), page).to_have_text("Stop selecting", use_inner_text=True)
+        expect(ui.page.locator("#view .selection button.selection-hang"), page).to_be_visible()
+        read[page] = sides(ui, selecting=True)
+        before = ui.page.locator("#view button.selection-hang").evaluate(
+            "(hang) => Boolean(hang.compareDocumentPosition(document.querySelector('#view [data-control=select]'))"
+            " & Node.DOCUMENT_POSITION_FOLLOWING)"
+        )
+        assert before, f"{page}'s Hang… does not come before Select"
+
+    assert set(read) == set(SELECTING)
+    for page, side in read.items():
+        assert "act: Hang…" in side["left"], f"{page}'s Hang… is not among its acts on the left: {side}"
+        assert "act: Hang…" not in side["right"], f"{page}'s Hang… is among its controls: {side}"
+        assert side["right"][-1] == "select", f"{page}'s Select is not last on the right: {side}"
+    # One place among the acts: ahead of Add to theme…, on every page.
+    places = {page: side["left"].index("act: Hang…") - side["left"].index("act: Add to theme…") for page, side in read.items()}
+    assert set(places.values()) == {-1}, f"the pages place Hang… differently among their acts: {places}"
 
 
 def test_each_list_page_says_its_count_once_above_its_toolbar(ui, dali):

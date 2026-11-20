@@ -6,7 +6,9 @@
  * on the works only while it is on, and the acts beside the toggle, in the
  * page's toolbar: *Select all* and every act valid for what is ticked. Held works can be added to a theme —
  * including *New theme…*, so a theme is made from a selection without leaving
- * the list — or archived; works the library does not hold can be got.
+ * the list — hung on a wall (*Hang…*, `core/selection.js`: only the works a
+ * wall can show, the rest said as left out) or archived; works the library
+ * does not hold can be got.
  *
  * **Outside the mode a card has no tick at all**, hidden by `hidden` rather
  * than by colour, so it is out of the tab order too: a tick on every card was
@@ -24,7 +26,7 @@
  */
 
 import { attempt } from "./acting.js";
-import { api } from "./api.js";
+import { api, fetchAllWorks } from "./api.js";
 import { workName } from "./badges.js";
 import { confirmAct } from "./confirm.js";
 import { counted } from "./counting.js";
@@ -32,6 +34,33 @@ import { openPanel } from "./editing.js";
 import { getSelection } from "./getting.js";
 import { addedSentence, addWorksToTheme, stoppedSentence, themeChoice } from "./membership.js";
 import { el } from "./render.js";
+import { hangOnAWall } from "./selection.js";
+
+/* Whether a held work can be shown on a wall at all: not archived, and with a
+ * picture. The Work page leaves *Hang…* disabled for the same two, so a
+ * selection leaves the same works out rather than hanging a wall short. A work
+ * read without `image` or `status` is taken to be hangable; the build names
+ * what it cannot show. */
+function canHang(work) {
+  return work.status !== "archived" && !(work.image && work.image.available === false);
+}
+
+/* The works a filter matches, read through to the end, as the grid reads them:
+ * `held.filter` is the body the selection routes take, `fetchAllWorks` its
+ * query. A list that stops short is refused rather than hung part way. */
+async function worksOfFilter(filter) {
+  const chosen = {};
+  for (const [key, value] of Object.entries(filter)) if (Array.isArray(value)) chosen[key] = value;
+  const read = await fetchAllWorks(filter.q || "", chosen, null, filter.sort || null, {
+    artistId: filter.artist_id || null,
+    status: filter.status || null,
+    theme: filter.theme || null,
+    notOnWall: Boolean(filter.not_on_wall),
+    shown: filter.shown || null,
+  });
+  if (read.works.length < read.total) throw new Error(`Only ${read.works.length} of the ${read.total} matching works could be read.`);
+  return read.works;
+}
 
 /* `held`, for a list of works the library holds:
  *   - `themes`: `[{ theme_id, name }]` a selection can be added to;
@@ -42,6 +71,10 @@ import { el } from "./render.js";
  *     routes take it, when the list pages from the server; null when every
  *     work is loaded;
  *   - `total`: how many works the filter matches;
+ *   - `hang`: true to offer *Hang…* (Artworks, an Artist's works, the search
+ *     results, a Topic's). Not offered by default: a theme's page asks for a
+ *     selection too, and has a *Hang…* of its own, which hangs the theme, so a
+ *     second one beside it on that page would name two acts alike;
  *   - `onAdded(theme, added)`, `onArchived(ids)`, `onRemoved(id)` and
  *     `afterRemoval({ removed, complete })`: what the page does about an act's
  *     outcome, since only it knows its tiles and its counts.
@@ -92,6 +125,12 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   const add = held ? el("button", { class: "action quiet selection-add", type: "button", "aria-haspopup": "dialog", text: "Add to theme…" }) : null;
   const confirmAdd = held ? el("button", { class: "action add-confirm", type: "button" }) : null;
   let addPanel = null;
+  // *Hang…* puts the ticked works on a wall until something else is hung there
+  // (`core/selection.js`). It names no count, as *Add to theme…* does not: the
+  // question it opens does, and says how many were left out.
+  const hang = held && held.hang ? el("button", { class: "action quiet selection-hang", type: "button", "aria-haspopup": "dialog", text: "Hang…" }) : null;
+  // Whether each ticked work can hang (`canHang`), by id, kept as the ticks are drawn.
+  const hangable = new Map();
   const archive = held ? el("button", { class: "action quiet selection-archive", type: "button" }) : null;
   const remove = held && held.shownTheme ? el("button", { class: "action quiet selection-remove", type: "button" }) : null;
 
@@ -131,6 +170,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
       confirmAdd.disabled = heldCount() === 0 || !choice.ready();
       confirmAdd.textContent = heldCount() ? `Add ${works} to ${destination()}` : `Add to ${destination()}`;
     }
+    if (hang) hang.disabled = heldCount() === 0;
     if (archive) {
       archive.disabled = heldCount() === 0;
       archive.textContent = heldCount() ? `Archive ${works}…` : "Archive…";
@@ -285,6 +325,47 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     });
   }
 
+  if (hang) {
+    hang.addEventListener("click", async () => {
+      // What is ticked, as works: the ticked ids, or, when *Select all* stands
+      // for a filter, every work it matches read now, less what was unticked.
+      let chosen = [];
+      const read = await attempt(hang, "read the selected works", async () => {
+        chosen = everything
+          ? (await worksOfFilter(held.filter)).filter((work) => !unticked.has(work.artwork_id)).map((work) => [work.artwork_id, canHang(work)])
+          : [...ticked].map((artworkId) => [artworkId, hangable.get(artworkId) !== false]);
+      });
+      if (!read) return;
+      // Only held works are here, and only those a wall can show: a registry
+      // work has no id to send, and one with no picture would hang a wall dark.
+      const ids = chosen.filter(([, hangs]) => hangs).map(([artworkId]) => artworkId);
+      const leftOut = chosen.length - ids.length;
+      if (!ids.length) {
+        openPanel({
+          title: "Hang…",
+          lead: `${chosen.length === 1 ? "That work has no picture yet or is archived" : `Those ${chosen.length} works have no picture yet or are archived`}, so there is nothing to show on a wall.`,
+        });
+        return;
+      }
+      const works = counted(ids.length, "work");
+      await hangOnAWall({
+        control: hang,
+        artworkIds: ids,
+        title: works,
+        leftOut,
+        then: (build) => {
+          const stuck = build.exclusions.length;
+          const details = [...new Set(build.exclusions.map((exclusion) => exclusion.detail))].join(" ");
+          done(
+            stuck
+              ? `Hung ${works} on ${build.wall_name}, but ${counted(stuck, "work")} cannot be shown yet: ${details}`
+              : `Hung ${works} on ${build.wall_name}.`,
+          );
+        },
+      });
+    });
+  }
+
   if (archive) {
     archive.addEventListener("click", async () => {
       const works = counted(heldCount(), "work");
@@ -347,6 +428,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
 
   const heldGroup = held
     ? el("div", { class: "selection-group" }, [
+        hang,
         add,
         remove,
         archive,
@@ -388,6 +470,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
         settle();
       });
       heldBoxes.set(work.artwork_id, box);
+      hangable.set(work.artwork_id, canHang(work));
       settle();
       return box;
     },
