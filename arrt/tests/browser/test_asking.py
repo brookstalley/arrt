@@ -149,7 +149,8 @@ def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, a
     expect(cards.nth(0).get_by_role("button", name="Get this work")).to_have_count(1)
     expect(cards.nth(1)).to_contain_text("Pieter Brueghel the Elder", use_inner_text=True)
     expect(cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder")).to_have_count(1)
-    expect(turn.locator(".ask-ending")).to_have_text("This reply cost under $0.01.", use_inner_text=True)
+    # The server's words (`summary`, `SpendTotal.words`, Chunk 62): two calls at $0.0012, said as they are.
+    expect(turn.locator(".ask-ending")).to_have_text("This reply cost $0.0024.", use_inner_text=True)
 
 
 def test_a_work_card_gets_into_the_default_theme_with_nothing_beside_its_get(ui, services, ask_model):
@@ -203,7 +204,7 @@ def test_a_work_card_whose_themes_cannot_be_read_starts_nothing_and_says_why(ui,
 
 
 def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
-    """Not "This reply cost under $0.01." alone, which would read as cheaper than it was."""
+    """Not "This reply cost $0.0012." alone, which would read as cheaper than it was: "at least", in the Spend page's words."""
     ask_model.replies += [unpriced(calls(SEARCH)), says(ANSWER)]
     ui.open("#discover")
     ui.page.wait_for_selector("#ask-words")
@@ -212,7 +213,7 @@ def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
 
     expect(ui.page.locator(".ask-turn").last.locator(".ask-ending")).to_have_text(
-        "This reply cost under $0.01, and 1 of its steps reported no cost.", use_inner_text=True
+        "This reply cost at least $0.0012, and 1 call whose cost is unknown.", use_inner_text=True
     )
 
 
@@ -359,7 +360,7 @@ def test_a_step_that_could_not_answer_is_marked_as_gone_wrong(ui, ask_model):
     expect(step).to_have_text(
         re.compile(re.escape("Trying art_discovery start — it could not answer") + r"\s*$"), use_inner_text=True
     )
-    expect(ui.page.locator(".ask-status")).to_have_text("This reply cost under $0.01.", use_inner_text=True)
+    expect(ui.page.locator(".ask-status")).to_have_text("This reply cost $0.0024.", use_inner_text=True)
 
 
 class TestEnter:

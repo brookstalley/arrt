@@ -28,6 +28,7 @@ import { confirmAct } from "../core/confirm.js";
 import { stamp } from "../core/dates.js";
 import { el, emptyState, render } from "../core/render.js";
 import { link, refresh } from "../core/router.js";
+import { dollars } from "../core/spend.js";
 
 const CADENCE_WORDS = { hourly: "Hourly", daily: "Daily", weekly: "Weekly" };
 const CADENCES = ["hourly", "daily", "weekly"];
@@ -121,7 +122,9 @@ function watchPanel(watch) {
       el("dt", {}, [el("label", { for: `watch-${id}-cap`, text: "Monthly cap" })]),
       el("dd", {}, [capField(watch)]),
       el("dt", { text: "This month" }),
-      el("dd", { class: "watch-spend", text: `$${watch.spent_usd} spent of $${watch.effective_cap_usd}.` }),
+      // What its runs spent, in the server's words (`summary`, `SpendTotal.words`):
+      // "at least" when a call's cost is unknown (wave 2b, Chunk 62).
+      el("dd", { class: "watch-spend", text: `Spent ${watch.summary}, of ${dollars(watch.effective_cap_usd)}.` }),
       el("dt", { text: "Next" }),
       el("dd", { class: "watch-next" }, nextWords(watch)),
       el("dt", { text: "Last run" }),
@@ -185,7 +188,7 @@ function capField(watch) {
   });
   control.addEventListener("change", async () => {
     const typed = control.value.trim().replace(/^[$]/, "");
-    const changed = await send(control, watch, { monthly_cap_usd: typed }, typed ? `set the Watch's cap to $${typed}` : "clear the Watch's cap");
+    const changed = await send(control, watch, { monthly_cap_usd: typed }, typed ? `set the Watch's cap to ${dollars(typed.replace(/^[$]/, ""))}` : "clear the Watch's cap");
     if (!changed) control.value = watch.monthly_cap_usd ?? "";
   });
   return el("span", { class: "money-field" }, [el("span", { "aria-hidden": "true", text: "$" }), control]);
