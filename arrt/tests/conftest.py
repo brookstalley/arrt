@@ -18,13 +18,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Final
 
+import player_e2e_header
 import pytest
 from fakes import FakeEngine, FakeReader, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
-from player_e2e_header import header as player_e2e_header
 from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
@@ -110,13 +110,49 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
 
 
-def pytest_report_header(config: pytest.Config) -> str:
-    """Say on every run whether its marker expression leaves out the real-Player test (`player_e2e_header.py`).
+# -- the real-Player test, said by name on every run (`player_e2e_header.py`) --------------
+#
+# Under `-n auto` pytest prints no deselected count, so without these the default suite's
+# leaving the test out would be silent. Public hooks only: the header says where the test
+# runs; what this run did with it is read from what was collected and deselected, and, under
+# xdist, handed from each worker to the controller in `workeroutput`.
 
-    Under `-n auto` pytest prints no deselected count, so without this line the
-    default suite's leaving it out would be silent.
-    """
-    return player_e2e_header(config.option.markexpr)
+_PLAYER_E2E_SEEN = pytest.StashKey[list[dict[str, bool]]]()
+_PLAYER_E2E_DESELECTED = pytest.StashKey[list[str]]()
+
+
+def pytest_report_header(config: pytest.Config) -> str:
+    """Where the real-Player test runs, and how to run it by hand: true of every run."""
+    return player_e2e_header.WHERE
+
+
+def pytest_deselected(items: Sequence[pytest.Item]) -> None:
+    for item in items:
+        item.config.stash.setdefault(_PLAYER_E2E_DESELECTED, []).append(str(item.path))
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    config = session.config
+    seen = player_e2e_header.seen((item.path for item in session.items), config.stash.get(_PLAYER_E2E_DESELECTED, []))
+    config.stash.setdefault(_PLAYER_E2E_SEEN, []).append(seen)
+    workeroutput = getattr(config, "workeroutput", None)  # set on an xdist worker, and only there
+    if isinstance(workeroutput, dict):
+        workeroutput[player_e2e_header.KEY] = seen
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node: object, error: object) -> None:
+    """An xdist worker's view of the collection, received by the controller."""
+    config = getattr(node, "config", None)
+    seen = getattr(node, "workeroutput", {}).get(player_e2e_header.KEY)
+    if isinstance(config, pytest.Config) and isinstance(seen, dict):
+        config.stash.setdefault(_PLAYER_E2E_SEEN, []).append(seen)
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter, config: pytest.Config) -> None:
+    """What this run did with the real-Player test, in one line of its own wording for each case."""
+    seen = config.stash.get(_PLAYER_E2E_SEEN, [])
+    terminalreporter.write_line(player_e2e_header.after_collection(player_e2e_header.merged(seen) if seen else None))
 
 
 @pytest.fixture(autouse=True)
