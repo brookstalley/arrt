@@ -245,8 +245,42 @@ def test_a_new_arrival_starts_at_the_top_and_does_not_restore(ui, a_long_artwork
     assert ui.page.evaluate("() => window.scrollY") == 0
 
 
+#: Where each document this browser context starts writes its address, for the
+#: modifier-click test: the origin's storage, which its tabs share.
+STARTED_KEY = "arrt-test-documents-started"
+
+#: Run at the start of every document in the context, the new tab's included.
+#: `about:blank` has no storage of its own and throws; it is not one of ours.
+#: Once a document: under load the script can run twice in the new tab (on the
+#: pool, 8 runs in 300 listed the work's tab twice), and the claim is about
+#: documents, not runs of the script.
+RECORD_STARTED = f"""
+(() => {{
+  if (window.__arrtStartedRecorded) return;
+  window.__arrtStartedRecorded = true;
+  try {{
+    const started = JSON.parse(localStorage.getItem("{STARTED_KEY}") || "[]");
+    localStorage.setItem("{STARTED_KEY}", JSON.stringify([...started, location.href]));
+  }} catch {{}}
+}})();
+"""
+
+
 def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artworks):
-    """Ctrl-click or Cmd-click is a new tab, so this page stays where it is."""
+    """Ctrl-click or Cmd-click is a new tab, so this page stays where it is.
+
+    **The tab is seen by the document it starts, not by Playwright's `page`
+    event (#441).** Under load the event sometimes never comes: on the pool,
+    9 runs in 300 with the click on the link, Ctrl held and not prevented,
+    and Chromium's own list of tabs showing the new one at `#work/<id>`
+    within a second, Playwright reported no page in 30 seconds. Playwright
+    reports a new tab only once Chromium has told it the tab's first
+    navigation committed (`Page.frameNavigated`), and with the renderer
+    slowed the protocol log shows that message never sent for the tab. So
+    every document of the context writes its address as it starts, and the
+    claim is read from there.
+    """
+    ui.page.context.add_init_script(RECORD_STARTED)
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     # The work is read from the card the click is on, before the click: read
@@ -254,13 +288,16 @@ def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artwork
     # by then.
     first = ui.page.locator("ul.grid li.card").first
     work_id = first.get_attribute("data-artwork")  # one-shot: the card about to be opened, read once the grid painted
-    with ui.page.context.expect_page() as opened:
-        first.locator(".card-title a").click(modifiers=["ControlOrMeta"])
-    # The tab is announced when it is created, still at about:blank; under a
-    # loaded machine it can be read before it has navigated. Asserted on the
-    # address itself, which is the claim, and retried: `wait_for_url` also
-    # waited for the new tab's load event, which is not.
-    expect(opened.value).to_have_url(re.compile(re.escape(f"#work/{work_id}") + "$"))
+    first.locator(".card-title a").click(modifiers=["ControlOrMeta"])
+    ui.page.wait_for_function(
+        "([key, address]) => JSON.parse(localStorage.getItem(key) || '[]').some((href) => href.endsWith(address))",
+        arg=[STARTED_KEY, f"#work/{work_id}"],
+    )
+    # Two documents and no third: this page, once, and the work's tab. A page
+    # that had taken the link and loaded the work itself would be a second
+    # document here, or this page's address below.
+    started = ui.page.evaluate("(key) => JSON.parse(localStorage.getItem(key))", STARTED_KEY)
+    assert [href.partition("#")[2] for href in started] == ["collection", f"work/{work_id}"], started
     # The click's own handler runs inside the click, so a page that had taken
     # the link would have its new address by now.
     expect(ui.page).to_have_url(re.compile(r"#collection$"))

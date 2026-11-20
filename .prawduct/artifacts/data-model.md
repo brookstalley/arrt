@@ -2382,29 +2382,38 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 > **The file's own**, neither the Library's nor Programming's: one row in the
 > catalogue file's `catalogue_opened` table, declared in `persistence/file.py`
 > (`OPENED_SCHEMA`) beside the two adapters' schemas, and read and written only
-> by the open. *Built 2026-11-19, `build-plan-audit-wave-2.md` Chunk 06.*
+> by the open. *Built 2026-11-19, `build-plan-audit-wave-2.md` Chunk 06;
+> `schema_generation` added the same day, after the boundary review (the
+> DECISION's dated amendment).*
 
-Which release last opened the file, when, and whether that open finished its
-migrations. It answers three questions and holds nothing else: the operator's
-before a rollback (which release last opened this, and when), the server's at
-start (was this file opened by a newer release than me), and support's after a
-failed upgrade (did the last open finish migrating).
+Which release last opened the file, when, which catalogue shape that release's
+code expects, and whether that open finished its migrations. It answers three
+questions and holds nothing else: the operator's before a rollback (which
+release last opened this, and when), the server's at start (was this file
+opened by code expecting a shape this code does not know), and support's after
+a failed upgrade (did the last open finish migrating).
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | integer | PK, `CHECK (id = 1)` | One row at most; the store enforces "at most one", and every open through `open_catalogue_file` writes it, so a file any release from 2026-11-19 on has opened has exactly one. |
-| `release` | string | required | The opening release's version as its installed package states it (`importlib.metadata.version("arrt")`, which is `pyproject.toml`'s `version`). Compared by its first three numbers. |
+| `release` | string | required | The opening release's version as its installed package states it (`importlib.metadata.version("arrt")`, which is `pyproject.toml`'s `version`). **A fact for the operator and the journal, not what the guard compares**: `develop` carries one version string across many schema changes. Checked before it is written: a release that does not start with three numbers stops the open (`UnreadableRelease`). |
 | `opened_at` | datetime | required | When that open began, by the open's clock. |
 | `migrations_completed` | boolean | required | Written false before the first migration and true after the last, so an open killed mid-migration leaves it false. |
+| `schema_generation` | integer | nullable | The catalogue shape generation the opening code expects (`file.SCHEMA_GENERATION`, raised by hand at each migration and at any table, column or index taken away or redeclared; `arrt/tests/unit/test_schema_generation.py` holds it to the shape). Null only on a row a build from before generations wrote, until the next open; widening adds the column to such a row, which is why it is nullable. |
 
 > **Not `PRAGMA user_version`**, which marks a migration in progress from its
 > pre-migration copy until its last step (`backup.MIGRATION_BEGUN`). **A file
-> whose row names a newer release is refused** before anything touches it
-> (`NewerRelease`, naming both releases; a version this code cannot read counts
-> as newer), and a file with no row opens. The guard protects a downgrade only
-> to a release that carries it: v0.11.0 and older ignore the table and start
+> whose row names a higher `schema_generation` than this code's is refused**
+> before anything touches it (`NewerRelease`, naming both releases and both
+> generations, and the copies beside the file that this code opens), and so is
+> a generation it cannot read; a file at this generation or a lower one opens
+> whatever `release` says, and a file with no row opens. A row with no
+> generation opens unless its `release` is numbered later than this code's (the
+> refusal the guard before generations made). The open that raises a file's
+> generation copies the file first. The guard protects a downgrade only to a
+> release that carries it: v0.11.0 and older ignore the table and start
 > (`operational-spec.md` § Backup and Restore). Additive: no copy is taken for
-> it, and a release from before it ignores the table.
+> the table or its new column, and a release from before either ignores it.
 
 ### TvBinding *(display plane only)*
 

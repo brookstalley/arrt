@@ -44,14 +44,17 @@ Chromium; `--suite governance|curation|browser|contract` picks one, and a path
 after `--` picks tests. `.testament.toml` says how each runs. CI runs every suite
 on the pool (`.github/workflows/tests.yml`); when the pool cannot answer for ten
 minutes it runs lint and the governance, curation and contract suites on the
-GitHub runner instead, never the browser suite, and its summary says so
-(`docs/testing.md` § The browser suite). The commands above are the local
+GitHub runner instead, never the browser suite; its summary says so, and the
+non-required check "The browser suite ran on the pool" goes red (`docs/testing.md`
+§ The browser suite). The commands above are the local
 equivalents, and testament's own fallback runs `.testament.toml`'s commands here. The live suites
 (`live_*`, `llm_eval`) are not on the pool and stay on this machine.
 
-**Lint includes the type check**, `uv run mypy` in `arrt/` and in `contract/`
-(the root is not type-checked); CI's lint step runs both, and no module is
-excused from it. **`arrt/tests/system/` is part of the curation suite**: it runs
+**The type check is `uv run mypy` in `arrt/` and in `contract/`** (the root is
+not type-checked), and no module is excused from it. CI runs it once per change,
+in the governance suite on the pool (`tests/preferences/test_type_gate.py`), not
+in the lint step; that test needs both environments made first (`cd arrt && uv
+sync --group dev --group browser`, `cd contract && uv sync --group dev`). **`arrt/tests/system/` is part of the curation suite**: it runs
 the server as a process over catalogues past releases left. **The real-Player
 test is marker `player_e2e`, off by default** (it fetches Arrt Player from
 GitHub): its command and what it needs are in `docs/testing.md` § The

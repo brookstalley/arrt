@@ -38,8 +38,10 @@ was reading the wrong number.
 **A run on the pool, or a fallback without the browser suite.** `tests.yml` passes
 `--decision`, the record `pool_or_fallback.py` wrote of where the suites ran. On the
 pool, the report the run wrote must hold every suite the manifest declares, as
-before. In a fallback, the record must earn it (its attempts end where only the
-pool's own trouble could, `fallback_is_earned`), and then each suite the fallback
+before. In a fallback, the record must earn it (`fallback_is_earned`: its attempts
+end where only the pool's own trouble could, and their recorded times and waits
+account for the ten minutes, or the deadline, the fallback claims to have waited out,
+so one retryable blip earns nothing), and then each suite the fallback
 runs must have run something in its own report, and only the suites the manifest
 says need a labelled runner may be missing. A pool record that excuses any suite,
 or a fallback record whose excused suites are not exactly those, fails: "browser not
@@ -197,7 +199,8 @@ def main_with_decision(path: Path, manifest: Path, decision_path: Path) -> int:
     if not decider.fallback_is_earned(decision.attempts):
         print(
             "::error::the record claims a fallback that its attempts do not earn; a fallback follows only a pool that "
-            "could not answer, never a verdict: " + "; ".join(decider._attempt_line(a) for a in decision.attempts)
+            "could not answer for the whole budget (or held a run to the deadline), never a verdict: "
+            + "; ".join(decider._attempt_line(a) for a in decision.attempts)
         )
         return 1
     reports, not_run = decider.fallback_plan(tomllib.loads(manifest.read_text(encoding="utf-8")))

@@ -4,15 +4,15 @@ type: fix
 scope: audit-wave-2
 date: 2026-11-19
 title: The audit's second wave, first part: the server is checked where it is assembled, its records say what is true, and a catalogue an old release left can be read again
-closes: [brookstalley/arrt#382]
+closes: [brookstalley/arrt#382, brookstalley/arrt#441]
 ---
 This is the first of two parts of the audit's second wave (`build-plan-audit-wave-2.md`,
 chunks 01 to 22). It changes what is checked and where code lives far more than what a
 person sees: the records, the contract's next minor, CI that survives a pool outage, tests
 of what ships, a type checker, the browser suite's retrying assertions and the split of
-`DisplayService`. It closes one issue, #382. #441 and #442 (two flaky browser tests) are
-touched and stay open: both tests now print what the page said when they fail, but the
-cause of neither is established. #109, #110 and #150 (the drift probes) stay open too:
+`DisplayService`. It closes two issues, #382 and #441. #442 (a flaky browser test) is
+touched and stays open: the test now prints what the page said when it fails, but its
+cause is not established. #109, #110 and #150 (the drift probes) stay open too:
 their red is now marked known-blocked, which silences nothing about the cause. #216 (the
 store split) and #307 (three answers computed at many sites) are not closed. The part of
 the wave that changes behaviour, the MCP surface's one break included, is the next plan's.
@@ -80,8 +80,9 @@ opened by today's. It found a real defect, now fixed: a catalogue last opened by
 could not be read, because its `tv_display` rendition rows survived the canvas migration and
 reading one raised. The restore is a test too, and the old runbook was wrong in a way that
 silently undid a restore (below). The catalogue records which release last opened it, when,
-and whether its migrations finished (`catalogue_opened`), and a release meeting a file a
-newer release opened refuses to start before it copies or changes anything.
+and whether its migrations finished (`catalogue_opened`), with the shape generation that
+release expects. A release meeting a file that expects a higher generation refuses to
+start before it copies or changes anything; a newer release number alone refuses nothing.
 
 **A misbehaving plugin (07).** A real plugin distribution, found by the loader's own
 entry-point scan, is driven through a real Get: it raises; answers the wrong type, an
@@ -114,9 +115,14 @@ retrying `expect`, `expect` waits as long as a locator does, and a guard
 unless its line says why. `docs/testing.md` holds the table of forms and the hazards, each measured
 on Playwright 1.62 or marked as reported. The conversion found tests that passed by
 timing: a declined dialog's "No keeps it" stayed green when Cancel removed the thing,
-because the server's state was read before the client's request went out. #442 reproduced once
-in 240 runs under load and #441 not in 180, and the cause of neither is established; each
-test now asserts so the next red prints what the page held.
+because the server's state was read before the client's request went out. #441 (a
+modifier-click that should open a new tab) is settled, and it was the harness, not the
+page: under load Playwright sometimes never reports a tab that Chromium did open. Measured
+on the pool, in runs that failed, the click reached the link with the modifier held and
+nothing prevented it, and Chromium's own list of tabs held the new one within a second.
+The test now reads the claim from the documents the browser starts, not from Playwright's
+`page` event. #442 reproduced once in 240 runs under load; its cause is not established,
+and its test now asserts so the next red prints what the page held.
 
 **`DisplayService` (20, 21).** It is a facade of one-line delegations over `feeds.py`,
 `themes.py`, `walls.py`, `scenes.py` and `reports.py`, each calling only the publisher and
@@ -154,14 +160,18 @@ the catalogue and rename it over `catalogue.sqlite`; on a new machine restore `r
 Your own restore notes, if you keep them outside this repository, need the journal step.
 
 **The first start adds one table, `catalogue_opened`, to the catalogue**, recording which
-release opened it; nothing is dropped, so no copy is taken for it (a file that still needs a
-migration that drops data is copied first to `pre-migration-<UTC instant>.sqlite`, as in
-the previous release, and the server does not start if the copy cannot be written). From
-then on a release that carries the record refuses to start on a file a newer release opened,
-naming both. **The way back is still the copy taken before the migration and the previous
-image together:** v0.11.0 does not carry the record and opens the file without a word, so
-the refusal protects only a downgrade to a release that does. `backup.completed` in the
-journal gains `copy_seconds`.
+release opened it, when, and the catalogue shape generation its code expects; nothing is
+dropped, so no copy is taken for it (a file that still needs a migration that drops data is
+copied first to `pre-migration-<UTC instant>.sqlite`, as in the previous release, and the
+server does not start if the copy cannot be written). From then on a release that carries
+the record refuses to start on a file recorded at a higher shape generation than its own,
+naming both releases and the copies beside the file that it opens; **it does not compare
+release numbers**, so a rollback across no change to the shape (a bad patch release back to
+the one before) starts on the previous image alone. A release whose own version is not three
+numbers stops at start, before writing anything. **The way back across a migration is still
+the copy taken before it and the previous image together:** v0.11.0 does not carry the
+record and opens the file without a word, so the refusal protects only a downgrade to a
+release that does. `backup.completed` in the journal gains `copy_seconds`.
 
 The MCP surface is unchanged in this part; its one allowed break is in the next. **Nothing
 here needs a Player upgrade**: the contract's 1.2.0 is additive and the `contract-v1.2.0`

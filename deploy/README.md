@@ -160,14 +160,27 @@ disk, a read-only mount). Free the space or make the directory writable, or poin
 copy, so nothing is lost by the refusal.
 
 **The way back across such a migration** is that copy and the previous image
-together (`operational-spec.md` § Backup and Restore). Stop the server, remove
-`catalogue.sqlite-journal` (and a `-wal` or `-shm`, if anything left one) from
-beside the catalogue, copy the chosen copy in and rename it over
-`catalogue.sqlite`, then start the previous image: a copy put in beside a hot
-journal opens as the stopped server's last commit, and looks fine. The previous
-image does not check which release last opened the catalogue unless it is a
-release that carries that record (v0.11.0 does not), so the copy is what makes
-the way back safe, never the image alone. A restart is not a
+together (`operational-spec.md` § Backup and Restore, whose numbered steps these
+are):
+
+1. Stop the server.
+2. Remove `catalogue.sqlite-journal` (and a `-wal` or `-shm`, if anything left
+   one) from beside the catalogue: a copy put in beside a hot journal opens as
+   the stopped server's last commit, and looks fine.
+3. Copy the chosen copy in beside the catalogue and rename it over
+   `catalogue.sqlite`.
+4. Start the previous image.
+
+**Which rollbacks need it (2026-11-19).** The catalogue records the shape
+generation each release expects (`catalogue_opened.schema_generation`), and a
+release that carries the record refuses only a file recorded at a higher
+generation than its own, naming the copies beside the file that it opens, or
+saying there are none. So a rollback across no change to the shape, such as a bad
+patch release back to the one before it, is the previous image alone, and the
+previous image says so by starting; one across a raised generation is refused
+and is the steps above. A release from before the record (v0.11.0 and older)
+checks nothing and opens a migrated file without a word, so to one of those the
+copy is what makes the way back safe, never the image alone. A restart is not a
 backup either way: the start-up backup pass is skipped while the newest
 generation is younger than `BACKUP_INTERVAL_SECONDS`, so a server restarting in a
 loop no longer replaces the generations from before the upgrade.

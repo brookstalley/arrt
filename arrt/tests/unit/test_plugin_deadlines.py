@@ -12,6 +12,7 @@ Every deadline here is a fraction of a second, given through `Deadlines` or the
 pool's `deadline_seconds`; nothing waits out the real ones.
 """
 
+import dataclasses
 import importlib.metadata
 import logging
 import threading
@@ -33,11 +34,13 @@ from arrt.library.services.pictures import PictureStore
 from arrt.library.sources import SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.loading import (
     DEADLINE_CEILING_SECONDS,
+    DEADLINE_KINDS,
     ENTRY_POINT_GROUP,
     FINDER_DEADLINE_SECONDS,
     Deadlines,
     PluginState,
     SourceRoster,
+    declared_deadlines,
     load_sources,
 )
 
@@ -466,6 +469,98 @@ def test_a_declaration_for_one_kind_of_call_leaves_the_others_at_their_defaults(
     list(roster.finders[0].find_images(QUERY))
 
     assert clock.waited_for == [FINDER_DEADLINE_SECONDS]
+
+
+# -- every kind a plugin may declare reaches the call it is for ----------------------
+#
+# `DEADLINE_KINDS` is the one list of kinds and `declared_deadlines` builds the
+# `Deadlines` from a plugin's declaration. A kind in the list that the builder does
+# not carry would load, validate, and run at the default: a plugin declaring an hour
+# for it would be cut off at a minute with nothing said. These tests are
+# parametrised over the list, so a kind added to it without its field, or a field
+# the builder does not carry, fails by naming the kind.
+
+
+def declared_value(kind: str) -> float:
+    """A value no kind's default equals, different for each kind so a crossed wire shows."""
+    return 1000.0 + 100.0 * DEADLINE_KINDS.index(kind) + 7.0
+
+
+@pytest.mark.parametrize("kind", DEADLINE_KINDS)
+def test_every_deadline_kind_is_a_float_field_of_deadlines(kind):
+    fields = {field.name: field for field in dataclasses.fields(Deadlines)}
+    assert kind in fields, f"{kind!r} is a deadline kind but not a field of Deadlines"
+    assert isinstance(fields[kind].default, float), f"Deadlines.{kind} is not a float"
+
+
+@pytest.mark.parametrize("kind", DEADLINE_KINDS)
+def test_a_value_declared_for_any_kind_arrives_on_the_deadlines_and_no_other_changes(kind):
+    base = Deadlines()
+    declared = declared_value(kind)
+    assert getattr(base, kind) != declared
+
+    plugin = SourcePlugin(api_major=1, create=_never_called, api_minor=5, deadlines={kind: declared})
+    got = declared_deadlines(plugin, base)
+
+    assert isinstance(got, Deadlines), got
+    assert getattr(got, kind) == declared, f"a plugin declared {declared} for {kind!r} and it runs at {getattr(got, kind)}"
+    for other in dataclasses.fields(Deadlines):
+        if other.name != kind:
+            assert getattr(got, other.name) == getattr(base, other.name), f"declaring {kind!r} changed {other.name!r}"
+
+
+class _Waits:
+    """The host's wait, recording how long each call was told it may take, and then letting it finish."""
+
+    def __init__(self) -> None:
+        self.seconds: list[float] = []
+
+    def wait_for(self, done: threading.Event, seconds: float) -> bool:
+        self.seconds.append(seconds)
+        return done.wait(SETTLE)
+
+
+class _Browses:
+    def __init__(self, provider: str) -> None:
+        self.provider = provider
+
+    def browse(self, queries, *, per_query: int):
+        return []
+
+
+#: What makes the call each kind is the deadline of, on a roster the loader built.
+CALLS = {
+    "finder": lambda roster: list(roster.finders[0].find_images(QUERY)),
+    "preview": lambda roster: roster.finders[0].fetch_preview("https://waits.example/p.jpg"),
+    "reader": lambda roster: roster.route("https://example.org/works/1").reader.read("https://example.org/works/1"),
+    "browse": lambda roster: roster.collection.browse([], per_query=3),
+}
+
+
+@pytest.mark.parametrize("kind", DEADLINE_KINDS)
+def test_a_deadline_declared_for_any_kind_is_what_the_loaded_plugin_is_waited_for(kind):
+    """Through the loader: the plugin declares one kind, and the call of that kind is waited for that long."""
+    assert kind in CALLS, f"teach CALLS to make a {kind!r} call: a deadline kind this test does not drive"
+    waits = _Waits()
+    plugin = SourcePlugin(
+        api_major=1,
+        create=lambda _c: SourceParts(finder=StubFinder("waits"), reader=StubReader(), collection=_Browses("waits")),
+        api_minor=5,
+        claims=claims_example,
+        deadlines={kind: declared_value(kind)},
+    )
+    point = importlib.metadata.EntryPoint(name="waits", value="plugin_fakes:GOOD", group=ENTRY_POINT_GROUP)
+    roster = load_sources(
+        SourceContext(environ={}, user_agent="arrt-tests/0", preview_max_bytes=1_000_000),
+        entry_points=[_Fixed(point, plugin)],
+        wait_for=waits.wait_for,
+    )
+    (only,) = roster.observe()
+    assert only.state is PluginState.LOADED, only.reason
+
+    CALLS[kind](roster)
+
+    assert waits.seconds == [declared_value(kind)]
 
 
 @pytest.mark.parametrize(

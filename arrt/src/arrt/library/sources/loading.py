@@ -178,7 +178,10 @@ def declared_deadlines(plugin: SourcePlugin, base: Deadlines) -> Deadlines | str
             return f"its {kind} deadline of {seconds:g} seconds is past this Arrt's ceiling of {DEADLINE_CEILING_SECONDS:g}"
         chosen[kind] = float(seconds)
     # Each kind named, because `**chosen` would hand `stragglers` (an int) a float
-    # as far as the checker can tell; `DEADLINE_KINDS` is exactly these four.
+    # as far as the checker can tell. `DEADLINE_KINDS` is exactly these four, which
+    # nothing here can check: `tests/unit/test_plugin_deadlines.py` runs every kind in
+    # it through this function and the loader, so a fifth kind not named below fails
+    # there by name, rather than loading and running at its default.
     return replace(
         base,
         finder=chosen.get("finder", base.finder),

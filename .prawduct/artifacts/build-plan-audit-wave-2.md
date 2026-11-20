@@ -171,6 +171,14 @@ rulings", cited below as *ruling N of 2026-11-19*.
   - 04's fallback runs no browser suite: during a pool outage a pull request merges
     on governance, contract and curation evidence alone. The next pool run on
     `develop` is the browser's verdict.
+    *(Note, 2026-11-19, after the boundary review: there is no such run. No workflow
+    runs on a push to `develop` or `main` (`tests.yml` runs on `pull_request` and
+    `workflow_dispatch` only), so a fallback's tree gets no browser verdict on its own.
+    What exists instead: a second, non-required job in `tests.yml`, "The browser suite
+    ran on the pool", green when the pool gave the verdict and red after a fallback,
+    naming how to get one (re-run all jobs once the pool is back, or `testament run
+    --json=summary --suite browser` on the branch's head). The required check stays
+    green on a fallback, per ruling 4.)*
   - The type gate (09-11) is mypy's defaults plus five flags, not `--strict`, except
     for the seam's modules. A strict tree is a later ratchet.
 - **What I would do differently (the advisor's position):** cut 13-19 to the files
@@ -191,6 +199,7 @@ rulings", cited below as *ruling N of 2026-11-19*.
   - `[DECISION: when the pool cannot give a verdict, CI retries for ten minutes and then runs lint, the governance, contract and curation suites on the GitHub runner directly with uv (no testament), skipping only the browser suite, and says so in the job summary; the job then passes or fails on what it ran | ruling 4 wants an outage not to block every merge, and the 2026-11-18 ruling wants no heavy builds on GitHub's runners: the fallback spends minutes only during an outage, about five, and the browser suite (the heavy one, needing Chrome) is the one it gives up | user can veto/override]`
   - `[DECISION: a known-blocked probe is a row in .github/known-blocked.json (the test it covers, the issue, an expiry no more than 60 days out), the freshness check counts it fresh while unexpired, and an expired row fails by name | ruling 5; an expiry keeps "blocked" from becoming permanent silence | user can veto/override]`
   - `[DECISION: the catalogue records which release last opened it, and when, in a one-row catalogue_opened table (not PRAGMA user_version, which wave 1 uses as the migration-in-progress mark); a release opening a file whose recorded release is newer refuses to start, naming both | audit-2 S9's remainder and audit-2's suspected silent downgrade; the guard protects only downgrades to releases that carry it, and says so | user can veto/override]`
+    - *Amended 2026-11-19, after the boundary review (Chunk 06's fix):* **the guard compares a catalogue shape generation, not release numbers.** `catalogue_opened` gains `schema_generation`, the integer `persistence/file.SCHEMA_GENERATION` its code expects; a release refuses a file recorded at a higher generation and opens one at its own or lower, whatever release wrote it, so a rollback across no shape change (0.12.1 to 0.12.0, or two `develop` builds sharing one version string) opens. The generation is raised by hand at every step added to the open and at any table, column or index taken away or redeclared; `arrt/tests/unit/test_schema_generation.py` holds each generation's shape and steps (`arrt/tests/fixtures/catalogue-generations.json`), lets the shape only grow within a generation, and fails otherwise. The open that raises a recorded generation copies the file first, and the refusal names the copies beside the file that the refusing release opens, or says there are none. A row from before generations (release, no generation) opens unless its release is numbered later than this code's (the earlier guard's one refusal, kept); a recorded release this code cannot read no longer stops a start; this code's own release must be three numbers before anything is written. *Rejected:* a fingerprint of the DDL text, which a reformat changes and which refuses rollbacks across additions an older release ignores; comparing the file's shape with this code's, which cannot tell a column a newer release dropped from one an older file never had, and so cannot see the downgrade it exists for. *Limit:* a new value written into a column an older release reads (a new enum member) moves no shape and is seen only if the generation is raised by hand.
   - `[DECISION: contract 1.2.0 marks television_reachable, television_showing_art, has_label_surface and label_surface_working superseded in heartbeat.v1's descriptions, keeps them required, and removes nothing; their removal is heartbeat major 2, which nothing needs yet | a required key made optional is a writer change an older reader refuses; the server can stop reading them now (wave 2b's Chunk 30) without the schema moving | user can veto/override]`
   - `[DECISION: the words a person reads for a wall's display states live in the contract, contract/vocabulary.json, and every reader quotes them: the server's client module and the Player's settings page, each with a test against the package | lesson 3 of wave 1: a value two repositories state gets one owner; the contract is the shared ground both already pin | user can veto/override]`
   - `[DECISION: the history's private addresses and hostname are recorded in security-model.md as accepted residue, nothing in use is changed, and the private readers' methods are taken out of the public artifacts' current text (they stay in history) | the owner: "leave commits alone, later we can get that" and "don't sweat the keys"; the private specifics belong in the private repository either way, and procurement-corpus.md already says so of itself | user can veto/override]`
@@ -288,6 +297,38 @@ later word.
   conditions the Goals give; both reasons are in `.prawduct/owner-rulings.md` § "2026-11-19:
   after wave 1 of the audit fixes, ten rulings", items 9 and 10. No chunk of 2a prepares
   either.
+- **2026-11-19 (Chunk 08), as built, after the boundary review:** the Goals say the
+  real-Player test "lives in Arrt, on the pool", so that Arrt's pool tests the shipped pair
+  on every server change. As built it is selected only by `-m player_e2e`: the default
+  suites deselect it, and the one place that runs it unasked is `image.yml`'s `player` job,
+  on a pull request into `main`. The reason recorded for deselecting it (it installs the
+  Player from GitHub) holds for the image's test stage and for a machine offline; it does
+  not hold for the pool, whose runners reach GitHub (`docs/testing.md` § The real-Player
+  test). So the decision is half built: a server change that breaks the pair in a way the
+  fixtures miss is found at the release pull request, not at its own. Giving the test a
+  suite of its own on the pool, run on every pull request, is the first chunk of the next
+  plan (`build-plan-audit-wave-2b.md`); it was not added here because it changes what the
+  required check runs and its fallback, which this wave's review had just found wanting.
+- **2026-11-19 (Chunks 09 and 11), as built, after the boundary review:** the Goals say the
+  type checker runs "as a lint-tier step … in `tests.yml`'s lint step", and that a ratchet
+  block lists the modules still failing. Both are superseded. The lint step is ruff and
+  black alone again, because running mypy there installed the server's whole runtime on
+  GitHub's runner on every pull request, against the 2026-11-18 ruling on GitHub's minutes
+  (`.prawduct/owner-rulings.md`). The type check runs once per change, on the pool, as a
+  test of the governance suite (`tests/preferences/test_type_gate.py`), over `arrt/` and
+  `contract/` with each project's own configuration; `cd arrt && uv run mypy` stays the
+  local command. The ratchet was emptied by Chunk 11 and a test now refuses any
+  `ignore_errors` override, so there is no list to keep: a type error is fixed.
+- **2026-11-19 (Chunk 06), as built, after the boundary review:** the migration chain's list
+  of past releases (`RELEASES` in `arrt/tools/old_catalogue.py`, and the dumps beside
+  `arrt/tests/fixtures/catalogues/releases.json`) grows by hand, and nothing fails when a
+  release that changed the catalogue's shape ships without its dump; the one check holds a
+  floor of two. The norm ("a catalogue every past release left opens on today's shape") is
+  therefore true only while someone adds the tag. Until a test enforces it, **cutting a
+  release whose catalogue shape changed includes adding its tag to `RELEASES` and
+  regenerating the dumps**; the next release is one, because this wave adds
+  `catalogue_opened`. The enforcing test (the newest release with a schema change has a
+  dump, or the release check refuses) is a chunk of the next plan.
 
 ## Chunks
 
@@ -358,11 +399,13 @@ later word.
   ruling 6 of 2026-11-19 in the IA ("copy for the walls" and Select-on-the-right are
   confirmed: the "the owner has not ruled" marks go), audit-7 S2 (`data-model.md`'s header
   and planned entities; the dated `Direction changed 2026-09-30` banners whose waves have
+<!-- prawduct:allow prawduct/chunk-ref-missing -- the path's absence is the point: this chunk moved the old backlog file into the archive -->
   landed; `.prawduct/backlog.md` archived), audit-4 13 and audit-8 F18 (the public
   residue, as ruled), audit-1 M4's text half is 03's.
 - **Owns:** `.prawduct/artifacts/data-model.md` (except the `catalogue_opened` entity, 06's),
   `.prawduct/artifacts/information-architecture.md`, `.prawduct/artifacts/ia-proposal.md`,
   `.prawduct/artifacts/security-model.md`, `.prawduct/artifacts/met-api-findings.md`,
+<!-- prawduct:allow prawduct/chunk-ref-missing -- the path's absence is the point: this chunk moved the old backlog file into the archive -->
   `.prawduct/artifacts/procurement-corpus.md`, `.prawduct/backlog.md` (moved to
   new `.prawduct/artifacts/archive/backlog-2026.md`), and the dated banner paragraph only in
   each of `.prawduct/artifacts/api-contract.md`, `.prawduct/artifacts/accessibility-spec.md`,
@@ -397,6 +440,7 @@ later word.
     the bot checks are passed, the embedded field names) replaced by one sentence saying
     they are in the private repository; the contradiction at `procurement-corpus.md`'s
     MoMA section resolved.
+<!-- prawduct:allow prawduct/chunk-ref-missing -- the path's absence is the point: this chunk moved the old backlog file into the archive -->
   - `.prawduct/backlog.md` moved to new `.prawduct/artifacts/archive/backlog-2026.md`,
     its two "no live tracking home" items named in the move's commit body for the
     coordinator to file or close.
@@ -524,8 +568,8 @@ later word.
   through the package at run time: `arrt-contract` is a dev dependency of the server and
   the image's app stage installs without dev dependencies, so reading it would stop the
   server starting. The media fixture the chunk relied on no longer existed, so
-  `manifest.v2/valid/media-on-another-host.json` and its must-refuse twin
-  `media-url-empty.json` were added. Not built: a must-refuse fixture per schema
+  `contract/fixtures/manifest.v2/valid/media-on-another-host.json` and its must-refuse
+  twin `contract/fixtures/manifest.v2/invalid/media-url-empty.json` were added. Not built: a must-refuse fixture per schema
   constraint (many constraints still have none), and a duplicate-label-name fixture (no
   schema refuses one). The wall heartbeat answers `422` in FastAPI's own body, not the
   contract's error shape, for a body that is not a JSON object; `transport.json` states
@@ -734,7 +778,9 @@ later word.
   (`fix/audit-wave-2`), not a tag, because no Player tag carrying the file outputs
   existed; it moves to the Player's release commit when one is cut. (4) The `player` job in
   `image.yml` has never run: the docker path (`ARRT_SERVER_IMAGE`) is proven only by a
-  pull request into `main` (`operator-verification.md`).
+  pull request into `main` (`operator-verification.md`). The pin of (3) moved the same day
+  to the merge of the Player's wave 2 into its `develop`, which no branch deletion can
+  leave unfetchable.
 
 ### Chunk 09: A type checker — mypy, the seam strict, the gate, the first modules
 

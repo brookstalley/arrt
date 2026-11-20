@@ -520,6 +520,13 @@ _UNAVAILABLE_RUN = {
 _PASSED_RUN = {"step": "run", "exit_code": 0, "verdict": "passed", "verdict_reason": "passed", "has_envelope": True}
 _FAILED_RUN = {"step": "run", "exit_code": 1, "verdict": "failed", "verdict_reason": "tests_failed", "has_envelope": True}
 _FALLBACK_REPORTS = {s: f"fallback/{s}.xml" for s in ("governance", "curation", "contract")}
+#: A record the driver writes when the console answers 503 for ten minutes: two attempts
+#: whose times and waits account for the budget. The fallback tests below use it, so each
+#: fails for the reason it names, not for a record that never earned its fallback.
+_EARNED = [
+    {**_UNREACHABLE, "started_s": 0, "ended_s": 1, "waited_s": 599},
+    {**_UNREACHABLE, "started_s": 600, "ended_s": 601},
+]
 _BROWSER_EXCUSED = {"browser": "needs a runner labelled chrome, which only the pool has"}
 
 
@@ -546,7 +553,7 @@ def _fallback_reports(tmp_path, suites=("governance", "curation", "contract"), t
 def test_an_earned_fallback_without_the_browser_suite_passes(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path)
-    decision = _decision(tmp_path, "fallback", [_UNREACHABLE, _UNREACHABLE], _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 0
     printed = capsys.readouterr().out
@@ -591,11 +598,22 @@ def test_a_fallback_after_a_failed_verdict_fails(tmp_path, capsys):
     assert "do not earn" in capsys.readouterr().out
 
 
+def test_a_fallback_after_one_retryable_blip_fails(tmp_path, capsys):
+    """A record whose only trouble is one unavailable run, three seconds in, has not waited out the ten minutes."""
+    guard = _load()
+    _fallback_reports(tmp_path)
+    blip = [{**_INSTALLED, "started_s": 0, "ended_s": 1}, {**_UNAVAILABLE_RUN, "started_s": 1, "ended_s": 4}]
+    decision = _decision(tmp_path, "fallback", blip, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+
+    assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
+    assert "do not earn" in capsys.readouterr().out
+
+
 def test_a_fallback_that_excuses_more_than_the_browser_suite_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "contract"))
     reports = {k: v for k, v in _FALLBACK_REPORTS.items() if k != "curation"}
-    decision = _decision(tmp_path, "fallback", [_UNREACHABLE], reports, {**_BROWSER_EXCUSED, "curation": "slow"})
+    decision = _decision(tmp_path, "fallback", _EARNED, reports, {**_BROWSER_EXCUSED, "curation": "slow"})
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "excuses only ['browser']" in capsys.readouterr().out
@@ -605,7 +623,7 @@ def test_a_fallback_whose_suite_collected_nothing_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "contract"))
     _fallback_reports(tmp_path, ("curation",), tests=0)
-    decision = _decision(tmp_path, "fallback", [_UNREACHABLE], _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "No tests were collected" in capsys.readouterr().out
@@ -614,7 +632,7 @@ def test_a_fallback_whose_suite_collected_nothing_fails(tmp_path, capsys):
 def test_a_fallback_whose_suite_wrote_no_report_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "curation"))
-    decision = _decision(tmp_path, "fallback", [_UNREACHABLE], _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "contract.xml does not exist" in capsys.readouterr().out
@@ -625,7 +643,7 @@ def test_a_fallback_report_named_for_another_suite_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "curation"))
     (tmp_path / "fallback" / "contract.xml").write_text(_suites(("pytest", 2, 0)), encoding="utf-8")
-    decision = _decision(tmp_path, "fallback", [_UNREACHABLE], _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "contract (not in the report)" in capsys.readouterr().out

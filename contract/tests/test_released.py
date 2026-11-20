@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+import arrt_contract
 from arrt_contract import fixtures, released, root, routes, semantic_errors, validator
 
 RELEASES = released()
@@ -128,3 +129,49 @@ def test_a_release_is_read_from_the_packages_own_data():
         assert release.parent == root() / "released"
         assert (release / "fixtures" / "index.json").is_file()
         assert (release / "routes.json").is_file()
+
+
+# -- the order `released()` returns them in ----------------------------------------
+#
+# Oldest first, by version. Sorted by name, `1.10.0` came before `1.2.0`, so
+# anything taking the last entry as the latest, or walking them oldest first, would
+# have been wrong from the day a tenth minor was frozen. These point `released()` at
+# a directory of their own through `root()`, which it reads.
+
+
+def _frozen_under(tmp_path: Path, *names: str) -> Path:
+    for name in names:
+        (tmp_path / "released" / name).mkdir(parents=True)
+    return tmp_path
+
+
+def test_releases_are_oldest_first_by_version_not_by_spelling(tmp_path, monkeypatch):
+    # Spelled-out order would be 1.10.0, 1.2.0, 1.9.0; created in no order at all.
+    monkeypatch.setattr(arrt_contract, "root", lambda: _frozen_under(tmp_path, "1.2.0", "1.10.0", "1.9.0"))
+
+    frozen = released()
+
+    assert list(frozen) == ["1.2.0", "1.9.0", "1.10.0"]
+    assert all(path.name == name for name, path in frozen.items())
+
+
+def test_a_patch_and_a_major_order_as_numbers_too(tmp_path, monkeypatch):
+    monkeypatch.setattr(arrt_contract, "root", lambda: _frozen_under(tmp_path, "2.0.0", "1.0.10", "1.0.9", "10.0.0", "1.0.0"))
+
+    assert list(released()) == ["1.0.0", "1.0.9", "1.0.10", "2.0.0", "10.0.0"]
+
+
+def test_a_file_among_the_releases_is_not_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(arrt_contract, "root", lambda: tmp_path)
+    _frozen_under(tmp_path, "1.1.0")
+    (tmp_path / "released" / "README.txt").write_text("not a release", encoding="utf-8")
+
+    assert list(released()) == ["1.1.0"]
+
+
+@pytest.mark.parametrize("stray", ["latest", "1.2", "1.2.0-rc1", "v1.2.0", "01.2.0", "1.2.x", "__pycache__"])
+def test_a_directory_that_is_not_a_version_is_refused_by_name(tmp_path, monkeypatch, stray):
+    monkeypatch.setattr(arrt_contract, "root", lambda: _frozen_under(tmp_path, "1.1.0", stray))
+
+    with pytest.raises(ValueError, match=f"{stray}.*not named for a version"):
+        released()

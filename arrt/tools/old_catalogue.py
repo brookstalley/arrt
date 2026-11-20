@@ -137,6 +137,9 @@ def seed(path: Path) -> None:
     connection.execute("PRAGMA foreign_keys = ON")
     for part in (_library, _programming, _players, _discovery, _conversations, _later):
         part(rows)
+    if rows.has("catalogue_opened"):
+        # The instant of the open, fixed like every other the seed writes.
+        connection.execute("UPDATE catalogue_opened SET opened_at = ?", (SEEDED_AT,))
     connection.commit()
     problems = connection.execute("PRAGMA foreign_key_check").fetchall()
     if problems:
@@ -470,7 +473,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, default=FIXTURES)
     parser.add_argument("--repository", type=Path, default=_CURATION.parent)
+    parser.add_argument(
+        "--ref",
+        help="make one dump, of the catalogue this git ref's code makes, to --to (a build that is no release; "
+        "releases.json is left as it is)",
+    )
+    parser.add_argument("--to", type=Path, help="where --ref's dump goes")
     arguments = parser.parse_args()
+    if arguments.ref is not None:
+        if arguments.to is None:
+            parser.error("--ref needs --to")
+        with tempfile.TemporaryDirectory(prefix="old-catalogue-") as scratch:
+            dump, _ = make(arguments.ref, arguments.repository, Path(scratch))
+        header = f"-- The catalogue Arrt's code at {arguments.ref} made over the synthetic seed in tools/old_catalogue.py.\n"
+        arguments.to.write_text(header + dump, encoding="utf-8")
+        print(f"{arguments.ref}: wrote {arguments.to}")
+        return 0
     arguments.out.mkdir(parents=True, exist_ok=True)
     kept: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="old-catalogue-") as scratch:

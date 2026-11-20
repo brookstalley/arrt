@@ -8,6 +8,9 @@
 #   `testament run` with no `--suite`, so a suite added to the manifest is in CI the day it
 #   is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
 #   reads the report this run writes, with every declared suite required to run something.
+# - The type check runs there too, once per change: the governance suite's
+#   `tests/preferences/test_type_gate.py` runs mypy in `arrt/` and `contract/` with each
+#   project's own configuration. Lint here installs only ruff and black.
 # - Neither `--fresh` nor `--no-cache`, which testament suggests for a required merge
 #   check: testament reuses a pass only when everything the test reads is byte-identical,
 #   and a cold run is minutes more of this job's wait.
@@ -15,16 +18,28 @@
 #   on this runner, a different test from the pool's and the project's. The fallback here
 #   is ours, and narrow (`.github/scripts/pool_or_fallback.py`):
 #   - Only when the pool could not answer: the console would not serve the client (no
-#     connection, a 5xx, a 408 or 429), or `testament run` ended `verdict: unavailable`,
-#     exit 75. Either is retried with backoff for up to ten minutes first. A `failed`
-#     verdict is a result, never retried and never sent to the fallback: a second run that
-#     passed would hide the failure. A refused key, a wrong address or a wheel that fails
-#     its digest is not an outage: nothing runs and the job fails.
+#     connection, a 5xx, a 408 or 429), `testament run` ended `verdict: unavailable`,
+#     exit 75, or the pool did not accept the run within two minutes. Each is retried with
+#     backoff for up to ten minutes first. A run the pool accepted and still holds at the
+#     pool step's twenty-minute deadline is stopped and falls back too. A `failed` verdict
+#     is a result, never retried and never sent to the fallback: a second run that passed
+#     would hide the failure. A refused key, a wrong address or a wheel that fails its
+#     digest is not an outage: nothing runs and the job fails.
 #   - It runs lint (already done, above) and, directly with uv, every suite that needs no
 #     labelled runner: governance, curation and contract. Not the browser suite, which
-#     needs Chrome and is the heavy one; the summary says it did not run, and someone runs
-#     it on the pool before merging. That is the trade with the 2026-11-18 ruling: minutes
-#     are spent on suites only during an outage. `tests/test_ci_fallback.py` holds both.
+#     needs Chrome and is the heavy one. That is the trade with the 2026-11-18 ruling:
+#     minutes are spent on suites only during an outage. `tests/test_ci_fallback.py` holds
+#     both.
+#   - The required check, "Lint, then every suite", is then green on what ran, so an
+#     outage blocks no merge. The second job, "The browser suite ran on the pool", is not
+#     required: it is green when the pool gave the verdict and red after a fallback, the
+#     machine-readable mark that the tree has no browser verdict. Nothing else gives it
+#     one later: no workflow runs on a push to `develop` or `main`. To get one, re-run all
+#     jobs once the pool is back, or run the browser suite on the pool by hand
+#     (`docs/testing.md` § The browser suite).
+# - Every step has a ceiling, and the ceilings add up to no more than the job's, so a hung
+#   pool leaves the fallback, the guard and the summary their time. `tests/test_ci_fallback.py`
+#   holds the sums against the driver's deadline.
 # - The key is the `TESTAMENT_KEY` secret (the CI client key `arrt-ci-github`). The
 #   coordinator and the console are the `TESTAMENT_COORDINATOR` and `TESTAMENT_CONSOLE`
 #   repository variables, which keeps both addresses out of this public repository. A pull
@@ -53,9 +68,12 @@ jobs:
     # This name is the check branch protection requires (Chunk 22 of build-plan-audit-wave-2).
     name: "Lint, then every suite"
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # The sum of the steps' ceilings below. A healthy run takes about ten minutes.
+    timeout-minutes: 65
     permissions:
       contents: read
+    outputs:
+      mode: ${{ steps.pool.outputs.mode }}
     # Outputs go under the runner's temp directory, never the checkout: the client sends the
     # worktree's untracked files with the run, so a wheel or a report written there would
     # travel to the pool.
@@ -64,19 +82,24 @@ jobs:
     steps:
       # Full history: the client sends the worktree as a commit, whose objects it walks.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        timeout-minutes: 2
         with:
           persist-credentials: false
           fetch-depth: 0
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        timeout-minutes: 2
         with:
           version: "0.11.32"
           enable-cache: true
       - name: Lint and format, the governance suite, the server and the contract
+        id: lint
+        timeout-minutes: 5
         # Before the pool run, so a lint failure costs seconds, not a pool run. One command
         # a line: under `bash -e` a failure that is not the last command of an `a && b`
         # list does not end the step. `--only-group dev` installs ruff and black, not each
-        # project's runtime dependencies. mypy is the exception: it reads the types of what
-        # the code imports, so it runs in the project's own environment (`uv run --frozen`).
+        # project's runtime dependencies. No mypy here: it reads the types of everything
+        # the code imports, so it needs the whole runtime installed, and it runs once per
+        # change on the pool instead (the governance suite's type gate).
         run: |
           set -euo pipefail
           lint="uv run --frozen --only-group dev"
@@ -85,20 +108,22 @@ jobs:
           cd arrt
           $lint ruff check .
           $lint black --check .
-          uv run --frozen mypy
           cd ../contract
           $lint ruff check .
           $lint black --check .
-          uv run --frozen mypy
       - name: Every suite on the pool, retrying for ten minutes while it cannot answer
         id: pool
+        # Two minutes past the driver's own twenty-minute deadline, which stops the client
+        # itself and records why; this ceiling is only for the driver hanging.
+        timeout-minutes: 22
         # `pool_or_fallback.py` installs the client from the console, runs the line after
         # `--`, and decides: `mode=pool` (a verdict; a `failed` one ends the step red and is
-        # never retried), `mode=fallback` (the pool could not answer for ten minutes: the
-        # steps below run here), or `mode=none` (nothing ran: no key, a refused key, a bad
-        # wheel, an ending the contract does not name). It writes `decision.json`, which the
-        # guard and the summary read. `tests/test_ci_fallback.py` holds the decision against
-        # recorded envelopes.
+        # never retried), `mode=fallback` (the pool could not answer for ten minutes, or held
+        # an accepted run to the deadline: the steps below run here), or `mode=none` (nothing
+        # ran: no key, a refused key, a bad wheel, an ending the contract does not name). It
+        # writes `decision.json` before its first attempt and after each, which the guard and
+        # the summary read. `tests/test_ci_fallback.py` holds the decision against recorded
+        # envelopes.
         env:
           TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}
           TESTAMENT_CONSOLE: ${{ vars.TESTAMENT_CONSOLE }}
@@ -112,19 +137,28 @@ jobs:
       # CLAUDE.md, scoped to the manifest's selection (a bare `cd arrt && uv run pytest`
       # collects the browser and live modules, whose skips the guard fails on) and writing a
       # report named for its suite. `!cancelled()` so one red suite does not hide the next.
+      # A step that runs to its ceiling writes no report, and the guard and the summary name it.
       - name: "Fallback: the governance suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
+        timeout-minutes: 10
+        # The type gate in this suite runs mypy in `arrt/` and `contract/` without syncing
+        # (`uv run --no-sync`), so both environments are made first, with their dev groups,
+        # which hold mypy: lint no longer makes them.
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
+          uv sync --frozen --project arrt --group dev
+          uv sync --frozen --project contract --group dev
           uv run --frozen pytest tests -q -o junit_suite_name=governance --junitxml "$OUT/fallback/governance.xml"
       - name: "Fallback: the curation suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
+        timeout-minutes: 15
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           cd arrt
           uv run --frozen pytest tests/unit tests/integration tests/contract tests/system tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation --junitxml "$OUT/fallback/curation.xml"
       - name: "Fallback: the contract suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
+        timeout-minutes: 5
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           cd contract
@@ -134,6 +168,7 @@ jobs:
         # ran and the reports they wrote, and fails on any skip that is not an expected
         # failure, on a suite that ran nothing, and on a fallback the record does not earn.
         if: always()
+        timeout-minutes: 1
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml --decision "$OUT/decision.json"
@@ -141,11 +176,13 @@ jobs:
         # Opens with one of three lines: ran on the pool; the pool was unavailable and this
         # ran here without the browser suite; nothing ran.
         if: always()
+        timeout-minutes: 1
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           python3 .github/scripts/pool_or_fallback.py summary --out "$OUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
+        timeout-minutes: 2
         # For people; the verdict never depends on it, so an artifact service that is down
         # must not fail the job.
         continue-on-error: true
@@ -157,3 +194,25 @@ jobs:
             ${{ runner.temp }}/${{ env.OUT_DIR }}/all.xml
             ${{ runner.temp }}/${{ env.OUT_DIR }}/fallback/*.xml
           if-no-files-found: ignore
+
+  browser:
+    # Not a required check, and must never be made one: an outage of the pool must not
+    # block a merge (ruling 4 of 2026-11-19). Green when the pool gave the verdict, so the
+    # browser suite ran; red after a fallback, with how to get the browser's verdict. With
+    # no `if`, it is skipped when the first job failed or was cancelled, never green.
+    # `tests/test_ci_fallback.py` runs its step on each mode.
+    name: "The browser suite ran on the pool"
+    needs: pool
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Say whether the browser suite has a verdict for this tree
+        env:
+          POOL_MODE: ${{ needs.pool.outputs.mode }}
+        run: python3 .github/scripts/pool_or_fallback.py browser-verdict

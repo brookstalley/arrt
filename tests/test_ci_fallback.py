@@ -25,11 +25,14 @@ trimmed to the keys the script reads, runner names replaced; the population-mism
 and older-client shapes are built from AGENTS.md § Running tests, which states them.
 """
 
+import dataclasses
 import importlib.util
 import itertools
 import json
+import os
 import pathlib
 import shlex
+import subprocess
 import sys
 import tomllib
 
@@ -141,21 +144,32 @@ class ScriptedPool:
         self.install_calls += 1
         return self.installs[min(self.install_calls, len(self.installs)) - 1]
 
-    def run(self):
+    def run(self, limit_s=None):
         self.run_calls += 1
         return self.runs[min(self.run_calls, len(self.runs)) - 1]
 
 
-def drive(pool):
-    now = [0.0]
+class Clock:
+    """The step's clock: only sleeping and an attempt that takes time move it."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def drive(pool, clock=None, checkpoint=None):
+    clock = clock or Clock()
     slept = []
 
     def sleep(s):
         slept.append(s)
-        now[0] += s
+        clock.now += s
 
     said = []
-    decision = pof.drive(pool, MANIFEST, clock=lambda: now[0], sleep=sleep, say=said.append)
+    extra = {"checkpoint": checkpoint} if checkpoint else {}
+    decision = pof.drive(pool, MANIFEST, clock=clock, sleep=sleep, say=said.append, **extra)
     return decision, slept, said
 
 
@@ -322,8 +336,9 @@ def test_only_an_unavailable_ending_reaches_the_fallback(tmp_path):
 
 def test_a_record_holding_a_verdict_never_earns_the_fallback(tmp_path):
     unavailable = run_attempt(UNAVAILABLE, tmp=tmp_path)
-    assert pof.fallback_is_earned([install(), unavailable, unavailable])
-    assert pof.fallback_is_earned([CONSOLE_503, CONSOLE_503])
+    # The records the driver writes when the pool cannot answer for ten minutes earn it.
+    assert pof.fallback_is_earned(drive(ScriptedPool([install()], [unavailable]))[0].attempts)
+    assert pof.fallback_is_earned(drive(ScriptedPool([CONSOLE_503], []))[0].attempts)
     assert not pof.fallback_is_earned([install(), run_attempt(FAILED, tmp=tmp_path), unavailable])
     assert not pof.fallback_is_earned([install(), run_attempt(FAILED, tmp=tmp_path)])
     assert not pof.fallback_is_earned([install(), run_attempt(PASSED, tmp=tmp_path)])
@@ -535,3 +550,337 @@ def test_a_manifest_suite_the_fallback_forgets_is_refused():
     manifest = {**MANIFEST, "suites": {**MANIFEST["suites"], "system": {"default_selection": ["arrt/tests/system"]}}}
     with pytest.raises(AssertionError, match="the manifest asks for"):
         check_the_fallback(_workflow(), manifest)
+
+
+# -- time: no attempt outlives the step (finding 1 of the wave-2 boundary review) ------------
+
+
+class HungPool:
+    """A pool that accepts the run and holds it for forty minutes, as long as nothing stops it.
+
+    Handed a limit (the driver's deadline), it is stopped there, as `RealPool` stops the
+    client; handed none, it holds the full forty minutes, which spends a 45-minute job.
+    """
+
+    HOLD_S = 40 * 60
+
+    def __init__(self, clock, installs=None):
+        self.clock, self.installs, self.limits = clock, list(installs or [install()]), []
+
+    def install(self):
+        return self.installs.pop(0) if len(self.installs) > 1 else self.installs[0]
+
+    def run(self, *limit):
+        self.limits.append(limit[0] if limit else None)
+        held = min(self.HOLD_S, limit[0]) if limit else self.HOLD_S
+        self.clock.now += held
+        if limit and held < self.HOLD_S:
+            return pof.Attempt("run", exit_code=-15, killed="deadline", accepted=True, detail="stopped at the deadline")
+        return pof.Attempt("run", exit_code=0, has_envelope=True, verdict="passed", verdict_reason="passed")
+
+
+def test_a_run_the_pool_accepts_and_holds_is_stopped_at_the_deadline_and_falls_back():
+    clock = Clock()
+    decision, _, _ = drive(HungPool(clock), clock)
+
+    assert clock.now <= pof.DEADLINE_S, f"the attempt ran {clock.now:.0f} s, past the step's {pof.DEADLINE_S} s"
+    assert decision.mode == "fallback", decision.why
+    assert decision.attempts[-1].ended_s == pof.DEADLINE_S
+    assert "no verdict within the step's 20 minutes" in decision.why
+    assert pof.fallback_is_earned(decision.attempts)
+
+
+def test_a_run_after_retries_gets_only_what_is_left_of_the_deadline():
+    clock = Clock()
+    pool = HungPool(clock, installs=[CONSOLE_503] * 3 + [install()])
+    decision, slept, _ = drive(pool, clock)
+
+    assert slept == [15, 30, 60]
+    assert pool.limits == [pof.DEADLINE_S - 105]
+    assert (decision.mode, clock.now) == ("fallback", pof.DEADLINE_S)
+
+
+def test_the_deadline_leaves_the_job_time_for_the_fallback_and_the_summary():
+    """The sums that keep the `!cancelled()` and `always()` steps alive: every step has a ceiling, and they fit the job's."""
+    job = _workflow()["jobs"]["pool"]
+    ceilings = {s.get("name") or s.get("uses"): s.get("timeout-minutes") for s in job["steps"]}
+    unbounded = [name for name, minutes in ceilings.items() if not isinstance(minutes, int)]
+    assert not unbounded, f"steps with no timeout-minutes, so one can spend the job: {unbounded}"
+    assert sum(ceilings.values()) <= job["timeout-minutes"], (
+        f"the steps' ceilings add to {sum(ceilings.values())} minutes, past the job's {job['timeout-minutes']}: "
+        "a pool step that runs to its ceiling would leave the fallback and the summary no time"
+    )
+    pool_step = next(s for s in job["steps"] if s.get("id") == "pool")
+    assert pool_step["timeout-minutes"] * 60 >= pof.DEADLINE_S + 120, (
+        f"the pool step's ceiling ({pool_step['timeout-minutes']} min) does not leave the driver's deadline "
+        f"({pof.DEADLINE_S} s) two minutes to stop the client and write its record"
+    )
+
+
+FAKE_CLIENT = """
+import json, sys, time
+mode = sys.argv[1]
+if mode != "never-accepts":
+    print("request 0123abcd accepted for arrt at tree 7ea4377c29d8", file=sys.stderr, flush=True)
+    print("collected 7 items", file=sys.stderr, flush=True)
+if mode == "fails-then-hangs":
+    print("FAILED   tests/test_red.py::test_red  [runner-a]", file=sys.stderr, flush=True)
+if mode == "passes":
+    print(json.dumps({"exit_code": 0, "verdict": "passed", "verdict_reason": "passed"}))
+    sys.exit(0)
+time.sleep(60)
+"""
+
+
+def _real_run(tmp_path, mode, limit_s=3.0, accept_s=1.0):
+    """`RealPool.run` against a stand-in client that prints testament's progress lines (as 0.58.0 prints them)."""
+    client = tmp_path / "client.py"
+    client.write_text(FAKE_CLIENT, encoding="utf-8")
+    echoed = []
+    argv = [sys.executable, str(client), mode]
+    pool = pof.RealPool(tmp_path, argv, {"PATH": ""}, accept_s=accept_s, poll_s=0.05, echo=echoed.append)
+    return pool.run(limit_s), echoed
+
+
+def test_the_real_pool_stops_a_run_the_pool_never_accepts_and_calls_it_could_not_answer(tmp_path):
+    attempt, _ = _real_run(tmp_path, "never-accepts")
+
+    assert (attempt.killed, attempt.accepted, pof.classify(attempt)) == ("not_accepted", False, "retry")
+    assert "did not accept the run within 1 s" in attempt.detail
+
+
+def test_the_real_pool_stops_an_accepted_run_at_its_limit(tmp_path):
+    attempt, echoed = _real_run(tmp_path, "hangs")
+
+    assert (attempt.killed, attempt.accepted, pof.classify(attempt)) == ("deadline", True, "timeout")
+    assert "request 0123abcd" in attempt.detail and "collected 7 tests" in attempt.detail
+    assert any("accepted" in line for line in echoed), "the client's progress no longer reaches the step's log"
+
+
+def test_a_run_that_reported_a_red_before_it_was_stopped_never_falls_back(tmp_path):
+    attempt, _ = _real_run(tmp_path, "fails-then-hangs")
+    decision, _, _ = drive(ScriptedPool([install()], [attempt]))
+
+    assert attempt.failures_seen == ["tests/test_red.py::test_red"]
+    assert (decision.mode, decision.exit_code) == ("none", 1)
+    assert "tests/test_red.py::test_red" in decision.why and "nothing falls back" in decision.why
+
+
+def test_the_real_pool_lets_a_run_that_finishes_be_read_from_its_envelope(tmp_path):
+    attempt, _ = _real_run(tmp_path, "passes")
+
+    assert (attempt.killed, attempt.accepted, pof.classify(attempt)) == (None, True, "passed")
+
+
+class StepKilledMidway(BaseException):
+    """What GitHub's step timeout is to the driver: it stops, and no line after the kill runs."""
+
+
+def test_a_pool_step_killed_midway_leaves_a_record_that_names_the_pool_not_lint(tmp_path, monkeypatch):
+    class KilledPool:
+        def __init__(self, out, argv):
+            pass
+
+        def install(self):
+            return install()
+
+        def run(self, limit_s):
+            raise StepKilledMidway
+
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(pof, "RealPool", KilledPool)
+    with pytest.raises(StepKilledMidway):
+        pof.main(["pool", "--out", str(tmp_path), "--", "testament", "run"])
+    lines, notes = pof.summary_lines(tmp_path)
+
+    assert lines[0] == "### Nothing ran.", lines[0]
+    assert lines[2] == pof.STOPPED
+    assert any(line.startswith("- install: curl exit 0") for line in lines), "the attempt before the kill is not named"
+    assert notes == [f"::error::Nothing ran. {pof.STOPPED}"]
+
+
+def test_the_record_is_checkpointed_after_every_attempt_and_every_wait(tmp_path):
+    seen = []
+    pool = ScriptedPool([CONSOLE_503, install()], [run_attempt(PASSED, tmp=tmp_path)])
+    drive(pool, checkpoint=lambda attempts: seen.append([(a.step, a.waited_s) for a in attempts]))
+
+    assert seen == [
+        [("install", 0.0)],
+        [("install", 15)],
+        [("install", 15), ("install", 0.0)],
+        [("install", 15), ("install", 0.0), ("run", 0.0)],
+    ]
+
+
+# -- envelopes of a shape the driver does not expect (finding 2) -----------------------------
+
+
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        {"exit_code": 2, "verdict": "failed", "error": "upgrade_required"},
+        {"exit_code": 75, "verdict": "unavailable", "error": ["coordinator_unreachable"]},
+        {"exit_code": 75, "verdict": "unavailable", "error": {"retryable": "false"}},
+        {"exit_code": 0, "verdict": "passed", "report": ["a", "b"]},
+        {"exit_code": 0, "verdict": "passed", "report": {"counts": [1]}},
+        {"exit_code": 1, "verdict": "failed", "report": {"items": "none"}},
+        {"exit_code": 1, "verdict": "failed", "report": {"items": [{"id": 3}]}},
+        {"exit_code": 0, "verdict": "passed", "report": {"missing": "tests/a.py::b"}},
+        {"exit_code": 0, "verdict": "passed", "setup": "machine_not_set_up"},
+        {"exit_code": 0, "verdict": "passed", "fallback": "coordinator_unreachable"},
+        {"exit_code": 0, "verdict": 1},
+        ["not", "an", "object"],
+    ],
+    ids=[
+        "error-str",
+        "error-list",
+        "retryable-str",
+        "report-list",
+        "counts-list",
+        "items-str",
+        "item-id-int",
+        "missing-str",
+        "setup-str",
+        "fallback-str",
+        "verdict-int",
+        "envelope-list",
+    ],
+)
+def test_an_envelope_of_a_shape_it_cannot_read_is_named_as_such_never_a_crash(envelope, tmp_path):
+    path = tmp_path / "envelope.json"
+    path.write_text(json.dumps(envelope), encoding="utf-8")
+    code = envelope["exit_code"] if isinstance(envelope, dict) else 2
+    decision, _, _ = drive(ScriptedPool([install()], [pof.attempt_from_envelope(path, code)]))
+
+    assert (decision.mode, decision.exit_code) == ("none", 1)
+    assert decision.why.startswith("the pool could not give a verdict I can read"), decision.why
+
+
+@pytest.mark.parametrize("envelope", [{"exit_code": 1, "verdict": "failed", "error": "upgrade_required"}, {"report": []}])
+def test_the_summary_names_an_envelope_it_cannot_read(envelope, tmp_path):
+    decision = pof.Decision("pool", "w", [install()], verdict="failed")
+    lines, _ = _summary(tmp_path, decision, envelope)
+
+    assert any(line.startswith("the pool could not give a verdict I can read") for line in lines), lines
+
+
+# -- a fallback record must have waited out the budget (finding 3) ---------------------------
+
+
+def test_one_retryable_blip_does_not_earn_the_fallback(tmp_path):
+    installed = dataclasses.replace(install(), started_s=0, ended_s=1)
+    blip = dataclasses.replace(run_attempt(UNAVAILABLE, tmp=tmp_path), started_s=1, ended_s=4)
+
+    assert not pof.fallback_is_earned([installed, blip])
+    assert not pof.fallback_is_earned([install(), run_attempt(UNAVAILABLE, tmp=tmp_path)]), "a record with no times"
+
+
+def test_a_record_whose_times_do_not_account_for_the_budget_does_not_earn_the_fallback(tmp_path):
+    decision, _, _ = drive(ScriptedPool([install()], [run_attempt(UNAVAILABLE, tmp=tmp_path)]))
+    attempts = decision.attempts
+    assert pof.fallback_is_earned(attempts)
+
+    skipped_waits = [dataclasses.replace(a, waited_s=0.0) for a in attempts]
+    untimed = [dataclasses.replace(a, started_s=None, ended_s=None) for a in attempts]
+    timeout_early = [attempts[0], dataclasses.replace(attempts[1], killed="deadline", ended_s=30, waited_s=0.0)]
+    for name, forged in {"skipped-waits": skipped_waits, "untimed": untimed, "timeout-early": timeout_early}.items():
+        assert not pof.fallback_is_earned(forged), name
+    # One attempt that itself lasted the budget, then the fallback, is consistent, and earned.
+    assert pof.fallback_is_earned(attempts[:1] + [dataclasses.replace(attempts[1], ended_s=pof.BUDGET_S, waited_s=0.0)])
+
+
+# -- the second job: a mark that is not prose (finding 4) -------------------------------------
+
+
+def _browser_job(workflow):
+    jobs = [job for job in workflow["jobs"].values() if job.get("name") == pof.BROWSER_JOB]
+    assert len(jobs) == 1, f"no single job named {pof.BROWSER_JOB!r} in tests.yml"
+    return jobs[0]
+
+
+def _run_browser_job(job, mode):
+    """The job's own step, run as GitHub would run it, with the first job's mode in its environment."""
+    step = next(s for s in job["steps"] if "browser-verdict" in str(s.get("run", "")))
+    assert step.get("env", {}).get("POOL_MODE") == "${{ needs.pool.outputs.mode }}", "the job does not read the mode"
+    env = {**os.environ, "POOL_MODE": mode}
+    return subprocess.run(["bash", "-eo", "pipefail", "-c", step["run"]], cwd=REPO, env=env, capture_output=True, text=True)
+
+
+def test_the_browser_job_is_green_when_the_pool_gave_the_verdict_and_red_after_a_fallback():
+    workflow = _workflow()
+    job = _browser_job(workflow)
+    assert workflow["jobs"]["pool"]["outputs"]["mode"] == "${{ steps.pool.outputs.mode }}"
+
+    passed = _run_browser_job(job, "pool")
+    fell_back = _run_browser_job(job, "fallback")
+    no_mode = _run_browser_job(job, "")
+
+    assert passed.returncode == 0, passed.stdout + passed.stderr
+    assert fell_back.returncode == 1 and "no verdict for this tree" in fell_back.stdout, fell_back.stdout
+    assert "testament run --json=summary --suite browser" in fell_back.stdout
+    assert no_mode.returncode == 1 and "no mode" in no_mode.stdout
+
+
+def check_the_browser_job_condition(workflow: dict) -> None:
+    """Raise unless the browser job is skipped when the first job failed or was cancelled.
+
+    With no `if`, or `success()`, a job whose `needs` failed or was cancelled is skipped;
+    the job's own step is green only on `mode=pool`, which a failed first job can carry
+    (a `failed` verdict), so the condition is what keeps that case from a green mark.
+    """
+    job = _browser_job(workflow)
+    assert job.get("needs") in ("pool", ["pool"]), f"the browser job needs {job.get('needs')!r}, not the first job"
+    assert job.get("if") in (None, "success()", "${{ success() }}"), (
+        f"the browser job runs under `if: {job.get('if')}`, so it can go green after the first job failed or " "was cancelled"
+    )
+
+
+def test_the_browser_job_is_skipped_never_green_when_the_first_job_failed_or_was_cancelled():
+    check_the_browser_job_condition(_workflow())
+
+
+@pytest.mark.parametrize("condition", ["always()", "${{ !cancelled() }}", "failure() || success()"])
+def test_a_browser_job_that_runs_after_a_failed_first_job_is_refused(condition):
+    workflow = _workflow()
+    _browser_job(workflow)["if"] = condition
+    with pytest.raises(AssertionError, match="runs under"):
+        check_the_browser_job_condition(workflow)
+
+
+def test_the_browser_job_is_not_the_required_check_and_reaches_nothing():
+    workflow = _workflow()
+    job = _browser_job(workflow)
+
+    assert workflow["jobs"]["pool"]["name"] != pof.BROWSER_JOB
+    assert job.get("permissions") == {"contents": "read"}
+    assert "secrets." not in json.dumps(job), "the browser job reads a secret it has no use for"
+    assert isinstance(job.get("timeout-minutes"), int) and job["timeout-minutes"] <= 5
+
+
+# -- the type gate's environments on the fallback (finding 5) --------------------------------
+
+
+def check_the_fallback_provisions_the_type_gate(workflow: dict) -> None:
+    """Raise unless the fallback's governance step syncs every project the type gate runs mypy in, before pytest."""
+    step = next(s for s in _fallback_steps(workflow) if "junit_suite_name=governance" in s["run"])
+    lines = [line.strip() for line in step["run"].splitlines() if line.strip()]
+    first_pytest = next(i for i, line in enumerate(lines) if "pytest" in line)
+    for project in ("arrt", "contract"):
+        synced = [i for i, line in enumerate(lines) if line.startswith("uv sync --frozen") and f"--project {project}" in line]
+        assert synced and synced[0] < first_pytest, (
+            f"the fallback's governance step runs pytest without {project}'s environment, so the type gate's mypy "
+            "cannot be spawned there"
+        )
+
+
+def test_the_fallback_provisions_the_environments_the_type_gate_runs_mypy_in():
+    check_the_fallback_provisions_the_type_gate(_workflow())
+
+
+@pytest.mark.parametrize("project", ["arrt", "contract"])
+def test_a_fallback_that_does_not_provision_a_type_checked_project_is_refused(project):
+    workflow = _workflow()
+    step = next(s for s in _fallback_steps(workflow) if "junit_suite_name=governance" in s["run"])
+    step["run"] = "\n".join(line for line in step["run"].splitlines() if f"--project {project}" not in line)
+    with pytest.raises(AssertionError, match=f"without {project}'s environment"):
+        check_the_fallback_provisions_the_type_gate(workflow)

@@ -78,20 +78,38 @@ that fixes it, so a default `uv sync` is unaffected.
 
 **When the pool cannot answer, CI falls back, and the browser suite is what it
 gives up.** `tests.yml` hands the pool run to `.github/scripts/pool_or_fallback.py`.
-If the console will not serve the client (no connection, a 5xx, a 408 or 429) or
-`testament run` ends `verdict: unavailable` (exit 75), it retries with backoff for
-up to ten minutes, then runs the governance, curation and contract suites on
-GitHub's runner with uv, by the commands in CLAUDE.md, after the lint the job
-always runs there. The browser suite needs Chrome, which only the pool's runners
-carry, so it does not run, and the job summary opens "The pool was unavailable;
-ran here, on GitHub's runner, without the browser suite". A green check is
-"every suite" only when the summary opens "Ran on the pool". After a fallback,
-run the browser suite on the pool before merging. The trade: an outage of the pool
-no longer blocks every merge (ruling 4 of 2026-11-19), and GitHub's minutes are
-spent on suites only during one (the 2026-11-18 ruling). A `failed` verdict is a
-result and never falls back, nor does a refused key or a wheel that fails its
-digest: those end "Nothing ran." `assert_tests_ran.py --decision` re-checks the
-record, and `tests/test_ci_fallback.py` holds the decision and the workflow's shape.
+If the console will not serve the client (no connection, a 5xx, a 408 or 429),
+`testament run` ends `verdict: unavailable` (exit 75), or the pool does not accept
+the run within two minutes, it retries with backoff for up to ten minutes; a run the
+pool accepted and still holds at the pool step's twenty-minute deadline (about three
+times a healthy full run) is stopped. Either way it then runs the governance,
+curation and contract suites on GitHub's runner with uv, by the commands in
+CLAUDE.md, after the lint the job always runs there. The browser suite needs Chrome,
+which only the pool's runners carry, so it does not run, and the job summary opens
+"The pool was unavailable; ran here, on GitHub's runner, without the browser suite".
+The required check, "Lint, then every suite", is then green on what ran, so the
+outage blocks no merge. The second check, **"The browser suite ran on the pool"**,
+is not required: it is green when the pool gave the verdict and red after a
+fallback, the mark that this tree has no browser verdict. Nothing gives it one
+later on its own (no workflow runs on a push to `develop` or `main`): re-run all of
+the workflow's jobs once the pool is back, or run `testament run --json=summary
+--suite browser` on the branch's head and put its request id on the pull request.
+The trade: an outage of the pool no longer blocks every merge (ruling 4 of
+2026-11-19), and GitHub's minutes are spent on suites only during one (the
+2026-11-18 ruling). A `failed` verdict is a result and never falls back, nor does a
+refused key, a wheel that fails its digest, an envelope of a shape the driver cannot
+read, or a run stopped after the pool reported a failing test: those end "Nothing
+ran." `assert_tests_ran.py --decision` re-checks the record, times included (one
+retryable blip earns no fallback), and `tests/test_ci_fallback.py` holds the
+decision, the deadline and the workflow's shape.
+
+**The type check runs on the pool, once per change.** CI's lint step runs ruff and
+black only, with `--only-group dev`. mypy runs in the governance suite
+(`tests/preferences/test_type_gate.py`), in `arrt/` and in `contract/` with each
+project's own configuration, and fails naming the modules with errors. It runs
+mypy without syncing, so on a fresh clone it fails until the environments exist,
+and says so: `cd arrt && uv sync --group dev --group browser` and `cd contract &&
+uv sync --group dev`. The fallback's governance step syncs both first.
 
 **`-n0` matters here.** These tests time real two-second poll intervals, and
 `-n auto` — which a command-line `-m` leaves in place — turns those windows into

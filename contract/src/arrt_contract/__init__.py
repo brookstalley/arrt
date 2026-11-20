@@ -16,6 +16,7 @@ the contract it is tested against.
 
 import itertools
 import json
+import re
 from datetime import datetime, timedelta
 from functools import cache
 from pathlib import Path
@@ -42,6 +43,9 @@ __all__ = [
 ]
 
 _HERE = Path(__file__).resolve().parent
+
+#: A frozen release's directory name: three whole numbers, none with a leading zero.
+_VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
 
 class ContractNotFoundError(RuntimeError):
@@ -167,8 +171,23 @@ def released() -> dict[str, Path]:
     each file's hash then. A consumer can hold itself to what an older Player or
     server was tested against: every valid fixture of a release this major
     still validates at this version (`contract/tests/test_released.py`).
+
+    Oldest first by version, compared as three whole numbers, so `1.9.0` comes
+    before `1.10.0`; the last entry is the latest. A directory under `released/`
+    whose name is not a version is refused by name (`ValueError`), because one
+    ordered by its spelling would sit in the order wherever the letters put it.
     """
-    return {path.name: path for path in sorted((root() / "released").iterdir()) if path.is_dir()}
+    frozen = [path for path in (root() / "released").iterdir() if path.is_dir()]
+    return {path.name: path for path in sorted(frozen, key=_version_of)}
+
+
+def _version_of(path: Path) -> tuple[int, int, int]:
+    """The `(major, minor, patch)` a frozen release's directory name spells; refuses a name that is not one."""
+    found = _VERSION.fullmatch(path.name)
+    if found is None:
+        raise ValueError(f"{path} is under released/ and is not named for a version (major.minor.patch)")
+    major, minor, patch = found.groups()
+    return int(major), int(minor), int(patch)
 
 
 def _instant(text: str) -> datetime:

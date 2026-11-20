@@ -40,8 +40,8 @@ where nothing real is touched; then, when you would trust it, on the real one:
   the restored catalogue and prunes the oldest, as it always has, so look at what
   the backup directory holds afterwards.
 - **The record of which release opened it.** `sqlite3 catalogue.sqlite 'SELECT *
-  FROM catalogue_opened'` names the release you just started, the instant, and
-  `1` for migrations finished.
+  FROM catalogue_opened'` names the release you just started, the instant,
+  `1` for migrations finished, and the catalogue shape generation that release expects.
 - **Your own restore notes** (the operator's private ones, outside this
   repository) should gain the journal step; this repository cannot hold them.
 

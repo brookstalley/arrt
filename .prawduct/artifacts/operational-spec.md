@@ -662,28 +662,58 @@ that will actually get run rather than skipped.
 > hung but a work the generation does not hold (a work added after the backup);
 > start-up `reconcile` asks the Library about every work a feed carries, and
 > what it answers for an id it has never held is not exercised here. **A
-> generation is refused by an older release** if the release that took it was
-> newer (`catalogue_opened`, below): restore with the release that took it, or
-> newer.
+> generation is refused by a release that carries the guard** when the release
+> that took it expects a higher catalogue shape generation (below): restore it
+> with that release or a newer one.
 
-> **The catalogue records which release last opened it (2026-11-19,
-> `build-plan-audit-wave-2.md` Chunk 06).** One row in the file's
+> **The catalogue records which release last opened it, and the shape that
+> release expects (2026-11-19, `build-plan-audit-wave-2.md` Chunk 06; the shape
+> generation since the boundary review the same day).** One row in the file's
 > `catalogue_opened` table (`data-model.md` § CatalogueOpened): the release, the
-> instant, and whether that open finished its migrations, written false before
-> the first migration and true after the last. So before a rollback the operator
-> can read which release last opened the file and when (`sqlite3 catalogue.sqlite
-> 'SELECT * FROM catalogue_opened'`), and after a failed upgrade whether its
-> migrations finished. **A release meeting a file a newer release opened refuses
-> to start**, before it copies, widens or records anything, with a message naming
-> both releases and the rollback (journal: ERROR `catalogue.newer_release_refused`);
-> a release it cannot read counts as newer. **The guard protects a downgrade only
-> to a release that carries it.** Measured once, 2026-11-19: v0.11.0's own code
-> (`git archive v0.11.0`), opening a v0.1.0 catalogue today's code had migrated
-> and recorded as opened by 0.12.0, opened it without a word, read its four works
-> and two walls, and left the row as it was. So a rollback to v0.11.0 or older is
-> still the restore of the copy taken before the migration (§ Routine Operations,
-> Rollback), never a checkout alone. **`PRAGMA user_version` is not this record**:
-> it marks a migration in progress, from its copy until its last step.
+> instant, the catalogue shape generation its code expects
+> (`persistence/file.py` `SCHEMA_GENERATION`), and whether that open finished its
+> migrations, written false before the first migration and true after the last.
+> So before a rollback the operator can read which release last opened the file,
+> when, and at which generation (`sqlite3 catalogue.sqlite 'SELECT * FROM
+> catalogue_opened'`), and after a failed upgrade whether its migrations
+> finished. **A release meeting a file recorded at a higher shape generation than
+> its own refuses to start**, before it copies, widens or records anything, with a
+> message naming both releases and both generations (journal: ERROR
+> `catalogue.newer_release_refused`). **Release numbers are not compared**: a file
+> recorded at the release's own generation or a lower one opens whatever release
+> wrote it, so a rollback across no change to the shape (a bad patch release to
+> the one before it) is the previous image alone. The generation is raised by
+> hand at every migration and at any table, column or index taken away or
+> redeclared, and `arrt/tests/unit/test_schema_generation.py` fails when the
+> shape or the open's steps move that far without it; an addition alone leaves
+> it. The open that raises it copies the file first (`pre-migration-*Z.sqlite`,
+> as before a drop), so the release left behind has a copy it opens. **The
+> refusal names the ways back that exist**: each `pre-migration-*Z.sqlite` and
+> backup generation `catalogue-*Z.sqlite` in `BACKUP_DIR` and beside the
+> catalogue whose own record that release would open, newest first, to be
+> restored by the numbered steps above, journal step included; or, when there is
+> none, says so, counts the copies it would refuse too, and names the newer
+> release as the way on. A row from before generations (a release, no
+> generation, written by a build of the audit's second wave before the boundary
+> review) opens unless its release is numbered later than this one's, the one
+> refusal the earlier guard made; a recorded release this code cannot read no
+> longer stops a start (WARNING `catalogue.unreadable_release_recorded`). **This
+> code's own release is checked before anything is written**: one that is not a
+> version of three numbers stops the start by name (`UnreadableRelease`), because
+> a build from before generations would refuse the file it was written into.
+> **The guard protects a downgrade only to a release that carries it.** Measured
+> once, 2026-11-19: v0.11.0's own code (`git archive v0.11.0`), opening a v0.1.0
+> catalogue today's code had migrated and recorded as opened by 0.12.0, opened it
+> without a word, read its four works and two walls, and left the row as it was;
+> measured again after the generation was added, with the same result, the
+> `schema_generation` column ignored. The build before the generation
+> (`6e4faae5`) opens a file this code recorded under the same version string,
+> keeping its generation, and refuses one recorded under a later version string,
+> by release number, across no change to the shape. So a rollback to v0.11.0 or
+> older across a migration is still the restore of the copy taken before it
+> (§ Routine Operations, Rollback), never the image alone. **`PRAGMA
+> user_version` is not this record**: it marks a migration in progress, from its
+> copy until its last step.
 
 > **Each generation says how long its copy took (2026-11-19).** `backup.completed`
 > carries `copy_seconds`, the monotonic time `VACUUM INTO` took. The copy holds a
@@ -728,7 +758,7 @@ that will actually get run rather than skipped.
 | Operation | Procedure |
 |---|---|
 | Deploy | `git pull`, then `systemctl restart` each unit. No migration spans the planes — the manifest is regenerated, never migrated. **One-off after the 2026-08-12 upgrade: delete `theme-manifest.json` and `display-heartbeat.json` from `ART_ROOT`.** Both files became per-wall (`theme-manifest-{wall_id}.json`), nothing writes or reads the old paths any more, and nothing deletes them either — so they sit there holding whatever they held at the moment of the upgrade. Harmless to the running planes and *not* harmless to a person: a `jq` at the old path answers, with a document that will never change again, and looks exactly like a current one. Delete them and the ambiguity goes with them |
-| Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the copy taken before the migration ran, then restart both. **The backup is the rollback plan.** Since 2026-11-19 the server takes that copy itself before any migration that drops a column or a table: the newest `pre-migration-*Z.sqlite` in `BACKUP_DIR`, or beside the catalogue when `BACKUP_DIR` is unset (§ Backup and Restore); a backup taken by hand before the deploy serves too. A migration that drops nothing writes no copy, and needs none. A rollback that crosses no migration is still the old two-step |
+| Rollback | **The previous image alone, when the rollback crosses no change to the catalogue's shape** (2026-11-19): point the server's container at the image it ran before (`arrt:<commit>`, as `deploy/README.md` § The server on the NAS builds it; the compose file that names it is in the operator's homelab repository) and recreate the container. A release that carries the `catalogue_opened` record opens a file recorded at its own catalogue shape generation or a lower one, whatever release last opened it (§ Backup and Restore, the note on that record). **Across a raised generation it is a restore**: the older release refuses the file by name, changing nothing, and names the copies beside it that it opens (the `pre-migration-*Z.sqlite` the newer release's first start wrote, and any backup generation from before that start), or says there are none. Restore one by the numbered steps in § Backup and Restore, which `deploy/README.md` § The way back across such a migration gives too: they remove the journal before the copy goes in, without which the restore is silently undone. Then start the previous image. **A release from before the record (v0.11.0 and older) checks nothing**: it opens a file a newer release migrated without a word, so a rollback to one across a migration restores the copy first, every time. *(Until 2026-11-19 this row said `git checkout` the previous commit, restore, and restart both planes: a checkout is not how a container is rolled back, and its restore had no journal step. Until 2026-08-12 it was `git checkout` plus two restarts, which stopped being true the first time the schema dropped something.)* |
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
 | Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`pictures/` is never reclaimed, by norm** (`data-model.md` § Direction, 2026-10-06): every picture fetched from outside is kept, two files each, and the store has no ceiling. Its files and bytes are on the health panel, counted at most ten minutes ago, so its growth is a figure to watch rather than a chore. **`previews/` is debris since the same day**: the startup import moves every file a row names into the store, logging `pictures.imported` with its counts; once that line reports `done`, `rm -rf previews/` loses nothing, including files no row ever named (#62). It matters here because § Risks opens with the SD card as the top operational risk |
 | **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |

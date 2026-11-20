@@ -1309,9 +1309,18 @@ across such a migration is a restore: the previous image together with the
 catalogue as it was before the migration. Since 2026-11-19 the server takes that
 copy itself before a migration that drops something, `pre-migration-<instant>.sqlite`
 in `BACKUP_DIR`, and refuses to migrate when it cannot write it (`deploy/README.md`
-§ Before an upgrade that drops something). A rollback that crosses no migration is
-the previous image alone. `operational-spec.md` § Backup and Restore carries the
-operator's steps.
+§ Before an upgrade that drops something). **A rollback that crosses no change to
+the catalogue's shape is the previous image alone**, and the code keeps that
+promise: every open records the shape generation its code expects
+(`persistence/file.py` `SCHEMA_GENERATION`, raised by hand at each migration and
+held to the shape by `arrt/tests/unit/test_schema_generation.py`), and a release
+refuses a file only when it records a higher generation than its own, never for a
+higher release number. A rollback across a raised generation is refused by a
+release that carries the guard, and is a restore: the open that raised it copied
+the file first, and the refusal names the copies beside the file that the older
+release opens (2026-11-19, `build-plan-audit-wave-2.md` Chunk 06's amended
+DECISION). `operational-spec.md` § Backup and Restore carries the operator's
+numbered steps, the journal step among them.
 
 ## Scaling Model
 
@@ -1804,7 +1813,12 @@ write it), then restart both. **The backup is the rollback plan** — without on
 across this migration is not possible, and re-creating what the migration removed
 by hand would reset the directive counter it was careful to carry. A rollback
 that crosses no migration is still the old two-step. `operational-spec.md`
-§ Routine Operations carries the operator-facing form.
+§ Routine Operations carries the operator-facing form. *(2026-11-19: the server
+is a container now, so the "two-step" is the previous image alone, and from the
+release carrying the catalogue's shape generation the code says which rollbacks
+those are: a file recorded at the previous release's generation or a lower one
+opens, one recorded at a higher generation is refused naming the copies that
+open (§ Deployment & Version Skew above; `operational-spec.md` § Backup and Restore).)*
 
 **2026-07-20 — The theme manifest file is the only inter-plane channel.**
 Alternatives: a full local mirror on the Pi (rejected — a sync problem with a

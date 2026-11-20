@@ -1,0 +1,2297 @@
+{
+  "1": {
+    "steps": [
+      "begin_the_open",
+      "establish_the_wall",
+      "mark_the_default_theme",
+      "rename_awaiting_to_wanted",
+      "retire_wall_tokens",
+      "walls_name_displays",
+      "retire_conversations",
+      "retire_directives",
+      "retire_television_canvases",
+      "carry_rotation_to_walls",
+      "finish_migration",
+      "complete_the_open"
+    ],
+    "tables": {
+      "acquisition_queue": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "detail": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "failures": {
+            "default": "0",
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "next_try_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) artwork_id": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id",
+          "source_id -> sources.id"
+        ]
+      },
+      "affinities": {
+        "columns": {
+          "artist_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "derivation": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "open_to_more": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "rationale": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "sentiment": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "updated_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "value": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "affinities_one_per_thing": {
+            "columns": [
+              "kind",
+              "value"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "artist_id -> artists.id"
+        ]
+      },
+      "artists": {
+        "columns": {
+          "biography": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "born": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "died": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "display_nationality": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "family_name": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "given_name": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "lifespan_text": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "name": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "nationality": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wikidata_qid": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wikidata_qid_set_by": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "artworks": {
+        "columns": {
+          "accepted_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "artist_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "commentary": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "date_created": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "description": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "dimensions": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "medium": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rights": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "status": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "title": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wikidata_qid": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wikidata_qid_set_by": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "artworks_by_status": {
+            "columns": [
+              "status"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "artist_id -> artists.id"
+        ]
+      },
+      "candidate_images": {
+        "columns": {
+          "acquisition_method": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "candidate_work_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "confidence": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "estimated_height": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "estimated_width": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "is_selected": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "preview_path": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "preview_url": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "provider": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "quality_score": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "rejected_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rights_status": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "selection_rationale": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_class": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "url": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "candidate_images_by_work": {
+            "columns": [
+              "candidate_work_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "candidate_images_one_selected": {
+            "columns": [
+              "candidate_work_id"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": [
+          "candidate_work_id -> candidate_works.id"
+        ]
+      },
+      "candidate_works": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "decided_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "discovery_run_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "offered_artist_matched": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "offered_by": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "offered_for_artist": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "proposed_artist": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "proposed_title": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "provenance": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rationale": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rejected_reason": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "resolution_status": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_confirmed": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "unresolved_reason": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "verdict": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wikidata_qid": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "work_dedup_key": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "candidate_works_by_dedup_key": {
+            "columns": [
+              "work_dedup_key"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "candidate_works_by_run": {
+            "columns": [
+              "discovery_run_id"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id",
+          "discovery_run_id -> discovery_runs.id"
+        ]
+      },
+      "catalogue_opened": {
+        "columns": {
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "INTEGER"
+          },
+          "migrations_completed": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "opened_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "release": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "schema_generation": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {},
+        "references": []
+      },
+      "clients": {
+        "columns": {
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "name": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "token_issued_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "token_verifier": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "(u) name": {
+            "columns": [
+              "name"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "default_theme_offers": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "offered_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) artwork_id": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "discovery_runs": {
+        "columns": {
+          "actual_cost_usd": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "approval_required": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "completed_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "destination_theme_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "end_reason": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "estimated_cost_usd": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "initiated_by": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "intent_text": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "parent_run_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "started_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "status": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "strategy": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "unresolved_work_count": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "watch_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "discovery_runs_by_parent": {
+            "columns": [
+              "parent_run_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "discovery_runs_by_status": {
+            "columns": [
+              "status"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "discovery_runs_by_watch": {
+            "columns": [
+              "watch_id"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "parent_run_id -> discovery_runs.id"
+        ]
+      },
+      "displays": {
+        "columns": {
+          "client_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "first_seen": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "identity": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "output": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "(u) identity": {
+            "columns": [
+              "identity"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "displays_one_per_output": {
+            "columns": [
+              "client_id",
+              "output"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": [
+          "client_id -> clients.id"
+        ]
+      },
+      "history_events": {
+        "columns": {
+          "detail": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "occurred_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "run_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "theme_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wall_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "work_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "history_events_by_time": {
+            "columns": [
+              "occurred_at"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "history_events_by_wall": {
+            "columns": [
+              "wall_id",
+              "occurred_at"
+            ],
+            "partial": true,
+            "unique": false
+          }
+        },
+        "references": []
+      },
+      "label_outputs": {
+        "columns": {
+          "client_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "output": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wall_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "label_outputs_by_wall": {
+            "columns": [
+              "wall_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "label_outputs_one_per_output": {
+            "columns": [
+              "client_id",
+              "output"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "client_id -> clients.id",
+          "wall_id -> walls.id"
+        ]
+      },
+      "mat_colors": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "chosen_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "hex_rgb": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "is_current": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "lab_a": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "lab_b": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "lab_l": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "method": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "model_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "reason": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "mat_colors_by_artwork": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "mat_colors_one_current": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id"
+        ]
+      },
+      "originals": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "byte_size": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "content_hash": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "fetch_status": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "height": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "relative_path": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "width": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "(u) artwork_id": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id",
+          "source_id -> sources.id"
+        ]
+      },
+      "renditions": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "byte_size": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "content_sha256": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "generated_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "layout": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "relative_path": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_content_hash": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "target_height": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "target_width": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "renditions_by_content": {
+            "columns": [
+              "content_sha256"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "renditions_by_geometry": {
+            "columns": [
+              "artwork_id",
+              "kind",
+              "target_width",
+              "target_height"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id"
+        ]
+      },
+      "reported_screens": {
+        "columns": {
+          "display_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "height_px": {
+            "default": null,
+            "notnull": true,
+            "pk": 3,
+            "type": "INTEGER"
+          },
+          "last_reported_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "width_px": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {
+          "(pk) display_id,width_px,height_px": {
+            "columns": [
+              "display_id",
+              "width_px",
+              "height_px"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "display_id -> displays.id"
+        ]
+      },
+      "resolve_run_works": {
+        "columns": {
+          "candidate_work_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          },
+          "resolve_run_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) resolve_run_id,candidate_work_id": {
+            "columns": [
+              "resolve_run_id",
+              "candidate_work_id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "resolve_run_works_by_work": {
+            "columns": [
+              "candidate_work_id"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "candidate_work_id -> candidate_works.id",
+          "resolve_run_id -> discovery_runs.id"
+        ]
+      },
+      "run_citations": {
+        "columns": {
+          "discovery_run_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "position": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "url": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) discovery_run_id,url": {
+            "columns": [
+              "discovery_run_id",
+              "url"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "discovery_run_id -> discovery_runs.id"
+        ]
+      },
+      "scene_pins": {
+        "columns": {
+          "scene_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "wall_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          },
+          "work_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) scene_id,wall_id": {
+            "columns": [
+              "scene_id",
+              "wall_id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "scene_id -> scenes.id"
+        ]
+      },
+      "scenes": {
+        "columns": {
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "ended_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "lifetime": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "starts_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "status": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "until": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "scenes_by_status": {
+            "columns": [
+              "status"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": []
+      },
+      "settings": {
+        "columns": {
+          "key": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "updated_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "updated_by": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "value": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) key": {
+            "columns": [
+              "key"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "showings": {
+        "columns": {
+          "ended_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "last_seen_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "started_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          },
+          "wall_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "work_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) wall_id,started_at": {
+            "columns": [
+              "wall_id",
+              "started_at"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "showings_by_work": {
+            "columns": [
+              "work_id",
+              "last_seen_at"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": []
+      },
+      "sightings": {
+        "columns": {
+          "url": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          },
+          "wikidata_qid": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) wikidata_qid,url": {
+            "columns": [
+              "wikidata_qid",
+              "url"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "sources": {
+        "columns": {
+          "acquisition_method": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "confidence": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "is_primary": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "last_fetch_status": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "last_fetched_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "provider": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rights_status": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "selection_rationale": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_class": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "url": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "sources_by_artwork": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "sources_one_primary": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id"
+        ]
+      },
+      "spend_records": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "category": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "cost_usd": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "discovery_run_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "input_tokens": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "model_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "occurred_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "output_tokens": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "units": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "spend_records_by_run": {
+            "columns": [
+              "discovery_run_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "spend_records_by_time": {
+            "columns": [
+              "occurred_at"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id",
+          "discovery_run_id -> discovery_runs.id"
+        ]
+      },
+      "theme_assignments": {
+        "columns": {
+          "assigned_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "theme_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "wall_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) wall_id": {
+            "columns": [
+              "wall_id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "theme_assignments_by_theme": {
+            "columns": [
+              "theme_id"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "theme_id -> themes.id",
+          "wall_id -> walls.id"
+        ]
+      },
+      "theme_memberships": {
+        "columns": {
+          "added_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 2,
+            "type": "TEXT"
+          },
+          "position": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "theme_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 1,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) theme_id,artwork_id": {
+            "columns": [
+              "theme_id",
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "theme_memberships_by_artwork": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": false
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id",
+          "theme_id -> themes.id"
+        ]
+      },
+      "themes": {
+        "columns": {
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "description": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "is_default": {
+            "default": "0",
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "is_hidden": {
+            "default": "0",
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "name": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "(u) name": {
+            "columns": [
+              "name"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "themes_one_default": {
+            "columns": [
+              "is_default"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "walls": {
+        "columns": {
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "display_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "mat_mode": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "max_aspect_ratio": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "min_aspect_ratio": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "REAL"
+          },
+          "name": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "rotation_interval_seconds": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "shuffle": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "INTEGER"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "(u) name": {
+            "columns": [
+              "name"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "walls_one_per_display": {
+            "columns": [
+              "display_id"
+            ],
+            "partial": true,
+            "unique": true
+          }
+        },
+        "references": [
+          "display_id -> displays.id"
+        ]
+      },
+      "watches": {
+        "columns": {
+          "cadence": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "created_by": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "enabled": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "INTEGER"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "intent_text": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "last_attempt_at": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "last_refusal": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "last_run_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "monthly_cap_usd": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "updated_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "updated_by": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "work_exclusions": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "excluded_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) artwork_id": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": []
+      },
+      "work_facets": {
+        "columns": {
+          "artwork_id": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "created_at": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "derivation": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "id": {
+            "default": null,
+            "notnull": false,
+            "pk": 1,
+            "type": "TEXT"
+          },
+          "kind": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "source_note": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "value": {
+            "default": null,
+            "notnull": true,
+            "pk": 0,
+            "type": "TEXT"
+          },
+          "value_qid": {
+            "default": null,
+            "notnull": false,
+            "pk": 0,
+            "type": "TEXT"
+          }
+        },
+        "indexes": {
+          "(pk) id": {
+            "columns": [
+              "id"
+            ],
+            "partial": false,
+            "unique": true
+          },
+          "work_facets_by_artwork": {
+            "columns": [
+              "artwork_id"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "work_facets_by_item": {
+            "columns": [
+              "value_qid"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "work_facets_by_value": {
+            "columns": [
+              "kind",
+              "value"
+            ],
+            "partial": false,
+            "unique": false
+          },
+          "work_facets_once_per_work": {
+            "columns": [
+              "artwork_id",
+              "kind",
+              "value"
+            ],
+            "partial": false,
+            "unique": true
+          }
+        },
+        "references": [
+          "artwork_id -> artworks.id"
+        ]
+      }
+    }
+  }
+}
