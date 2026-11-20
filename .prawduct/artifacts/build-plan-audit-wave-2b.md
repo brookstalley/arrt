@@ -550,7 +550,7 @@ chunk can cite them.
 | C36 | The real-Player test's docker path (`ARRT_SERVER_IMAGE`) has never run | Dropped from chunks: it runs only on a pull request into `main`; the release's operator checklist (55) |
 | C37 | The Player prints a plain-text line among its JSON journal lines | Dropped: Arrt Player's, for its next plan (54 tells its coordinator) |
 | C38 | A `file` label-output kind (the Player's file label reports itself as `epaper`) | Dropped: nothing reads the kind to decide anything, and a new value loosens a writer's obligation, which `test_released.py` makes a recorded decision; revisit when the Player asks |
-| C39 | The OpenRouter drift probes (#150) stay red monthly for want of a key | Dropped from chunks: an owner's act (provision the key or rule that the paid probes run by hand); asked with Q4 |
+| C39 | The OpenRouter drift probes (#150) stay red monthly for want of a key | Dropped from chunks: an owner's act (provision the key or rule that the paid probes run by hand); asked with Q4. *Ruled 2026-11-20 (CI makes no paid call) and built in Chunk 66: the paid job, its monthly cron and its input are gone from `api-drift.yml`, the probe is run by hand, and `tests/test_ci_makes_no_paid_call.py` holds CI to the pool's client key.* |
 | C40 | `drift-freshness.yml` needs one manual dispatch after this reaches `main` | The operator's checklist (55) |
 | C41 | The private homelab restore notes need the journal step | Dropped: the owner's private repository |
 | C42 | #307, `list_exclusions()` scanned at about eight sites | Third part, with the view models, where one answer per entity is built |
