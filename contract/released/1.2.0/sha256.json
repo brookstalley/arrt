@@ -108,6 +108,8 @@
     "fixtures/manifest.v2/valid/scene-hold.json": "06ed5fbda046c35fec14dfa35bb05c5521a74cb6f52d891e3316b1628763a517",
     "fixtures/manifest.v2/valid/scene-preview.json": "e0dcbb79a3bc8c3087aac84ce23501ae1f7eb04a6a5ddff6197700931bd83604",
     "fixtures/manifest.v2/valid/staging-a-scene.json": "0f2a0d24f457f3947b8c2c33ebb0c46863ee1f24ffae12c4b5e2c0061b6f2173",
-    "routes.json": "8e07ed8a94ef6cd9b8d5d746939dd8961b167bd0cb93156b0e80617a13b96c8d"
+    "routes.json": "8e07ed8a94ef6cd9b8d5d746939dd8961b167bd0cb93156b0e80617a13b96c8d",
+    "transport.json": "e33aa12e3f4425323148267a6160899d91ce257e41e20c64c85e5ef9c4344c45",
+    "vocabulary.json": "94a9227672b2da81161fd016289d9cf4f2c94e23055eea0a3f1999ca58d871a4"
   }
 }
