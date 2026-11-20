@@ -7,16 +7,19 @@ purpose: `art_discovery(status)` until the run changes, up to
 of its own for as long as it runs.
 
 **Each surface has its own pool, so a hold on one never takes a thread from the
-other.** On asyncio's default executor the two shared min(32, CPUs + 4)
-threads, eight on a four-core machine, and eight held status calls left an MCP
-call and an Ask reply waiting for a hold to end. Within a surface a short call
-waits only when every one of that surface's threads is busy.
+other.** One executor shared by both, sized from the processor count as
+asyncio's default is (min(32, CPUs + 4), eight on four cores), is filled by eight
+held status calls, and then every MCP call and every Ask reply waits for a hold
+to end. Within a surface a short call waits only when every one of that
+surface's threads is busy.
 
-**What the shared executor bounded, and what bounds it now.** At most eight
-service calls from MCP and Ask together were in flight on a four-core machine.
-The pools raise that to `MCP_CALL_THREADS` plus `ASK_CALL_THREADS`. The HTTP
-handlers' own pool (anyio's) and the background threads are outside both, as
-they were. The paid paths keep their own limits, which no thread count sets.
+**What bounds the calls the two surfaces make into the services:** at most
+`SURFACE_CALL_THREADS` in flight at once, `MCP_CALL_THREADS` plus
+`ASK_CALL_THREADS`, on any machine. The store serialises its statements behind
+one lock whatever the count, so a larger bound deepens the queue at that lock
+rather than adding throughput. The HTTP handlers' own pool (anyio's) and the
+background threads are outside both. The paid paths keep their own limits,
+which no thread count sets.
 
 A call that finds every thread of its pool busy waits for the next one to
 finish, in the order the calls came, and says so in the journal (`QUEUED_EVENT`).
@@ -35,7 +38,7 @@ log = logging.getLogger(__name__)
 
 #: MCP's tool calls in flight at once. Every held status call or look keeps one,
 #: so this many less one can hold while a short call still finds a thread: twice
-#: the eight a four-core machine's default executor had for both surfaces.
+#: the eight that a pool sized from a four-core machine's processors would have.
 MCP_CALL_THREADS: Final[int] = 16
 
 #: Ask's tool calls and its taste read in flight at once. None of Ask's actions
