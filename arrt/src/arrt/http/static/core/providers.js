@@ -75,7 +75,7 @@ export const OUTCOME_WORDS = {
   partial_tiles: "Fetched, a few tiles missing",
   none_held: "No image on its page",
   unasked: "Could not be asked",
-  faulted: "The plugin faulted",
+  faulted: "Its plugin faulted",
   link_gone: "Its page is gone",
   failed: "Failed",
 };
