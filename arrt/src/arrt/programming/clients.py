@@ -37,6 +37,7 @@ from arrt.persistence.records import Client, Display, LabelOutput, Wall
 from arrt.programming import client_heartbeat
 from arrt.programming.client_heartbeat import ClientHeartbeatReading
 from arrt.programming.display_state import DisplayState, ScreenState, display_state_of
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading, heartbeat_path_in
@@ -852,10 +853,9 @@ class ClientService:
         raise ServiceError(f"Choose which of {client.name}'s screens shows {wall.name}: it reported {reported}.")
 
     def _require_wall(self, wall_id: str) -> Wall:
-        wall = self._store.get_wall(wall_id)
-        if wall is None:
-            raise ServiceError(f"No wall with id {wall_id!r} is in the catalogue.")
-        return wall
+        # Programming's one wall lookup (`lookups.py`), so a refusal here reads
+        # and raises as it does on every other surface that names a wall.
+        return Lookups(self._store).get_wall(wall_id)
 
     def _heartbeat_path(self, client_id: str) -> Path:
         return client_heartbeat.client_heartbeat_path_in(self._settings.art_root, client_id)

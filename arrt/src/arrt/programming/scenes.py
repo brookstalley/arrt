@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from arrt.library.facade import (
     EventKind,
@@ -31,21 +31,19 @@ from arrt.persistence.records import (
     SceneLifetime,
     ScenePin,
     SceneStatus,
+    Wall,
 )
 from arrt.programming.display_state import ScreenState
 from arrt.programming.feeds import FeedPublisher, applied_at
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
 from arrt.programming.walls import Walls
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member
 from arrt.services.store import store_write
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module these lines were said from before it had a module of its
 #: own, and kept, for the reason `feeds.py` gives: a logger's name is what a
@@ -102,6 +100,7 @@ class Scenes:
         store: ProgrammingStore,
         library: LibraryFacade,
         settings: DisplaySettings,
+        lookups: Lookups,
         feeds: FeedPublisher,
         themes: Themes,
         walls: Walls,
@@ -109,6 +108,8 @@ class Scenes:
         self._store = store
         self._library = library
         self._settings = settings
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
         self._walls = walls
@@ -128,11 +129,11 @@ class Scenes:
         """The scene being assembled: the one already started, else a new empty one.
 
         One draft at a time, because the builder on Walls holds one; the store
-        would take more, and only the newest stages anything (`FeedPublisher.current_draft`).
+        would take more, and only the newest stages anything (`Lookups.current_draft`).
         """
         with self._store.transaction():
             ended = self.settle_scenes()
-            draft = self._feeds.current_draft()
+            draft = self._lookups.current_draft()
             if draft is None:
                 draft = Scene(id=str(uuid.uuid4()), status=SceneStatus.DRAFT, created_at=datetime.now(UTC))
                 store_write(self._store.add_scene, draft)
@@ -148,9 +149,11 @@ class Scenes:
         feed, whose Player has nothing to show a scene over. A refusal changes
         nothing in the draft.
         """
-        wall = self._feeds.get_wall(wall_id)
-        answer = self._themes.require_showable(artwork_id)
+        # Every check inside the act, so a work kept off every wall or a wall
+        # deleted meanwhile is refused rather than pinned.
         with self._feeds.publishing():
+            wall = self._lookups.get_wall(wall_id)
+            answer = self._themes.require_showable(artwork_id)
             scene = self._require_scene(scene_id, SceneStatus.DRAFT)
             if self._feeds.published(wall_id) is None:
                 raise ServiceError(
@@ -164,8 +167,8 @@ class Scenes:
 
     def unpin_scene(self, scene_id: str, wall_id: str) -> SceneView:
         """Take this wall out of the draft and stop staging its work there."""
-        wall = self._feeds.get_wall(wall_id)
         with self._feeds.publishing():
+            wall = self._lookups.get_wall(wall_id)
             self._require_scene(scene_id, SceneStatus.DRAFT)
             store_write(self._store.remove_pin, scene_id, wall_id)
             self._feeds.patch_walls([wall_id])
@@ -208,7 +211,7 @@ class Scenes:
             if not pins:
                 raise ServiceError("This scene has no walls in it yet. Pick a work for a wall first.")
             for pin in pins:
-                wall = self._feeds.get_wall(pin.wall_id)
+                wall = self._lookups.get_wall(pin.wall_id)
                 try:
                     self._themes.require_showable(pin.work_id)
                 except ServiceError as refusal:
@@ -261,7 +264,7 @@ class Scenes:
     def scene_draft(self) -> SceneView | None:
         """The scene being assembled, or None."""
         with self._store.reading():
-            draft = self._feeds.current_draft()
+            draft = self._lookups.current_draft()
             return None if draft is None else self._scene_view(draft)
 
     def get_scene(self, scene_id: str) -> SceneView:
@@ -273,25 +276,30 @@ class Scenes:
             return self._scene_view(scene)
 
     def scene_walls(self, view: SceneView) -> list[SceneWall]:
-        """Each wall a scene pins, with its work and whether its last heartbeat reports the scene."""
+        """Each wall a scene pins, with its work and whether its last heartbeat reports the scene.
+
+        The walls, the exclusions and each screen are read in one scope, and each
+        wall from the one listing that decides which pins are on held walls: a
+        wall deleted between that listing and a read of its own was asserted
+        present, and the answer was a fault (C2).
+        """
         walls: list[SceneWall] = []
         answers = self._library.playable(sorted({pin.work_id for pin in view.pins}))
-        kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
-        for pin in self._pins_on_held_walls(view.pins):
-            wall = self._store.get_wall(pin.wall_id)
-            assert wall is not None  # noqa: S101 -- `_pins_on_held_walls` held it a moment ago
-            contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
-            walls.append(
-                SceneWall(
-                    wall_id=wall.id,
-                    wall_name=wall.name,
-                    work_id=pin.work_id,
-                    title=answers[pin.work_id].title if pin.work_id in answers else None,
-                    reached=contents.get("scene_id") == view.scene.id,
-                    cannot_show=_cannot_show(answers.get(pin.work_id), kept_off=pin.work_id in kept_off),
-                    screen=self._walls.display_state(wall).state,
+        with self._store.reading():
+            kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+            for pin, wall in self._held_walls(view.pins):
+                contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
+                walls.append(
+                    SceneWall(
+                        wall_id=wall.id,
+                        wall_name=wall.name,
+                        work_id=pin.work_id,
+                        title=answers[pin.work_id].title if pin.work_id in answers else None,
+                        reached=contents.get("scene_id") == view.scene.id,
+                        cannot_show=_cannot_show(answers.get(pin.work_id), kept_off=pin.work_id in kept_off),
+                        screen=self._walls.display_state(wall).state,
+                    )
                 )
-            )
         return walls
 
     def _scene_view(self, scene: Scene) -> SceneView:
@@ -339,9 +347,10 @@ class Scenes:
             for work_id, answer in self._library.playable(sorted({pin.work_id for pin in pins})).items()
             if isinstance(answer, PlayableWork)
         }
-        for pin in self._pins_on_held_walls(pins):
-            wall = self._store.get_wall(pin.wall_id)
-            assert wall is not None  # noqa: S101 -- `_pins_on_held_walls` held it a moment ago
+        # Each wall from the one listing that decides which are held, for the
+        # reason `scene_walls` gives: this runs after its act commits, and a wall
+        # deleted meanwhile failed an act that had already happened.
+        for pin, wall in self._held_walls(pins):
             words: dict[str, object] = {"scene_id": scene.id, **detail, "wall_name": wall.name}
             if pin.work_id in titles:
                 words["title"] = titles[pin.work_id]
@@ -362,17 +371,19 @@ class Scenes:
             if scene.status_at(now) is SceneStatus.ENDED and scene.until is not None
         ]
 
-    def _pins_on_held_walls(self, pins: Iterable[ScenePin]) -> list[ScenePin]:
-        """The pins whose wall the store still holds.
+    def _held_walls(self, pins: Iterable[ScenePin]) -> list[tuple[ScenePin, Wall]]:
+        """The pins whose wall the store still holds, each with that wall, from one listing of the walls.
 
         A wall deleted while a scene was live leaves its pin as the scene's record
         (`delete_wall`), and has left the scene: it is shown nothing, named in no
         new history line, and its feed, removed with it, is not republished.
         Every path that acts on a scene's pins takes them through here, so none
-        meets the deleted wall in a way of its own.
+        meets the deleted wall in a way of its own. Each wall comes from the
+        listing that decided it is held, never from a read of its own after it,
+        which a delete could land before (C2).
         """
-        held = {wall.id for wall in self._store.list_walls()}
-        return [pin for pin in pins if pin.wall_id in held]
+        held = {wall.id: wall for wall in self._store.list_walls()}
+        return [(pin, held[pin.wall_id]) for pin in pins if pin.wall_id in held]
 
     def _wall_names(self, wall_ids: Iterable[str]) -> str:
         held = {wall.id: wall.name for wall in self._store.list_walls()}

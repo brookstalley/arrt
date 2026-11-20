@@ -107,7 +107,7 @@ def test_what_it_hangs_comes_down_and_the_theme_stays(display, two_walls):
     assert display.hanging_on(hall) is not None, "the other wall still hangs its own"
 
 
-def test_a_selection_only_it_hung_is_retired_and_one_another_wall_hangs_is_kept(display, mastered, two_walls):
+def test_a_selection_only_it_hung_is_retired_and_one_another_wall_hangs_is_kept(display, store, mastered, two_walls):
     hall, study = two_walls
     landing = display.add_wall(name="Landing").id
     selection = display.hang_selection([mastered("Shared").id], wall_id=study).theme
@@ -118,8 +118,8 @@ def test_a_selection_only_it_hung_is_retired_and_one_another_wall_hangs_is_kept(
     display.delete_wall(study)
     display.delete_wall(hall)
 
-    assert display._store.get_theme(alone.id) is None, "a selection nothing hangs any more is retired"
-    assert display._store.get_theme(selection.id) is not None, "a selection another wall still hangs is kept"
+    assert store.get_theme(alone.id) is None, "a selection nothing hangs any more is retired"
+    assert store.get_theme(selection.id) is not None, "a selection another wall still hangs is kept"
     assert display.hanging_on(landing).id == selection.id
 
 
@@ -249,11 +249,11 @@ def test_its_showings_stay(display, store, two_walls):
     assert set(store.last_shown_by_work()) == {f"work-on-{hall}", f"work-on-{study}"}
 
 
-def test_its_history_stays_and_names_it(services, display, mastered, two_walls):
+def test_its_history_stays_and_names_it(services, display, store, mastered, two_walls):
     _, study = two_walls
     name = display.get_wall(study).name
     theme = display.hanging_on(study)
-    member = display._store.list_memberships(theme.id)[0].artwork_id
+    member = store.list_memberships(theme.id)[0].artwork_id
     display.leave_theme(member, wall_id=study)
     display.exclude_work(mastered("Kept off").id, wall_id=study)
 
