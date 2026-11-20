@@ -325,9 +325,13 @@ asking your plugin, and asks it again once the run is done or has given up.
 **While your plugin owes one answer, it is not asked another question** (since wave
 2b; `OWED_CALLS_PER_PLUGIN`, 1, in `arrt/src/arrt/library/sources/loading.py`). A call
 the run stopped waiting for, still inside its deadline, is owed. While one is, neither
-a run nor a pass of the acquisition queue starts another call to your plugin: the work
-is not asked at your source, as a held-back pass leaves it (no search recorded, its
-queue row unchanged, nothing counted against your plugin), and a later pass asks it.
+a run going from work to work nor a pass of the acquisition queue starts another call
+to your plugin: the work is not asked at your source, as a held-back pass leaves it (no
+search recorded, its queue row unchanged, nothing counted against your plugin). The
+queue asks about it when the owed call ends, whether it answered or passed its
+deadline, and looks again within five minutes if that wake is lost
+(`NOT_ASKED_RECHECK_SECONDS`); a run does not come back to it. A look, a preview or
+Ask makes its one call and is never refused for an owed one.
 So a slow museum is asked one owed question at a time, where a run going from work to
 work would otherwise start one per work. The journal says so
 (`event=image_pool.still_asking` for a run, `event=source.plugin_still_asking` within a

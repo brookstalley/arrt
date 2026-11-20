@@ -522,8 +522,18 @@ left as planned and this section is the later word.
   queue pass starts another there; the work is not asked at that source, the outcome a pass's
   hold-back gives (`StillAsking`, a `NotAskedThisPass`: no search written, the queue row as it
   was, nothing counted against the plugin), journalled as `image_pool.still_asking` and
-  `source.plugin_still_asking`. The bound's own cost: such a work waits for a later pass to be
-  asked at that source, where before it was asked and its answer owed.
+  `source.plugin_still_asking`. The bound's own cost: such a work is not asked at that source
+  by that run, where before it was asked and its answer owed; the queue asks it when the
+  owed call ends.
+- **2026-11-20 (Chunk 55), what a second review found in that fix:** a work the queue's
+  pass refused for an owed call was left due, so the queue ran a pass every second for as
+  long as the call was owed (on simulated time the queue ran until the test stopped it at
+  its cap of 500; after the fix it runs 12 times over an hour's owed call), and a work never tried was left with no time to try again, so the queue slept
+  a day. Fixed before the merge: the plugin's wrapper wakes the queue when the owed call
+  ends, and the queue looks again after five minutes if the wake is lost
+  (`NOT_ASKED_RECHECK_SECONDS`), writing nothing to the refused work's row. The bound
+  belongs to a pass going from work to work: a look outside a pass is never refused. A
+  run's refusal writes one journal line, `image_pool.still_asking`.
 
 ## The items 2a carried forward, and where each went
 

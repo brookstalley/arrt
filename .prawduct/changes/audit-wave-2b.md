@@ -83,10 +83,12 @@ over one run's works), a plugin that could not be asked three times in a row is 
 again that pass (`HOLD_BACK_AFTER`), and the works it was not asked about are left exactly
 as they were (33). **A plugin still owing one work's answer is not asked about the next**
 (55, from the boundary review): while one of its calls is owed (`OWED_CALLS_PER_PLUGIN`, 1,
-`arrt/src/arrt/library/sources/loading.py`), neither a run nor a queue pass starts another
-there, and the work is not asked at that source, as a hold-back leaves it
-(`image_pool.still_asking`, `source.plugin_still_asking`); before, a run going from work to
-work started one call per work at a slow source. The queue's `failures` counts the
+`arrt/src/arrt/library/sources/loading.py`), neither a run going from work to work nor a
+queue pass starts another there, and the work is not asked at that source, as a hold-back
+leaves it (`image_pool.still_asking` for a run, `source.plugin_still_asking` for the
+queue); the queue asks it when the owed call ends, or within five minutes
+(`NOT_ASKED_RECHECK_SECONDS`); a look outside a pass is never refused. Before, a run going
+from work to work started one call per work at a slow source. The queue's `failures` counts the
 failures in a row under the retry rule of the last one, so could-not-be-asked passes no
 longer use up the schedule's four tries (55; `data-model.md`, the queue's table). Its two
 statements of when a work falls due are one (`_standing`), and a failure cause's sentence

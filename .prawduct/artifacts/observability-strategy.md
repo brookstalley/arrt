@@ -648,8 +648,9 @@ the panel names every installed plugin and what became of it.
   calls still running is answered "could not be asked" at once, without a call.
   The pool does the same for a source it stops waiting for (`image_pool.late`,
   WARNING). A call the run stopped waiting for while still inside its deadline is
-  *owed*, and while a plugin owes one no other is started there
-  (`image_pool.still_asking`, `source.plugin_still_asking`, in the table below;
+  *owed*, and while a plugin owes one no other is started there by a pass going from
+  work to work (a look, a preview or Ask makes its one call and is never refused for it;
+  `image_pool.still_asking`, `source.plugin_still_asking`, in the table below;
   `docs/source-plugins.md` § Deadlines). The panel's sentence for a plugin that has answered "could not be
   asked" and nothing else since startup says so and how many times, where it used
   to read "loaded, 0 faults": a museum page the parser no longer recognises is no
@@ -725,8 +726,8 @@ was.
 | `phase_two.judged` | as before | gains `owed`, the sources still owed an answer when the run settled the work, and `gone`, those that answered every linked page is gone (`library/discovery/phase_two.py`) |
 | `image_pool.late` | WARNING | gains `recorded`: whether the late answer was written to the search record for the work's next pass, or discarded |
 | `image_pool.search_unrecorded` | WARNING | a search's record could not be written; dropped by name, never raised on the run (`library/discovery/pool.py`) |
-| `image_pool.still_asking` | INFO | a run did not ask a source about a work because the source still owes another work an answer (`OWED_CALLS_PER_PLUGIN`, one); the work is not asked there, no search is written, with `provider`, `work_title` and `owed` (`library/discovery/pool.py`) |
-| `source.plugin_still_asking` | INFO | within a pass (the queue's, or phase 2's over one run's works), a search or a read was not started at a plugin that owes a call already, with `plugin`, `operation`, `owed` and `under_way`; the work is left as it was, nothing counted against the plugin (`library/sources/loading.py`) |
+| `image_pool.still_asking` | INFO | a run, inside its pass over its works, did not ask a source about a work because the source still owes another work an answer (`OWED_CALLS_PER_PLUGIN`, one), whether the pool's own check or the plugin's wrapper refused it: the one line for a run's refusal; the work is not asked there, no search is written, with `provider`, `work_title` and `owed` (`library/discovery/pool.py`) |
+| `source.plugin_still_asking` | INFO | within the acquisition queue's pass (a caller that waits for every call it makes), a search or a read was not started at a plugin that owes a call already; a run's refusals are `image_pool.still_asking` and do not write this line; with `plugin`, `operation`, `owed` and `under_way`; the work is left as it was, nothing counted against the plugin (`library/sources/loading.py`) |
 | `source.plugin_held_back` | WARNING | once per pass per plugin: after three could-not-be-asked answers in a row (`HOLD_BACK_AFTER`) the rest of the pass did not ask it, with `not_asked` and `after`; the works not asked are left exactly as they were (`library/sources/loading.py`) |
 | `spend.cost_unknown` | WARNING | a paid call was sent and never said what it cost; its spend row is recorded with cost unknown (`spend_id`, `category`, `model_id`, `run_id`) |
 | `feeds.reconciled` | INFO | the periodic reconciliation corrected a feed: `walls`, `republished`, `refused`, `cause`, `startup` (`programming/feeds.py`) |
