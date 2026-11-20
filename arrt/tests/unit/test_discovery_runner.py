@@ -587,6 +587,21 @@ def test_spend_over_a_run_includes_what_its_re_searches_cost(runner, services):
     assert report.cost_usd == Decimal("0.385")
 
 
+def test_a_re_search_s_unknown_call_counts_in_its_parent_s_total(runner, services):
+    """The total is "what asking cost", so a re-search's unanswered call makes it a floor too, and not the parent's own."""
+    run_id = start(runner).id
+    work = services.discovery.list_candidate_works(run_id)[0]
+    child = services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by=InitiatedBy.WEB_UI)
+    services.discovery.record_spend(
+        category=SpendCategory.IMAGE_RESEARCH, cost_usd=Decimal(0), discovery_run_id=child.id, cost_status=CostStatus.UNKNOWN
+    )
+
+    cost = services.discovery.run_cost(run_id)
+
+    assert (cost.direct_unknown, cost.total_unknown) == (0, 1)
+    assert runner.spend_report(run_id=run_id).summary == "at least $0.085, and 1 call whose cost is unknown"
+
+
 def test_spend_with_nothing_named_reports_the_current_utc_month(runner):
     """UTC, matching the boundary the provider's own credit limit resets on."""
     now = datetime.now(UTC)
