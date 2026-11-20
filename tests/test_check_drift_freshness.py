@@ -111,14 +111,22 @@ def test_the_free_tier_going_quiet_is_caught_while_the_paid_one_is_fine(capsys):
     assert "paid: last succeeded 3 days ago" in printed, "the healthy tier must still report, not go silent"
 
 
-def test_the_paid_tier_going_quiet_is_caught_while_the_free_one_is_fine(capsys):
+def test_a_paid_tier_long_unrun_is_said_and_is_not_a_fault(capsys):
+    """Chunk 66: the paid probe runs only when a person dispatches it, so its age is no schedule that stopped.
+
+    Until then it ran monthly and went red at 75 days; with the monthly cron gone
+    (the owner's ruling of 2026-11-20, CI makes no paid call), that alarm could
+    be cleared only by spending money, so its age is said and never measured.
+    """
     guard = _load()
     runs = [_run(1, (MUSEUM, "success")), _run(90, (PAID, "success"))]
 
-    assert guard.main(runs, NOW) == 1
+    assert guard.main(runs, NOW) == 0
 
     printed = capsys.readouterr().out
-    assert "paid API-drift probes last succeeded 90 days ago" in printed
+    assert "paid: last succeeded 90 days ago" in printed
+    assert "runs only when dispatched by hand" in printed
+    assert "::error::" not in printed
 
 
 def test_either_free_job_alone_proves_the_schedule_is_alive():
@@ -186,10 +194,12 @@ def test_the_thresholds_match_the_cadences_they_are_derived_from():
     workflow = (SCRIPT.parents[2] / ".github" / "workflows" / "api-drift.yml").read_text(encoding="utf-8")
 
     assert 'cron: "17 6 * * 1"' in workflow, "the free tier is no longer weekly — revisit STALE_AFTER['free']"
-    assert 'cron: "43 6 1 * *"' in workflow, "the paid tier is no longer monthly — revisit STALE_AFTER['paid']"
+    # Chunk 66: the paid tier has no cron, so it has no threshold; it is BY_HAND.
+    assert workflow.count("cron:") == 1, "a second schedule: say which tier it runs, and give it a threshold"
+    assert set(guard.STALE_AFTER) == set(guard.TIER_JOBS) == {"free"}
+    assert set(guard.BY_HAND) == {"paid"}
 
     assert guard.STALE_AFTER["free"] > timedelta(days=14), "a weekly probe must survive two ordinary misses"
-    assert guard.STALE_AFTER["paid"] > timedelta(days=62), "a monthly probe must survive the longest two-month pair"
 
 
 def test_every_job_named_in_the_tier_map_exists_in_the_workflow():
@@ -203,7 +213,7 @@ def test_every_job_named_in_the_tier_map_exists_in_the_workflow():
     guard = _load()
     workflow = (SCRIPT.parents[2] / ".github" / "workflows" / "api-drift.yml").read_text(encoding="utf-8")
 
-    for tier, names in guard.TIER_JOBS.items():
+    for tier, names in (guard.TIER_JOBS | guard.BY_HAND).items():
         for name in names:
             assert f'name: "{name}"' in workflow, f"{tier} maps to a job named {name!r}, which no longer exists"
 

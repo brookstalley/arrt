@@ -23,8 +23,9 @@ no `uses:` check reads.
 
 **Least privilege.** `issues: write` is what lets a failing drift job open an
 issue. It is granted to the job that reports, and never to a job that holds a
-secret of the repository's (the OpenRouter key): the paid probe's failure is
-reported by a job of its own that holds no key (`audit-8` F22). Permissions are
+secret of the repository's (the OpenRouter key). The paid probe files no issue:
+it runs only on a dispatch a person starts and watches (wave 2b, Chunk 66); until
+then a job of its own that held no key filed for it (`audit-8` F22). Permissions are
 read as GitHub resolves them: a job that names its own `permissions` replaces the
 workflow's, and one that names none inherits them.
 """
