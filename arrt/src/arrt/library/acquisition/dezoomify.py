@@ -53,7 +53,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from arrt import atomic
 
@@ -102,6 +102,24 @@ class TileResult:
     def usable(self) -> bool:
         """Whether an image exists to record, partial or not."""
         return self.outcome in (TileOutcome.COMPLETE, TileOutcome.PARTIAL)
+
+
+class TileFetcher(Protocol):
+    """What fetches a tiled image for acquisition: `tile_fetch`, unless a caller hands in another."""
+
+    def __call__(
+        self,
+        url: str,
+        *,
+        destination: Path,
+        tile_cache: Path,
+        binary: str,
+        user_agent: str,
+        max_width: int,
+        max_height: int,
+        timeout_seconds: int,
+        referer: str | None = None,
+    ) -> TileResult: ...
 
 
 class DezoomifyUnavailable(RuntimeError):

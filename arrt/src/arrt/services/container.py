@@ -180,6 +180,12 @@ class _LookOptions(TypedDict, total=False):
     now: Callable[[], datetime]
 
 
+class _AcquisitionOptions(TypedDict, total=False):
+    """`AcquisitionService`'s, as `_RunnerOptions` is the runner's."""
+
+    resolve: Resolver
+
+
 @dataclass(frozen=True, slots=True)
 class Services:
     """Every service the server offers, assembled over one open file."""
@@ -404,6 +410,7 @@ class Services:
         # required and validated there. A third copy would be a third chance for
         # the copies to disagree. `ReviewService` reaches it through the store.
         pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
+        acquisition_options: _AcquisitionOptions = {} if resolve is None else {"resolve": resolve}
         acquisition_service = AcquisitionService(
             catalogue_service,
             acquisition or _default_acquisition(thumbnails.art_root),
@@ -416,7 +423,7 @@ class Services:
             # plugin that claims it and is not loaded is a deployment fault named
             # by that plugin; a URL nobody claims is fetched as recorded.
             route=sources.route,
-            **({} if resolve is None else {"resolve": resolve}),
+            **acquisition_options,
         )
         preparation_service = PreparationService(
             catalogue_service,

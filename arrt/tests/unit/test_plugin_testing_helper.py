@@ -361,7 +361,29 @@ def test_a_plugin_with_no_finder_has_nothing_to_ask():
 
 class _Reader:
     def read(self, url: str) -> FetchLocator:
-        return FetchLocator.direct(url)
+        return FetchLocator.tiles(url) if "/tiles/" in url else FetchLocator.direct(url)
+
+
+@pytest.mark.parametrize(("path", "method"), [("works/1", "direct"), ("tiles/1/info.json", "tiles")])
+def test_a_reader_answering_either_kind_of_locator_says_what_the_host_would_fetch_and_fetches_nothing(path, method, monkeypatch):
+    """Each stops where the host would fetch: a tiles answer reaches no `dezoomify-rs`, which the host's fetch looks up first."""
+    from arrt.library.acquisition import dezoomify
+
+    def looked_for(binary: str) -> None:
+        raise AssertionError(f"the testing helper looked for {binary}: it runs no tile fetcher")
+
+    monkeypatch.setattr(dezoomify.shutil, "which", looked_for)
+    plugin = SourcePlugin(
+        api_major=1,
+        create=lambda context: SourceParts(reader=_Reader()),
+        claims=lambda url: url.startswith("https://foo.example.org/"),
+    )
+    url = f"https://foo.example.org/{path}"
+
+    read = host(plugin, name="foo").read(url)
+
+    assert (read.plugin, read.outcome, read.again, read.fetch) == ("foo", None, None, WouldFetch(method, url))
+    assert read.detail == "the reader answered; the host would fetch it next, and this helper does not"
 
 
 @pytest.mark.parametrize(

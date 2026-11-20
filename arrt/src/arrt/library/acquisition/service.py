@@ -32,6 +32,7 @@ from typing import Final
 from arrt import atomic
 from arrt.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
+    TileFetcher,
     TileOutcome,
     reclaim_tile_cache,
     tile_fetch,
@@ -260,6 +261,7 @@ class AcquisitionService:
         open_stream: StreamOpener,
         route: Callable[[str, str | None], Route],
         resolve: Resolver = system_resolver,
+        fetch_tiles: TileFetcher = tile_fetch,
     ) -> None:
         self._catalogue = catalogue
         self._settings = settings
@@ -279,6 +281,12 @@ class AcquisitionService:
         #: would make every rule above it depend on the network the suite runs
         #: on, including the rules that have nothing to do with hosts.
         self._resolve = resolve
+        #: The tiled path's fetch, as `open_stream` is the direct path's: the
+        #: real `dezoomify-rs` unless a caller hands in another. The plugin-testing
+        #: helper (`library/sources/testing.py`) hands in one that stops where
+        #: the host would fetch, so neither path can run a fetch inside a plugin
+        #: author's tests whatever the private methods here are called.
+        self._fetch_tiles = fetch_tiles
 
     def acquire(self, artwork_id: str, *, source_id: str | None = None) -> AcquisitionResult:
         """Fetch this work's image and record what came back.
@@ -425,7 +433,7 @@ class AcquisitionService:
         # recorded against the source: no URL is at fault, and a `failed` row here
         # would send whoever reads it to a museum rather than to the deployment
         # that is missing a binary.
-        result = tile_fetch(
+        result = self._fetch_tiles(
             url,
             destination=destination,
             tile_cache=tile_cache,
