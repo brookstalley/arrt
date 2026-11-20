@@ -317,6 +317,24 @@
       "refused_because": "the document must carry reported_at."
     },
     {
+      "path": "fixtures/client-heartbeat.v1/invalid/thirty-three-label-outputs.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "more than 32 label outputs",
+      "refused_because": "A report carries at most 32 label outputs, and the server keeps a row for each one a report names."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/thirty-three-outputs.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "more than 32 outputs",
+      "refused_because": "A report carries at most 32 outputs, and the server keeps a row for each one a report names."
+    },
+    {
       "path": "fixtures/client-heartbeat.v1/invalid/two-label-outputs-of-one-name.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
