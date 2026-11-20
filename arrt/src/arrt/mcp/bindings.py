@@ -553,7 +553,8 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
     placements = services.display.survey_themes()
-    return ok(themes=[_placement_fields(services, placement) for placement in placements], count=len(placements))
+    survey = services.clients.placements.survey()
+    return ok(themes=[_placement_fields(services, placement, survey) for placement in placements], count=len(placements))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -709,7 +710,7 @@ def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     return ok(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall_view_fields(services, services.display.get_wall_view(done.wall_id)),
+        wall=_one_wall_fields(services, done.wall_id),
         left_theme=None if done.left_theme is None else _theme_fields(done.left_theme),
         excluded_at=None if done.exclusion is None else _moment(done.exclusion.excluded_at),
     )
@@ -1660,9 +1661,8 @@ def _preview(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
 
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    views = services.display.survey_walls()
     now = services.health.observe_walls()
-    return ok(walls=[_wall_view_fields(services, view, now) for view in views], count=len(views))
+    return ok(walls=[_wall_view_fields(services, view, now) for view in now.views], count=len(now.views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1727,6 +1727,7 @@ def _rename_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
 
 def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     released = services.clients.remove_client(arguments["client_id"])
+    survey = services.clients.placements.survey()
     names = ", ".join(repr(wall.name) for wall in released)
     affected = (
         f"{counted(len(released), 'wall')} it showed now {agree(len(released), 'has', 'have')} no client: {names}. "
@@ -1738,7 +1739,7 @@ def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
         client_id=arguments["client_id"],
         # Never omitted when empty, so "no wall was affected" is stated rather
         # than left to be inferred from an absent key.
-        released_walls=[_wall_fields(services, wall) for wall in released],
+        released_walls=[_wall_fields(services, wall, survey) for wall in released],
         notice=f"That client is forgotten and its token no longer works. {affected}",
     )
 
@@ -2352,12 +2353,13 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
+def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None = None) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, the display it is on and its labels.
 
-    Field names match `WallOut` on the browser surface.
+    Field names match `WallOut` on the browser surface. `survey` is who shows
+    what, read once for an answer naming several walls and taken here for one.
     """
-    survey = services.clients.placements.survey()
+    survey = services.clients.placements.survey() if survey is None else survey
     placement = survey.placement_of(wall)
     return {
         "wall_id": wall.id,
@@ -2379,7 +2381,7 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
         "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
         "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
-        **_size_fields(services.display.judge_sizes(wall.id)),
+        **_size_fields(services.display.judge_sizes_of(wall)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {
@@ -2437,21 +2439,26 @@ def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
     }
 
 
-def _wall_view_fields(services: Services, view: WallView, now: WallsNow | None = None) -> dict[str, Any]:
-    """One wall, what hangs on it, and whether its Player reads the feed.
+def _one_wall_fields(services: Services, wall_id: str) -> dict[str, Any]:
+    """One wall's fields, from a reading of it taken now: after the act that answers with it has written."""
+    now = services.health.observe_walls(wall_id)
+    [view] = now.views
+    return _wall_view_fields(services, view, now)
 
-    `now` is `HealthService.observe_walls()`, read once for a list and here for one wall. The display
-    state and the wait are its one reading's, as `GET /api/walls`' (`http/api.py` `_wall` says why).
+
+def _wall_view_fields(services: Services, view: WallView, now: WallsNow) -> dict[str, Any]:
+    """One wall, what hangs on it, and whether its Player reads the feed, every part from `now`.
+
+    `now` is `HealthService.observe_walls()`, the one reading `view` was built from, as
+    `GET /api/walls`' is (`http/api.py` `_wall` says why).
     """
-    now = services.health.observe_walls() if now is None else now
-    seen = now.walls.get(view.wall.id)
     return {
-        **_wall_fields(services, view.wall),
+        **_wall_fields(services, view.wall, now.survey),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
         "hanging": None if view.hanging is None else _theme_fields(view.hanging),
-        "display_state": _display_state_fields(view.display_state if seen is None else seen.state),
+        "display_state": _display_state_fields(view.display_state),
         "reads_feed": view.reads_feed,
         "feed_notice": feed_notice(reads_feed=view.reads_feed),
         # The work it showed last, whatever its screen does now, and what its
@@ -2486,9 +2493,12 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     }
 
 
-def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str, Any]:
-    """One theme and every wall showing it."""
-    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
+def _placement_fields(services: Services, placement: ThemePlacement, survey: PlacementSurvey) -> dict[str, Any]:
+    """One theme and every wall showing it, who shows each read once for the listing (`survey`)."""
+    return {
+        **_theme_fields(placement.theme),
+        "hanging_on": [_wall_fields(services, wall, survey) for wall in placement.walls],
+    }
 
 
 def _republished_fields(wall_id: str, artwork_id: str) -> dict[str, Any]:

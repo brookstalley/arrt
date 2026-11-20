@@ -36,7 +36,6 @@ from arrt.persistence.records import (
 from arrt.programming.display_state import ScreenState
 from arrt.programming.feeds import FeedPublisher, applied_at
 from arrt.programming.lookups import Lookups
-from arrt.programming.manifest import heartbeat
 from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
@@ -281,14 +280,17 @@ class Scenes:
         The walls, the exclusions and each screen are read in one scope, and each
         wall from the one listing that decides which pins are on held walls: a
         wall deleted between that listing and a read of its own was asserted
-        present, and the answer was a fault (C2).
+        present, and the answer was a fault (C2). Whether a wall's report says
+        the scene, and its screen, are from one read of that report and one
+        survey of who shows what (`WallsReading`), never a read apiece.
         """
         walls: list[SceneWall] = []
         answers = self._library.playable(sorted({pin.work_id for pin in view.pins}))
         with self._store.reading():
             kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+            reading = self._walls.read_reports()
             for pin, wall in self._held_walls(view.pins):
-                contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
+                contents = reading.reports[wall.id].contents or {}
                 walls.append(
                     SceneWall(
                         wall_id=wall.id,
@@ -297,7 +299,7 @@ class Scenes:
                         title=answers[pin.work_id].title if pin.work_id in answers else None,
                         reached=contents.get("scene_id") == view.scene.id,
                         cannot_show=_cannot_show(answers.get(pin.work_id), kept_off=pin.work_id in kept_off),
-                        screen=self._walls.display_state(wall).state,
+                        screen=reading.state_of(wall).state,
                     )
                 )
         return walls

@@ -645,7 +645,7 @@ def test_hanging_on_a_wall_whose_player_has_no_token_says_it_waits_in_the_server
     """
     hall = services.clients.add_client(name="Hall Pi")
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
-    waits = services.health.observe_waiting()[the_wall.id]
+    waits = services.health.observe_walls().waiting[the_wall.id]
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 

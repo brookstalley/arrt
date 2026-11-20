@@ -127,6 +127,18 @@ BEFORE = {
     "work_ids_on_walls": "(self) -> 'frozenset[str]'",
 }
 
+#: Public methods the facade gained after chunk 21's base, each a delegation
+#: like the rest, so `BEFORE` stays the record of what the move had to keep.
+#: Wave 2b's walls fix: one reading of the reports and placements per walls
+#: answer, with the views (`read_walls`) and without them, for the health
+#: answer (`read_wall_reports`), and a wall's sizes judged by the row that
+#: reading read (`judge_sizes_of`).
+ADDED = {
+    "judge_sizes_of": "(self, wall: 'Wall') -> 'SizeJudgement'",
+    "read_wall_reports": "(self) -> 'WallsReading'",
+    "read_walls": "(self, wall_id: 'str | None' = None) -> 'WallsSeen'",
+}
+
 #: Every public module-level name `display.py` had on chunk 21's base, by the
 #: module it lives in now. `DisplayService` stayed; `DisplaySettings` moved to
 #: `settings.py` in 2b's Chunk 48.
@@ -175,7 +187,8 @@ def _public(cls) -> dict[str, str]:
 
 
 def test_every_public_name_the_service_had_is_still_there_with_its_signature():
-    assert _public(DisplayService) == BEFORE
+    """Every name it had, every name added since (`ADDED`), and no other."""
+    assert _public(DisplayService) == BEFORE | ADDED
 
 
 @pytest.mark.parametrize("module", IMPORTED_FROM_DISPLAY, ids=lambda module: module.__name__.rsplit(".", 1)[-1])
@@ -240,7 +253,7 @@ class _Recorder:
         return answer
 
 
-@pytest.mark.parametrize("name", sorted(set(BEFORE) - {"on_work_changed"}))
+@pytest.mark.parametrize("name", sorted((set(BEFORE) | set(ADDED)) - {"on_work_changed"}))
 def test_each_delegation_hands_every_argument_to_the_collaborator_holding_it_and_returns_its_answer(display, name):
     """`on_work_changed` is the facade's own rule, not a delegation; `test_feed_publisher` holds it."""
     holders = [attribute for attribute in COLLABORATORS if hasattr(type(getattr(display, attribute)), name)]

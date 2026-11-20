@@ -57,6 +57,7 @@ from arrt.persistence.records import (
     Wall,
     WorkExclusion,
 )
+from arrt.programming.clients import WallsReading
 from arrt.programming.display_state import ReportedState
 from arrt.programming.feeds import FeedPublisher, Reconciliation
 from arrt.programming.lookups import Lookups
@@ -69,6 +70,7 @@ from arrt.programming.reports import (
     Unjudged,
     WallHeartbeat,
     describe_wall_status,
+    wall_statuses,
 )
 from arrt.programming.scenes import MAX_PREVIEW_MINUTES, PREVIEW_MINUTES, Scenes, SceneView, SceneWall
 from arrt.programming.settings import DisplaySettings
@@ -83,6 +85,7 @@ from arrt.programming.walls import (
     UPCOMING,
     MatMode,
     Walls,
+    WallsSeen,
     WallView,
     feed_notice,
 )
@@ -115,9 +118,11 @@ __all__ = [
     "Unset",
     "WallHeartbeat",
     "WallView",
+    "WallsSeen",
     "WorkPlacements",
     "describe_wall_status",
     "feed_notice",
+    "wall_statuses",
 ]
 
 
@@ -183,6 +188,10 @@ class DisplayService:
     def get_wall_view(self, wall_id: str) -> WallView:
         """One wall with what hangs on it and what its screen is doing."""
         return self._walls.get_wall_view(wall_id)
+
+    def read_walls(self, wall_id: str | None = None) -> WallsSeen:
+        """Every wall, or the one named, with the one reading of reports and placements its views were built from."""
+        return self._walls.read_walls(wall_id)
 
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it."""
@@ -330,6 +339,10 @@ class DisplayService:
         """Every wall with whatever the display serving it last said."""
         return self._reports.survey_wall_status()
 
+    def read_wall_reports(self) -> WallsReading:
+        """Every wall's report, who shows it and every Player's, each file read once (`WallsReading`)."""
+        return self._reports.read_wall_reports()
+
     # -- writes: what the wall shows now ---------------------------------------
 
     def step_display(self, wall_id: str) -> str:
@@ -421,6 +434,10 @@ class DisplayService:
     def judge_sizes(self, wall_id: str) -> SizeJudgement:
         """Which works on the wall's feed are too small for its largest recent screen (`adequacy.py`)."""
         return self._reports.judge_sizes(wall_id)
+
+    def judge_sizes_of(self, wall: Wall) -> SizeJudgement:
+        """`judge_sizes` for a wall already read, by the display its row names (`Reports.judge_sizes_of`)."""
+        return self._reports.judge_sizes_of(wall)
 
     def too_small_on(self, wall_id: str) -> frozenset[str]:
         """The works too small for the wall; empty both when all are fine and when none was judged (`judge_sizes`)."""

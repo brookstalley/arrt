@@ -22,7 +22,7 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import adequacy, showings
-from arrt.programming.clients import Placements
+from arrt.programming.clients import Placements, WallsReading
 from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
 from arrt.programming.lookups import Lookups
@@ -82,6 +82,11 @@ class WallHeartbeat:
     #: from whether a Player shows the wall: what every surface says of the wall,
     #: where `heartbeat` is the raw report the panel hands through.
     state: DisplayState
+
+
+def wall_statuses(reading: WallsReading) -> list[WallHeartbeat]:
+    """Each wall the reading read, with its report and its display state from that one read."""
+    return [WallHeartbeat(wall=wall, heartbeat=reading.reports[wall.id], state=reading.state_of(wall)) for wall in reading.walls]
 
 
 def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
@@ -202,14 +207,16 @@ class Reports:
         decided — which is exactly the question a wall that has gone silent is
         answered by.
         """
-        # One survey of who shows what, so every wall's state is read at one
-        # instant and by `Placements`, the one place that decides it.
-        survey = Placements(self._store, self._settings.art_root).survey()
-        found = []
-        for wall in survey.walls:
-            reading = heartbeat.read(self._settings.heartbeat_path(wall.id))
-            found.append(WallHeartbeat(wall=wall, heartbeat=reading, state=survey.wall_state(wall, reading)))
-        return found
+        return wall_statuses(self.read_wall_reports())
+
+    def read_wall_reports(self) -> WallsReading:
+        """Every wall's report and who shows it, one survey and one read of each file (`Placements.read_walls`).
+
+        One survey of who shows what, so every wall's state is read at one
+        instant and by `Placements`, the one place that decides it; the
+        Players' states come from the same read (`WallsReading.players`).
+        """
+        return Placements(self._store, self._settings.art_root).read_walls()
 
     # -- what a Player reads and writes --------------------------------------------
 
@@ -320,7 +327,9 @@ class Reports:
         § The heartbeat, minor 2): a window made smaller for a minute must not
         make every work on the wall look fine.
         """
-        wall = self._lookups.get_wall(wall_id)
+        return self._largest_screen_of(self._lookups.get_wall(wall_id))
+
+    def _largest_screen_of(self, wall: Wall) -> tuple[int, int] | None:
         if wall.display_id is None:
             return None
         since = datetime.now(UTC) - SCREEN_MEMORY
@@ -335,12 +344,21 @@ class Reports:
         of the reasons it is, rather than an empty answer that would read as
         "every work is fine".
         """
-        if self._lookups.get_wall(wall_id).display_id is None:
+        return self.judge_sizes_of(self._lookups.get_wall(wall_id))
+
+    def judge_sizes_of(self, wall: Wall) -> SizeJudgement:
+        """`judge_sizes` for a wall already read: by the display that row names, never looked up again.
+
+        What a walls answer judges by, with the wall from its one reading
+        (`WallsReading`): a wall deleted after that reading is judged as the
+        reading saw it, with no feed, rather than refusing the whole answer.
+        """
+        if wall.display_id is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_DISPLAY)
-        screen = self.largest_screen(wall_id)
+        screen = self._largest_screen_of(wall)
         if screen is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_SCREEN)
-        feed = self._feeds.published(wall_id)
+        feed = self._feeds.published(wall.id)
         if feed is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_FEED)
         small = frozenset(

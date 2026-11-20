@@ -180,6 +180,38 @@ class PlacementSurvey:
 
 
 @dataclass(frozen=True, slots=True)
+class WallsReading:
+    """Who shows each wall and what each wall reported, every file read once: what one answer about walls says.
+
+    **One answer, one reading.** A walls answer says of each wall its display
+    state, whom it waits for, who shows it, its display and labels, and whether
+    its Player reads the feed. Each of those read from a reading of its own let
+    one answer contradict itself: a Player assigned between two reads, or a
+    report arriving, gave `display_state: unassigned` beside a `shown_by`
+    naming a Player, or a feed notice from one report beside a state from the
+    next. Built by `Placements.read_walls`; every such answer reads it alone.
+    """
+
+    survey: PlacementSurvey
+    #: Each wall's report as read, by wall id: the walls this reading was asked
+    #: for, each of them in `survey.walls`.
+    reports: Mapping[str, HeartbeatReading]
+
+    @property
+    def walls(self) -> Sequence[Wall]:
+        """The walls read, in the order walls are listed everywhere else."""
+        return [wall for wall in self.survey.walls if wall.id in self.reports]
+
+    def state_of(self, wall: Wall) -> DisplayState:
+        """The wall's display state from this reading's report of it and its placements."""
+        return self.survey.wall_state(wall, self.reports[wall.id])
+
+    def players(self) -> Sequence[ClientView]:
+        """Every Player with its state, from this reading's read of its report, in the order clients are listed."""
+        return [view_of(client, self.survey, self.survey.readings[client.id]) for client in self.survey.clients.values()]
+
+
+@dataclass(frozen=True, slots=True)
 class WallState:
     """A wall's display state, with the heartbeat it was read from."""
 
@@ -223,6 +255,22 @@ class Placements:
 
     def placement_of(self, wall: Wall) -> WallPlacement:
         return self.survey().placement_of(wall)
+
+    def read_walls(self, wall_id: str | None = None) -> WallsReading:
+        """Every wall, or the one named, with one survey and one read of each wall's report (`WallsReading`).
+
+        **A wall's answer reads every Player's report, and no other wall's.** The
+        survey reads them all because who shows a wall depends on them: a
+        display two Players report now is in fault, and shown by neither. The
+        Player that shows the wall is judged from the same read. A wall named
+        that the survey does not hold is read as no wall: the caller has
+        already looked it up, or answers for none.
+        """
+        survey = self.survey()
+        walls = [wall for wall in survey.walls if wall_id is None or wall.id == wall_id]
+        return WallsReading(
+            survey=survey, reports={wall.id: heartbeat.read(heartbeat_path_in(self._art_root, wall.id)) for wall in walls}
+        )
 
     def wall_state(self, wall: Wall) -> WallState:
         """The wall's display state, the one answer Walls, the MCP walls read and every label give."""
