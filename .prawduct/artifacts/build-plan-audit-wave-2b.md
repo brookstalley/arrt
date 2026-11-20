@@ -490,6 +490,19 @@ left as planned and this section is the later word.
   dozen records, each verified against the code.
 - **2026-11-20 (Chunk 65 added):** the image's test stage as a suite on the pool, now that
   ruling 1 above permits it. Chunk 56's decision recorded why it could not be done then.
+- **2026-11-20 (Chunk 62), as built and integrated:** a Player still being set up is one
+  step naming the walls that wait for it. A waiting wall keeps the state a Player's label
+  already carries, and the health answer says beside it whom the wall waits for; a new
+  state would have changed the contract. A wall waits only while nothing was ever
+  written for it: one whose reports came and stopped is a trouble. Left by that chunk
+  and found at integration: MCP's status and the walls answer do not say whom a wall
+  waits for, and the question asked before a hang still tells a person everyone will
+  see a waiting wall change. Chunk 66 settles both.
+- **2026-11-20 (Chunk 62), a figure a person reads changed:** every cost is the one
+  writer's words, so a cost under a dollar is said to a hundredth of a cent where some
+  screens said "under $0.01" or rounded to the cent.
+- **2026-11-20 (Chunk 66 added):** the two things Chunk 62 left, two edges of the cost
+  words, and the paid probe the records chunk found on a schedule.
 
 ## The items 2a carried forward, and where each went
 
@@ -1973,6 +1986,43 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
 - **Verification ceiling:** the new suite on the pool; the governance suite whole; the
   fallback's three suites locally; `actionlint` if a workflow changed; ruff and black at
   the root.
+
+### Chunk 66: A waiting wall says so wherever it is read, and no schedule spends money
+
+- **Type:** code
+- **Exposed API:** `/api`
+- **Closes:** what integration found after Chunk 62 (§ Decisions made mid-build), and the
+  ruling of 2026-11-20 that CI makes no paid call, where a workflow still made one.
+- **Model:** Opus-class, medium: one field carried to two more answers and one sentence a
+  person reads before acting; a workflow's schedule.
+- **Waits for:** 62 and 53.
+- **Owns:** `arrt/src/arrt/services/health.py` (`walls_waiting` and its callers only),
+  `arrt/src/arrt/http/api.py` and `arrt/src/arrt/http/models.py` (a wall's answer only),
+  `arrt/src/arrt/mcp/bindings.py` (walls and status's walls only),
+  `arrt/src/arrt/http/static/core/hanging.js`, the module that writes a cost's words,
+  `.github/workflows/api-drift.yml`, their tests, and the builders in `arrt/tests/browser/`.
+- **Deliverables:**
+  - Whom a wall waits for is said by the walls answer and by MCP's walls and status, from
+    the one function the health answer uses, and the parity test pairs the field.
+  - The question asked before a hang says, for a waiting wall, that it will be shown once
+    its Player is set up, in the server's words; for a wall a Player shows it says what
+    it said. Both ways in ask it: a wall's picker and the selection's *Hang…*.
+  - A cost that is more than nothing and less than the smallest figure the words can
+    say is not said as nothing; a cost of a thousand dollars or more is grouped as the
+    client groups a count.
+  - A reply with no billed cost and no unknown call writes no row: a test holds it.
+  - The paid model probe runs only when a person starts the drift workflow by hand and
+    asks for it. No schedule reaches a paid service.
+- **Acceptance:** for a Player with no token showing two walls, MCP's status, MCP's walls
+  and the walls answer each name the Player both walls wait for, in the health answer's
+  own words; the hang question on such a wall does not say everyone sees it change, on
+  both ways in, and still says so for a wall a Player shows; the two edges of the cost
+  words through the Spend route; a test reads the drift workflow and fails by name for a
+  scheduled run that reaches a job holding a paid key. Each shown red first.
+- **Verification ceiling:** the curation files of health, walls, spend and the MCP
+  surface; `arrt/tests/unit/test_surface_parity.py`; `arrt/tests/contract`; the whole
+  browser suite (it changes `arrt/src/arrt/http/models.py`); the two curation guards for
+  browser tests; the governance suite whole; `actionlint`; mypy, ruff and black.
 
 ### Chunk 54: Records, and the change record
 
