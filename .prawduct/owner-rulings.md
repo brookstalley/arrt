@@ -4,6 +4,28 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-19: during wave 2 of the audit fixes, two rulings
+
+Asked while part 2a's pull request (#446) was in its checks. The owner: "The testament
+endpoints are public knowledge, not secrets. Other than that, yes to recommendations".
+
+1. **The test pool's endpoints are public, not secrets.** The advisor had recommended
+   turning the workflow's console and coordinator addresses from repository variables
+   into secrets, because they print in the public Actions log of every run. Declined:
+   they are public knowledge. They stay variables, and their appearing in a workflow log
+   is not an exposure. This does not widen the repository's own rule: tracked files still
+   carry no network address, hostname or username (`CLAUDE.md`, the hygiene guard).
+2. **Arrt Player removes from a television only the pictures it recorded uploading**, in
+   a later wave. Today it clears every uploaded picture it cannot account for on a set
+   (`arrt-player`'s `security-model.md` § What it does to the television), so a Frame
+   address that points at another television clears that set's uploads, the household's
+   own included. Now that the Player's store records which set its bindings were made on,
+   it can keep a record of its own uploads per set and leave everything else alone. Not
+   built in wave 2, which ships the recorded behaviour unchanged; it goes in the next
+   Arrt Player plan, with what replaces the orphan sweep's job of cleaning up after a
+   failed upload. Recorded here because the question was asked in this repository's
+   session; the Player's own rulings file takes a pointer when that plan is cut.
+
 ## 2026-11-19: after wave 1 of the audit fixes, ten rulings
 
 Asked at the end of wave 1 (`build-plan-audit-wave-1.md`, merged as #445), each with
