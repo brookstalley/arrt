@@ -110,6 +110,22 @@ def open_walls(ui):
     ui.page.wait_for_selector("section.wall .wall-controls")
 
 
+def _skip(ui, wall):
+    """Press Skip and wait for the step's own answer, as `test_walls_last_and_next.py` does.
+
+    So a red says which link broke (#442): no POST at all is the click lost, an
+    answer that is not ok is the server refusing, and an ok answer with no
+    "Skipped." after it is the card.
+    """
+
+    def is_the_step(response):
+        return response.request.method == "POST" and response.url.endswith(f"/api/walls/{wall.id}/next")
+
+    with ui.page.expect_response(is_the_step) as answered:
+        ui.page.get_by_role("button", name=f"Skip the work on {wall.name}").click()
+    return answered.value
+
+
 def test_the_work_the_heartbeat_names_leads_the_card(ui, services, the_wall, winter, two_works):
     _, automat = two_works
     report(services, the_wall, automat.id)
@@ -198,7 +214,8 @@ def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reporte
     before = services.display.published_manifest_v2(the_wall.id)
     open_walls(ui)
 
-    ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
+    step = _skip(ui, the_wall)
+    assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
     # prints everything the card says, a failure beside Skip included (#442).
@@ -422,7 +439,8 @@ def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter,
     report_state(services, the_wall, "showing_art", nighthawks.id)
     open_walls(ui)
 
-    ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
+    step = _skip(ui, the_wall)
+    assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
     # prints everything the card says, a failure beside Skip included (#442).
