@@ -45,13 +45,14 @@ from enum import StrEnum
 from pathlib import Path
 
 from arrt import observations
+from arrt.counting import counted
 from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState, QueueListing
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
 from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
-from arrt.persistence.discovery_records import SourceYield
+from arrt.persistence.discovery_records import SearchTally, SourceYield
 from arrt.persistence.records import BackupReading
 from arrt.programming import display_state, player_state
 from arrt.programming.clients import ClientView, DisplayFault
@@ -68,6 +69,10 @@ class SourceHealth:
     last_fault_age_seconds: float | None
     #: Seconds since the last call that was "could not be asked", or `None` when there was none.
     last_unasked_age_seconds: float | None = None
+    #: What its searches came to, from the search record, which a restart keeps
+    #: (`DiscoveryStore.search_tallies`); `None` when it was never searched, or
+    #: no record is read here.
+    searches: SearchTally | None = None
 
     def describe(self) -> str:
         """What happened to this plugin, in a sentence: an observation, never a verdict.
@@ -86,6 +91,11 @@ class SourceHealth:
             return f"The {museum} plugin is installed and not configured here: {reading.reason}."
         if reading.state is PluginState.FAILED:
             return f"The {museum} plugin is installed and was not loaded: {reading.reason}."
+        return self._since_startup(museum) + self._searched()
+
+    def _since_startup(self, museum: str) -> str:
+        """What its calls since startup ended in: the in-memory counts, which a restart resets."""
+        reading = self.reading
         unasked = self._unasked()
         if reading.faults == 0 and reading.unasked and not reading.answered:
             return (
@@ -106,6 +116,25 @@ class SourceHealth:
         if not reading.answered:
             said += " It has answered nothing else since startup."
         return said
+
+    def _searched(self) -> str:
+        """What the search record says of its searches, as a sentence with a leading space; empty when nothing is owed or unasked.
+
+        From the record, so it survives a restart where the counts since
+        startup do not: a plugin that could not be asked about every work it
+        was searched for still reads so the morning after.
+        """
+        tally = self.searches
+        if tally is None or tally.searched == 0 or not (tally.unasked or tally.owed):
+            return ""
+        works = counted(tally.searched, "work")
+        owed = "" if not tally.owed else f", and still owes an answer about {tally.owed}"
+        if tally.answered == 0:
+            return (
+                f" It has answered none of the {works} it was last searched for: it could not be asked about "
+                f"{tally.unasked}{owed}."
+            )
+        return f" Of the {works} it was last searched for, it could not be asked about {tally.unasked}{owed}."
 
     def _unasked(self) -> str:
         """How many times the plugin could not be asked, when last, and what it said then."""
@@ -399,6 +428,7 @@ class HealthService:
         sources: SourceRoster,
         yields: Callable[[], Mapping[str, SourceYield]],
         pictures: PictureStore,
+        searches: Callable[[Sequence[str]], Mapping[str, SearchTally]] | None = None,
         watches: Callable[[], WatchesReading],
         players: Callable[[], Sequence[ClientView]] = tuple,
         queue: Callable[[], QueueListing] | None = None,
@@ -425,6 +455,12 @@ class HealthService:
         #: What each provider has offered and what the library holds from it,
         #: counted from the records (`DiscoveryStore.source_yields`).
         self._yields = yields
+        #: What each source's newest searches came to, from the search record
+        #: (`DiscoveryStore.search_tallies`), asked for the installed plugins by
+        #: name: a bounded read of that table alone, since the top bar reads the
+        #: sources on every page. None reads none, and each source states its
+        #: counts since startup only.
+        self._searches = searches
 
     def observe(self) -> HealthReading:
         """Read every signal the panel shows, now.
@@ -481,6 +517,8 @@ class HealthService:
 
     def _source_health(self) -> list[SourceHealth]:
         now = self._now()
+        readings = self._sources.observe()
+        searches = {} if self._searches is None else self._searches([reading.name for reading in readings])
         return [
             SourceHealth(
                 reading=reading,
@@ -488,6 +526,7 @@ class HealthService:
                 last_unasked_age_seconds=(
                     None if reading.last_unasked_at is None else (now - reading.last_unasked_at).total_seconds()
                 ),
+                searches=searches.get(reading.name),
             )
-            for reading in self._sources.observe()
+            for reading in readings
         ]

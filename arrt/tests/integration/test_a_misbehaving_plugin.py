@@ -52,6 +52,7 @@ from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import (
     DEADLINE_CEILING_SECONDS,
     ENTRY_POINT_GROUP,
+    HOLD_BACK_AFTER,
     STRAGGLERS_PER_PLUGIN,
     SourceRoster,
     load_sources,
@@ -442,14 +443,25 @@ def _late(caplog) -> list[logging.LogRecord]:
 
 
 def test_a_fifth_call_while_four_are_still_running_is_not_made_and_every_work_still_resolves(http, plugin, clock):
+    """Two Gets, three works then two, because one Get is one pass.
+
+    Since 2026-11-20 a pass stops asking a plugin after three could-not-be-asked
+    answers in a row (`one_pass`, Chunk 33), so one Get of five hung works makes
+    three calls and never reaches the fourth still running. The straggler bound
+    is the process's, across passes: the second Get's first call is the fourth
+    still running, and its second is the fifth, which is not made.
+    """
     plugin.CONTROL.mode = "hangs"
     assert STRAGGLERS_PER_PLUGIN == 4
+    assert HOLD_BACK_AFTER == 3
 
-    view = finished(http, start_get(http, *FIVE))
+    first = finished(http, start_get(http, *FIVE[:3]))
+    view = finished(http, start_get(http, *FIVE[3:]))
 
-    assert view["run"]["status"] == "completed", view["run"]
-    for qid in FIVE:
-        steady_still_answers(http, view, qid)
+    for each, qids in ((first, FIVE[:3]), (view, FIVE[3:])):
+        assert each["run"]["status"] == "completed", each["run"]
+        for qid in qids:
+            steady_still_answers(http, each, qid)
     assert plugin.CONTROL.entered == 4, "the fifth call was made while four were still running"
     assert len(clock.decisions) == 4
     gallery = on_status(http, "misbehaving")

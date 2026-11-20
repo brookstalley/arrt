@@ -37,6 +37,23 @@ its deadline is recorded against the plugin beside its faults, and the caller
 moves on. Python cannot stop a thread, so the call itself is not stopped:
 `_Calls` says what becomes of it.
 
+**Within one pass, a plugin that keeps answering "could not be asked" is not
+asked again until the next.** A pass (the acquisition queue's, or phase 2's over
+a run's works, each opened with `one_pass`) asks works one after another, and a
+work its plugin could not be asked about is asked again on the next pass, with
+no limit. During a museum's outage that would make every pass ask every such
+work, one at a time, each up to the plugin's deadline: minutes each, for the
+private plugins. So after `HOLD_BACK_AFTER` could-not-be-asked answers in a row
+from one plugin within one pass, the rest of the pass does not ask it: its
+finder or reader answers `NotAskedThisPass` at once, without being called or
+counted, the caller leaves the work as it was, and the next pass starts a new
+count. Any other answer resets the count, so a plugin that answers again is
+asked again. Outside a pass (a look, a preview, Ask) nothing is held back. It
+builds on the other hold this module keeps, `STRAGGLERS_PER_PLUGIN`, which
+bounds the threads a plugin hung on every call can hold, for the life of the
+process; it does nothing for a plugin that answers "could not be asked" just
+inside its deadline, which is the costly case and the one this bounds.
+
 **A plugin's error text is scrubbed before it is shown or logged.** An HTTP
 client's error names the URL it asked, and a paid source's key often travels in
 the query string, so query strings are cut from anything a plugin's exception
@@ -51,7 +68,9 @@ import re
 import threading
 import time
 import traceback
+from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -124,6 +143,20 @@ DEADLINE_KINDS: Final[tuple[str, ...]] = ("finder", "reader", "preview", "browse
 #: ever. Past this many, a new call to that plugin is "could not be asked" at
 #: once, without starting it, until one of them returns.
 STRAGGLERS_PER_PLUGIN: Final[int] = 4
+
+#: Could-not-be-asked answers in a row, from one plugin within one pass, after
+#: which the rest of that pass does not ask it (`one_pass`). Three, from what a
+#: pass costs: the queue asks one work at a time, each up to the plugin's
+#: deadline (60 s by default, minutes for a plugin that declares them, at most
+#: `DEADLINE_CEILING_SECONDS`), so three bounds an outage at three deadlines a
+#: pass per plugin, where it was one deadline per work it holds. One or two in a
+#: row are an ordinary blip (a timeout, a 503) and hold nothing back; three in a
+#: row, one work after another, is a museum not answering. The cost: a plugin
+#: that fails three asks in a row for unrelated reasons is not asked again until
+#: the next pass, and the works behind them wait that long.
+#: Only the calls a pass makes are held back, a finder's search and a reader's
+#: read; a preview or a browse never is.
+HOLD_BACK_AFTER: Final[int] = 3
 
 #: The longest title, artist, or reason for showing no image a plugin may answer.
 #: Past it the text is not a title but a page, which every card, journal line and
@@ -329,6 +362,115 @@ class PluginFaulted(ImageSearchFailure):
 
 class _DeadlinePassed(Exception):
     """A call into a plugin was not answered in time, or was not started because too many of its calls had not been."""
+
+
+class NotAskedThisPass(Exception):
+    """The pass did not ask the plugin, because its last answers on this pass were all "could not be asked".
+
+    **Not an `ImageSearchFailure`, on purpose.** Nothing was asked, so nothing
+    is recorded: acquisition passes it through untouched (it catches the
+    interface's failures and records them against the source), the queue leaves
+    the work exactly as it was, and the image pool answers it as this source
+    not asked, writing no search. A caller outside a pass never meets it.
+    """
+
+    def __init__(self, plugin: str, after: int) -> None:
+        self.plugin = plugin
+        super().__init__(
+            f"the {museum_name(plugin)} plugin was not asked on this pass: its last {after} answers on it were "
+            "that it could not be asked, and the next pass asks it again"
+        )
+
+
+class PassHold:
+    """One pass's count of each plugin's could-not-be-asked answers in a row, and which it holds back.
+
+    The count's one owner: `ask` and `heard` read and write it under one lock,
+    so two asks of one plugin on two threads (phase 2 asks each source on a
+    thread of its own, and a late answer can land while the next work is asked)
+    cannot both read the count below the limit after it reached it, nor both be
+    the answer that reaches it.
+    """
+
+    def __init__(self, after: int = HOLD_BACK_AFTER) -> None:
+        if after < 1:
+            raise ValueError(f"A pass holds a plugin back after at least one answer, not {after}.")
+        self._after = after
+        self._lock = threading.Lock()
+        self._in_a_row: Counter[str] = Counter()
+        self._not_asked: Counter[str] = Counter()
+
+    @property
+    def after(self) -> int:
+        """How many could-not-be-asked answers in a row hold a plugin back."""
+        return self._after
+
+    def ask(self, plugin: str) -> None:
+        """Let a call to `plugin` start, or raise `NotAskedThisPass` and count the work not asked."""
+        with self._lock:
+            if self._in_a_row[plugin] < self._after:
+                return
+            self._not_asked[plugin] += 1
+        raise NotAskedThisPass(plugin, self._after)
+
+    def heard(self, plugin: str, *, unasked: bool) -> None:
+        """A call to `plugin` ended: in "could not be asked", which counts, or in any other answer, which resets."""
+        with self._lock:
+            if unasked:
+                self._in_a_row[plugin] += 1
+            else:
+                self._in_a_row.pop(plugin, None)
+
+    def not_asked(self) -> Mapping[str, int]:
+        """How many calls the pass did not make, by plugin: one per work it held back."""
+        with self._lock:
+            return dict(self._not_asked)
+
+
+#: The pass the calling code is in, or None outside one. A context variable, so
+#: a pass on one thread never holds back another's, and a worker that runs in a
+#: copy of the pass's context (the image pool's, `_Calls`) counts into it.
+_PASS: contextvars.ContextVar[PassHold | None] = contextvars.ContextVar("arrt_source_pass", default=None)
+
+
+@contextmanager
+def one_pass(*, after: int = HOLD_BACK_AFTER) -> Iterator[PassHold]:
+    """Open one pass: within it, a plugin that answers "could not be asked" `after` times in a row is not asked again.
+
+    Ends with one journal line per plugin held back, naming how many works the
+    pass did not ask it about (`source.plugin_held_back`), so an outage reads as
+    one line a pass and not as silence.
+    """
+    hold = PassHold(after)
+    token = _PASS.set(hold)
+    try:
+        yield hold
+    finally:
+        _PASS.reset(token)
+        for plugin, count in sorted(hold.not_asked().items()):
+            log.warning(
+                "source plugin %s was not asked about %d %s on this pass, after %d could-not-be-asked answers in a "
+                "row; the next pass asks it again",
+                plugin,
+                count,
+                "work" if count == 1 else "works",
+                after,
+                extra={"event": "source.plugin_held_back", "plugin": plugin, "not_asked": count, "after": after},
+            )
+
+
+def _pass_ask(plugin: str) -> None:
+    """Raise `NotAskedThisPass` when the pass the caller is in holds `plugin` back; nothing outside a pass."""
+    hold = _PASS.get()
+    if hold is not None:
+        hold.ask(plugin)
+
+
+def _pass_heard(plugin: str, *, unasked: bool) -> None:
+    """Tell the pass the caller is in how a call to `plugin` ended; nothing outside a pass."""
+    hold = _PASS.get()
+    if hold is not None:
+        hold.heard(plugin, unasked=unasked)
 
 
 @dataclass(slots=True)
@@ -680,6 +822,9 @@ class _ContainedFinder:
         here, as it always was, and only an answer that has something to hand
         over before its failure is handed over to be iterated.
         """
+        # Before anything starts, and outside the containment below: a pass not
+        # asking the plugin is no answer of the plugin's, and no fault either.
+        _pass_ask(self._plugin)
         heard = _Heard()
         pages_only = not self.offers_images
 
@@ -693,22 +838,28 @@ class _ContainedFinder:
         try:
             self._calls.run("find_images", self._deadlines.finder, ask)
         except _DeadlinePassed as passed:
+            _pass_heard(self._plugin, unasked=True)
             failure: Exception = ImageSearchFailure(_past_deadline(self._plugin, "find_images", passed, self._tally))
         # The interface's answers that are not a list, passed on as themselves
         # with their message scrubbed. One clause each rather than a tuple,
         # because the formatter writes a bare tuple in a form Python 3.12 cannot
         # parse, and the root suite's guards parse this file under 3.12 (#166).
         except ImageSearchFailure as exc:
+            _pass_heard(self._plugin, unasked=not isinstance(exc, LinkGone))
             failure = _heard_failure(exc, self._plugin, self._tally)
         except ImageQueryUnanswerable as exc:
+            _pass_heard(self._plugin, unasked=False)
             self._tally.answered(self._plugin)
             failure = _scrubbed(exc, ImageQueryUnanswerable)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             # Nothing it said is kept: a plugin answering outside its interface
             # has said nothing that can be trusted.
+            # Neither counts nor resets the pass's count: a fault is fixed by a
+            # new release of the plugin, and says nothing of whether it answers.
             self._tally.fault(self._plugin, "find_images", exc)
             raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
         else:
+            _pass_heard(self._plugin, unasked=False)
             self._tally.answered(self._plugin)
             return heard.so_far()
         said = heard.so_far()
@@ -743,11 +894,15 @@ class _ContainedReader:
         self._deadlines = deadlines
 
     def read(self, url: str) -> FetchLocator:
+        # Before anything starts, as the finder's: see `_ContainedFinder.find_images`.
+        _pass_ask(self._plugin)
         try:
             locator = self._calls.run("read", self._deadlines.reader, lambda: _locator(self._inner.read(url)))
         except _DeadlinePassed as passed:
+            _pass_heard(self._plugin, unasked=True)
             raise ImageSearchFailure(_past_deadline(self._plugin, "read", passed, self._tally)) from None
         except ImageSearchFailure as exc:
+            _pass_heard(self._plugin, unasked=not isinstance(exc, LinkGone))
             # As `_reraise_scrubbed`: itself when clean, else its scrubbed twin `from None`.
             heard = _heard_failure(exc, self._plugin, self._tally)
             if heard is exc:
@@ -756,6 +911,7 @@ class _ContainedReader:
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
             self._tally.fault(self._plugin, "read", exc)
             raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+        _pass_heard(self._plugin, unasked=False)
         self._tally.answered(self._plugin)
         return locator
 

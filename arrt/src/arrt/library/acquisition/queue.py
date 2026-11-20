@@ -64,6 +64,7 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.sources.loading import NotAskedThisPass, one_pass
 from arrt.library.sources.names import museum_name
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
 from arrt.persistence.errors import StorageFault
@@ -365,6 +366,13 @@ class _Paused(Exception):
         self.pause = pause
 
 
+#: What one work's attempt passes up to the pass rather than counting against the
+#: work: a pause, and a pass that held the work's plugin back (`run` leaves that
+#: work exactly as it was). A name rather than a parenthesised pair, which the
+#: formatter writes in a form Python 3.12 cannot parse.
+_THE_PASSES: Final[tuple[type[Exception], ...]] = (_Paused, NotAskedThisPass)
+
+
 class AcquisitionQueue:
     """Fetch, then prepare, every accepted work that holds no image, one at a time."""
 
@@ -635,20 +643,33 @@ class AcquisitionQueue:
             due = self._in_turn([work for work in candidates if self._wait(work.queued, now) is _Wait.DUE])
             acquired = failed = gave_up = 0
             paused: QueuePause | None = None
-            for work in due:
-                if stop is not None and stop.is_set():
-                    break
-                try:
-                    outcome = self._attempt(work)
-                except _Paused as halted:
-                    paused = halted.pause
-                    break
-                if outcome is _Outcome.DONE:
-                    acquired += 1
-                elif outcome is _Outcome.FAILED:
-                    failed += 1
-                else:
-                    gave_up += 1
+            # One pass for the plugins (`one_pass`): after three could-not-be-asked
+            # answers in a row from one plugin, the rest of this pass does not ask
+            # it, and each work it would have read is left exactly as it was.
+            with one_pass():
+                for work in due:
+                    if stop is not None and stop.is_set():
+                        break
+                    try:
+                        outcome = self._attempt(work)
+                    except _Paused as halted:
+                        paused = halted.pause
+                        break
+                    except NotAskedThisPass:
+                        # Nothing was asked, so nothing is counted or recorded, and
+                        # the empty row `_attempt` writes first for a work that had
+                        # none goes too: the work is left exactly as it was.
+                        if work.queued is None and self._store.get_queued_acquisition(work.artwork_id) == QueuedAcquisition(
+                            artwork_id=work.artwork_id
+                        ):
+                            self._store.remove_queued_acquisition(work.artwork_id)
+                        continue
+                    if outcome is _Outcome.DONE:
+                        acquired += 1
+                    elif outcome is _Outcome.FAILED:
+                        failed += 1
+                    else:
+                        gave_up += 1
             if paused is None:
                 # Every attempt got past the deployment's checks, or nothing was
                 # due for a pause to hold back: either way it is over.
@@ -715,7 +736,7 @@ class AcquisitionQueue:
                     self._preparation.prepare(artwork_id)
                 except ServiceError as exc:
                     return self._record_failure(entry, f"the image was fetched but could not be prepared: {exc}")
-            except _Paused:
+            except _THE_PASSES:
                 raise
             except (
                 Exception

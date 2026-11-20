@@ -48,6 +48,7 @@ from arrt.persistence.discovery_records import (
     InitiatedBy,
     RunKind,
     RunStatus,
+    SearchTally,
     UnresolvedReason,
 )
 from arrt.persistence.records import Artist, Artwork, Theme
@@ -443,6 +444,13 @@ SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
     {"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"}
 )
 
+#: What the search record says of a plugin's searches, as fields: HTTP carries
+#: them first (wave 2b, Chunk 33), and Chunk 53 gives `art_discovery`'s
+#: `source_plugins` their twins and removes this exemption.
+SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
+    {"searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at"}
+)
+
 
 def test_the_source_plugin_projections_agree_value_for_value():
     """Settings › Sources and `art_discovery(action='source_plugins')` read one plugin the same way."""
@@ -459,18 +467,15 @@ def test_the_source_plugin_projections_agree_value_for_value():
         last_unasked="the Met plugin could not be asked: it did not answer within 60 seconds",
         answered=5,
     )
-    health = SourceHealth(reading=reading, last_fault_age_seconds=12.0, last_unasked_age_seconds=7.0)
-
-    check_parity(
-        "SourcePlugin",
-        set(bindings._source_plugin_fields(health)),
-        _fields(http_models.SourcePluginOut),
-        SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET,
+    searches = SearchTally(provider="met", searched=9, answered=4, unasked=3, owed=2, last_answered_at=WHEN)
+    health = SourceHealth(reading=reading, last_fault_age_seconds=12.0, last_unasked_age_seconds=7.0, searches=searches)
+    http_only = (
+        SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET | SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
     )
+
+    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut), http_only)
     http = http_api._source_plugin(health).model_dump()
-    assert bindings._source_plugin_fields(health) == {
-        name: value for name, value in http.items() if name not in SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
-    }
+    assert bindings._source_plugin_fields(health) == {name: value for name, value in http.items() if name not in http_only}
     # The counts are the reading's, as fields, not only inside `description`.
     assert {name: http[name] for name in sorted(SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
         "answered": 5,
@@ -478,6 +483,14 @@ def test_the_source_plugin_projections_agree_value_for_value():
         "last_unasked_age_seconds": 7.0,
         "last_unasked_at": WHEN.isoformat(),
         "unasked": 3,
+    }
+    # The search record's counts, as fields: each its own, none a default.
+    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
+        "last_search_answered_at": WHEN.isoformat(),
+        "searched": 9,
+        "searches_answered": 4,
+        "searches_owed": 2,
+        "searches_unasked": 3,
     }
 
 
