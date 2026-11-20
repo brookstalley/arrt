@@ -155,6 +155,40 @@ def work_with_an_image(service, settings, decodable_jpeg):
     return _work
 
 
+@pytest.fixture
+def give_a_master(service):
+    """Record a master for a work, as a finished fetch leaves it: `give_a_master(work)`.
+
+    A held registry row asks for a picture only when the server says its work
+    holds one (`pictured_artwork_id`), so a test of a row's picture gives its
+    work one. No file is written, so the server refuses the thumbnail: serve it
+    (`pictures_load`) where the picture itself is the question.
+    """
+
+    def _give(work):
+        source = service.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}",
+            provider="artic",
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DEZOOMIFY,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=work.id,
+            source_id=source.id,
+            path=f"raw/{work.id}.tif",
+            width=6000,
+            height=4000,
+            byte_size=90_000_000,
+            content_hash=f"hash-{work.id}",
+            fetch_status=FetchStatus.OK,
+        )
+
+    return _give
+
+
 #: A 1×1 PNG, served for every picture a work's mark asks for when a test needs
 #: them to load: the suite's server holds no masters, and Commons is not asked.
 ONE_PIXEL_PNG = bytes.fromhex(

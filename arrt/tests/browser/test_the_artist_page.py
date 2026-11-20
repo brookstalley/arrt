@@ -81,28 +81,10 @@ class TestTheIndex:
     # owner's ruling on #173). The table it was is the second view, so the old
     # "listed with counts" test is replaced by one per view rather than dropped.
 
-    def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service, service):
+    def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service, give_a_master):
         artist, work = rothko
         # Only a work holding a master pictures its artist (2026-10-14, #358).
-        source = service.add_source(
-            artwork_id=work.id,
-            url=f"https://museum.example/{work.id}",
-            provider="artic",
-            source_class=SourceClass.INSTITUTIONAL,
-            acquisition_method=AcquisitionMethod.DEZOOMIFY,
-            rights_status=RightsStatus.PUBLIC_DOMAIN,
-            is_primary=True,
-        )
-        service.record_original(
-            artwork_id=work.id,
-            source_id=source.id,
-            path=f"raw/{work.id}.tif",
-            width=6000,
-            height=4000,
-            byte_size=90_000_000,
-            content_hash=f"hash-{work.id}",
-            fetch_status=FetchStatus.OK,
-        )
+        give_a_master(work)
         ui.serve_image(f"**/api/works/{work.id}/thumbnail*")
         ui.open("#artist")
         ui.page.wait_for_selector("ul.artist-posters li.card")
@@ -220,8 +202,11 @@ class TestTheArtistPage:
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
         ui.page.wait_for_selector(f"#view h1:text-is('{work.title}')")
 
-    def test_their_work_marks_a_wanted_one_wanted_and_draws_each_picture_in_its_style(self, ui, rothko, want_item, pictures_load):
-        artist, _work = rothko
+    def test_their_work_marks_a_wanted_one_wanted_and_draws_each_picture_in_its_style(
+        self, ui, rothko, want_item, pictures_load, give_a_master
+    ):
+        artist, work = rothko
+        give_a_master(work)
         want_item("Q17038023", "No 1")
         _page(ui, artist)
         _registry_answered(ui)
@@ -232,6 +217,26 @@ class TestTheArtistPage:
             _their_row(ui, "Untitled (Purple, White, and Red)").locator("td").nth(3).locator(".work-pic-held img")
         ).to_have_count(1)
         expect(_their_row(ui, "Rothko Chapel").locator("td").nth(3).locator(".work-pic-not-held img")).to_have_count(1)
+
+    def test_a_held_row_whose_work_holds_no_master_asks_for_no_thumbnail(self, ui, rothko, give_a_master, pictures_load):
+        """The row's picture is the server's `pictured_artwork_id`: a held work with no master is asked for none, and one given a master is.
+
+        The work the row opens is held either way; only the picture differs. Red
+        when the client asks for the first held work's thumbnail whatever the
+        server says: the first load requests one the server would refuse.
+        """
+        artist, work = rothko
+        _page(ui, artist)
+        _registry_answered(ui)
+        row = _their_row(ui, "Untitled (Purple, White, and Red)")
+        expect(row.locator("td").nth(3)).to_have_text(re.compile(r"Held\s*$"), use_inner_text=True)
+        expect(row.locator(".work-pic-held")).to_have_count(0)
+        assert not [url for url in ui.requests if url.endswith("/thumbnail")], "a work with no master was asked for a picture"
+
+        give_a_master(work)
+        _page(ui, artist)
+        _registry_answered(ui)
+        expect(row.locator(".work-pic-held img")).to_have_attribute("src", f"/api/works/{work.id}/thumbnail")
 
     def test_their_work_marks_the_held_one_held_and_the_others_not(self, ui, rothko):
         artist, work = rothko
@@ -255,7 +260,9 @@ class TestTheArtistPage:
         ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
 
     @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
-    def test_their_work_shows_each_picture_large_enough_to_choose_by(self, ui, rothko, registry, pictures_load, width):
+    def test_their_work_shows_each_picture_large_enough_to_choose_by(
+        self, ui, rothko, registry, pictures_load, give_a_master, width
+    ):
         """The picture is what a curator picks a work to Get by, so a phone shows it too
         (`information-architecture.md` § A work's mark), and the table still fits the panel:
         with a title longer than a phone is wide, as Dalí has, and a year before the common era."""
@@ -269,7 +276,8 @@ class TestTheArtistPage:
             ),
         )
         ui.page.set_viewport_size({"width": width, "height": 900})
-        artist, _work = rothko
+        artist, work = rothko
+        give_a_master(work)
         _page(ui, artist)
         _registry_answered(ui)
         section = "section[aria-labelledby='their-work']"

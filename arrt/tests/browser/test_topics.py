@@ -159,12 +159,14 @@ def registry():
 
 
 @pytest.fixture
-def held(services, service):
+def held(services, service, give_a_master):
     """Bruegel and two works of his in the library, identified, with their topics swept.
 
     Two works in the 16th century, so its count is not the 1 every topic would
     show by default; one of them, *The Hunters*, is also among the works
-    Wikidata lists, which is the case that marks it held.
+    Wikidata lists, which is the case that marks it held, and holds a master, so
+    its row has a picture to draw (`pictured_artwork_id`); *The Corn Harvest*
+    holds none.
     """
     bruegel = service.add_artist(name="Pieter Bruegel the Elder", born=1525, died=1569)
     services.identity.set_artist_identity(bruegel.id, BRUEGEL)
@@ -172,6 +174,7 @@ def held(services, service):
         title="The Hunters in the Snow", artist_id=bruegel.id, date_created="1565", wikidata_qid=HUNTERS
     )
     corn = service.add_artwork(title="The Corn Harvest", artist_id=bruegel.id, date_created="1565", wikidata_qid=CORN)
+    give_a_master(hunters)
     services.topic_sweep.run()
     return bruegel, hunters, corn
 
