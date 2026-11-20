@@ -445,6 +445,26 @@ left as planned and this section is the later word.
   not settle in their own files. Chunk 61 exists because two chunks together made the CI
   fallback's governance step red while the pool stayed green (the type check followed a
   tool into a package the fallback's environment does not install).
+- **2026-11-20 (Chunk 37), a boundary ruled on:** with not-found answering 404, two client
+  reads that took only a 400 would have broken (Artworks on a bookmarked theme that is
+  gone; Get again with a candidate work gone). Those two lines are Chunk 37's, each with a
+  browser test, because the fault exists only once its change merges. The server stays
+  uniform: one meaning of not found, in one place.
+- **2026-11-20 (Chunk 60), the reconcile's cadence:** measured in-process on one machine with
+  nothing to fix, a pass took 0.4 s at 2,000 works and 1.1 to 2.5 s at 5,000, the store's
+  lock held throughout, most of it per-work lookups. The reconcile runs at the first
+  scheduler pass and then every sixth (half an hour). The cost left: an act that arrives
+  during a reconcile waits for it, longer on the deployment's slower machine. Batching the
+  lookups is the fix and goes to a third part.
+- **2026-11-20 (Chunk 60, as integrated), one cause listed three times:** a Player with no
+  token that shows two walls made three setup steps, and each wall's own panel still read
+  as not reporting beside "nothing needs attention". Chunk 62 makes it one step per cause.
+- **2026-11-20 (Chunk 43), what a cheaper test cost:** the UX walk visits each screen once,
+  and three states it reached only as a second visit are no longer walked. Chunk 63 names
+  them. Its cache result: about half the suite still cannot be cached; about 2,250 tests
+  for a clock read and about 3,100 for a real server process or a socket. A third part
+  takes the shared fixtures' clock.
+- **2026-11-20 (Chunks 62 and 63 added):** what the last passes of integration found.
 
 ## The items 2a carried forward, and where each went
 
@@ -1779,6 +1799,79 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   the fallback's groups alone) with `arrt_contract` out of the allowance.
 - **Verification ceiling:** the governance suite whole on the pool; the fallback's
   governance step run locally in a fresh environment; ruff and black at the root.
+
+### Chunk 62: One setup step per cause, and a cost said once
+
+- **Type:** code
+- **Exposed API:** `/api`
+- **Closes:** what integration found in Chunks 60, 41 and 34 together (§ Decisions made
+  mid-build): one cause listed as several setup steps, a wall's panel contradicting the
+  page's summary, and the three places a cost is still formatted by its reader.
+- **Model:** Opus-class, high: it changes what Status says about a household that is half
+  set up, on two surfaces and three screens.
+- **Waits for:** 60 and 41.
+- **Owns:** `arrt/src/arrt/services/health.py` and `arrt/src/arrt/programming/player_state.py`
+  (setup steps and a wall's display state only), `arrt/src/arrt/http/models.py` (those
+  shapes only), `arrt/src/arrt/ask/` (the ledger's unknown cost only),
+  `arrt/src/arrt/library/services/unattended.py` (`Standing.sentence` only),
+  `arrt/src/arrt/mcp/tools.py` (one description), the client's Status, top bar, Ask,
+  General and Watches screens under `arrt/src/arrt/http/static/` (only what reads these),
+  their tests, and the builders in `arrt/tests/browser/`.
+- **Deliverables:**
+  - One setup step for one cause. A Player with no token, or awaiting its first report,
+    is one step, which names the walls that wait for it and links to the Player. Its
+    walls make no step of their own and no trouble.
+  - A wall whose Player is still being set up says so on its own panel, in the server's
+    words and with the mark a setup step takes, never the mark of a problem. Status, the
+    top bar and MCP's status agree, because each renders the service's reading.
+  - Ask's ledger records a call whose cost is unknown as unknown, never as a known zero,
+    and its total says so in the words the Spend page uses.
+  - The unattended allowance's sentence is the one cost writer's.
+  - The client shows the server's `summary` for Ask's reply, the allowance, a Watch and a
+    run, and formats no cost of its own.
+  - MCP says a Watch is forgotten, as the screens do.
+- **Acceptance:** for one Player with no token showing two walls: one step, naming both
+  walls, on `GET /api/health`, on MCP's status and on Status; the top bar reads as setting
+  up and the System link counts one step; each wall's panel says it waits, and nothing on
+  the page says a problem. The same for a Player awaiting its first report. A wall whose
+  Player has reported and gone quiet is still a trouble. An Ask call of unknown cost makes
+  the total read "at least", through the route. A guard reads the client for a cost
+  formatted outside the one helper that shows the server's sentence. Each shown red first.
+- **Verification ceiling:** the curation files of health, Players, Ask and spend;
+  `arrt/tests/unit/test_surface_parity.py`; `arrt/tests/contract`; the whole browser suite
+  (it changes `http/models.py`); mypy, ruff and black in `arrt/`.
+
+### Chunk 63: The suite's tail
+
+- **Type:** code
+- **Closes:** what integration found in Chunks 43, 39, 41 and 57 (§ Decisions made
+  mid-build).
+- **Model:** Sonnet-class, high: named states, named fixtures, one instant.
+- **Waits for:** 43, 57 and 60.
+- **Owns:** `arrt/tests/browser/test_the_ux_walk.py` and `arrt/tools/ux_walk.py` (the
+  states a walk visits only), `arrt/src/arrt/library/services/taste.py` (the instant
+  only), the fixtures of the tests that write a report for a wall no Player shows,
+  `arrt/tests/unit/test_scheduler.py`, `arrt/src/arrt/http/static/index.html` (one
+  sentence), `arrt/src/arrt/http/static/screens/walls.js` (one sentence), and the stale
+  comments integration listed.
+- **Deliverables:**
+  - The UX walk visits by name the states it used to reach only as a screen's second
+    visit: History for one work, Walls at one wall, Artworks searched, and Artworks
+    choosing works for a wall. The time this adds to each walk is measured and returned.
+  - Recording an artist's affinity inside a verdict takes the verdict's instant.
+  - Every test that writes a wall's report does so for a wall a Player shows. No
+    assertion changes; a test that turns out to depend on the impossible state is
+    reported, not edited around.
+  - A scheduler pass between two reconciles writes its one line saying nothing was due:
+    a test asserts the line.
+  - The page's first sentence says the Library, and a wall with no theme says both ways
+    to hang something.
+- **Acceptance:** each walk's visited states, before and after, with the four named
+  states present; a probe wrapping the report writers counts no report for a wall no
+  Player shows across unit, contract and integration tests, and counts some on the
+  unfixed tree; a fixed clock given to a verdict is what the affinity carries, red today.
+- **Verification ceiling:** the browser files it edits and the files of the fixtures it
+  changes, on the pool; the governance suite whole; mypy, ruff and black in `arrt/`.
 
 ### Chunk 54: Records, and the change record
 
