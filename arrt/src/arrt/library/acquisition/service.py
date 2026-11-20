@@ -97,14 +97,19 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "The disk the library is kept on is short of free space. Free some space on it: the queue tries again every "
         "15 minutes and carries on by itself once there is room. No work is counted as failed meanwhile."
     ),
+    # These two are the server's setup, which only whoever looks after the
+    # server can change; the household is told so and is told where to look,
+    # and the settings themselves are the setup notes' (`.env.example`) and the
+    # journal's (`acquisition.deployment_fault`), never a household page's.
     DezoomifyUnavailable.__name__: (
-        "This is a deployment problem rather than a bad source: install dezoomify-rs, or set DEZOOMIFY_PATH to "
-        "where it lives. Every source using acquisition_method='dezoomify' is affected, and no source is at fault."
+        "This server is not set up to fetch pictures a museum serves in tiles: the program that fetches them, "
+        "dezoomify-rs, is not installed where Arrt looks for it. Whoever looks after the server installs it; the "
+        "queue tries again every 15 minutes. Every source fetched in tiles is affected, and no source is at fault."
     ),
     SourcePluginUnavailable.__name__: (
-        "Configure the source plugin the message names: its reason says which setting it is missing, and System › "
-        "Status lists it. For the Art Institute that is ARTIC_USER_AGENT in .env, a string naming this deployment "
-        "and a contact address. Every source that plugin reads is affected, and no source is at fault."
+        "The museum's source plugin is installed and not set up on this server, so its works cannot be fetched. "
+        "Whoever looks after the server sets it up: System › Status lists the plugin and what it is missing. Every "
+        "source that plugin reads is affected, and no source is at fault."
     ),
     # The host's faults the acquisition queue pauses on when one surfaces
     # mid-work (`queue._is_host_fault`), keyed by the name its pause carries: the

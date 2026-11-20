@@ -7,6 +7,7 @@ rather than a fault, and what the catalogue holds afterwards.
 
 import errno
 import logging
+import re
 import sqlite3
 import stat
 from contextlib import contextmanager
@@ -16,7 +17,9 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.acquisition.service import (
+    DEPLOYMENT_REMEDIES,
     AcquisitionOutcome,
     AcquisitionService,
     AcquisitionSettings,
@@ -1319,3 +1322,22 @@ class TestReadingAnOutcomeBack:
         source = sqlite_store._source(self._row(last_fetch_status="failed"))
 
         assert source.last_fetch_outcome is None
+
+
+# -- the remedies a household page shows --------------------------------------
+
+
+@pytest.mark.parametrize("condition", sorted(DEPLOYMENT_REMEDIES))
+def test_no_remedy_a_household_page_shows_names_a_setting(condition):
+    """The Work page, Activity › Queue and MCP show a paused work's remedy; none of them names a setting.
+
+    Read as those surfaces read it, through a paused work's state, and driven
+    from `DEPLOYMENT_REMEDIES` itself so a remedy added later is held too. A
+    setting is an upper-case word with an underscore, or the `.env` file: the
+    setup notes' and the journal's, not the household's (audit-6 finding 8, the
+    owner's ruling of 2026-10-11).
+    """
+    remedy = AcquisitionState("w-1", AcquisitionPhase.PAUSED, condition=condition).remedy
+
+    assert remedy is not None
+    assert not re.search(r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\.env\b", remedy), remedy
