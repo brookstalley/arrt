@@ -174,7 +174,7 @@ def test_a_row_offers_only_edit_and_never_assigns_or_captions(ui, services, sett
     for word in ("Assign", "Unassign", "Caption a wall", "Stop captioning"):
         expect(ui.view, word).not_to_contain_text(word, use_inner_text=True)
     dialog = edit(ui, hall)
-    expect(dialog.get_by_role("button")).to_have_text(["Rename", "Issue a token", "Remove…", "Close"], use_inner_text=True)
+    expect(dialog.get_by_role("button")).to_have_text(["Rename", "Issue a token", "Forget…", "Close"], use_inner_text=True)
     expect(dialog.locator("select")).to_have_count(0)
 
 
@@ -585,16 +585,16 @@ def test_a_refused_rename_is_said_in_the_dialog_and_changes_nothing(ui, services
     assert {view.client.name for view in services.clients.list_clients()} == {"Hall Pi", other.name}
 
 
-def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, services, hall, the_wall, study, server_url):
+def test_forgetting_asks_first_and_names_the_walls_left_without_a_player(ui, services, hall, the_wall, study, server_url):
     token = services.access.issue(hall.id).token
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-2")
     services.display.add_wall(name="Landing")
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Remove Hall Pi?", use_inner_text=True)
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Forget Hall Pi?", use_inner_text=True)
     expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
     consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     # In the order the server lists the Player's walls.
@@ -603,11 +603,11 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
     expect(consequence).to_contain_text(f"{both} will be left without a Player", use_inner_text=True)
     expect(consequence).to_have_text(starting("Its token stops working at once, and "), use_inner_text=True)
     expect(consequence).not_to_contain_text("Landing", use_inner_text=True)
-    ui.page.click("dialog.confirm .confirm-actions button:has-text('Remove Hall Pi')")
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Forget Hall Pi')")
     ui.page.wait_for_selector("#view [data-said]")
 
     expect(ui.page.locator("#view [data-said]")).to_have_text(
-        f"Hall Pi is removed. 2 walls now have no Player: {both}.", use_inner_text=True
+        f"Hall Pi is forgotten. 2 walls now have no Player: {both}.", use_inner_text=True
     )
     assert services.clients.list_clients() == []
     assert services.clients.placement_of(study.id).client is None
@@ -615,11 +615,11 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
-def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, the_wall, leave):
+def test_declining_to_forget_keeps_the_player_and_its_walls(ui, services, hall, the_wall, leave):
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
     decline(ui, leave)
 
@@ -628,10 +628,10 @@ def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, 
     expect(row(ui, hall)).to_be_visible()
 
 
-def test_removing_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall):
+def test_forgetting_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall):
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
     consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     expect(consequence).to_contain_text("It shows no wall, so no wall is affected.", use_inner_text=True)

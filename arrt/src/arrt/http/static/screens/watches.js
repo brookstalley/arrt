@@ -11,7 +11,7 @@
  * composes no verdict of its own, so it and `art_watches` cannot disagree.
  *
  * **Every control applies when it is changed**, as on Settings › General, and is
- * refused in the server's words beside it. Removing a Watch asks first, because
+ * refused in the server's words beside it. Forgetting a Watch asks first, because
  * nothing restores it; switching it off is the reversible way to stop one.
  *
  * Above the list, whether unattended work may run at all (`GET /api/unattended`),
@@ -127,7 +127,7 @@ function watchPanel(watch) {
       el("dt", { text: "Last run" }),
       el("dd", { class: "watch-last-run" }, lastRun(watch)),
     ]),
-    removeButton(watch),
+    forgetButton(watch),
   ]);
 }
 
@@ -197,16 +197,16 @@ function send(control, watch, body, act) {
   });
 }
 
-function removeButton(watch) {
-  const button = el("button", { type: "button", class: "action quiet", text: "Remove…" });
+function forgetButton(watch) {
+  const button = el("button", { type: "button", class: "action quiet", text: "Forget…" });
   button.addEventListener("click", async () => {
     const yes = await confirmAct({
-      title: `Remove the Watch “${watch.intent_text}”?`,
+      title: `Forget the Watch “${watch.intent_text}”?`,
       consequence: "Nothing restores it. What it has already found stays in To review. To stop it for a while, switch it off instead.",
-      confirmLabel: "Remove",
+      confirmLabel: "Forget",
     });
     if (!yes) return;
-    await attempt(button, "remove the Watch", () => api(`/api/watches/${encodeURIComponent(watch.watch_id)}`, { method: "DELETE" }), {
+    await attempt(button, "forget the Watch", () => api(`/api/watches/${encodeURIComponent(watch.watch_id)}`, { method: "DELETE" }), {
       then: () => refresh(),
     });
   });
