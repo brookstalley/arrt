@@ -437,19 +437,11 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
     check_parity("WorkMatch", set(bindings._match_fields(entry)), _fields(http_models.WorkMatchOut))
 
 
-#: The could-not-be-asked count and the answered count, as fields: HTTP carries
-#: them first (wave 2b, Chunk 32), and Chunk 53 gives `art_discovery`'s
-#: `source_plugins` their twins and removes this exemption.
-SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
-    {"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"}
-)
-
-#: What the search record says of a plugin's searches, as fields: HTTP carries
-#: them first (wave 2b, Chunk 33), and Chunk 53 gives `art_discovery`'s
-#: `source_plugins` their twins and removes this exemption.
-SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
-    {"searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at"}
-)
+#: The could-not-be-asked and answered counts (wave 2b, Chunk 32) and the search
+#: record's (Chunk 33), as fields: HTTP carried them first, MCP since Chunk 53.
+#: Each named so the value test below holds every one to its own reading.
+SOURCE_PLUGIN_COUNTS = ("unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered")
+SOURCE_PLUGIN_SEARCH_COUNTS = ("searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at")
 
 
 def test_the_source_plugin_projections_agree_value_for_value():
@@ -469,15 +461,13 @@ def test_the_source_plugin_projections_agree_value_for_value():
     )
     searches = SearchTally(provider="met", searched=9, answered=4, unasked=3, owed=2, last_answered_at=WHEN)
     health = SourceHealth(reading=reading, last_fault_age_seconds=12.0, last_unasked_age_seconds=7.0, searches=searches)
-    http_only = (
-        SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET | SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
-    )
 
-    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut), http_only)
+    check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
     http = http_api._source_plugin(health).model_dump()
-    assert bindings._source_plugin_fields(health) == {name: value for name, value in http.items() if name not in http_only}
-    # The counts are the reading's, as fields, not only inside `description`.
-    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
+    tool = bindings._source_plugin_fields(health)
+    assert tool == http
+    # The counts are the reading's, as fields, not only inside `description`, on both surfaces.
+    assert {name: tool[name] for name in sorted(SOURCE_PLUGIN_COUNTS)} == {
         "answered": 5,
         "last_unasked": "the Met plugin could not be asked: it did not answer within 60 seconds",
         "last_unasked_age_seconds": 7.0,
@@ -485,13 +475,61 @@ def test_the_source_plugin_projections_agree_value_for_value():
         "unasked": 3,
     }
     # The search record's counts, as fields: each its own, none a default.
-    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_SEARCH_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
+    assert {name: tool[name] for name in sorted(SOURCE_PLUGIN_SEARCH_COUNTS)} == {
         "last_search_answered_at": WHEN.isoformat(),
         "searched": 9,
         "searches_answered": 4,
         "searches_owed": 2,
         "searches_unasked": 3,
     }
+
+
+def test_a_plugin_never_searched_reads_alike_on_both_surfaces():
+    """No search record: both surfaces say zero searches and no last answer, not one a null and one a zero."""
+    reading = PluginReading(
+        name="met",
+        state=PluginState.LOADED,
+        reason=None,
+        faults=0,
+        last_fault_at=None,
+        last_fault=None,
+        identity=PluginIdentity(distribution="arrt", version="0.3.0", api_major=1, provides=(PluginPart.FINDS_IMAGES,)),
+    )
+    health = SourceHealth(reading=reading, last_fault_age_seconds=None)
+
+    tool = bindings._source_plugin_fields(health)
+    assert tool == http_api._source_plugin(health).model_dump()
+    assert (tool["searched"], tool["searches_owed"], tool["last_search_answered_at"]) == (0, 0, None)
+
+
+def test_a_works_place_in_the_queue_agrees_value_for_value():
+    """`art_catalogue(action='get')`'s `acquisition` is `AcquisitionStateOut`: Chunk 32's outcome, plugin and failure time too.
+
+    Every field filled, so a formatter that dropped one or wrote a constant
+    fails here, not only one that misnamed it. No test held this pair until
+    wave 2b's Chunk 53: the route gained three fields and the tool did not.
+    """
+    from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+    from arrt.persistence.records import FetchOutcome
+
+    state = AcquisitionState(
+        artwork_id="awk_1",
+        phase=AcquisitionPhase.FAILED,
+        failures=2,
+        detail="The Met plugin could not be asked: it did not answer within 60 seconds",
+        next_try_at=WHEN,
+        since=WHEN,
+        condition="DiskFull",
+        outcome=FetchOutcome.UNASKED,
+        plugin="met",
+        failed_at=WHEN,
+    )
+
+    tool = bindings._acquisition_fields(state)
+    assert tool is not None
+    check_parity("AcquisitionState", set(tool), _fields(http_models.AcquisitionStateOut))
+    assert tool == http_api._acquisition(state).model_dump()
+    assert (tool["outcome"], tool["plugin"], tool["failed_at"]) == ("unasked", "met", WHEN.isoformat())
 
 
 def test_the_picture_store_readings_agree_value_for_value():
@@ -501,26 +539,6 @@ def test_the_picture_store_readings_agree_value_for_value():
     check_parity("Pictures", set(bindings._pictures_fields(reading)), _fields(http_models.PicturesOut))
     assert bindings._pictures_fields(reading) == http_api._pictures(reading).model_dump()
     assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
-
-
-#: Health readings the panel carries that `art_display(action='status')` neither
-#: places nor leaves off by name yet: each Player's state, and the queue's failed
-#: fetches. The plan's MCP chunk (`build-plan-audit-wave-2b.md`, "MCP II: the
-#: twins of 2b's new fields") places them and removes this.
-HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET = frozenset({"players", "failed_fetches"})
-
-#: Fields `GET /api/clients` answers for each Player that the MCP `clients`
-#: listing does not yet: the Player's state with each output's, and its settings
-#: page address. The same MCP chunk adds them and removes this;
-#: `test_client_tools.py` holds the two listings to it with `check_not_yet_on_mcp`.
-CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"state", "settings_url"})
-
-#: Fields each registry row of an artist's works and a topic's works answers
-#: over HTTP that `art_discovery`'s `artist` and `topic` rows do not yet: the
-#: held work the row pictures itself by (wave 2b, Chunk 40). Chunk 53 gives the
-#: MCP rows their twin and removes this; `test_registry_tools.py` holds the two
-#: payloads to it with `check_not_yet_on_mcp`, row by row.
-REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"pictured_artwork_id"})
 
 
 def check_not_yet_on_mcp(record: str, mcp: set[str], http: set[str], not_yet: frozenset[str]) -> None:
@@ -559,9 +577,14 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
     """`art_display(action='status')` is the panel's twin; a new panel signal must be placed, not forgotten.
 
     Derived from `HealthReading`'s own fields, so a reading added to the panel
-    fails here until the binding says whether its twin carries it, or it is
-    named above as not placed yet; a name there the binding already places, or
-    that the panel no longer has, is refused as stale.
+    fails here until the binding says whether its twin carries it. Every one is
+    placed since wave 2b's Chunk 53 gave the status each Player's state and the
+    failed fetches; there is no "not yet" list any more.
+
+    The readings the panel derives rather than holds (`troubles()`,
+    `setup_steps()`, `describe()`) are not fields, so they are held here by
+    name to the status keys that carry them; a fourth derived reading fails
+    until it is placed. `test_client_tools.py` holds the values to the route's.
     """
     from dataclasses import fields
 
@@ -569,18 +592,51 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
 
     panel = {field.name for field in fields(HealthReading)}
     carried, left = set(bindings._STATUS_CARRIES), set(bindings._STATUS_LEAVES)
-    not_yet = set(HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET)
 
-    assert not not_yet & (carried | left), "an exemption is stale: the binding places that reading now"
-    assert not_yet <= panel, "an exemption names a reading the panel does not have"
-    assert carried | left | not_yet == panel
+    assert carried | left == panel
     assert not carried & left
     assert all(reason.strip() for reason in bindings._STATUS_LEAVES.values())
+    derived = {
+        name
+        for name in dir(HealthReading)
+        if not name.startswith("_") and name not in panel and callable(getattr(HealthReading, name))
+    }
+    assert derived == set(STATUS_KEY_OF_A_DERIVED_READING)
+    from contract.test_mcp_break import surface_shape
+
+    answered = set(surface_shape()["art_display"]["actions"]["status"]["result_keys"])
+    assert set(STATUS_KEY_OF_A_DERIVED_READING.values()) <= answered
 
 
-def test_the_client_fields_not_yet_on_mcp_are_fields_the_http_model_has():
-    """The exemption cannot outlive the fields it names: each is one `ClientOut` declares."""
-    assert _fields(http_models.ClientOut) >= CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
+#: The readings `HealthReading` derives, and the `art_display(action='status')`
+#: key that carries each: the panel's sentence is the status's `observation`.
+STATUS_KEY_OF_A_DERIVED_READING = {"troubles": "troubles", "setup_steps": "setup_steps", "describe": "observation"}
+
+
+def test_a_players_state_agrees_value_for_value():
+    """`art_players(action='clients')`'s `state` is `GET /api/clients`' `PlayerStateOut`, by name and by value.
+
+    A reporting Player with a display, a label panel and an output it has not
+    reported yet, so `since`, each output's kind, state and `connected` are
+    values and not the nulls of a Player with no report.
+    """
+    from arrt.programming.player_state import OutputKind, OutputState, PlayerReading, PlayerState
+
+    reading = PlayerReading(
+        state=PlayerState.REPORTING,
+        since=WHEN,
+        outputs=(
+            OutputState(kind=OutputKind.DISPLAY, name="hdmi-a-1", state=PlayerState.REPORTING, connected=True),
+            OutputState(kind=OutputKind.LABEL, name="epd-0", state=PlayerState.REPORTING, connected=False),
+            OutputState(kind=OutputKind.DISPLAY, name="hdmi-a-2", state=PlayerState.AWAITING_REPORT, connected=None),
+        ),
+    )
+
+    tool = bindings._player_state_fields(reading)
+    check_parity("PlayerState", set(tool), _fields(http_models.PlayerStateOut))
+    check_parity("OutputState", set(tool["outputs"][0]), _fields(http_models.OutputStateOut))
+    assert tool == http_api._player_state(reading).model_dump()
+    assert tool["since"] == WHEN.isoformat()
 
 
 #: The one name a look's picture carries on MCP alone: which image block is its
@@ -789,11 +845,6 @@ def test_the_unattended_projections_agree():
     check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))
 
 
-#: Spend's fields HTTP carries first: the count of calls whose cost is unknown,
-#: and the figure in words, "at least" with any (audit-wave-2b Chunk 35). Owed to
-#: `art_discovery(action='spend')` by Chunk 53, which removes this exemption.
-SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"unknown_cost_calls", "summary"})
-
 #: MCP's `run_direct_cost_usd`, which `SpendOut`'s docstring leaves off HTTP by
 #: decision: the browser reads that figure off the run record.
 MCP_ONLY_ON_SPEND = frozenset({"run_direct_cost_usd"})
@@ -808,11 +859,69 @@ def test_the_spend_projections_agree_but_for_the_named_fields():
     report = SpendReport(scope="run", cost_usd=Decimal("0.05"), run_id="r1", run_direct_usd=Decimal("0.01"), unknown_cost_calls=1)
     services = SimpleNamespace(runner=SimpleNamespace(spend_report=lambda **_: report))
 
-    projected = set(bindings._spend(services, {"run_id": "r1"})) - {"success"}
+    tool = bindings._spend(services, {"run_id": "r1"})
+    projected = set(tool) - {"success"}
     assert projected >= MCP_ONLY_ON_SPEND, "an MCP-only field named here that MCP no longer has is a stale exemption"
-    check_parity(
-        "Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut), SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
+    check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut))
+    # Value for value: the unknown-cost count and "at least" in words (Chunk 35's), on both since Chunk 53.
+    route = http_api._spend(report).model_dump()
+    assert {name: tool[name] for name in route} == route
+    assert (tool["unknown_cost_calls"], tool["summary"]) == (1, report.summary)
+    assert tool["summary"].startswith("at least")
+
+
+def test_the_spend_history_agrees_value_for_value():
+    """`art_spend(action='history')` is `GET /api/spend`, by name and value, at every depth.
+
+    A month with a kind of spending, a Get and a call whose cost is unknown, so
+    no list is the empty one every shape agrees on.
+    """
+    from decimal import Decimal
+
+    from arrt.library.services import spend_history
+    from arrt.library.services.discovery import SpendTotal
+    from arrt.persistence.discovery_records import SpendCategory
+
+    run = DiscoveryRun(
+        id="r1",
+        kind=RunKind.DISCOVERY,
+        initiated_by=InitiatedBy.MCP_CLIENT,
+        status=RunStatus.COMPLETED,
+        approval_required=False,
+        started_at=WHEN,
+        intent_text="Hokusai's waves",
+        watch_id="w1",
     )
+    floor = SpendTotal(cost_usd=Decimal("0.42"), unknown_calls=2)
+    history = spend_history.SpendHistory(
+        months=[
+            spend_history.SpendMonth(
+                year=2026,
+                month=8,
+                total=floor,
+                categories=[spend_history.SpendByCategory(category=SpendCategory.DISCOVERY_TOKENS, calls=5, total=floor)],
+                gets=[spend_history.SpendOnGet(run=run, calls=5, total=floor)],
+                unknown_calls=[
+                    spend_history.UnknownCostCall(
+                        spend_id="s1", category=SpendCategory.DISCOVERY_TOKENS, occurred_at=WHEN, model_id="m/1", run_id="r1"
+                    )
+                ],
+            )
+        ],
+        older_months=3,
+    )
+
+    tool = bindings._spend_history_fields(history)
+    route = http_api._spend_history(history).model_dump()
+
+    check_parity("SpendHistory", set(tool), _fields(http_models.SpendHistoryOut))
+    check_parity("SpendMonth", set(tool["months"][0]), _fields(http_models.SpendMonthOut))
+    check_parity("SpendByCategory", set(tool["months"][0]["categories"][0]), _fields(http_models.SpendByCategoryOut))
+    check_parity("SpendOnGet", set(tool["months"][0]["gets"][0]), _fields(http_models.SpendOnGetOut))
+    check_parity("UnknownCostCall", set(tool["months"][0]["unknown_calls"][0]), _fields(http_models.UnknownCostCallOut))
+    assert tool == route
+    assert tool["months"][0]["summary"] == floor.words
+    assert floor.words.startswith("at least")
 
 
 def test_the_watch_projections_agree_value_for_value():
@@ -863,3 +972,178 @@ def test_the_watch_projections_agree_value_for_value():
     assert over_mcp == http_api._watch(Rules(), watch).model_dump()
     assert (over_mcp["monthly_cap_usd"], over_mcp["effective_cap_usd"]) == ("2.50", "1.50")
     assert (over_mcp["spent_usd"], over_mcp["last_run_status"], over_mcp["overdue"]) == ("0.40", "failed", True)
+
+
+# -- every read route has a twin, or a reason it has none --------------------------------
+#
+# The tests above hold the fields of records both surfaces answer. Nothing held
+# the routes themselves against the actions until wave 2b's Chunk 53: `GET
+# /api/spend` landed with no MCP twin and no exemption, and nothing said so.
+# These tables are read against the application's own routes (`create_app`), so
+# a new read route fails by name until it is paired or given a reason here, and
+# an entry naming a route or an action that no longer exists fails as stale.
+#
+# A page (`http/pages.py`) and a Player's route (`http/player.py`, the
+# contract's) are classed by the router that serves them, not listed: neither is
+# a read an agent makes. Everything else a GET answers is listed below.
+
+#: Each read route and the MCP action that answers the same question.
+READ_ROUTE_TWINS: dict[str, tuple[str, str]] = {
+    "/api/works": ("art_catalogue", "list"),
+    "/api/works/{artwork_id}": ("art_catalogue", "get"),
+    "/api/acquisitions": ("art_catalogue", "queue"),
+    "/api/acquisitions/causes": ("art_catalogue", "failures"),
+    "/api/acquisitions/causes/works": ("art_catalogue", "failures"),
+    "/api/topics": ("art_catalogue", "topics"),
+    "/api/topics/{qid}": ("art_catalogue", "topic"),
+    "/api/history": ("art_catalogue", "history"),
+    "/api/artists/{artist_id}/registry": ("art_discovery", "artist"),
+    "/api/registry/artists/{qid}": ("art_discovery", "artist"),
+    "/api/registry/search": ("art_discovery", "search"),
+    "/api/registry/artists/{qid}/similar": ("art_discovery", "similar_artists"),
+    "/api/registry/works/{qid}": ("art_discovery", "work"),
+    "/api/registry/works/{qid}/look": ("art_discovery", "look"),
+    "/api/registry/topics": ("art_discovery", "find_topics"),
+    "/api/topics/{qid}/registry": ("art_discovery", "topic"),
+    "/api/topics/{qid}/works": ("art_discovery", "topic"),
+    "/api/topics/{qid}/artists": ("art_discovery", "topic"),
+    "/api/sources": ("art_discovery", "source_plugins"),
+    "/api/estimate": ("art_discovery", "estimate"),
+    "/api/runs": ("art_discovery", "list_runs"),
+    "/api/runs/{run_id}": ("art_discovery", "status"),
+    "/api/runs/{run_id}/spend": ("art_discovery", "spend"),
+    "/api/runs/{run_id}/candidates": ("art_review", "list_works"),
+    "/api/candidates/{work_id}": ("art_review", "get_work"),
+    "/api/candidates/{work_id}/images": ("art_review", "list_images"),
+    "/api/candidates/{work_id}/wikidata-matches": ("art_review", "wikidata_matches"),
+    "/api/wanted": ("art_review", "list_wanted"),
+    "/api/sightings/hosts": ("art_review", "sighting_hosts"),
+    "/api/themes": ("art_theme", "list"),
+    "/api/themes/{theme_id}": ("art_theme", "get"),
+    "/api/walls": ("art_display", "walls"),
+    "/api/exclusions": ("art_display", "kept_off"),
+    "/api/scenes/live": ("art_display", "scenes"),
+    "/api/manifest": ("art_display", "preview"),
+    "/api/health": ("art_display", "status"),
+    "/api/clients": ("art_players", "clients"),
+    "/api/affinities": ("art_taste", "list"),
+    "/api/settings": ("art_settings", "list"),
+    "/api/unattended": ("art_settings", "unattended"),
+    "/api/watches": ("art_watches", "list"),
+    "/api/watches/{watch_id}": ("art_watches", "get"),
+    "/api/spend": ("art_spend", "history"),
+}
+
+#: Read routes no agent makes, by design, each with why.
+READS_NOT_FOR_AN_AGENT: dict[str, str] = {
+    "/healthz": "a container's liveness probe; it answers 'ok' and reads nothing",
+    "/openapi.json": "the framework's schema of /api, for a developer; the MCP surface describes itself (action='help')",
+    "/docs": "the framework's page over that schema, for a developer",
+    "/docs/oauth2-redirect": "the framework's page over that schema, for a developer",
+    "/redoc": "the framework's page over that schema, for a developer",
+    "/api/works/{artwork_id}/thumbnail": "image bytes for an <img>; art_catalogue answers ids, not pictures",
+    "/api/works/{artwork_id}/wall-preview": "image bytes for an <img>; art_display(action='preview') says what a wall would show",
+    "/api/candidate-images/{image_id}/preview": "image bytes for an <img>; art_review inlines the picture as an image block",
+    "/api/registry/works/{qid}/look/pictures/{key}": "image bytes for an <img>; art_discovery(action='look') inlines them",
+    "/api/ask": "Ask is the browser's agent over this same surface; an agent asking it would ask itself",
+    "/api/ask/threads/{thread_id}": "an Ask thread, the browser's conversation with that agent",
+}
+
+#: Read routes an agent would ask and the surface does not answer yet: owed,
+#: each with what it is. Recorded in the Chunk 53 report as follow-up work; none
+#: is a field or route wave 2b added, which the tables above all twin.
+READS_OWED_TO_MCP: dict[str, str] = {
+    "/api/artists": "the Library's artists, with what each holds; art_catalogue lists works, filterable by artist_id",
+    "/api/artists/{artist_id}": "one Library artist, with what they hold and the work they are pictured by",
+    "/api/works/{artwork_id}/mat": "a work's mat colours, newest first; set_mat_color writes one and answers it",
+    "/api/works/{artwork_id}/placements": "which themes hold a work and where each hangs; art_theme(action='get') is per theme",
+    "/api/sources/yields": "what each source plugin has given the Library; source_plugins is how each is doing",
+    "/api/budget": "what is left of the month's budget, read from the provider's key",
+}
+
+
+def check_routes_paired(
+    routes: set[str],
+    twins: dict[str, tuple[str, str]],
+    not_for_an_agent: dict[str, str],
+    owed: dict[str, str],
+    actions: set[tuple[str, str]],
+) -> None:
+    """Raise unless every read route is in exactly one table, each entry names a route there is, and each twin an action."""
+    tables = (("twinned", set(twins)), ("not for an agent", set(not_for_an_agent)), ("owed", set(owed)))
+    unplaced = sorted(routes - set().union(*(names for _, names in tables)))
+    assert not unplaced, (
+        f"the read routes {unplaced} have no MCP twin and no reason they have none. Pair each with the action "
+        "that answers it, or name it as not for an agent or as owed, with why."
+    )
+    for name, names in tables:
+        stale = sorted(names - routes)
+        assert not stale, f"{stale} is listed as {name}, and no such read route is served: delete it"
+    for (first, a), (second, b) in [(x, y) for i, x in enumerate(tables) for y in tables[i + 1 :]]:
+        assert not a & b, f"{sorted(a & b)} is listed both as {first} and as {second}"
+    missing = sorted(
+        f"{route} -> {tool}(action={action!r})" for route, (tool, action) in twins.items() if (tool, action) not in actions
+    )
+    assert not missing, f"{missing}: no such action answers it"
+    assert all(reason.strip() for reason in (*not_for_an_agent.values(), *owed.values()))
+
+
+def _read_routes(app) -> set[str]:
+    """Every GET the application answers that is not a page's or a Player's, from the application itself.
+
+    An included router is walked into (FastAPI 0.140 keeps it whole, as an
+    entry holding `original_router`, where earlier releases copied its routes
+    flat), and the pages' and the Player's routers are left out by identity.
+    A mount (`/mcp`, `/static`) is not a route and is not read.
+    """
+    from starlette.routing import Route
+
+    from arrt.http import pages, player
+
+    found: set[str] = set()
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            if included not in (pages.router, player.router):
+                pending.extend(included.routes)
+        elif isinstance(route, Route) and "GET" in (route.methods or ()):
+            found.add(route.path)
+    return found
+
+
+def test_every_read_route_has_an_mcp_twin_or_a_reason_it_has_none(services):
+    from arrt.app import create_app
+
+    routes = _read_routes(create_app(services))
+    # Anchors, so a walk that read nothing cannot pass: one route of each router read, none of the two left out.
+    assert {"/api/spend", "/api/ask", "/healthz"} <= routes, "the routes were not read, so this would pass vacuously"
+    assert not {"/client", "/walls/{wall_id}/manifest/v{major}", "/"} & routes, "a Player's route or a page was read"
+    check_routes_paired(routes, READ_ROUTE_TWINS, READS_NOT_FOR_AN_AGENT, READS_OWED_TO_MCP, set(bindings.BINDINGS))
+
+
+def test_a_read_route_with_neither_twin_nor_reason_is_refused_by_name():
+    with pytest.raises(AssertionError, match=r"the read routes \['/api/new'\] have no MCP twin"):
+        check_routes_paired(
+            {"/api/new", "/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {}, {("art_display", "walls")}
+        )
+
+
+def test_a_twin_naming_an_action_that_does_not_exist_is_refused():
+    with pytest.raises(AssertionError, match="no such action answers it"):
+        check_routes_paired({"/api/walls"}, {"/api/walls": ("art_display", "wallz")}, {}, {}, {("art_display", "walls")})
+
+
+def test_an_entry_for_a_route_no_longer_served_is_refused():
+    with pytest.raises(AssertionError, match=r"\['/api/gone'\] is listed as owed, and no such read route"):
+        check_routes_paired(
+            {"/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {"/api/gone": "x"}, {("art_display", "walls")}
+        )
+
+
+def test_a_route_in_two_tables_is_refused():
+    with pytest.raises(AssertionError, match="listed both as twinned and as owed"):
+        check_routes_paired(
+            {"/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {"/api/walls": "x"}, {("art_display", "walls")}
+        )

@@ -18,7 +18,6 @@ import pytest
 from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from unit.test_surface_parity import REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET, check_not_yet_on_mcp
 
 from arrt.ask.cards import items_in
 from arrt.ask.prompt import ASK_SCOPE
@@ -39,6 +38,7 @@ from arrt.library.registry import (
     TopicKind,
 )
 from arrt.library.services.topics import OFFERED_TOPICS
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
@@ -160,12 +160,27 @@ async def route(server_url: str, path: str, **params) -> dict:
         return (await client.get(path, params=params)).raise_for_status().json()
 
 
-def _rows_as_mcp_has_them(mcp: dict, http: dict) -> dict:
-    """`http` with each work row's fields MCP does not carry yet taken out, once each row is held to the exemption."""
-    not_yet = REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
-    for ours, theirs in zip(mcp["works"], http["works"], strict=True):
-        check_not_yet_on_mcp("Registry row", set(ours), set(theirs), not_yet)
-    return {**http, "works": [{k: v for k, v in row.items() if k not in not_yet} for row in http["works"]]}
+def _hold_a_master(service, artwork_id: str) -> None:
+    """Record a master image for the work, as an acquisition would leave it, so a row can picture itself by it."""
+    source = service.add_source(
+        artwork_id=artwork_id,
+        url=f"https://museum.example/{artwork_id}.jpg",
+        provider="gallery_site",
+        source_class=SourceClass.CONTEMPORARY_WEB,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=artwork_id,
+        source_id=source.id,
+        path=f"raw/{artwork_id}.jpg",
+        width=4000,
+        height=3000,
+        byte_size=1_000,
+        content_hash=f"hash-{artwork_id}",
+        fetch_status=FetchStatus.OK,
+    )
 
 
 async def test_search_is_the_results_pages_search(server_url, held):
@@ -185,21 +200,25 @@ async def test_find_topics_is_the_topic_search(server_url):
 async def test_an_artist_not_held_is_their_page_by_qid(server_url, held):
     payload = await call(server_url, action="artist", qid=BRUEGEL)
 
-    assert payload == _rows_as_mcp_has_them(payload, await route(server_url, f"/api/registry/artists/{BRUEGEL}"))
+    assert payload == await route(server_url, f"/api/registry/artists/{BRUEGEL}")
     assert payload["artist_id"] is None
     assert [work["qid"] for work in payload["works"]] == [HUNTERS]
 
 
-async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server_url, held):
+async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server_url, held, service):
     rothko, kept = held
+    # A master, so the held row pictures itself by the work and `pictured_artwork_id` is a value, not the null default.
+    _hold_a_master(service, kept.id)
 
     payload = await call(server_url, action="artist", qid=ROTHKO)
-    page = _rows_as_mcp_has_them(payload, await route(server_url, f"/api/artists/{rothko.id}/registry"))
+    page = await route(server_url, f"/api/artists/{rothko.id}/registry")
 
     # The page by QID says only "held" and asks nothing; the tool must not.
     assert payload["state"] == "known"
     assert payload == {**page, "artist_id": rothko.id}
-    assert [(work["qid"], work["held_artwork_ids"]) for work in payload["works"]] == [(HELD_ROTHKO, [kept.id])]
+    assert [(work["qid"], work["held_artwork_ids"], work["pictured_artwork_id"]) for work in payload["works"]] == [
+        (HELD_ROTHKO, [kept.id], kept.id)
+    ]
 
 
 async def test_similar_artists_are_the_pages_section(server_url, held):
@@ -224,7 +243,7 @@ async def test_a_topic_is_the_pages_three_registry_sections_in_one(server_url):
     works = payload.pop("works")
     artists = payload.pop("artists")
     assert payload == await route(server_url, f"/api/topics/{RENAISSANCE}/registry")
-    assert works == _rows_as_mcp_has_them(works, await route(server_url, f"/api/topics/{RENAISSANCE}/works"))
+    assert works == await route(server_url, f"/api/topics/{RENAISSANCE}/works")
     assert artists == await route(server_url, f"/api/topics/{RENAISSANCE}/artists")
     assert [work["qid"] for work in works["works"]] == [HUNTERS]
     assert [artist["qid"] for artist in artists["artists"]] == [BRUEGEL]

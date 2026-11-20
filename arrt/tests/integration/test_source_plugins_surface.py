@@ -17,24 +17,6 @@ from mcp.client.streamable_http import streamable_http_client
 from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
 
-#: The could-not-be-asked and answered counts, as fields: on `/api/sources` first
-#: (wave 2b, Chunk 32), and the search record's counts (Chunk 33); Chunk 53 gives
-#: the tool their twins and removes this.
-HTTP_ONLY = frozenset(
-    {
-        "unasked",
-        "last_unasked_at",
-        "last_unasked_age_seconds",
-        "last_unasked",
-        "answered",
-        "searched",
-        "searches_answered",
-        "searches_unasked",
-        "searches_owed",
-        "last_search_answered_at",
-    }
-)
-
 
 @pytest.fixture
 def sources() -> SourceRoster:
@@ -105,11 +87,7 @@ async def test_the_tool_answers_what_the_route_answers(server_url):
 
     assert model["success"] is True
     assert model["interface_version"] == browser["interface_version"]
-    assert model["sources"] == [
-        {name: value for name, value in each.items() if name not in HTTP_ONLY} for each in browser["sources"]
-    ]
-    assert all(
-        set(each) >= HTTP_ONLY and not HTTP_ONLY & set(model_each)
-        for each, model_each in zip(browser["sources"], model["sources"], strict=True)
-    ), "an exemption for a field the tool now carries, or one the route no longer does"
+    # Every field alike, the counts since startup and the search record's
+    # included: the tool carries them since wave 2b's Chunk 53.
+    assert model["sources"] == browser["sources"]
     assert model["count"] == len(browser["sources"])

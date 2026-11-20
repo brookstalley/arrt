@@ -17,20 +17,18 @@ here carries the fields `GET /api/clients` does.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 from async_http import request
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from unit.test_surface_parity import (
-    CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET,
-    WALL_RENAMES,
-    check_not_yet_on_mcp,
-    check_renamed,
-    in_http_names,
-)
+from unit.test_surface_parity import WALL_RENAMES, check_renamed, in_http_names
 
+from arrt.http import api as http_api
+from arrt.mcp import bindings
+from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
 
@@ -44,7 +42,7 @@ _REPORT = {
 
 
 #: The actions this file calls on `art_display`; every other it calls is `art_players`'.
-_ON_THE_WALL_TOOL = frozenset({"walls", "add_wall"})
+_ON_THE_WALL_TOOL = frozenset({"walls", "add_wall", "status"})
 
 
 def _tool(action: str) -> str:
@@ -112,14 +110,23 @@ async def test_a_client_name_already_taken_is_refused(server_url, hall):
 
 async def test_the_listing_carries_what_the_client_reported_in_the_browsers_field_names(server_url, settings, hall):
     """Parity with `GET /api/clients`: one fact, one set of names, on both surfaces."""
-    _report(settings, hall)
+    # A token and a report, so the Player is `reporting`; a settings page address
+    # the contract's pattern passes, so `settings_url` is a value and not the null default.
+    await ok(server_url, "issue_client_token", client_id=hall)
+    _report(
+        settings, hall, {**_REPORT, "reported_at": datetime.now(UTC).isoformat(), "settings_url": "http://player.example:8080/"}
+    )
 
     [client] = (await ok(server_url, "clients"))["clients"]
     [browser] = (await request("GET", f"{server_url}/api/clients")).json()["clients"]
 
-    # Alike but for the fields the browser's route answers first and the tool
-    # gains later, named once beside the other surface exemptions.
-    check_not_yet_on_mcp("Client", set(client), set(browser), CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)
+    assert client.keys() == browser.keys()
+    # The Player's state, each output's, and its settings page: the tool carries
+    # them since wave 2b's Chunk 53, in the route's values.
+    assert client["state"] == browser["state"]
+    assert client["state"]["state"] == "reporting"
+    assert [output["name"] for output in client["state"]["outputs"]] == ["hdmi-a-1", "hdmi-a-2"]
+    assert client["settings_url"] == browser["settings_url"] == "http://player.example:8080/"
     assert client["heartbeat"].keys() == browser["heartbeat"].keys()
     assert client["heartbeat"]["outputs"] == browser["heartbeat"]["outputs"]
     assert [output["name"] for output in client["heartbeat"]["outputs"]] == ["hdmi-a-1", "hdmi-a-2"]
@@ -426,3 +433,72 @@ async def test_a_display_two_clients_report_is_named_on_both_surfaces_with_both_
     shown = next(entry for entry in walls if entry["wall_id"] == wall)
     assert shown["display"]["fault"]["description"] == fault["description"]
     assert shown["display_state"]["state"] == "unassigned"
+
+
+# -- the status: art_display(action='status') beside GET /api/health ---------------------------
+
+
+async def test_the_status_carries_the_health_models_readings_value_for_value(
+    server_url, services, settings, store, service, hall, wall
+):
+    """Each Player's state, each wall's display state, the failed fetches, the troubles and the setup steps.
+
+    One reading, held still so its ages are one instant's, built through both
+    surfaces' own formatters: `art_display(action='status')`'s binding and
+    `GET /api/health`'s. The household is made over the tool surface to hold one
+    of each thing the top bar can say: a Player not heard from for three hours
+    and the wall it shows (one trouble), a wall no Player shows and a Player with
+    no token (two setup steps), and a work whose picture failed to fetch.
+    """
+    stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+    await ok(server_url, "issue_client_token", client_id=hall)
+    _report(settings, hall, {**_REPORT, "reported_at": stale})
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    settings.heartbeat_path(wall).write_text(json.dumps({"reported_at": stale}), encoding="utf-8")
+    spare = (await ok(server_url, "add_wall", name="The landing"))["wall"]["wall_id"]
+    untokened = (await ok(server_url, "add_client", name="Spare Pi"))["client"]["client_id"]
+    work = service.add_artwork(title="Nighthawks")
+    service.add_source(
+        artwork_id=work.id,
+        url=f"https://museum.example/{work.id}.jpg",
+        provider="gallery_site",
+        source_class=SourceClass.CONTEMPORARY_WEB,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        rights_status=RightsStatus.UNKNOWN,
+        is_primary=True,
+    )
+    store.set_queued_acquisition(
+        QueuedAcquisition(artwork_id=work.id, failures=2, next_try_at=datetime.now(UTC) + timedelta(hours=20), detail="a 404.")
+    )
+
+    reading = services.health.observe()
+    tool = bindings._wall_status(SimpleNamespace(health=SimpleNamespace(observe=lambda: reading)), {})
+    route = http_api._health(reading).model_dump()
+
+    for key in ("players", "failed_fetches", "troubles", "setup_steps"):
+        assert tool[key] == route[key], key
+    by_wall = {entry["wall_id"]: entry for entry in route["walls"]}
+    for entry in tool["walls"]:
+        assert in_http_names(entry["display_state"], WALL_RENAMES["DisplayState"]) == by_wall[entry["wall_id"]]["display_state"]
+    # The case itself, so a quiet household cannot pass as agreement.
+    assert {player["client_id"]: player["state"]["state"] for player in tool["players"]} == {
+        hall: "not_heard_from",
+        untokened: "no_token",
+    }
+    # A fresh catalogue has never been backed up, which is a trouble too; the rest are this case's.
+    assert [(t["about"], t["subject"]) for t in tool["troubles"]] == [
+        ("player", hall),
+        ("backup", None),
+        ("failed_fetches", None),
+    ]
+    assert [(s["about"], s["subject"]) for s in tool["setup_steps"]] == [("wall", spare), ("player", untokened)]
+    assert tool["failed_fetches"]["count"] == 1
+    assert {entry["wall_id"]: entry["display_state"]["state"] for entry in tool["walls"]} == {
+        wall: "silent",
+        spare: "unassigned",
+    }
+    # And over the wire, the status answers every one of them.
+    payload = await ok(server_url, "status")
+    assert {"players", "failed_fetches", "troubles", "setup_steps"} <= payload.keys()
+    assert [player["client_id"] for player in payload["players"]] == [player["client_id"] for player in tool["players"]]
+    assert all("display_state" in entry for entry in payload["walls"])

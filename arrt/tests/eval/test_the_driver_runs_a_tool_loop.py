@@ -64,6 +64,7 @@ async def test_the_model_is_offered_the_servers_own_tool_definitions(server_url)
         "art_players",
         "art_review",
         "art_settings",
+        "art_spend",
         "art_taste",
         "art_theme",
         "art_watches",

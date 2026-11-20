@@ -191,7 +191,7 @@ class ToolRecord:
             name=HELP_ACTION,
             description="List every action this tool takes, with its parameters, an example, and tips.",
             example=f"{self.name}(action='help')",
-            tips=("help never reads the catalogue, so it works even when nothing has been curated yet.",),
+            tips=("help never reads the Library, so it works even when nothing has been curated yet.",),
         )
 
     def _check_params_agree(self) -> None:

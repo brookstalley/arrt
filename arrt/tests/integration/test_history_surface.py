@@ -12,11 +12,14 @@ asserted over the whole history of that kind, not only the rows naming the
 work, so a duplicate written with a missing reference is caught too.
 """
 
+import json
 import time
 
 import httpx
 import pytest
 from fakes import a_work_list, stored_awaiting_approval
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 
 from arrt.persistence.discovery_records import RunStatus
 
@@ -31,6 +34,16 @@ def history(http: httpx.Client, **params) -> list[dict]:
     response = http.get("/api/history", params={"limit": 100, **params})
     assert response.status_code == 200, response.text
     return response.json()["events"]
+
+
+async def mcp_call(server_url: str, tool: str, **arguments) -> dict:
+    """One call over a real MCP client; its payload, which must have succeeded."""
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, arguments)
+    payload = json.loads(result.content[0].text)
+    assert payload["success"] is True, payload
+    return payload
 
 
 def of_kind(http: httpx.Client, kind: str) -> list[dict]:
@@ -196,6 +209,28 @@ class TestReadingTheHistory:
 
         assert brought == {"run_id": candidate.discovery_run_id, "accepted_at": event["occurred_at"]}
         assert by_hand is None
+
+    async def test_a_works_history_and_its_get_are_the_same_over_mcp(self, http, server_url, three_acts, resolved_work):
+        """`art_catalogue(action='history', artwork_id=…)` and `get`'s `get`: the routes' twins (wave 2b, Chunk 53)."""
+        candidate = resolved_work("The Elephants")
+        accepted = http.post(f"/api/candidates/{candidate.id}/verdict", json={"verdict": "accepted"}).json()
+        artwork_id = accepted["work"]["artwork_id"]
+        automat = next(event["artwork_id"] for event in history(http, kind="work.archived"))
+
+        for work in (artwork_id, automat):
+            over_mcp = await mcp_call(server_url, "art_catalogue", action="history", artwork_id=work, limit=100)
+            assert over_mcp["events"] == history(http, artwork_id=work), work
+            assert over_mcp["total"] == len(over_mcp["events"])
+        assert [
+            e["kind"] for e in (await mcp_call(server_url, "art_catalogue", action="history", artwork_id=automat))["events"]
+        ] == [
+            "work.restored",
+            "work.archived",
+        ]
+        brought = (await mcp_call(server_url, "art_catalogue", action="get", artwork_id=artwork_id))["get"]
+        assert brought == http.get(f"/api/works/{artwork_id}").json()["get"]
+        assert brought["run_id"] == candidate.discovery_run_id
+        assert (await mcp_call(server_url, "art_catalogue", action="get", artwork_id=automat))["get"] is None
 
     def test_a_page_says_where_it_sits(self, http, three_acts):
         page = http.get("/api/history", params={"limit": 1, "offset": 1}).json()
