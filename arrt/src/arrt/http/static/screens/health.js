@@ -34,6 +34,7 @@
  * replace.
  */
 
+import { number } from "../core/counting.js";
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
@@ -45,7 +46,7 @@ import { clientLink, wallLink } from "../core/places.js";
 import { backRow, link } from "../core/router.js";
 import { DEBUG } from "../core/debug.js";
 import { displayStateGlyph, displayStateWord, isDisplaySetup, playerStateGlyph, playerStateWord } from "../core/states.js";
-import { noWallRecorded } from "../core/status.js";
+import { stepWords } from "../core/status.js";
 
 /* The raw fields behind a panel, closed: what an operator compares against a
  * file or a log, kept off the face of a page a curator reads. Every raw key and
@@ -231,13 +232,14 @@ function heartbeatPanels(health, titles) {
       ]),
     ];
   }
-  const none = noWallRecorded(health);
+  // The server's own step for a household with no wall (`setup_steps`), said as
+  // the top bar says it: this panel holds no judgement of its own about it.
+  const none = Array.isArray(health.setup_steps) ? health.setup_steps.find((step) => step.about === "no_wall") : null;
   if (none) {
     return [
       el("div", { class: "panel" }, [
         el("h2", { text: "Walls" }),
-        // The top bar's words for the same fact, from the same function.
-        el("p", { class: "muted", text: `${none}, so there is no report to read. A wall is added on Walls.` }),
+        el("p", { class: "muted", text: `${stepWords(none)}, so there is no report to read. A wall is added on Walls.` }),
       ]),
     ];
   }
@@ -262,8 +264,8 @@ function troubleTarget(trouble) {
  * words and the System badge's count are made of (`core/status.js`), each
  * linking to where it is mended. Nothing here judges a reading again, so the
  * page and the badge cannot count one fault differently. Setup steps are not
- * here (the server lists none), and a household with no wall says so in the
- * top bar's words. */
+ * here: the server lists none among the troubles, and `setupPanel` states them
+ * beside it. */
 function troublesPanel(health) {
   const heading = el("h2", { text: "Needs attention" });
   if (!Array.isArray(health.troubles)) {
@@ -273,11 +275,7 @@ function troublesPanel(health) {
     ]);
   }
   if (!health.troubles.length) {
-    const none = noWallRecorded(health);
-    return el("div", { class: "panel troubles" }, [
-      heading,
-      el("p", { class: "reading-sentence", text: none ? `Nothing is wrong, and nothing can be shown: ${none.toLowerCase()}.` : "Nothing needs attention." }),
-    ]);
+    return el("div", { class: "panel troubles" }, [heading, el("p", { class: "reading-sentence", text: "Nothing needs attention." })]);
   }
   return el("div", { class: "panel troubles" }, [
     heading,
@@ -291,6 +289,47 @@ function troublesPanel(health) {
           el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
           " ",
           target ? link(target, { class: "link trouble-words", text: words }) : el("span", { class: "trouble-words", text: words }),
+        ]);
+      }),
+    ),
+  ]);
+}
+
+/* Where a setup step is taken, by what it is about (`SetupStepOut.about`): the
+ * household's first wall on Walls, a wall without a Player on its card, a Player
+ * without a token or a report on its own page. */
+function stepTarget(step) {
+  if (step.about === "no_wall") return { view: "walls" };
+  return troubleTarget(step);
+}
+
+/* What is still to set up: the server's `setup_steps`, the same list the top
+ * bar says after the troubles and the System link's name counts, each linking to
+ * where it is taken. Steps, never faults: ○ and no fault's colour, and nothing
+ * here is counted as a problem. Left out when nothing is left, so a household
+ * that is set up reads no panel about it; a reading with no such list says so,
+ * as the troubles' does. */
+function setupPanel(health) {
+  const heading = el("h2", { text: "Still to set up" });
+  if (!Array.isArray(health.setup_steps)) {
+    return el("div", { class: "panel setup-steps" }, [
+      heading,
+      el("p", { class: "note", text: "This health reading carries no list of what is left to set up. That is a fault in the reading, not in what it reads." }),
+    ]);
+  }
+  if (!health.setup_steps.length) return null;
+  return el("div", { class: "panel setup-steps" }, [
+    heading,
+    el(
+      "ul",
+      { class: "setup-step-list" },
+      health.setup_steps.map((step) => {
+        const target = stepTarget(step);
+        const words = stepWords(step);
+        return el("li", { "data-about": step.about }, [
+          el("span", { class: "glyph", text: GLYPHS.none, "aria-hidden": true }),
+          " ",
+          target ? link(target, { class: "link step-words", text: words }) : el("span", { class: "step-words", text: words }),
         ]);
       }),
     ),
@@ -385,7 +424,7 @@ function faultWords(source) {
 }
 
 function count(value) {
-  return typeof value === "number" ? value.toLocaleString() : "—";
+  return typeof value === "number" ? number(value) : "—";
 }
 
 function sourceRow(source, yielded) {
@@ -406,7 +445,7 @@ function sourceRow(source, yielded) {
     offered: count(yielded && yielded.offered),
     chosen: count(yielded && yielded.chosen),
     "only-here": count(yielded && yielded.only_here),
-    median: yielded && typeof yielded.median_long_edge === "number" ? `${yielded.median_long_edge.toLocaleString()} px` : "—",
+    median: yielded && typeof yielded.median_long_edge === "number" ? `${number(yielded.median_long_edge)} px` : "—",
     faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
     "last-fault":
       source.last_fault && typeof source.last_fault_age_seconds === "number"
@@ -487,11 +526,11 @@ function picturesPanel(health) {
     // carries what an unreadable store means; its wording is the server's.
     el("p", { class: "reading-sentence", text: pictures.description }),
     facts([
-      ["Files", pictures.pictures_files.toLocaleString()],
-      ["Bytes", pictures.pictures_bytes.toLocaleString()],
+      ["Files", number(pictures.pictures_files)],
+      ["Bytes", number(pictures.pictures_bytes)],
       // Only when the disk refused part of the walk: the count is then short,
       // and saying so is what keeps an unreadable store from reading as an empty one.
-      ["Could not be read", pictures.unreadable ? `${pictures.unreadable.toLocaleString()} entries` : null],
+      ["Could not be read", pictures.unreadable ? `${number(pictures.unreadable)} entries` : null],
     ]),
   ]);
 }
@@ -548,6 +587,7 @@ export async function viewHealth(generation) {
     // What the top bar and the System badge say, first, each linking to where
     // it is mended; then the readings they were found in.
     troublesPanel(health),
+    setupPanel(health),
     ...heartbeatPanels(health, titles),
     playersPanel(health),
     failedFetchesPanel(health),
@@ -578,7 +618,7 @@ export async function viewHealth(generation) {
             // yet" would be a claim about the project rather than about the file
             // in front of it, and would be wrong the day that job ships with
             // nothing to catch it — the same trap the heartbeat's note avoids.
-            text: "No backup has recorded itself here. The catalogue is the irreplaceable asset — the images can all be fetched again — so this is the reading to watch.",
+            text: "No backup has recorded itself here. The Library is the irreplaceable asset — the images can all be fetched again — so this is the reading to watch.",
           })
         : null,
       details(

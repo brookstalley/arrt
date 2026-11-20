@@ -11,6 +11,7 @@
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
 import { GLYPHS } from "./glyphs.js";
+import { listed, number } from "./counting.js";
 import { el } from "./render.js";
 import { link } from "./router.js";
 
@@ -130,9 +131,9 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
     // not a mark that quietly picks one; it opens the first.
-    const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
+    const words = held.length === 1 ? "Held" : `Held ×${number(held.length)}`;
     const parts = [
-      picture ? workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`) : null,
+      picture ? heldRowPicture(work) : null,
       el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
       el("span", { text: words }),
     ];
@@ -150,6 +151,16 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
   return stateBadge("badge-not-held", GLYPHS.none, noImage || (grouped ? "No image known" : "Not held"));
 }
 
+/* The picture a held registry row leads with: the thumbnail of the held work
+ * the server says holds a master (`pictured_artwork_id`), and nothing when none
+ * does, so no request goes out for a thumbnail the server would refuse and the
+ * row says *No picture* rather than draw a frame the picture takes away again.
+ * Never worked out here from `held_artwork_ids`: the first held work of a row
+ * may be the one with no master while a later one has it. */
+function heldRowPicture(work) {
+  return work.pictured_artwork_id ? workPicture("held", `/api/works/${encodeURIComponent(work.pictured_artwork_id)}/thumbnail`) : null;
+}
+
 /* A listed work's picture on its own, in the image style of its state, for a
  * row that leads with it rather than carrying it inside the state's badge (the
  * search typeahead and results, where a picture in the badge was 48 px and read
@@ -162,9 +173,7 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
  * badge's did. */
 export function statePicture(work) {
   const held = work.held_artwork_ids || [];
-  if (held.length) {
-    return work.pictured_artwork_id ? workPicture("held", `/api/works/${encodeURIComponent(work.pictured_artwork_id)}/thumbnail`) : null;
-  }
+  if (held.length) return heldRowPicture(work);
   if (work.in_review || !work.image) return null;
   return workPicture(work.wanted ? "wanted" : "not-held", `${work.image}?width=${FOUND_WIDTH}`);
 }
@@ -250,7 +259,7 @@ export const TOPIC_KINDS = {
  * the client has no word for is shown as the server spells it rather than
  * dropped, so a fifth kind reads oddly instead of vanishing. */
 export function topicKinds(kinds) {
-  return (kinds || []).map((kind) => (TOPIC_KINDS[kind] ? TOPIC_KINDS[kind][0] : kind)).join(" and ");
+  return listed((kinds || []).map((kind) => (TOPIC_KINDS[kind] ? TOPIC_KINDS[kind][0] : kind)));
 }
 
 /* A year as a caption reads it: Wikidata numbers the years before the common

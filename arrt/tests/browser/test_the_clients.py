@@ -174,8 +174,38 @@ def test_a_row_offers_only_edit_and_never_assigns_or_captions(ui, services, sett
     for word in ("Assign", "Unassign", "Caption a wall", "Stop captioning"):
         expect(ui.view, word).not_to_contain_text(word, use_inner_text=True)
     dialog = edit(ui, hall)
-    expect(dialog.get_by_role("button")).to_have_text(["Rename", "Issue a token", "Remove…", "Close"], use_inner_text=True)
+    expect(dialog.get_by_role("button")).to_have_text(["Rename", "Issue a token", "Forget…", "Close"], use_inner_text=True)
     expect(dialog.locator("select")).to_have_count(0)
+
+
+#: What each sidebar page paints only once it has its data, so a test that reads a
+#: page waits for it first. `#view h1` is not that: Artworks paints its heading in
+#: a loading state, and several pages paint it before their rows, so a test that
+#: waited for the heading and read the page read what had not arrived (audit wave
+#: 2b, C15). A page with nothing of its own in this state anchors on the empty
+#: sentence it says instead. A sidebar page missing here fails the test below.
+PAINTED = {
+    "collection": "#view ul.grid li[data-artwork]",
+    "discover": "#view .panel.ask",
+    "theme": "#view .page-facts",
+    "topics": "#view :is(.empty, section)",
+    "artist": "#view ul.artist-posters li.card, #view section[aria-label$='in the library']",
+    "walls": "#view section.wall",
+    "to_review": "#view .empty",
+    "queue": "#view .panel.acquisitions",
+    "history": "#view .history-events li, #view .empty",
+    "settings": "#view ul.settings-index li",
+    "sources": "#view li.source-entry",
+    # System › Spend (chunk 36) is listed before it is merged here: an anchor for a page that is not
+    # in the sidebar yet is unused, and one missing when it is fails the check below.
+    "spend": "#view .spend-month",
+    "clients": "#view tr[data-player]",
+    "watches": "#view .watches-standing",
+    "general": "#view .settings-general",
+    "taste": "#view .taste-help",
+    "wanted": "#view .empty",
+    "health": "#view .wall-reading",
+}
 
 
 def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall):
@@ -184,6 +214,10 @@ def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall)
     Every page the sidebar lists, read with a Player that reports, shows a wall
     and captions it, so the Walls card and its dialog have something to say
     about it. The address and the routes keep `client`; only text is read.
+
+    **Each page is read after its own data has painted** (`PAINTED`), never after
+    its heading alone: Artworks draws "Loading Artworks…" under an `h1` and then
+    its tiles, so a "client" in a tile painted late was passed over.
     """
     services.access.issue(hall.id)
     report(settings, hall, WITH_A_PANEL)
@@ -193,9 +227,12 @@ def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall)
     views = ui.page.evaluate("() => [...document.querySelectorAll('nav.sidebar a[data-view]')].map((link) => link.dataset.view)")
     assert "clients" in views
     assert "walls" in views
+    assert set(views) <= set(
+        PAINTED
+    ), f"sidebar pages with nothing to wait for before reading them: {sorted(set(views) - set(PAINTED))}"
     for view in views:
         ui.open(f"#{view}")
-        ui.page.wait_for_selector("#view h1")
+        ui.page.locator(PAINTED[view]).first.wait_for()
         expect(ui.page.locator("body"), f"#{view} calls a Player a client").not_to_contain_text(
             re.compile(r"\bclients?\b", re.IGNORECASE), use_inner_text=True
         )
@@ -585,16 +622,16 @@ def test_a_refused_rename_is_said_in_the_dialog_and_changes_nothing(ui, services
     assert {view.client.name for view in services.clients.list_clients()} == {"Hall Pi", other.name}
 
 
-def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, services, hall, the_wall, study, server_url):
+def test_forgetting_asks_first_and_names_the_walls_left_without_a_player(ui, services, hall, the_wall, study, server_url):
     token = services.access.issue(hall.id).token
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-2")
     services.display.add_wall(name="Landing")
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Remove Hall Pi?", use_inner_text=True)
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Forget Hall Pi?", use_inner_text=True)
     expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
     consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     # In the order the server lists the Player's walls.
@@ -603,11 +640,11 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
     expect(consequence).to_contain_text(f"{both} will be left without a Player", use_inner_text=True)
     expect(consequence).to_have_text(starting("Its token stops working at once, and "), use_inner_text=True)
     expect(consequence).not_to_contain_text("Landing", use_inner_text=True)
-    ui.page.click("dialog.confirm .confirm-actions button:has-text('Remove Hall Pi')")
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Forget Hall Pi')")
     ui.page.wait_for_selector("#view [data-said]")
 
     expect(ui.page.locator("#view [data-said]")).to_have_text(
-        f"Hall Pi is removed. 2 walls now have no Player: {both}.", use_inner_text=True
+        f"Hall Pi is forgotten. 2 walls now have no Player: {both}.", use_inner_text=True
     )
     assert services.clients.list_clients() == []
     assert services.clients.placement_of(study.id).client is None
@@ -615,11 +652,11 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
-def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, the_wall, leave):
+def test_declining_to_forget_keeps_the_player_and_its_walls(ui, services, hall, the_wall, leave):
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
     decline(ui, leave)
 
@@ -628,10 +665,10 @@ def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, 
     expect(row(ui, hall)).to_be_visible()
 
 
-def test_removing_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall):
+def test_forgetting_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall):
     open_players(ui)
 
-    edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
+    edit(ui, hall).get_by_role("button", name="Forget Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
     consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     expect(consequence).to_contain_text("It shows no wall, so no wall is affected.", use_inner_text=True)

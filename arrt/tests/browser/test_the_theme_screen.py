@@ -590,7 +590,7 @@ class TestDeleting:
 
         expect(ui.page.locator("dialog.confirm .confirm-title").first).to_have_text("Delete Winter?", use_inner_text=True)
         expect(ui.page.locator("dialog.confirm .confirm-consequence").first).to_have_text(
-            "The 3 works it holds stay in the collection. Only the grouping goes, and it cannot be brought back.",
+            "The 3 works it holds stay in the Library. Only the grouping goes, and it cannot be brought back.",
             use_inner_text=True,
         )
 

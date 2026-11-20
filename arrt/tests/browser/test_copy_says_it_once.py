@@ -187,3 +187,36 @@ def test_a_run_is_broken_by_another_verdict_or_another_get(ui, service):
         expect(
             ui.page.locator(f"li.verdict-run > span > a[href='#get/{get}'], li.verdict-run > span > a[href^='#get/{get}?']")
         ).to_have_count(1)
+
+
+# -- the household's holdings are the Library (ruling 2 of 2026-11-19) -------------------
+
+
+@pytest.mark.parametrize(
+    ("address", "said"),
+    [
+        ("#theme/no-such-theme", "Nothing in the Library has this address."),
+        ("#collection?artist=Nobody%20At%20All", "the Library holds what has been acquired"),
+    ],
+    ids=["theme-not-found", "artist-with-nothing"],
+)
+def test_the_household_s_holdings_are_the_library_and_never_the_collection(ui, seeded_service, address, said):
+    """Two screens that named the household's holdings "the collection" now say the Library.
+
+    Anchored on the sentence each says first (it shows the screen painted), then
+    that "collection" and "catalogue" are in neither.
+    """
+    ui.open(address)
+    ui.page.wait_for_selector("#view h1, #view .empty")
+
+    expect(ui.view).to_contain_text(said, use_inner_text=True)
+    expect(ui.view).not_to_contain_text(re.compile(r"the (collection|catalogue)\b", re.IGNORECASE))
+
+
+def test_status_says_the_library_of_a_backup_that_has_never_run(ui, a_health_reading, a_backup_reading):
+    ui.serve("**/api/health", a_health_reading(backup=a_backup_reading(absent=True)))
+    ui.open("#health")
+    ui.page.wait_for_selector(".wall-reading")
+
+    expect(ui.view).to_contain_text("The Library is the irreplaceable asset", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("The catalogue is the irreplaceable asset", use_inner_text=True)

@@ -111,12 +111,18 @@ def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, t
 
     expect(ui.view).to_contain_text("No Player shows a wall yet, so there is no report to read.", use_inner_text=True)
     expect(ui.view).not_to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
-    # Its own panel says the step, in the contract's word, and the top bar names nothing.
+    # Its own panel says the step, in the contract's word, and the top bar says it as a step to take
+    # (the server's `setup_steps`, chunk 41), never as a wall gone quiet. It named nothing of the
+    # wall until then, and asserted the study's name was absent from it.
     panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
     expect(panel.locator(".wall-state")).to_have_text(re.compile(r"No Player yet$"), use_inner_text=True)
     # Anchored on what the top bar does say of this deployment (no backup has run).
     expect(ui.page.locator("#status")).to_contain_text("The catalogue has never been backed up", use_inner_text=True)
-    expect(ui.page.locator("#status")).not_to_contain_text(study.name, use_inner_text=True)
+    expect(ui.page.locator("#status .status-setup")).to_have_text(
+        re.compile(rf"{study.name} has no Player yet"), use_inner_text=True
+    )
+    expect(ui.page.locator("#status .status-words")).not_to_contain_text(study.name, use_inner_text=True)
+    expect(ui.page.locator("#status")).not_to_contain_text("has not reported", use_inner_text=True)
 
 
 def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, services, two_walls):

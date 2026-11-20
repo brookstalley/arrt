@@ -29,7 +29,7 @@
  * the sentence a Get leaves. */
 
 import { api } from "./api.js";
-import { agree, counted } from "./counting.js";
+import { agree, counted, number } from "./counting.js";
 import { attempt } from "./acting.js";
 import { openPanel } from "./editing.js";
 import { el, fill } from "./render.js";
@@ -181,7 +181,7 @@ export function getSentence(asked, outcome, into) {
   const reasons = Object.keys(SKIP_WORDS)
     .map((reason) => [reason, skipped.filter((entry) => entry.reason === reason).length])
     .filter(([, count]) => count > 0)
-    .map(([reason, count]) => `${count} ${agree(count, ...SKIP_WORDS[reason])}`);
+    .map(([reason, count]) => `${number(count)} ${agree(count, ...SKIP_WORDS[reason])}`);
   return reasons.length ? `${lead} Left out: ${reasons.join("; ")}.` : lead;
 }
 

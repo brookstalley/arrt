@@ -155,6 +155,40 @@ def work_with_an_image(service, settings, decodable_jpeg):
     return _work
 
 
+@pytest.fixture
+def give_a_master(service):
+    """Record a master for a work, as a finished fetch leaves it: `give_a_master(work)`.
+
+    A held registry row asks for a picture only when the server says its work
+    holds one (`pictured_artwork_id`), so a test of a row's picture gives its
+    work one. No file is written, so the server refuses the thumbnail: serve it
+    (`pictures_load`) where the picture itself is the question.
+    """
+
+    def _give(work):
+        source = service.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}",
+            provider="artic",
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DEZOOMIFY,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=work.id,
+            source_id=source.id,
+            path=f"raw/{work.id}.tif",
+            width=6000,
+            height=4000,
+            byte_size=90_000_000,
+            content_hash=f"hash-{work.id}",
+            fetch_status=FetchStatus.OK,
+        )
+
+    return _give
+
+
 #: A 1×1 PNG, served for every picture a work's mark asks for when a test needs
 #: them to load: the suite's server holds no masters, and Commons is not asked.
 ONE_PIXEL_PNG = bytes.fromhex(
@@ -396,14 +430,12 @@ def _served(walls, *, backup, sources, watches, player, failed):
     )
 
 
-def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
-    return {
-        "pictures_bytes": size,
-        "pictures_files": files,
-        "age_seconds": age_seconds,
-        "unreadable": 0,
-        "description": f"The picture store keeps {files} files, counted {age_seconds:.0f} seconds ago.",
-    }
+def _some_pictures(*, files=2, size=48_000, age_seconds=12.0, unreadable=0):
+    # Through the server's own reading and route projection, never a sentence
+    # written here: `PicturesReading.describe` says it, `_pictures` answers it.
+    return http_api._pictures(
+        PicturesReading(pictures_bytes=size, pictures_files=files, age_seconds=age_seconds, unreadable=unreadable)
+    ).model_dump()
 
 
 def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None, shown=True):
@@ -432,14 +464,26 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
 
 
 def _a_backup(*, absent=False, problem=None):
+    path = "/art/backup-receipt.json"
+    completed_at = None if absent else "2026-08-12T03:00:00+00:00"
+    age_seconds = None if absent else 22440.0
+    reported = None if absent else {"completed_at": completed_at}
     return {
-        "path": "/art/backup-receipt.json",
-        "completed_at": None if absent else "2026-08-12T03:00:00+00:00",
-        "age_seconds": None if absent else 22440.0,
+        "path": path,
+        "completed_at": completed_at,
+        "age_seconds": age_seconds,
         "absent": absent,
         "problem": problem,
-        "description": "No backup has been recorded." if absent else "The catalogue was last backed up 6 hours ago.",
-        "reported": None if absent else {"completed_at": "2026-08-12T03:00:00+00:00"},
+        # The server's own sentence for this reading (`BackupReading.describe`),
+        # as `_a_wall`'s is the heartbeat's, never written here.
+        "description": BackupReading(
+            path=pathlib.Path(path),
+            completed_at=None if absent else datetime.fromisoformat(completed_at),
+            age_seconds=age_seconds,
+            contents=None if absent or problem is not None else reported,
+            problem=problem,
+        ).describe(),
+        "reported": reported,
     }
 
 

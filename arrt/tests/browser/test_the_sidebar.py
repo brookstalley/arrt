@@ -631,46 +631,88 @@ def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_r
     **Not well, and not a problem either** (the coordinator's ruling of
     2026-11-20 in audit wave 2b, chunk 31): adding a wall is a step to take,
     which the server counts no trouble for, so the badge carries no number and
-    the indicator says the step, in the words Status says it in. It waited for
-    `unwell` until then, when the client counted a trouble the server did not.
+    the indicator says the step. The words are the server's: its `setup_steps`
+    carries `no_wall` (chunk 40), and the indicator, the System link and Status
+    each read that one entry, where the client once decided it from an empty
+    `walls` and worded it itself ("No wall is recorded").
     """
     reading = a_health_reading(walls=[])
     assert reading["troubles"] == []
+    assert [step["about"] for step in reading["setup_steps"]] == ["no_wall"]
+    words = reading["setup_steps"][0]["words"]
     ui.serve("**/api/health", reading)
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='setup']")
 
     indicator = ui.page.locator("#status")
-    expect(indicator).to_contain_text("No wall is recorded", use_inner_text=True)
+    expect(indicator.locator(".status-words")).to_have_text(words, use_inner_text=True)
     expect(indicator).not_to_contain_text("Well", use_inner_text=True)
     expect(indicator.locator(".glyph")).to_have_text("○", use_inner_text=True)
+    expect(indicator.locator(".status-short")).to_have_text("Setting up", use_inner_text=True)
     # Neither "all well" nor a number of problems on the System link.
-    expect(system_link(ui)).to_have_attribute("aria-label", "System: no wall is recorded")
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 1 step to finish")
     expect(system_link(ui).locator(".status-count")).to_have_count(0)
-    # Status says the same fact, from the same function.
+    # Status says the same fact, in the same words, and as a step to take.
     ui.open("#health")
-    expect(ui.view).to_contain_text("No wall is recorded, so there is no report to read.", use_inner_text=True)
+    expect(ui.view).to_contain_text(f"{words}, so there is no report to read.", use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps li .step-words")).to_have_text([words], use_inner_text=True)
+    expect(ui.page.locator("#view .troubles")).to_contain_text("Nothing needs attention.", use_inner_text=True)
 
 
 # -- one health model: the server's troubles, counted once (audit wave 2b, chunk 31) ----------
 
 
-def test_a_wall_no_player_shows_puts_nothing_on_the_top_bar_or_the_badge(ui, a_health_reading, a_wall_reading):
-    """A wall no Player shows yet is a setup step (`unassigned`), never a fault, so it raises nothing.
+def test_a_wall_no_player_shows_is_said_as_a_step_and_never_counted(ui, a_health_reading, a_wall_reading):
+    """A wall no Player shows yet is a setup step (`unassigned`), never a fault, so it raises no count; and it is not well either.
 
     Red until chunk 31: the indicator read the wall's absent report itself and
-    said "The study has not reported", with a 1 on the System link.
+    said "The study has not reported", with a 1 on the System link. Rewritten in
+    chunk 41 (it was `test_a_wall_no_player_shows_puts_nothing_on_the_top_bar_or_the_badge`,
+    and asserted the indicator read "Well" and the link "System: all well"): a
+    household whose only open item is a step still to take is not well, so the
+    indicator says the server's step, in the setup reading, and the link's name
+    counts it apart from the problems.
     """
     reading = a_health_reading(walls=[a_wall_reading(name="The study", absent=True, shown=False)])
     assert reading["walls"][0]["display_state"]["state"] == "unassigned"
     assert reading["troubles"] == []
+    words = [step["words"] for step in reading["setup_steps"]]
+    assert words == ["The study has no Player yet"]
     ui.serve("**/api/health", reading)
     ui.open("#collection")
-    ui.page.wait_for_selector("#status[data-state='well']")
+    ui.page.wait_for_selector("#status[data-state='setup']")
 
-    expect(ui.page.locator("#status")).to_have_text(re.compile(r"Well\s*$"), use_inner_text=True)
-    expect(ui.page.locator("#status")).not_to_contain_text("The study", use_inner_text=True)
-    expect(system_link(ui)).to_have_attribute("aria-label", "System: all well")
+    indicator = ui.page.locator("#status")
+    expect(indicator.locator(".status-words")).to_have_text(words, use_inner_text=True)
+    expect(indicator.locator(".glyph")).to_have_text("○", use_inner_text=True)
+    expect(indicator, "a household with a step to take was read as well").not_to_contain_text("Well", use_inner_text=True)
+    expect(indicator).not_to_contain_text("has not reported", use_inner_text=True)
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 1 step to finish")
+    expect(system_link(ui).locator(".status-count")).to_have_count(0)
+
+
+@pytest.mark.parametrize(
+    ("player", "state"),
+    [({"token_issued": False}, "no_token"), ({"absent": True}, "awaiting_report")],
+    ids=["no-token", "no-report-yet"],
+)
+def test_a_player_not_yet_set_up_is_a_step_in_the_server_s_words(ui, a_health_reading, player, state):
+    """The other two kinds of step: a Player with no token, and one with a token that has not reported.
+
+    Each is the server's entry, worded by the server (`SetupStep`), and each
+    reads as a step: not well, not counted.
+    """
+    reading = a_health_reading(player=player)
+    assert reading["troubles"] == []
+    steps = [step for step in reading["setup_steps"] if step["about"] == "player"]
+    assert [step["state"] for step in steps] == [state]
+    ui.serve("**/api/health", reading)
+    ui.open("#collection")
+    ui.page.wait_for_selector("#status[data-state='setup']")
+
+    expect(ui.page.locator("#status .status-words")).to_have_text(
+        " · ".join(step["words"] for step in reading["setup_steps"]), use_inner_text=True
+    )
     expect(system_link(ui).locator(".status-count")).to_have_count(0)
 
 
@@ -722,12 +764,16 @@ def test_failed_fetches_put_a_count_on_the_badge_and_status_opens_the_queue(ui, 
 
 
 def test_the_badge_the_top_bar_and_status_say_the_same_troubles(ui, a_health_reading, a_wall_reading, a_backup_reading):
-    """One field, three readers: the badge's number, the top bar's words and Status's list are the server's `troubles`.
+    """Two fields, three readers: the badge, the top bar and Status say `troubles` and `setup_steps`, each list once.
 
     Built so the readings hold faults of several kinds and a setup step beside
-    them, so a reader that counted walls alone, or counted the setup step,
-    disagrees. Nothing here depends on how many troubles one cause makes: the
-    expected values are read off the answer.
+    them, so a reader that counted walls alone, or counted the setup step as a
+    fault, or dropped it, disagrees. Nothing here depends on how many troubles
+    one cause makes: the expected values are read off the answer.
+
+    Chunk 41 added the second list: the troubles are the number on the badge and
+    the top bar's sentence, the steps the top bar's second phrase, the badge's
+    name ("and 1 step to finish") and Status's own list, never the other's.
     """
     reading = a_health_reading(
         walls=[
@@ -738,16 +784,61 @@ def test_the_badge_the_top_bar_and_status_say_the_same_troubles(ui, a_health_rea
         failed=_failed_works(2),
     )
     words = [trouble["words"] for trouble in reading["troubles"]]
+    steps = [step["words"] for step in reading["setup_steps"]]
     assert len(words) >= 3
+    assert steps == ["The hall has no Player yet"]
     ui.serve("**/api/health", reading)
     ui.open("#health")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
     expect(system_link(ui).locator(".status-count")).to_have_text(str(len(words)), use_inner_text=True)
+    expect(system_link(ui)).to_have_attribute("aria-label", f"System: {len(words)} problems, and 1 step to finish")
     expect(ui.page.locator("#status .status-words")).to_have_text(" · ".join(words), use_inner_text=True)
+    expect(ui.page.locator("#status .status-setup")).to_have_text(" · ".join(steps), use_inner_text=True)
     expect(ui.page.locator("#view .troubles li .trouble-words")).to_have_text(words, use_inner_text=True)
-    # The setup step is in none of the three.
+    expect(ui.page.locator("#view .setup-steps li .step-words")).to_have_text(steps, use_inner_text=True)
+    # Each list holds its own and nothing of the other's.
     expect(ui.page.locator("#view .troubles")).not_to_contain_text("The hall", use_inner_text=True)
+    expect(ui.page.locator("#status .status-words")).not_to_contain_text("The hall", use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps")).not_to_contain_text("The living room", use_inner_text=True)
+
+
+def test_a_step_to_take_is_a_link_to_where_it_is_taken(ui, a_health_reading, a_wall_reading):
+    """Status's list of what is left to set up opens the wall (Walls) or the Player (Players) the server names."""
+    reading = a_health_reading(walls=[a_wall_reading(wall_id="wall-9", name="The hall", absent=True, shown=False)])
+    ui.serve("**/api/health", reading)
+    ui.open("#health")
+    ui.page.wait_for_selector("#status[data-state='setup']")
+
+    step = ui.page.locator("#view .setup-steps li[data-about='wall'] a")
+    expect(step).to_have_text("The hall has no Player yet", use_inner_text=True)
+    expect(step).to_have_attribute("href", re.compile(r"^#walls\b.*wall-9"))
+    expect(ui.page.locator("#view .setup-steps .glyph")).to_have_text(["○"], use_inner_text=True)
+
+
+def test_a_household_with_nothing_left_to_set_up_has_no_setup_panel(ui, a_health_reading):
+    """The paired negative: a panel of steps over a household with none would be noise, and the indicator says Well."""
+    ui.serve("**/api/health", a_health_reading())
+    ui.open("#health")
+    ui.page.wait_for_selector("#status[data-state='well']")
+
+    expect(ui.page.locator("#view .troubles")).to_contain_text("Nothing needs attention.", use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps")).to_have_count(0)
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: all well")
+
+
+def test_a_reading_with_no_list_of_setup_steps_is_not_read_as_well(ui, a_health_reading):
+    """The part the indicator reads, missing: said, never a green dot. An answer the server would not send, on purpose."""
+    reading = a_health_reading()
+    del reading["setup_steps"]
+    ui.serve("**/api/health", reading)
+    ui.open("#health")
+    ui.page.wait_for_selector("#status[data-state='unwell']")
+
+    expect(ui.page.locator("#status")).to_contain_text("carries no list of what is left to set up", use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps")).to_contain_text(
+        "carries no list of what is left to set up", use_inner_text=True
+    )
 
 
 def test_a_reading_with_no_list_of_troubles_is_not_read_as_well(ui, a_health_reading):

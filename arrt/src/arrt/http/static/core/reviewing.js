@@ -13,7 +13,7 @@ import { acquisitionLine } from "./acquiring.js";
 import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { paintAwaiting, paintWanted } from "./awaiting.js";
-import { agree, counted } from "./counting.js";
+import { agree, counted, number } from "./counting.js";
 import {
   absentImage,
   facts,
@@ -805,7 +805,7 @@ function reSearchOffer(wanted) {
       // see. Wanting a work records a wish; it does not start a search, and a
       // page that stayed silent would leave them waiting for one that is
       // never coming.
-      text: `${works.length} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — Get again is what looks, and it costs nothing.`,
+      text: `${number(works.length)} ${works.length === 1 ? "work is" : "works are"} wanted. Nothing is looking for a scan — Get again is what looks, and it costs nothing.`,
     }),
     el("div", { class: "row" }, [
       el("button", {
@@ -1069,7 +1069,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
         gridOf(group.cards),
       ]),
     ),
-    fold("found-none", `${foundNone.length} found no image`, foundNone),
-    fold("decided", `${decided.length} decided`, decided),
+    fold("found-none", `${number(foundNone.length)} found no image`, foundNone),
+    fold("decided", `${number(decided.length)} decided`, decided),
   ];
 }

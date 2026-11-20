@@ -32,6 +32,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { fitBadge, noPicture } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
+import { counted, listed, number } from "../core/counting.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { openPanel } from "../core/editing.js";
 import { hangOnWalls } from "../core/hanging.js";
@@ -98,7 +99,7 @@ async function themeIndex(generation) {
  * says what follows from it, so it is not said twice. */
 function indexFacts(placements) {
   const chosen = placements.find((entry) => entry.theme.is_default);
-  const count = placements.length === 1 ? "1 theme" : `${placements.length} themes`;
+  const count = counted(placements.length, "theme");
   const parts = chosen ? [count, `${chosen.theme.name} is the default`] : [count];
   return el("p", { class: "muted page-facts", text: parts.join(" · ") });
 }
@@ -181,7 +182,7 @@ function themeCard({ theme, hanging_on: hangingOn, work_count: count, picture_id
       el("h2", { class: "card-title" }, [link(target, { text: theme.name })]),
       // Said when the theme holds works and none has a picture yet, so an empty
       // strip is not read as an empty theme.
-      el("p", { class: "card-meta", text: `${count === 1 ? "1 work" : `${count} works`}${count && !pictured.length ? " · no pictures yet" : ""}` }),
+      el("p", { class: "card-meta", text: `${counted(count, "work")}${count && !pictured.length ? " · no pictures yet" : ""}` }),
       badges.length ? el("p", { class: "card-badges" }, badges) : null,
     ]),
   ]);
@@ -222,7 +223,7 @@ async function oneTheme(themeId, generation) {
   const [themes, walls] = await Promise.all([api("/api/themes"), api("/api/walls")]);
   const placement = themes.themes.find((entry) => entry.theme.theme_id === themeId);
   if (!placement) {
-    render(generation, ...notFound(null, "Nothing in the collection has this address. It was most likely deleted."));
+    render(generation, ...notFound(null, "Nothing in the Library has this address. It was most likely deleted."));
     return;
   }
   const theme = placement.theme;
@@ -256,7 +257,7 @@ async function oneTheme(themeId, generation) {
   });
 
   const paint = (members) => {
-    count.textContent = members.works.length === 1 ? "1 work" : `${members.works.length} works`;
+    count.textContent = counted(members.works.length, "work");
     selection.setTotal(members.works.length);
     fill(list, memberList(theme, members, { paint, selection, said }));
   };
@@ -325,7 +326,7 @@ function hangOpener(placement, walls) {
         closeLabel: "Cancel",
         body: walls.length
           ? [el("fieldset", { class: "hang-walls" }, [el("legend", { class: "visually-hidden", text: "Walls" }), ...boxes.map(({ row }) => row)])]
-          : [el("p", { class: "muted", text: "There are no walls, so nothing can be hung. A wall is created when the plane first opens the catalogue." })],
+          : [el("p", { class: "muted", text: "There are no walls, so nothing can be hung. A wall is added on Walls." })],
         actions: walls.length ? [act] : [],
       });
     },
@@ -463,7 +464,7 @@ async function remove(control, themeId, themeName) {
   const confirmed = await confirmAct({
     title: `Delete ${themeName}?`,
     consequence: held
-      ? `The ${held} ${held === 1 ? "work it holds stays" : "works it holds stay"} in the collection. Only the grouping goes, and it cannot be brought back.`
+      ? `The ${held} ${held === 1 ? "work it holds stays" : "works it holds stay"} in the Library. Only the grouping goes, and it cannot be brought back.`
       : "It holds no works. The grouping cannot be brought back.",
     confirmLabel: "Delete",
   });
@@ -486,7 +487,7 @@ function sizeCell(work, walls) {
     walls && walls.length
       ? el("span", { class: "badge badge-below_minimum" }, [
           el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
-          el("span", { text: `too small for ${walls.join(", ")}` }),
+          el("span", { text: `too small for ${listed(walls)}` }),
         ])
       : null;
   if (!fit && !small) return "";
@@ -534,7 +535,7 @@ function memberList(theme, { works, too_small_for: tooSmallFor = {} }, { paint, 
         then: (detail) => {
           paint(detail);
           const at = detail.works.findIndex((each) => each.artwork_id === work.artwork_id);
-          said.textContent = `${work.title} moved to ${at + 1} of ${detail.works.length}.`;
+          said.textContent = `${work.title} moved to ${number(at + 1)} of ${number(detail.works.length)}.`;
           const moved = document.querySelector(`button.drag-handle[data-work="${CSS.escape(work.artwork_id)}"]`);
           if (moved) moved.focus();
         },

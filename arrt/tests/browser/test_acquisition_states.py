@@ -241,7 +241,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     head = ui.page.locator(".failure-cause")
     expect(head).to_have_count(1)
     expect(head).to_contain_text("The work has no source to acquire from.", use_inner_text=True)
-    expect(head).to_contain_text("2000 works", use_inner_text=True)
+    expect(head).to_contain_text("2,000 works", use_inner_text=True)
     # At most 25 rows: there is no 26th.
     expect(
         ui.page.locator(".acquisitions tbody tr").nth(25), "a failure was drawn as a row before its group opened"
@@ -254,7 +254,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
 
     rows = ui.page.locator(".failure-cause-works tbody tr")
     expect(rows).to_have_count(25)
-    expect(ui.page.locator(".acquisitions")).to_contain_text("1–25 of 2000", use_inner_text=True)
+    expect(ui.page.locator(".acquisitions")).to_contain_text("1–25 of 2,000", use_inner_text=True)
     # No pattern of two thousand ids is written for `not_to_contain_text`: the
     # panel's words are read once, after the expects above have drawn it whole.
     shown = ui.page.inner_text(
@@ -262,7 +262,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     )  # one-shot: membership of 2,000 ids in the settled panel, which has no retrying form
     assert not any(work.id in shown for work in works), "a work was named by its id"
     ui.page.click(".failure-cause-works a:has-text('Next')")
-    ui.page.wait_for_selector(".failure-cause-works :text('26–50 of 2000')")
+    ui.page.wait_for_selector(".failure-cause-works :text('26–50 of 2,000')")
     expect(rows).to_have_count(25)
 
     # On a phone the group and its opened works fit across: no sideways scroll.

@@ -13,7 +13,7 @@
 import { attempt } from "../core/acting.js";
 import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
-import { agree, agreePartitive, counted } from "../core/counting.js";
+import { agree, agreePartitive, counted, number } from "../core/counting.js";
 import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
@@ -180,7 +180,7 @@ function worksBySource(works, reviewPage) {
   if (asked.length) {
     sections.push(
       el("section", { class: "asked-for" }, [
-        el("h3", { text: `Asked for (${asked.length})` }),
+        el("h3", { text: `Asked for (${number(asked.length)})` }),
         table(
           "The works this Get was asked for, each with the picture found for it and why the run named it.",
           ["Picture", "Title", "Artist", "Image", "Why it is here"],
@@ -193,7 +193,7 @@ function worksBySource(works, reviewPage) {
   for (const [museum, offered] of offeredBy) {
     sections.push(
       el("section", { class: "offered" }, [
-        el("h3", { text: `Also offered by ${museum} (${offered.length})` }),
+        el("h3", { text: `Also offered by ${museum} (${number(offered.length)})` }),
         table(
           `Works ${museum} offered on top of the ones asked for, each with its picture.`,
           ["Picture", "Title", "Artist", "Image"],
@@ -575,7 +575,7 @@ export async function viewRun(runId, generation) {
   let section = null;
   if (run.kind === "get") {
     section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
-      el("h2", { text: `Works (${tally.total})` }),
+      el("h2", { text: `Works (${number(tally.total)})` }),
       el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
       reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
       ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
@@ -586,7 +586,7 @@ export async function viewRun(runId, generation) {
     const toReview = view.works.length ? reviewLink(runId, reviewPage) : null;
     panels.push(
       el("div", { class: "panel" }, [
-        el("h2", { text: `Works (${tally.total})` }),
+        el("h2", { text: `Works (${number(tally.total)})` }),
         // The way from watching a run to judging what it brought back. Offered
         // only once the run holds works: a button onto an empty grid is a promise
         // the next screen cannot keep.

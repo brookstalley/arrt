@@ -315,7 +315,7 @@ def test_the_loading_state_does_not_guess_a_geometry_it_cannot_know(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")
 
-    expect(ui.view).to_contain_text("Loading the collection", use_inner_text=True)
+    expect(ui.view).to_contain_text("Loading Artworks", use_inner_text=True)
     expect(ui.page.locator("ul.grid-skeleton"), "the placeholder guessed a geometry it could not know").to_have_count(0)
     expect(ui.page.locator("ul.grid")).to_have_count(0)
 
@@ -677,7 +677,7 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
     expect(ui.page.locator(".page-toolbar button", has_text="Sort")).to_have_count(1)
 
 
-STALE_THEME = "The theme this address names is not in the catalogue"
+STALE_THEME = "The theme this address names is not in the Library"
 
 
 def test_an_address_naming_a_deleted_theme_shows_the_works_and_says_so(ui, a_theme_holding_one_work):
@@ -1084,3 +1084,88 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
     ui.page.wait_for_selector("ul.grid")
 
     assert ui.focused() != "view"
+
+
+def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in_artworks(ui):
+    """ "2,000 works" beside "Select all 2000 works" and "Starry (2000)" was audit-6 16: four ways of writing one number.
+
+    One page of the 2,000 is stubbed (the client reads `total` and each option's
+    `count`), with a facet that holds all of them. Every place Artworks prints
+    that number says it through `number`/`counted` in `core/counting.js`: the
+    facts line, the rail's option, *Select all*, and the showing note.
+    """
+    works = [a_catalogue_work(artwork_id=f"w{n}", title=f"Work {n}") for n in range(25)]
+    ui.serve(
+        "**/api/works?*",
+        a_listing(works, total=2000, truncated=True, facets=[a_facet_group("movement", [a_facet_option("Baroque", 2000)])]),
+    )
+
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid")
+
+    expect(ui.page.locator("#view .page-facts")).to_contain_text("2,000 works", use_inner_text=True)
+    expect(ui.page.locator("button.facet-option")).to_have_text("Baroque (2,000)", use_inner_text=True)
+    ui.page.click("#view button.select-toggle")
+    expect(ui.page.locator("#view .selection .select-all, #view button:has-text('Select all')").first).to_have_text(
+        "Select all 2,000 works", use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text(re.compile(r"\b2000\b"))
+
+
+# -- the way past the filters (audit-6 22) -----------------------------------------
+
+
+def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_facet(ui):
+    """About eighty facet buttons stood between the keyboard and the first work; one link steps over them.
+
+    The link is the rail's first stop, so a keyboard reaches it before the facets;
+    activated, it leaves the address alone and puts focus on the works, so the
+    next Tab is the first tile and not a facet.
+    """
+    # Stubbed: the seeded works carry no facet, and a rail that is only its note has nothing to step over.
+    options = [a_facet_option(f"Movement {n}", 5) for n in range(20)]
+    ui.serve(
+        "**/api/works?*",
+        a_listing(
+            [a_catalogue_work(artwork_id=f"w{n}", title=f"Work {n}") for n in range(3)],
+            facets=[a_facet_group("movement", options)],
+        ),
+    )
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li[data-artwork]")
+    skip = ui.page.locator("aside.rails a.skip-filters")
+    expect(skip).to_have_count(1)
+    # Reached before any facet: the first thing in the rail the keyboard can stop on.
+    first_stop = ui.page.evaluate(
+        "() => document.querySelector('aside.rails').querySelector('a[href], button:not([disabled])').className"
+    )
+    assert first_stop == "skip-filters", f"the rail's first stop is {first_stop!r}, not the skip link"
+    before = ui.page.evaluate("() => window.location.hash")
+
+    skip.focus()
+    expect(skip).to_be_visible()
+    ui.page.keyboard.press("Enter")
+    ui.page.keyboard.press("Tab")
+
+    landed = ui.page.evaluate(
+        "() => ({ inTile: Boolean(document.activeElement.closest('ul.grid li[data-artwork]')),"
+        " inRail: Boolean(document.activeElement.closest('aside.rails')) })"
+    )
+    assert landed == {"inTile": True, "inRail": False}, f"Tab after the skip landed on {landed}"
+    assert ui.page.evaluate("() => window.location.hash") == before
+
+
+def test_a_rail_with_nothing_to_filter_by_has_nothing_to_skip(ui, seeded_service):
+    """The paired negative: the seeded works carry no facet, so the rail is its note alone and offers no link."""
+    ui.open("#collection")
+    ui.page.wait_for_selector("aside.rails .rail-note")
+
+    expect(ui.page.locator("a.skip-filters")).to_have_count(0)
+
+
+def test_with_the_filters_put_away_there_is_nothing_to_skip(ui, seeded_service):
+    """The paired negative: no rail, no link to step over it."""
+    ui.open("#collection?filters=hidden")
+    ui.page.wait_for_selector("ul.grid li[data-artwork]")
+
+    expect(ui.page.locator("a.skip-filters")).to_have_count(0)

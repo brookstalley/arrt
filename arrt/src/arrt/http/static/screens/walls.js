@@ -633,7 +633,7 @@ function sceneSpan(live) {
 
 function liveScene(scene, live) {
   const entries = inWallOrder(scene, live.walls);
-  const names = entries.map((entry) => entry.wall_name).join(" and ");
+  const names = listed(entries.map((entry) => entry.wall_name));
   return [
     el("p", { class: "scene-span", text: sceneSpan(live) }),
     el(
@@ -812,9 +812,7 @@ function applyControls(scene, draft) {
     { id: lengthId },
     PREVIEW_MINUTES.map((minutes) => el("option", { value: String(minutes), text: `${minutes} minutes`, selected: minutes === 20 })),
   );
-  const named = inWallOrder(scene, draft.walls)
-    .map((entry) => `${entry.title || "a work"} on ${entry.wall_name}`)
-    .join(", ");
+  const named = listed(inWallOrder(scene, draft.walls).map((entry) => `${entry.title || "a work"} on ${entry.wall_name}`));
   const apply = (control, lifetime) => {
     const minutes = Number(length.value);
     const span = lifetime === "hold" ? "until you release it" : `for ${minutes} minutes, then each wall returns to its schedule`;

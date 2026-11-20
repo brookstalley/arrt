@@ -9,7 +9,7 @@
  * **What is true now, and its settings one step away** (`design-direction.md`
  * § Component Patterns, "How a page reads"; ruling 7 of 2026-10-27). A row says
  * whether the Player is reporting, its screens and the wall on each, and its
- * label panel and the wall it captions. Its name, its token and removing it are
+ * label panel and the wall it captions. Its name, its token and forgetting it are
  * its *Edit…*. Which wall a screen or a panel shows is the wall's setting, so it
  * is set in the wall's own *Edit…* on Walls, and this page only says it.
  *
@@ -24,9 +24,9 @@
  * somewhere different.
  *
  * **Every act names its Player**, in the control's accessible name and in any
- * question it asks, for the reason `core/confirm.js` gives. Rotating and removing
+ * question it asks, for the reason `core/confirm.js` gives. Rotating and forgetting
  * ask first, because each can leave a wall dark: a rotated token refuses the
- * Player holding the old one, and a removed Player leaves its walls with nothing
+ * Player holding the old one, and a forgotten Player leaves its walls with nothing
  * showing them.
  *
  * TEXT IS SET WITH textContent, NEVER innerHTML — the rule is at `core/render.js`,
@@ -428,7 +428,7 @@ function tokenOnce(player, token, lead) {
   field.select();
 }
 
-/* A Player's settings: its name, its token, and removing it, last. */
+/* A Player's settings: its name, its token, and forgetting it, last. */
 function editOpener(player) {
   return el("button", {
     class: "action quiet",
@@ -481,14 +481,14 @@ function editOpener(player) {
               issueInto(player);
             },
           });
-      const removeAct = el("button", {
+      const forgetAct = el("button", {
         class: "action quiet",
         type: "button",
-        text: "Remove…",
-        "aria-label": `Remove ${player.name}…`,
+        text: "Forget…",
+        "aria-label": `Forget ${player.name}…`,
         onclick: () => {
           panel.close();
-          remove(player);
+          forget(player);
         },
       });
       panel = openPanel({
@@ -508,7 +508,7 @@ function editOpener(player) {
             ]),
             el("div", { class: "row" }, [tokenAct]),
           ]),
-          el("div", { class: "panel" }, [el("h3", { text: "Remove" }), el("div", { class: "row" }, [removeAct])]),
+          el("div", { class: "panel" }, [el("h3", { text: "Forget" }), el("div", { class: "row" }, [forgetAct])]),
         ],
         onClose: () => {
           if (wrote) refresh();
@@ -530,7 +530,7 @@ async function rotate(player) {
   if (agreed) await issueInto(player);
 }
 
-async function remove(player) {
+async function forget(player) {
   const walls = player.walls.map((wall) => wall.name);
   const captioning = player.label_outputs.filter((label) => label.wall_id).length;
   // Its label panels go with it, so any that caption a wall stop: said, since
@@ -539,21 +539,21 @@ async function remove(player) {
   // A Player never issued a token is admitted nowhere, so there is no token to stop.
   const token = player.token_issued_at ? "Its token stops working at once" : "It has no token";
   const agreed = await confirmAct({
-    title: `Remove ${player.name}?`,
+    title: `Forget ${player.name}?`,
     consequence: walls.length
       ? `${token}, and ${listed(walls)} will be left without a Player. ` +
         `${agree(walls.length, "It keeps its theme", "They keep their themes")} until put on another.${labelsGo}`
       : `${token}. It shows no wall, so no wall is affected.${labelsGo}`,
-    confirmLabel: `Remove ${player.name}`,
+    confirmLabel: `Forget ${player.name}`,
   });
   if (!agreed) return;
   try {
     await api(`/api/clients/${encodeURIComponent(player.client_id)}`, { method: "DELETE" });
     outcome = walls.length
-      ? `${player.name} is removed. ${counted(walls.length, "wall")} now ${agree(walls.length, "has", "have")} no Player: ${listed(walls)}.`
-      : `${player.name} is removed. It showed no wall.`;
+      ? `${player.name} is forgotten. ${counted(walls.length, "wall")} now ${agree(walls.length, "has", "have")} no Player: ${listed(walls)}.`
+      : `${player.name} is forgotten. It showed no wall.`;
   } catch (failure) {
-    outcome = failedSentence(`remove ${player.name}`, failure);
+    outcome = failedSentence(`forget ${player.name}`, failure);
   }
   await refresh();
 }
