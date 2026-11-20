@@ -16,11 +16,29 @@ services:
     user: "<uid>:<gid>"
     security_opt:
       - no-new-privileges:true
+    # **Hardened, and measured** (`deploy/README.md`). The server needs no capability: it
+    # binds a port above 1024 and writes only files its own user owns, so every
+    # one is dropped. Its root filesystem is read-only, which is what makes the
+    # list of places it writes a list the compose file holds: `/art`, `/backups`
+    # and `/tmp`, each mounted below, and nothing else. A feature that starts
+    # writing elsewhere fails here, loudly, rather than adding files to the image.
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      # SQLite spills a large sort to a temporary file. With the root read-only and
+      # no `/tmp`, a sort of about twenty thousand rows (past its two-megabyte
+      # cache) fails with "disk I/O error"; with this, a hundred thousand do not.
+      # Memory, not disk, and it counts against `mem_limit`, so it is bounded.
+      # Mode 1777 because the server's user is not root: a tmpfs is root's
+      # otherwise.
+      - /tmp:size=64m,mode=1777,noexec,nosuid
     # SIGTERM, then this long to stop its workers and close the catalogue
     # cleanly. A hard kill mid-write is what the grace period exists to avoid.
     stop_grace_period: 30s
-    # In place of the Pi unit's MemoryMax: one large image held in memory at a
-    # time, with headroom.
+    # The most the container may hold, `/tmp` above included: one large image in
+    # memory at a time, with headroom. The kernel kills the container past it
+    # and `restart` brings it back.
     mem_limit: 3g
     # **Bound to one address, never to every interface.** The server asks no one
     # who they are (`security-model.md` § Trust Boundary), and its host check admits
