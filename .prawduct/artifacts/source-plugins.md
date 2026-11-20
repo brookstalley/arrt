@@ -483,6 +483,16 @@ open data, which the NGA's is, is offered for exactly that.
   ImageSearchFailure)`) reads there as "could not be asked", as before. A plugin
   built for 1.5 never raises it, loads unchanged, and is treated exactly as
   before.
+  *Also in wave 2b, none of it a change to the interface:* a run answers with the
+  sources that answered within 30 seconds and records a later answer for the work's
+  next pass (`docs/source-plugins.md` § Deadlines); within one pass a plugin that
+  could not be asked three times in a row is not asked again that pass; and
+  **`arrt.library.sources.testing`** is a supported helper for a plugin's own tests
+  (`host(...)`, driving the real host code with no network, `docs/source-plugins.md`
+  § A plugin tested as the host runs it). It is not exported from
+  `arrt.library.sources`, so a plugin's import of the interface never loads the host.
+  Its own version rule is the interface's: a minor may add names, fields or defaulted
+  keywords to it, and a removal or a changed meaning is a new major.
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks `arrt.library` (and
