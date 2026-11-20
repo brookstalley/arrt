@@ -75,19 +75,41 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
         expect(ui.page.locator(".wall-reading h2").filter(has_text=re.compile(rf"^\s*{re.escape(name)}\s*$"))).to_have_count(1)
 
 
-def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, two_walls):
+def _on_a_player(services, *walls) -> None:
+    """Put each wall on one of a Player's screens, as Walls › Edit… does: only then is a report expected of it."""
+    player = services.clients.add_client(name="The Pi in the hall")
+    for index, wall in enumerate(walls, start=1):
+        services.clients.assign_wall(wall.id, client_id=player.id, output=f"hdmi-a-{index}")
+
+
+def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, services, two_walls):
     """The sentence a reader takes away, with the room in it.
 
     Before the split this could only ever have said that *a* display plane had
     not reported, which on a two-room installation is a fact nobody can act on.
+    Both walls are on a Player: one with none is a step of setting up, and is
+    never named as quiet (below).
     """
     living_room, study = two_walls
+    _on_a_player(services, living_room, study)
     _reported(settings, living_room)
 
     ui.open("#health")
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     expect(ui.view).to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
+
+
+def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, two_walls):
+    """A wall with no Player yet is `unassigned` (`vocabulary.json`), so the summary does not call it quiet."""
+    living_room, study = two_walls
+    _reported(settings, living_room)
+
+    ui.open("#health")
+    ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
+
+    expect(ui.view).to_contain_text("No Player shows a wall yet, so there is no report to read.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
 
 
 def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, two_walls):
