@@ -192,7 +192,12 @@ def main_with_decision(path: Path, manifest: Path, decision_path: Path) -> int:
             )
             return 1
         print(HEADLINES_POOL)
-        return main(path, suites)
+        # The suites CI never asks for (`NOT_CI`, the image suite) are the only ones a
+        # pool run may lack, by name, each said here; every other one must have run.
+        for suite in suites:
+            if suite in decider.NOT_CI:
+                print(f"::warning::the {suite} suite was not asked for: it {decider.NOT_CI[suite]}")
+        return main(path, [suite for suite in suites if suite not in decider.NOT_CI])
     if decision.mode != "fallback":
         print(f"::error::the record's mode is {decision.mode!r}, which is none of pool, fallback and none")
         return 1
@@ -220,7 +225,7 @@ def main_with_decision(path: Path, manifest: Path, decision_path: Path) -> int:
     return worst
 
 
-HEADLINES_POOL = "Ran on the pool: every suite the manifest declares must be in the report."
+HEADLINES_POOL = "Ran on the pool: every suite the manifest declares but those CI never asks for must be in the report."
 
 
 if __name__ == "__main__":
