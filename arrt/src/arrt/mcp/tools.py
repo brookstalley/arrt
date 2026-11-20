@@ -51,7 +51,7 @@ from arrt.services.works_filter import SHOWN_PERIODS
 _STATUS = Param(
     name="status",
     type="string",
-    description="Restrict to works in this state. Omit to list the whole catalogue.",
+    description="Restrict to works in this state. Omit to list the whole Library.",
     choices=tuple(member.value for member in ArtworkStatus),
 )
 
@@ -109,7 +109,7 @@ def _facet_param(name: str, description: str) -> Param:
 _FACET_PARAMS: Final = (
     _facet_param("artist", "Keep only works with these artist facets. Several mean either; combining kinds means both."),
     _facet_param("movement", "Keep only works in these movements, e.g. ['Baroque', 'Cubism']."),
-    _facet_param("era", "Keep only works in these eras, as the catalogue names them."),
+    _facet_param("era", "Keep only works in these eras, as the Library names them."),
     _facet_param("subject", "Keep only works with these subjects, e.g. ['Seascape']."),
     _facet_param("medium", "Keep only works with these medium facets, e.g. ['Oil on canvas']."),
     _facet_param("palette", "Keep only works with these palette facets."),
@@ -120,7 +120,7 @@ _FACET_PARAMS: Final = (
 _ARTWORK_ID = Param(
     name="artwork_id",
     type="string",
-    description="The work's catalogue id, as returned by action='list'.",
+    description="The work's id in the Library, as returned by action='list'.",
     required=True,
 )
 
@@ -186,9 +186,9 @@ _CAUSE_TO_RETRY = Param(name="cause", type="string", description=_CAUSE_DESCRIPT
 
 ART_CATALOGUE: Final = ToolRecord(
     name="art_catalogue",
-    title="Art catalogue",
+    title="Art Library",
     summary=(
-        "Read and manage the works already accepted into the collection. Two actions reach outside the machine: "
+        "Read and manage the works already accepted into the Library. Two actions reach outside the machine: "
         "retry_acquisition queues a fetch from a museum, and set_mat_color asks a vision model when given no colour."
     ),
     read_only=False,
@@ -206,7 +206,7 @@ ART_CATALOGUE: Final = ToolRecord(
     actions=(
         Action(
             name="list",
-            description="Search and filter catalogued works, with the counts each further filter would select.",
+            description="Search and filter the Library's works, with the counts each further filter would select.",
             example="art_catalogue(action='list', q='harbour', movement=['Impressionism'], limit=20)",
             params=(
                 _STATUS,
@@ -215,7 +215,7 @@ ART_CATALOGUE: Final = ToolRecord(
                 Param(
                     name="artist_id",
                     type="string",
-                    description="Only this artist's works, by the catalogue id a work's artist carries.",
+                    description="Only this artist's works, by the id a work's artist carries.",
                 ),
                 Param(
                     name="theme",
@@ -260,7 +260,7 @@ ART_CATALOGUE: Final = ToolRecord(
                 ),
                 (
                     "A facet's counts are computed with its OWN selection ignored, so an option showing 0 with another "
-                    "facet chosen is an empty intersection rather than an empty catalogue."
+                    "facet chosen is an empty intersection rather than an empty Library."
                 ),
                 (
                     "Every result also lists each theme with the count it would select, counted the same way, so "
@@ -429,7 +429,7 @@ ART_CATALOGUE: Final = ToolRecord(
                 Param(
                     name="artist_id",
                     type="string",
-                    description="The artist's catalogue id, as a work's artist carries it.",
+                    description="The artist's id in the Library, as a work's artist carries it.",
                     required=True,
                 ),
                 _QID,
@@ -473,7 +473,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="topics",
-            description="List every topic the catalogue's works in circulation are in, by kind, with how many works.",
+            description="List every topic the Library's works in circulation are in, by kind, with how many works.",
             example="art_catalogue(action='topics')",
             params=(),
             tips=(
@@ -481,20 +481,20 @@ ART_CATALOGUE: Final = ToolRecord(
                     "Topics are periods (centuries), movements, subjects and kinds of work, as Wikidata gives them for "
                     "works and artists with a Wikidata item; a work with neither has none."
                 ),
+                ("Read from the Library alone, so it never waits on Wikidata. Each topic's qid is what " "action='topic' takes."),
                 (
-                    "Read from the catalogue alone, so it never waits on Wikidata. Each topic's qid is what "
-                    "action='topic' takes."
+                    "state='not_configured' means this server is not set up to ask Wikidata, so nothing keeps topics "
+                    "up to date; note says what the operator sets."
                 ),
-                "state='not_configured' means WIKIDATA_USER_AGENT is unset, so nothing keeps topics up to date.",
             ),
         ),
         Action(
             name="topic",
-            description="Return one topic as the catalogue's works carry it, and its works in circulation.",
+            description="Return one topic as the Library's works carry it, and its works in circulation.",
             example="art_catalogue(action='topic', qid='Q40415')",
             params=(_QID,),
             tips=(
-                "A topic none of the catalogue's works is in returns no label and no works rather than an error.",
+                "A topic none of the Library's works is in returns no label and no works rather than an error.",
                 (
                     "The same values filter action='list': a movement topic's label is a movement facet value, a "
                     "period's an era value."
@@ -849,7 +849,7 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 (
                     "works are up to 50 by renown plus every work the library holds of theirs, works_total how many "
-                    "Wikidata lists; holdings the collections holding most of them. A work's qid is what "
+                    "Wikidata lists; holdings the museums holding most of them. A work's qid is what "
                     "action='get' takes."
                 ),
                 (
@@ -974,7 +974,7 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "provides lists finds_images, finds_pages (pages for other plugins to read), reads (turns a "
-                    "URL it claims into an image) and browses (offers a collection). Only plugins that find "
+                    "URL it claims into an image) and browses (offers what a museum holds). Only plugins that find "
                     "images can answer a search."
                 ),
                 (
@@ -1070,8 +1070,8 @@ ART_REVIEW: Final = ToolRecord(
                 ),
                 (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
-                    "`offered` is one the collection volunteered by an artist the run named but could not "
-                    "confirm a work for. An offered row carries the collection's own title and attribution "
+                    "`offered` is one the museum volunteered by an artist the run named but could not "
+                    "confirm a work for. An offered row carries the museum's own title and attribution "
                     "verbatim and is never the work that was asked for — its `rationale` says which artist "
                     "produced it and how many works that artist has there."
                 ),
@@ -1123,7 +1123,7 @@ ART_REVIEW: Final = ToolRecord(
                     "rejected_for_this_work on each row."
                 ),
                 (
-                    "display_fit says whether an instance meets the quality minimum (QUALITY_MINIMUM_PX on its "
+                    "display_fit says whether an instance meets the quality minimum (the deployment's, in pixels on its "
                     "long edge): 'meets_minimum' or 'below_minimum'. A below_minimum instance is shown and may be "
                     "chosen — it is labelled with its size, never hidden."
                 ),
@@ -1165,14 +1165,14 @@ ART_REVIEW: Final = ToolRecord(
         ),
         Action(
             name="set_verdict",
-            description="Accept or reject one proposed work. Accepting puts it in the catalogue.",
+            description="Accept or reject one proposed work. Accepting puts it in the Library.",
             example="art_review(action='set_verdict', work_id='<a work_id from action=list_works>', verdict='accepted')",
             params=(
                 _WORK_ID,
                 Param(
                     name="verdict",
                     type="string",
-                    description="'accepted' puts the work in the catalogue; 'rejected' closes it. Both are final.",
+                    description="'accepted' puts the work in the Library; 'rejected' closes it. Both are final.",
                     required=True,
                     choices=("accepted", "rejected"),
                     # `api-contract.md` § set_verdict cannot set `wanted` requires
@@ -1206,7 +1206,7 @@ ART_REVIEW: Final = ToolRecord(
                 ),
                 (
                     "minted_artist says a new artist row was created. Where it arrives with "
-                    "possible_duplicate_artists, the catalogue may now hold the same painter twice under different "
+                    "possible_duplicate_artists, the Library may now hold the same painter twice under different "
                     "spellings — visible and mergeable, which a wrong merge would not be."
                 ),
                 "'wanted' is not settable here: action='want' is its one way in.",
@@ -1474,7 +1474,7 @@ ART_THEME: Final = ToolRecord(
                 (
                     "At most one theme is the default; action='list' shows which, as is_default. Each work joins it "
                     "once, when it is accepted, at the end of the order, unless the Get it came from named another "
-                    "theme_id, which it joins instead. Works already in the catalogue are not added by this, and a "
+                    "theme_id, which it joins instead. Works already in the Library are not added by this, and a "
                     "work taken out of the default by hand is not put back."
                 ),
                 "The default cannot be deleted. Make another theme the default first.",
@@ -1888,7 +1888,7 @@ ART_DISPLAY: Final = ToolRecord(
                     "Any work that could not reach the wall is refused rather than shown — archived, "
                     "missing its picture, its mat colour or its copy for the walls (the presentation master each "
                     "wall's Player is sent), carrying a copy for the walls made from an earlier acquisition, "
-                    "or naming no work the catalogue holds. The "
+                    "or naming no work the Library holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
                 ),
@@ -2129,8 +2129,8 @@ ART_PLAYERS: Final = ToolRecord(
             params=(_CLIENT_ID,),
             tips=(
                 (
-                    "Give the token to whoever sets up the host: it goes in the Player's settings as CLIENT_TOKEN, "
-                    "beside SERVER_URL, this server's address as that host reaches it."
+                    "Give the token to whoever sets up the host: it goes in the Player's settings beside this server's "
+                    "address as that host reaches it, and the answer's notice names both settings."
                 ),
                 (
                     "Rotating is issuing again, and the earlier token stops working at once: the client's Player is "
@@ -2220,7 +2220,7 @@ ART_PLAYERS: Final = ToolRecord(
 #: does with it.
 _TASTE_KIND_DESCRIPTION = (
     "What sort of thing a judgment is about. The same closed vocabulary a work's facets use, so that what "
-    "the curator likes and what the catalogue holds can be matched at all."
+    "the curator likes and what the Library holds can be matched at all."
 )
 _TASTE_KINDS: Final = tuple(str(kind) for kind in VocabularyKind)
 

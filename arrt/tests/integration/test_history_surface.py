@@ -221,7 +221,9 @@ class TestReadingTheHistory:
             over_mcp = await mcp_call(server_url, "art_catalogue", action="history", artwork_id=work, limit=100)
             assert over_mcp["events"] == history(http, artwork_id=work), work
             assert over_mcp["total"] == len(over_mcp["events"])
-        assert [e["kind"] for e in (await mcp_call(server_url, "art_catalogue", action="history", artwork_id=automat))["events"]] == [
+        assert [
+            e["kind"] for e in (await mcp_call(server_url, "art_catalogue", action="history", artwork_id=automat))["events"]
+        ] == [
             "work.restored",
             "work.archived",
         ]

@@ -12,6 +12,7 @@ rather than once per module.
 
 import json
 
+import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -951,3 +952,40 @@ async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(ser
     again, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
     assert errored is True
     assert again["error"].startswith("No work in the queue failed for that reason now")
+
+
+# -- a thing that does not exist: the service's own sentence, on both surfaces ------------------
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "path"),
+    [
+        ("art_catalogue", {"action": "get", "artwork_id": "awk_none"}, "/api/works/awk_none"),
+        ("art_theme", {"action": "get", "theme_id": "thm_none"}, "/api/themes/thm_none"),
+        ("art_display", {"action": "preview", "wall_id": "wal_none"}, "/api/manifest?wall_id=wal_none"),
+        ("art_catalogue", {"action": "history", "artwork_id": "awk_none"}, "/api/history?artwork_id=awk_none"),
+    ],
+    ids=["work", "theme", "wall", "a work's history"],
+)
+async def test_a_missing_thing_is_refused_in_the_services_words_as_the_route_refuses_it(server_url, tool, arguments, path):
+    """The binding passes the service's refusal through and writes none of its own (`server.dispatch`).
+
+    The status the route answers is not asserted: "not found" is to become its
+    own status in one place (`programming/lookups.py`, wave 2b's Chunk 37), and
+    what this holds is the sentence, which both surfaces take from the service.
+    A work's history is the case where neither refuses: no work by that id has
+    any, so both answer an empty page.
+    """
+    import httpx
+
+    payload, errored = await call(server_url, tool, **arguments)
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        answered = await client.get(path)
+
+    if answered.is_success:
+        assert errored is False
+        assert payload["events"] == answered.json()["events"] == []
+        return
+    assert errored is True
+    assert payload["error"] == answered.json()["error"]
+    assert arguments.get("artwork_id", arguments.get("theme_id", arguments.get("wall_id"))) in payload["error"]

@@ -17,6 +17,7 @@ from mcp.client.streamable_http import streamable_http_client
 from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
 
+
 @pytest.fixture
 def sources() -> SourceRoster:
     """The built-ins, with Wikidata's agent set and the Art Institute's not, so one declines."""

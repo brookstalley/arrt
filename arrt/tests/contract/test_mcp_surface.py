@@ -5,6 +5,8 @@ only one with external consumers, and the only one where a change that looks
 cosmetic — rewording a description — is a real behavioural change.
 """
 
+import json
+import re
 from importlib.metadata import version
 
 import pytest
@@ -80,16 +82,25 @@ async def test_the_registry_and_the_wire_agree_on_the_tool_list(tools):
     assert set(tools) == {tool.name for tool in TOOLS}
 
 
+def oversized(descriptions: dict[str, str]) -> dict[str, int]:
+    """Each description past the client's budget, by its size in bytes (UTF-8, as the client counts)."""
+    return {
+        name: len(text.encode()) for name, text in descriptions.items() if len(text.encode()) > DESCRIPTION_BUDGET_BYTES
+    }
+
+
 async def test_every_description_fits_the_clients_budget(tools):
     # Claude Code truncates a tool description at 2 KB. Past that the action
     # menu is cut mid-word and the model chooses from a list it cannot see.
-    oversized = {
-        name: len(tool.description.encode())
-        for name, tool in tools.items()
-        if len(tool.description.encode()) > DESCRIPTION_BUDGET_BYTES
-    }
+    assert oversized({name: tool.description for name, tool in tools.items()}) == {}
 
-    assert oversized == {}
+
+def test_the_budget_is_met_at_2048_bytes_and_broken_at_2049():
+    """The edge, in bytes and not characters: a '—' is three of them."""
+    assert DESCRIPTION_BUDGET_BYTES == 2048
+    at = "—" * 682 + "xx"
+    assert len(at.encode()) == 2048
+    assert oversized({"at": at, "over": at + "x"}) == {"over": 2049}
 
 
 async def test_every_tool_declares_its_annotations(tools):
@@ -187,7 +198,8 @@ _SHOW_NOW_TIP_PREPARES_FOR = {
     UnplayableReason.STALE_RENDITION: "earlier acquisition",
     # An id that resolves to nothing. Refused before the facade existed too, by
     # the catalogue's own lookup; naming it as a reason is what put it in the tip.
-    UnplayableReason.NOT_IN_CATALOGUE: "catalogue holds",
+    # "library holds" since wave 2b's Chunk 53, when the tip took ruling 2's word.
+    UnplayableReason.NOT_IN_CATALOGUE: "library holds",
 }
 
 
@@ -604,6 +616,62 @@ def test_every_action_ask_may_call_is_one_the_surface_takes():
         assert tool_name in TOOLS_BY_NAME, f"Ask may call {tool_name}, which the surface does not have"
         missing = actions - set(TOOLS_BY_NAME[tool_name].action_names)
         assert not missing, f"Ask may call {tool_name}'s {sorted(missing)}, which it does not take"
+
+
+#: What no description may carry, each with why. An environment variable's name
+#: is the operator's, read in the deployment's files, never a step an agent can
+#: take (ledger L14: `art_catalogue`'s topics tip named one). The owner's rulings
+#: 1 and 2 of 2026-11-19: a theme, never a playlist, and the household's holdings
+#: are the Library, never the collection or the catalogue. `art_catalogue` is a
+#: tool name, frozen, and the `\b` keeps it out: `_` is a word character.
+_NOT_IN_A_DESCRIPTION: dict[str, re.Pattern[str]] = {
+    "an environment variable's name": re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"),
+    "'playlist' (ruling 1: theme)": re.compile(r"(?i)\bplaylists?\b"),
+    "'catalogue' (ruling 2: the Library)": re.compile(r"(?i)\bcatalog"),
+    "'collection' (ruling 2: the Library)": re.compile(r"(?i)\bcollections?\b"),
+}
+
+
+def what_an_agent_reads(tool) -> str:
+    """Every word a client shows a model of one tool: its title, its description and its whole `help`."""
+    from arrt.mcp import registry
+
+    return "\n".join((tool.title, registry.description(tool), json.dumps(registry.help_payload(tool), ensure_ascii=False)))
+
+
+def refused_words(text: str) -> list[tuple[str, str]]:
+    """Each thing `text` says that no description may, as (the rule, the words)."""
+    return [(rule, found.group(0)) for rule, pattern in _NOT_IN_A_DESCRIPTION.items() for found in pattern.finditer(text)]
+
+
+@pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
+def test_no_description_names_a_variable_or_a_retired_word(record):
+    """Acceptance 3 of Chunk 53, over every tool: theme and the Library, and no environment variable."""
+    assert refused_words(what_an_agent_reads(record)) == []
+
+
+@pytest.mark.parametrize(
+    ("planted", "rule"),
+    [
+        ("state='not_configured' means WIKIDATA_USER_AGENT is unset", "an environment variable's name"),
+        ("Hang a playlist on a wall.", "'playlist' (ruling 1: theme)"),
+        ("Accepting puts it in the catalogue.", "'catalogue' (ruling 2: the Library)"),
+        ("Search and filter catalogued works.", "'catalogue' (ruling 2: the Library)"),
+        ("The works already accepted into the Collection.", "'collection' (ruling 2: the Library)"),
+    ],
+)
+def test_each_refused_word_is_found_when_planted(planted, rule):
+    from dataclasses import replace
+
+    tool = replace(TOOLS_BY_NAME["art_theme"], summary=planted, _by_name={})
+
+    # The summary is in the description and in help, so it is found twice: once per place a model reads it.
+    assert {found for found, _words in refused_words(what_an_agent_reads(tool))} == {rule}
+
+
+def test_a_tool_name_holding_a_retired_word_is_not_refused():
+    """`art_catalogue` is frozen; calling it by name is not calling the Library the catalogue."""
+    assert refused_words("art_catalogue(action='list') lists the Library's works.") == []
 
 
 async def test_the_spend_history_over_mcp_is_get_api_spend(server_url, services):

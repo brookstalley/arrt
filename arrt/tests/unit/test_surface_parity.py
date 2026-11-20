@@ -541,7 +541,6 @@ def test_the_picture_store_readings_agree_value_for_value():
     assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
 
 
-
 def check_not_yet_on_mcp(record: str, mcp: set[str], http: set[str], not_yet: frozenset[str]) -> None:
     """Raise unless the two surfaces agree but for `not_yet`, each of which HTTP answers and MCP does not.
 
@@ -973,3 +972,178 @@ def test_the_watch_projections_agree_value_for_value():
     assert over_mcp == http_api._watch(Rules(), watch).model_dump()
     assert (over_mcp["monthly_cap_usd"], over_mcp["effective_cap_usd"]) == ("2.50", "1.50")
     assert (over_mcp["spent_usd"], over_mcp["last_run_status"], over_mcp["overdue"]) == ("0.40", "failed", True)
+
+
+# -- every read route has a twin, or a reason it has none --------------------------------
+#
+# The tests above hold the fields of records both surfaces answer. Nothing held
+# the routes themselves against the actions until wave 2b's Chunk 53: `GET
+# /api/spend` landed with no MCP twin and no exemption, and nothing said so.
+# These tables are read against the application's own routes (`create_app`), so
+# a new read route fails by name until it is paired or given a reason here, and
+# an entry naming a route or an action that no longer exists fails as stale.
+#
+# A page (`http/pages.py`) and a Player's route (`http/player.py`, the
+# contract's) are classed by the router that serves them, not listed: neither is
+# a read an agent makes. Everything else a GET answers is listed below.
+
+#: Each read route and the MCP action that answers the same question.
+READ_ROUTE_TWINS: dict[str, tuple[str, str]] = {
+    "/api/works": ("art_catalogue", "list"),
+    "/api/works/{artwork_id}": ("art_catalogue", "get"),
+    "/api/acquisitions": ("art_catalogue", "queue"),
+    "/api/acquisitions/causes": ("art_catalogue", "failures"),
+    "/api/acquisitions/causes/works": ("art_catalogue", "failures"),
+    "/api/topics": ("art_catalogue", "topics"),
+    "/api/topics/{qid}": ("art_catalogue", "topic"),
+    "/api/history": ("art_catalogue", "history"),
+    "/api/artists/{artist_id}/registry": ("art_discovery", "artist"),
+    "/api/registry/artists/{qid}": ("art_discovery", "artist"),
+    "/api/registry/search": ("art_discovery", "search"),
+    "/api/registry/artists/{qid}/similar": ("art_discovery", "similar_artists"),
+    "/api/registry/works/{qid}": ("art_discovery", "work"),
+    "/api/registry/works/{qid}/look": ("art_discovery", "look"),
+    "/api/registry/topics": ("art_discovery", "find_topics"),
+    "/api/topics/{qid}/registry": ("art_discovery", "topic"),
+    "/api/topics/{qid}/works": ("art_discovery", "topic"),
+    "/api/topics/{qid}/artists": ("art_discovery", "topic"),
+    "/api/sources": ("art_discovery", "source_plugins"),
+    "/api/estimate": ("art_discovery", "estimate"),
+    "/api/runs": ("art_discovery", "list_runs"),
+    "/api/runs/{run_id}": ("art_discovery", "status"),
+    "/api/runs/{run_id}/spend": ("art_discovery", "spend"),
+    "/api/runs/{run_id}/candidates": ("art_review", "list_works"),
+    "/api/candidates/{work_id}": ("art_review", "get_work"),
+    "/api/candidates/{work_id}/images": ("art_review", "list_images"),
+    "/api/candidates/{work_id}/wikidata-matches": ("art_review", "wikidata_matches"),
+    "/api/wanted": ("art_review", "list_wanted"),
+    "/api/sightings/hosts": ("art_review", "sighting_hosts"),
+    "/api/themes": ("art_theme", "list"),
+    "/api/themes/{theme_id}": ("art_theme", "get"),
+    "/api/walls": ("art_display", "walls"),
+    "/api/exclusions": ("art_display", "kept_off"),
+    "/api/scenes/live": ("art_display", "scenes"),
+    "/api/manifest": ("art_display", "preview"),
+    "/api/health": ("art_display", "status"),
+    "/api/clients": ("art_players", "clients"),
+    "/api/affinities": ("art_taste", "list"),
+    "/api/settings": ("art_settings", "list"),
+    "/api/unattended": ("art_settings", "unattended"),
+    "/api/watches": ("art_watches", "list"),
+    "/api/watches/{watch_id}": ("art_watches", "get"),
+    "/api/spend": ("art_spend", "history"),
+}
+
+#: Read routes no agent makes, by design, each with why.
+READS_NOT_FOR_AN_AGENT: dict[str, str] = {
+    "/healthz": "a container's liveness probe; it answers 'ok' and reads nothing",
+    "/openapi.json": "the framework's schema of /api, for a developer; the MCP surface describes itself (action='help')",
+    "/docs": "the framework's page over that schema, for a developer",
+    "/docs/oauth2-redirect": "the framework's page over that schema, for a developer",
+    "/redoc": "the framework's page over that schema, for a developer",
+    "/api/works/{artwork_id}/thumbnail": "image bytes for an <img>; art_catalogue answers ids, not pictures",
+    "/api/works/{artwork_id}/wall-preview": "image bytes for an <img>; art_display(action='preview') says what a wall would show",
+    "/api/candidate-images/{image_id}/preview": "image bytes for an <img>; art_review inlines the picture as an image block",
+    "/api/registry/works/{qid}/look/pictures/{key}": "image bytes for an <img>; art_discovery(action='look') inlines them",
+    "/api/ask": "Ask is the browser's agent over this same surface; an agent asking it would ask itself",
+    "/api/ask/threads/{thread_id}": "an Ask thread, the browser's conversation with that agent",
+}
+
+#: Read routes an agent would ask and the surface does not answer yet: owed,
+#: each with what it is. Recorded in the Chunk 53 report as follow-up work; none
+#: is a field or route wave 2b added, which the tables above all twin.
+READS_OWED_TO_MCP: dict[str, str] = {
+    "/api/artists": "the Library's artists, with what each holds; art_catalogue lists works, filterable by artist_id",
+    "/api/artists/{artist_id}": "one Library artist, with what they hold and the work they are pictured by",
+    "/api/works/{artwork_id}/mat": "a work's mat colours, newest first; set_mat_color writes one and answers it",
+    "/api/works/{artwork_id}/placements": "which themes hold a work and where each hangs; art_theme(action='get') is per theme",
+    "/api/sources/yields": "what each source plugin has given the Library; source_plugins is how each is doing",
+    "/api/budget": "what is left of the month's budget, read from the provider's key",
+}
+
+
+def check_routes_paired(
+    routes: set[str],
+    twins: dict[str, tuple[str, str]],
+    not_for_an_agent: dict[str, str],
+    owed: dict[str, str],
+    actions: set[tuple[str, str]],
+) -> None:
+    """Raise unless every read route is in exactly one table, each entry names a route there is, and each twin an action."""
+    tables = (("twinned", set(twins)), ("not for an agent", set(not_for_an_agent)), ("owed", set(owed)))
+    unplaced = sorted(routes - set().union(*(names for _, names in tables)))
+    assert not unplaced, (
+        f"the read routes {unplaced} have no MCP twin and no reason they have none. Pair each with the action "
+        "that answers it, or name it as not for an agent or as owed, with why."
+    )
+    for name, names in tables:
+        stale = sorted(names - routes)
+        assert not stale, f"{stale} is listed as {name}, and no such read route is served: delete it"
+    for (first, a), (second, b) in [(x, y) for i, x in enumerate(tables) for y in tables[i + 1 :]]:
+        assert not a & b, f"{sorted(a & b)} is listed both as {first} and as {second}"
+    missing = sorted(
+        f"{route} -> {tool}(action={action!r})" for route, (tool, action) in twins.items() if (tool, action) not in actions
+    )
+    assert not missing, f"{missing}: no such action answers it"
+    assert all(reason.strip() for reason in (*not_for_an_agent.values(), *owed.values()))
+
+
+def _read_routes(app) -> set[str]:
+    """Every GET the application answers that is not a page's or a Player's, from the application itself.
+
+    An included router is walked into (FastAPI 0.140 keeps it whole, as an
+    entry holding `original_router`, where earlier releases copied its routes
+    flat), and the pages' and the Player's routers are left out by identity.
+    A mount (`/mcp`, `/static`) is not a route and is not read.
+    """
+    from starlette.routing import Route
+
+    from arrt.http import pages, player
+
+    found: set[str] = set()
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            if included not in (pages.router, player.router):
+                pending.extend(included.routes)
+        elif isinstance(route, Route) and "GET" in (route.methods or ()):
+            found.add(route.path)
+    return found
+
+
+def test_every_read_route_has_an_mcp_twin_or_a_reason_it_has_none(services):
+    from arrt.app import create_app
+
+    routes = _read_routes(create_app(services))
+    # Anchors, so a walk that read nothing cannot pass: one route of each router read, none of the two left out.
+    assert {"/api/spend", "/api/ask", "/healthz"} <= routes, "the routes were not read, so this would pass vacuously"
+    assert not {"/client", "/walls/{wall_id}/manifest/v{major}", "/"} & routes, "a Player's route or a page was read"
+    check_routes_paired(routes, READ_ROUTE_TWINS, READS_NOT_FOR_AN_AGENT, READS_OWED_TO_MCP, set(bindings.BINDINGS))
+
+
+def test_a_read_route_with_neither_twin_nor_reason_is_refused_by_name():
+    with pytest.raises(AssertionError, match=r"the read routes \['/api/new'\] have no MCP twin"):
+        check_routes_paired(
+            {"/api/new", "/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {}, {("art_display", "walls")}
+        )
+
+
+def test_a_twin_naming_an_action_that_does_not_exist_is_refused():
+    with pytest.raises(AssertionError, match="no such action answers it"):
+        check_routes_paired({"/api/walls"}, {"/api/walls": ("art_display", "wallz")}, {}, {}, {("art_display", "walls")})
+
+
+def test_an_entry_for_a_route_no_longer_served_is_refused():
+    with pytest.raises(AssertionError, match=r"\['/api/gone'\] is listed as owed, and no such read route"):
+        check_routes_paired(
+            {"/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {"/api/gone": "x"}, {("art_display", "walls")}
+        )
+
+
+def test_a_route_in_two_tables_is_refused():
+    with pytest.raises(AssertionError, match="listed both as twinned and as owed"):
+        check_routes_paired(
+            {"/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {"/api/walls": "x"}, {("art_display", "walls")}
+        )

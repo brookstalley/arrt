@@ -22,8 +22,8 @@ from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
-from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services import spend_history
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
@@ -75,8 +75,8 @@ from arrt.programming.display import (
     feed_notice,
 )
 from arrt.programming.display_state import DisplayState
-from arrt.programming.player_state import PlayerReading
 from arrt.programming.manifest.builder import ManifestBuild
+from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
