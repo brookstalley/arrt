@@ -333,7 +333,15 @@ addopts = "-n auto -m 'not llm_eval and not live_api and not live_museum and not
 # seam's modules run strict (the first override below). The plan's DECISION is in
 # `.prawduct/artifacts/build-plan-audit-wave-2.md` § Goals, and
 # `tests/preferences/test_type_gate.py` at the repository root holds this block.
-files = ["src/arrt"]
+#
+# **The system tests are checked too** (2026-11-20, `build-plan-audit-wave-2b.md`
+# Chunk 50): they drive the server as a process and a real Player against it,
+# and a `None` indexed there fails as a `TypeError` at the end of a long run,
+# naming neither side. What they import from outside `src/` is checked with
+# them, by following it: `tests/` (`feed_guard`, `fakes`) and `tools/`
+# (`ux_walk`, `old_catalogue`), which are not packages, so they are on the path.
+files = ["src/arrt", "tests/system"]
+mypy_path = ["tests", "tools"]
 python_version = "3.14"
 check_untyped_defs = true
 warn_unused_ignores = true
@@ -368,3 +376,14 @@ extra_checks = true
 # `tests/preferences/test_type_gate.py` still holds the shape: a module with an
 # error that no override excuses fails `uv run mypy`, and fixing it is the only
 # way through. Never add the list back.
+
+[[tool.mypy.overrides]]
+module = ["arrt_contract", "arrt_contract.*", "jsonschema", "jsonschema.*"]
+# Two packages the system tests' feed guard imports that ship no types: the
+# contract package (typed `--strict` in its own project, but without a `py.typed`
+# marker) and jsonschema (whose stubs are a separate package this project does
+# not install). Not an excuse for any module of this project's: it names only
+# those two, and `test_type_gate.py` refuses one naming `arrt`. The cost: their
+# calls in `tests/feed_guard.py` are typed `Any`. When the contract package ships
+# `py.typed`, take it out of this list.
+ignore_missing_imports = true

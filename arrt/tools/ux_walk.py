@@ -62,7 +62,7 @@ import urllib.request
 from collections import deque
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from urllib.error import URLError
 from urllib.parse import parse_qsl, quote, urlencode
 
@@ -76,7 +76,9 @@ ROUTE_JS = _CURATION / "src" / "arrt" / "http" / "static" / "core" / "route.js"
 #: Phone is an iPhone 14's CSS viewport; desktop is a common laptop. The pair is
 #: the two layouts `design-direction.md` § Spacing & Layout designs for.
 VIEWPORTS = {"phone": (390, 844), "desktop": (1440, 900)}
-SCHEMES = ("light", "dark")
+#: The colour schemes a page is photographed in, as Playwright spells them.
+type Scheme = Literal["light", "dark"]
+SCHEMES: tuple[Scheme, ...] = ("light", "dark")
 
 #: Pinned so two walks scan by the same rules; a new axe release adds rules and
 #: would read as the surface getting worse.
@@ -558,7 +560,7 @@ def photograph(
     *,
     placeholder: bytes | None,
     axe: tuple[str | None, str],
-    variants: Iterable[tuple[str, str]] = ALL_VARIANTS,
+    variants: Iterable[tuple[str, Scheme]] = ALL_VARIANTS,
 ) -> None:
     shots = out / "shots"
     shots.mkdir(parents=True, exist_ok=True)
@@ -620,7 +622,10 @@ def _jsonable(value: object) -> object:
 
 
 def write_inventory(walk: Walk, out: Path) -> dict:
-    inventory = {"summary": summarise(walk), **_jsonable(walk)}
+    walked = _jsonable(walk)
+    if not isinstance(walked, dict):  # a dataclass always comes back as a dict; this says so to the type checker
+        raise TypeError(f"the walk did not serialise to an object: {type(walked).__name__}")
+    inventory = {"summary": summarise(walk), **walked}
     (out / "inventory.json").write_text(json.dumps(inventory, indent=2, ensure_ascii=False), encoding="utf-8")
     return inventory
 
@@ -704,7 +709,7 @@ def run_walk(
     requested: Iterable[str] = (),
     synthetic: int | None = None,
     scan_accessibility: bool = True,
-    variants: Iterable[tuple[str, str]] = ALL_VARIANTS,
+    variants: Iterable[tuple[str, Scheme]] = ALL_VARIANTS,
     clicks_per_page: int = 30,
 ) -> dict:
     """The whole of Pass 1 against one running server. Returns the inventory it wrote."""
@@ -838,6 +843,8 @@ def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
     # whichever conftest was imported last (tests/browser's, in a full run), so
     # the bare import finds the wrong file depending on what else was collected.
     spec = importlib.util.spec_from_file_location("arrt_suite_conftest", _CURATION / "tests" / "conftest.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError("the suite's conftest could not be loaded from tests/conftest.py")
     suite = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(suite)
     _open_seeded_catalogue = suite._open_seeded_catalogue  # noqa: SLF001 -- the suite helper search_latency.py also uses

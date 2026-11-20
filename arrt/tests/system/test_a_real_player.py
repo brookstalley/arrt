@@ -39,6 +39,7 @@ mounted at `/art` (`.github/workflows/image.yml`, on a pull request into `main`)
 
 import contextlib
 import fcntl
+import functools
 import hashlib
 import json
 import os
@@ -54,7 +55,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 import httpx
 import pytest
@@ -365,8 +366,20 @@ class ArrtContainer:
         return found
 
 
+class ServerUnderTest(Protocol):
+    """What this test asks of the server, whichever runs it: `ArrtProcess` or `ArrtContainer`."""
+
+    def start(self) -> str: ...
+
+    def stop(self) -> None: ...
+
+    def tail(self, lines: int = 40) -> str: ...
+
+    def events(self) -> list[dict]: ...
+
+
 @pytest.fixture
-def server(arrt_process, settings) -> Iterator[object]:
+def server(arrt_process, settings) -> Iterator[ServerUnderTest]:
     """Chunk 06's server process, or with `ARRT_SERVER_IMAGE` the built image, over the suite's art root."""
     image = os.environ.get("ARRT_SERVER_IMAGE")
     if not image:
@@ -465,6 +478,11 @@ class PlayerProcess:
             return "(no output)"
         return "\n".join(self.journal_path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
 
+    def record_of(self, output: str, outcome: str) -> dict | None:
+        """An output's `shown.json` when it records `outcome`, and None until it does."""
+        record = self.record(output)
+        return record if record is not None and record.get("outcome") == outcome else None
+
     def record(self, output: str) -> dict | None:
         """An output's `shown.json`: absent, or whole (the Player replaces it atomically)."""
         try:
@@ -514,11 +532,12 @@ def _ok(response: httpx.Response) -> dict:
 class Waiting:
     """Waits on a condition with a deadline, failing with both processes' output and the wire."""
 
-    server: object
+    server: ServerUnderTest
     relay: Relay
     player: PlayerProcess | None = None
 
-    def until(self, condition: Callable[[], object], what: str, seconds: float = DEADLINE_SECONDS) -> object:
+    def until[T](self, condition: Callable[[], T | None], what: str, seconds: float = DEADLINE_SECONDS) -> T:
+        """What `condition` returned once it was truthy: a record, a list of exchanges, a match."""
         deadline = time.monotonic() + seconds
         while True:
             found = condition()
@@ -566,6 +585,11 @@ class Pair:
     def wall(self) -> dict:
         return next(wall for wall in _ok(self.api.get("/walls"))["walls"] if wall["wall_id"] == self.wall_id)
 
+    def showing_art(self) -> dict | None:
+        """The wall's `display_state` once the server reports it showing art, and None until then."""
+        state = self.wall()["display_state"]
+        return state if state["state"] == "showing_art" else None
+
     def client(self) -> dict:
         return next(entry for entry in _ok(self.api.get("/clients"))["clients"] if entry["client_id"] == self.client_id)
 
@@ -597,6 +621,10 @@ def _published_media(base_url: str, pair_wall: str, token: str, settings, works)
     return media
 
 
+def _kept_under(held: Path, sha: str) -> bool:
+    return held.is_file() and hashlib.sha256(held.read_bytes()).hexdigest() == sha
+
+
 def _the_feed_is_adopted(pair: Pair, media: dict[str, str]) -> None:
     """The client document read; both works' media fetched by hash and kept under it; the next feed poll a 304."""
     wait, relay = pair.wait, pair.relay
@@ -604,9 +632,9 @@ def _the_feed_is_adopted(pair: Pair, media: dict[str, str]) -> None:
     for work_id, sha in media.items():
         held = pair.player.cache / pair.wall_id / "media" / f"sha256-{sha}"
         name = pair.titles[work_id]
-        wait.until(lambda sha=sha: relay.seen("GET", f"/media/sha256-{sha}", 200), f"the media of {name} to be fetched")
+        wait.until(functools.partial(relay.seen, "GET", f"/media/sha256-{sha}", 200), f"the media of {name} to be fetched")
         wait.until(
-            lambda held=held, sha=sha: held.is_file() and hashlib.sha256(held.read_bytes()).hexdigest() == sha,
+            functools.partial(_kept_under, held, sha),
             f"the media of {name} to be kept in the Player's cache under its hash",
         )
     wait.until(lambda: relay.seen("GET", pair.manifest_path, 304), "a later poll of the wall's feed to be answered 304")
@@ -616,7 +644,7 @@ def _the_wall_is_drawn(pair: Pair) -> dict:
     """One of the wall's works on the file screen, and the picture its record names; returns the record."""
     player = pair.player
     shown = pair.wait.until(
-        lambda: (record := player.record("file-screen-0")) and record.get("outcome") == "picture" and record,
+        lambda: player.record_of("file-screen-0", "picture"),
         "the wall's first work to be drawn on the file screen",
     )
     assert (shown["format"], shown["output"], shown["wall_id"]) == (1, "file-screen-0", pair.wall_id)
@@ -633,7 +661,7 @@ def _the_server_hears_it(pair: Pair, shown: dict) -> None:
     wait.until(lambda: relay.seen("POST", f"/walls/{pair.wall_id}/heartbeat", 204), "the wall's heartbeat to be taken")
     wait.until(lambda: relay.seen("POST", "/client/heartbeat", 204), "the client's heartbeat to be taken")
     state = wait.until(
-        lambda: (found := pair.wall()["display_state"])["state"] == "showing_art" and found,
+        pair.showing_art,
         "/api/walls to report the wall showing art",
     )
     assert state["work_id"] == shown["work_id"], "the server reports a different work on the wall from the one drawn"
@@ -652,7 +680,7 @@ def _the_label_is_drawn(pair: Pair, shown: dict) -> None:
     """The label's document read, and the work on the wall captioned with its title."""
     pair.wait.until(lambda: pair.relay.seen("GET", f"/labels/{pair.label_id}", 200), "the label's document to be read")
     caption = pair.wait.until(
-        lambda: (record := pair.player.record("file-label-0")) and record.get("outcome") == "caption" and record,
+        lambda: pair.player.record_of("file-label-0", "caption"),
         "the label to be drawn as a caption",
     )
     assert (caption["format"], caption["output"], caption["label_id"], caption["wall_id"]) == (
@@ -692,9 +720,11 @@ def _the_revoked_token_is_refused_and_the_wall_kept(pair: Pair, server, shown: d
     outlasted = len(relay.seen("GET", pair.manifest_path, 401)) + REFUSALS_OUTLASTED
     wait.until(lambda: len(relay.seen("GET", pair.manifest_path, 401)) >= outlasted, f"{REFUSALS_OUTLASTED} more refused polls")
     kept = player.record("file-screen-0")
+    assert kept is not None, f"the screen's record is gone\n{wait.story()}"
     assert (kept["outcome"], kept["wall_id"], kept["work_id"]) == ("picture", pair.wall_id, shown["work_id"]), wait.story()
     assert hashlib.sha256((player.drawn / "file-screen-0" / kept["picture"]).read_bytes()).hexdigest() == kept["picture_sha256"]
     still = player.record("file-label-0")
+    assert still is not None, f"the label's record is gone\n{wait.story()}"
     assert (still["outcome"], still["work_id"]) == ("caption", shown["work_id"]), wait.story()
 
 

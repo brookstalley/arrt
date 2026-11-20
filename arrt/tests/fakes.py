@@ -327,7 +327,7 @@ def a_museum_holding(
     """
     measured = sizes or {}
     spelled = held_as or {}
-    holdings = {}
+    holdings: dict[str, Sequence[FoundImage]] = {}
     for title in titles:
         width, height = measured.get(title, (6000, 4500))
         slug = title.lower().replace(" ", "-")
@@ -384,7 +384,7 @@ def a_collection_holding(**by_artist: Sequence[str]) -> FakeCollectionBrowse:
     something showable in front of a curator and a fixture that quietly fell
     below the floor would test the exclusion rather than the offer.
     """
-    holdings = {
+    holdings: dict[str, Sequence[FoundImage]] = {
         artist: tuple(
             an_image(title, artist=artist, url=f"https://artic.edu/{title.lower().replace(' ', '-')}", width=6000, height=4500)
             for title in titles

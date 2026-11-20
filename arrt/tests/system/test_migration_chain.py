@@ -23,7 +23,7 @@ from arrt.persistence import backup
 from arrt.persistence.catalogue import WorkQuery
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.file import open_configured_catalogue, this_release
-from arrt.persistence.records import ArtworkStatus, RenditionKind
+from arrt.persistence.records import ArtworkStatus, RenditionKind, Wall
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 
@@ -129,6 +129,18 @@ def test_the_dumps_hold_everything_the_chain_takes_away(catalogue_dumps):
     assert seen == {f"{table}.{column}" for table, column in RETIRED_COLUMNS} | {f"table {table}" for table in RETIRED_TABLES}
 
 
+def _the_hall_s_player_kept(catalogue: SqliteCatalogue, main_wall: Wall) -> None:
+    """The hall's Player, where the release had clients: the main wall on its first output, by a display record."""
+    clients = catalogue.list_clients()
+    if clients:
+        (client,) = clients
+        assert client.token_verifier == "verifier-of-the-hall-token"
+        assert main_wall.display_id is not None, "the main wall lost its display"
+        display = catalogue.get_display(main_wall.display_id)
+        assert display is not None, "the main wall's display record is gone"
+        assert (display.identity, display.client_id, display.output) == ("client-hall/hdmi-a-1", "client-hall", "hdmi-a-1")
+
+
 def _the_discovery_kept(discovery):
     # The work still wanted, by today's name for that verdict.
     assert discovery.get_candidate_work("candidate-hotel").verdict is Verdict.WANTED
@@ -155,8 +167,12 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
             ("Rooms by the Sea", ArtworkStatus.ARCHIVED),
         }
         assert {work.artist_id for work in page.artworks} == {"artist-hopper"}
-        assert catalogue.get_artist("artist-hopper").name == "Edward Hopper"
-        assert catalogue.get_original("work-nighthawks").content_hash == "hash-nighthawks"
+        artist = catalogue.get_artist("artist-hopper")
+        assert artist is not None, "the artist did not survive the chain"
+        assert artist.name == "Edward Hopper"
+        original = catalogue.get_original("work-nighthawks")
+        assert original is not None, "the original did not survive the chain"
+        assert original.content_hash == "hash-nighthawks"
         assert [source.url for source in catalogue.list_sources("work-sunday")] == ["https://museum.example/work-sunday"]
         assert [mat.hex_rgb for mat in catalogue.list_mat_colors("work-nighthawks")] == ["#27285b"]
         assert [facet.value for facet in catalogue.list_facets("work-nighthawks")] == ["diner"]
@@ -168,7 +184,9 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
         # The themes, what each holds in what order, and the default.
         themes = {theme.name: theme for theme in catalogue.list_themes()}
         assert set(themes) == {"All works", "Late night", "Mornings"}
-        assert catalogue.get_default_theme().name == "All works"
+        default = catalogue.get_default_theme()
+        assert default is not None, "the default theme did not survive the chain"
+        assert default.name == "All works"
 
         def held(theme):
             return sorted((member.position, member.artwork_id) for member in catalogue.list_memberships(themes[theme].id))
@@ -186,14 +204,7 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
         # Mornings hung nowhere, so its twenty minutes had no wall to go to.
         assert (walls["wall-study"].rotation_interval_seconds, walls["wall-study"].shuffle) == (None, None)
 
-        # The hall's Player, where the release had clients: the main wall on its first output, by a display record.
-        clients = catalogue.list_clients()
-        if clients:
-            (client,) = clients
-            assert client.token_verifier == "verifier-of-the-hall-token"
-            display = catalogue.get_display(walls["wall-main"].display_id)
-            assert (display.identity, display.client_id, display.output) == ("client-hall/hdmi-a-1", "client-hall", "hdmi-a-1")
-
+        _the_hall_s_player_kept(catalogue, walls["wall-main"])
         _the_discovery_kept(discovery)
     finally:
         store.close()
