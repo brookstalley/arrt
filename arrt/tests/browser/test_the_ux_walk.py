@@ -14,6 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
 
+# Every walk here keeps one instance of a screen with an id (`per_screen=1`), where the
+# tool keeps two: nothing below asks for a second work or theme, and each walk is
+# photographed screen by screen, so the second instance only made the four walks the
+# slowest tests in the browser suite (101 s, 70 s, 64 s and 64 s on the pool, 2026-11-20).
+
 
 def _themes(server_url: str) -> list[str]:
     """Asked of the server directly, outside any guarded browser context."""
@@ -59,7 +64,7 @@ def test_a_read_passes_through_the_guard(browser, server_url):
 
 def test_the_walk_visits_every_declared_screen_and_writes_its_sheet(browser, server_url, tmp_path):
     inventory = ux_walk.run_walk(
-        browser, server_url, tmp_path, scan_accessibility=False, variants=[("phone", "dark")], clicks_per_page=0
+        browser, server_url, tmp_path, scan_accessibility=False, variants=[("phone", "dark")], clicks_per_page=0, per_screen=1
     )
 
     declared = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
@@ -102,6 +107,7 @@ def test_a_screen_reached_only_by_address_is_marked_so(browser, server_url, tmp_
         variants=[("desktop", "light")],
         requested=["#search?q=night"],
         clicks_per_page=0,
+        per_screen=1,
     )
 
     requested = inventory["visits"]["#search?q=night"]
@@ -119,7 +125,7 @@ def test_a_work_opened_from_artworks_is_reached_by_a_link(browser, server_url, t
     called the router; the norm ruled that a defect and the client was migrated.
     """
     inventory = ux_walk.run_walk(
-        browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=40
+        browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=40, per_screen=1
     )
 
     works = [visit for fragment, visit in inventory["visits"].items() if fragment.startswith("#work/")]
@@ -131,7 +137,7 @@ def test_a_work_opened_from_artworks_is_reached_by_a_link(browser, server_url, t
 def test_without_clicks_a_work_is_still_reached(browser, server_url, tmp_path):
     """The probe off, and the works are reached anyway: by the links alone."""
     inventory = ux_walk.run_walk(
-        browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=0
+        browser, server_url, tmp_path, scan_accessibility=False, variants=[("desktop", "light")], clicks_per_page=0, per_screen=1
     )
 
     assert [fragment for fragment in inventory["visits"] if fragment.startswith("#work/")]
