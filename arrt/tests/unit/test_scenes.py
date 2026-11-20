@@ -831,6 +831,8 @@ def test_a_wall_has_reached_a_scene_when_its_heartbeat_names_it(services, displa
     scene, works = staged
     hall, study = works
     client = services.clients.add_client(name="Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(hall, client_id=client.id, output="hdmi-a-1")
     services.clients.assign_wall(study, client_id=client.id, output="hdmi-a-2")
     applied = display.apply_scene(scene.id, lifetime="hold")

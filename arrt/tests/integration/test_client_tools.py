@@ -351,6 +351,8 @@ def _frame_report() -> dict:
 
 
 async def test_a_wall_is_mapped_to_a_display_by_the_id_the_listing_gives(server_url, services, hall, wall):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(hall)
     services.clients.record_heartbeat(hall, _frame_report())
     [client] = (await ok(server_url, "clients"))["clients"]
     [display] = client["displays"]
@@ -368,6 +370,8 @@ async def test_a_wall_is_mapped_to_a_display_by_the_id_the_listing_gives(server_
 
 
 async def test_labels_are_added_and_removed_by_ids_the_surface_gives(server_url, services, hall, wall):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(hall)
     services.clients.record_heartbeat(hall, _frame_report())
     [client] = (await ok(server_url, "clients"))["clients"]
     assert client["label_outputs"][0]["output"] == "epd-0"
@@ -391,6 +395,8 @@ async def test_labels_are_added_and_removed_by_ids_the_surface_gives(server_url,
 
 
 async def test_a_wall_reads_the_same_on_both_surfaces_display_and_labels_included(server_url, services, hall, wall):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(hall)
     services.clients.record_heartbeat(hall, _frame_report())
     await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="frame")
     await ok(server_url, "add_label", wall_id=wall, client_id=hall, output="epd-0")
@@ -407,9 +413,12 @@ async def test_a_wall_reads_the_same_on_both_surfaces_display_and_labels_include
 
 
 async def test_a_display_two_clients_report_is_named_on_both_surfaces_with_both_names(server_url, services, hall, wall):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(hall)
     services.clients.record_heartbeat(hall, _frame_report())
     await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="frame")
     other = (await ok(server_url, "add_client", name="Study Mac"))["client"]["client_id"]
+    services.access.issue(other)
     services.clients.record_heartbeat(other, _frame_report())
 
     tool = {entry["client_id"]: entry for entry in (await ok(server_url, "clients"))["clients"]}

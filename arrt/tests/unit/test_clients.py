@@ -263,8 +263,10 @@ def test_assigning_places_the_wall_on_the_display_on_that_output(services, clien
     ],
     ids=["never-reported", "reported-it", "reported-others"],
 )
-def test_an_output_is_checked_against_the_last_report_and_assigned_either_way(clients, pi, wall_id, report, notice):
+def test_an_output_is_checked_against_the_last_report_and_assigned_either_way(clients, access, pi, wall_id, report, notice):
     if report is not None:
+        # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+        access.issue(pi.id)
         clients.record_heartbeat(pi.id, report)
 
     assignment = clients.assign_wall(wall_id, client_id=pi.id, output="hdmi-a-1")
@@ -290,13 +292,15 @@ def test_an_unreadable_report_is_treated_as_no_report(clients, pi, wall_id, wall
         (_REPORT, "Choose which of The Pi in the hall's screens shows The wall: it reported 'frame', 'hdmi-a-1'."),
     ],
 )
-def test_a_blank_output_is_refused_saying_what_the_player_has_reported(clients, pi, wall_id, report, said):
+def test_a_blank_output_is_refused_saying_what_the_player_has_reported(clients, access, pi, wall_id, report, said):
     """The UX walk's finding 2: "output cannot be empty" named a validator, not that the Player had not reported.
 
     Rewritten from a match on that sentence, which the plan replaced: each case
     is still refused and assigns nothing, and now says which of the three it is.
     """
     if report is not None:
+        # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+        access.issue(pi.id)
         clients.record_heartbeat(pi.id, report)
     with pytest.raises(ServiceError) as refused:
         clients.assign_wall(wall_id, client_id=pi.id, output="  ")
@@ -392,7 +396,9 @@ def test_the_client_document_is_the_same_bytes_until_something_changes(clients, 
     assert clients.client_document(pi.id) != first
 
 
-def test_a_report_is_kept_and_read_back_as_outputs(clients, pi):
+def test_a_report_is_kept_and_read_back_as_outputs(clients, access, pi):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    access.issue(pi.id)
     clients.record_heartbeat(pi.id, _REPORT)
 
     reading = clients.read_heartbeat(pi.id)
@@ -404,7 +410,9 @@ def test_a_report_is_kept_and_read_back_as_outputs(clients, pi):
     assert reading.output_names() == {"hdmi-a-1", "frame"}
 
 
-def test_a_report_this_server_cannot_read_is_refused_and_not_written(clients, pi, wall_settings):
+def test_a_report_this_server_cannot_read_is_refused_and_not_written(clients, access, pi, wall_settings):
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    access.issue(pi.id)
     with pytest.raises(ServiceError, match="'kind' is one of frame, framebuffer"):
         clients.record_heartbeat(pi.id, {**_REPORT, "outputs": [{**_REPORT["outputs"][0], "kind": "hdmi"}]})
 
@@ -428,6 +436,8 @@ def test_a_report_of_more_outputs_than_the_cap_is_refused_by_name_and_keeps_noth
     clients, pi, wall_settings, services, key, many, word
 ):
     """Audit-8 F10: every output a report names can become a row the server keeps; one report may name at most the cap."""
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(pi.id)
     displays_before = len(services.clients.placements.survey().displays)
 
     with pytest.raises(ServiceError, match=rf"at most {MAX_OUTPUTS} {word}, and this report carries {MAX_OUTPUTS + 1}\."):
@@ -454,6 +464,9 @@ def test_a_display_two_players_report_is_a_trouble_though_its_wall_reads_unassig
     frame = {"name": "frame", "kind": "frame", "connected": True, "screen": [3840, 2160], "identity": "uuid:the-one-frame"}
     hall = clients.add_client(name="The Pi in the hall")
     study = clients.add_client(name="The Pi in the study")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(hall.id)
+    services.access.issue(study.id)
     clients.record_heartbeat(hall.id, {"reported_at": now, "outputs": [frame]})
     clients.assign_wall(wall_id, client_id=hall.id, output="frame")
     clients.record_heartbeat(study.id, {"reported_at": now, "outputs": [frame]})
