@@ -1,9 +1,10 @@
 """What CI runs, and that nothing falls out of it unseen.
 
-Every suite runs on testament's pool: `.github/workflows/tests.yml` runs one
-`testament run` with no `--suite`, which runs every suite `.testament.toml`
-declares. So the manifest decides what CI covers, and two things can quietly
-shrink it while the run still reports green:
+Every suite runs on testament's pool: `.github/workflows/tests.yml` hands its
+driver one `testament run` with no `--suite`, and the driver asks for every suite
+`.testament.toml` declares but the image suite, which CI's key cannot run
+(`NOT_CI`, held by `tests/test_ci_fallback.py`). So the manifest decides what CI
+covers, and two things can quietly shrink it while the run still reports green:
 
 - a test directory that no suite selects, which the tests at the end of this
   file derive from the tree;
@@ -14,6 +15,7 @@ shrink it while the run still reports green:
   run, when the pool cannot answer, is `tests/test_ci_fallback.py`'s.
 """
 
+import fnmatch
 import importlib.util
 import pathlib
 import re
@@ -520,3 +522,147 @@ def test_the_curation_runs_header_quotes_the_manifests_player_suite():
     assert suites[header.SUITE]["default_selection"] == [str(header.TEST_MODULE.relative_to(REPO))]
     assert header.ON_THE_POOL == f"testament run --json=summary --suite {header.SUITE}"
     assert "-m player_e2e" in header.BY_HAND and str(header.TEST_MODULE.relative_to(ARRT)) in header.BY_HAND
+
+
+# -- the image's test stage, as a suite on the pool (build-plan-audit-wave-2b, Chunk 65) --------
+#
+# `tests/the_image_test_stage.py` builds the stage on a runner's host. What holds it here, on
+# every pull request: it is the build `image.yml` makes; it is routed where that build can run;
+# the governance suite, which has no Docker daemon, never collects it; and CI never asks for
+# it (`tests/test_ci_fallback.py`, `NOT_CI`).
+
+IMAGE_SUITE_FILE = "tests/the_image_test_stage.py"
+
+
+def _image_stage_module():
+    spec = importlib.util.spec_from_file_location("the_image_test_stage", REPO / IMAGE_SUITE_FILE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_image_suite_is_a_host_suite_on_amd64_runners_with_docker_one_batch_at_a_time():
+    """Host, because it drives the host's Docker; `docker-heavy`, the label a runner's operator declares for
+    work that drives Docker hard; amd64, because the image is (dezoomify-rs ships x86_64 alone, `image.yml`),
+    and an arm64 host would build it under emulation; one batch a runner, because its builder is one per host."""
+    image = _suites()["image"]
+
+    assert image["executor"] == "host" and image["env"] == {}
+    assert sorted(image["requires"]) == ["arch:x86_64", "docker", "docker-heavy"]
+    assert image["max_batches_per_runner"] == 1
+    assert image["default_selection"] == [IMAGE_SUITE_FILE]
+    assert image["setup"]["steps"] == [["uv", "sync", "--frozen"]]
+
+
+def _build_flags(command: list[str]) -> dict[str, str]:
+    """A `docker buildx build` line's valued flags, and its context as `context`."""
+    assert command[:3] == ["docker", "buildx", "build"], command
+    flags, words = {}, iter(command[3:])
+    for word in words:
+        if word.startswith("--"):
+            flags[word] = next(words)
+        else:
+            flags["context"] = word
+    return flags
+
+
+def check_the_suite_builds_what_image_yml_builds(command: list[str], workflow: dict) -> None:
+    """Raise unless the suite's build is `image.yml`'s: the same context, second context, target and platform."""
+    step = next(s for s in workflow["jobs"]["image"]["steps"] if s.get("name") == "Build the test stage")["with"]
+    flags = _build_flags(command)
+    contexts = dict(c.split("=", 1) for c in step["build-contexts"].split())
+    ours = dict([flags["--build-context"].split("=", 1)])
+    seen = {
+        "context": pathlib.Path(flags["context"]).relative_to(REPO).as_posix(),
+        "target": flags["--target"],
+        "platforms": flags["--platform"],
+        "repo": pathlib.Path(ours["repo"]).relative_to(REPO).as_posix(),
+        "dockerfile": pathlib.Path(flags["--file"]).relative_to(REPO).as_posix(),
+    }
+    wanted = {
+        "context": step["context"],
+        "target": step["target"],
+        "platforms": step["platforms"],
+        "repo": contexts["repo"],
+        "dockerfile": f"{step['context']}/Dockerfile",
+    }
+    assert seen == wanted, f"the image suite builds {seen}, and image.yml builds {wanted}"
+
+
+def test_the_image_suite_builds_what_image_yml_builds():
+    check_the_suite_builds_what_image_yml_builds(
+        _image_stage_module().build_command(pathlib.Path("/out")), yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    )
+
+
+@pytest.mark.parametrize(
+    "old,new", [("test-report", "app"), ("linux/amd64", "linux/arm64"), (f"repo={REPO}", f"repo={REPO / 'arrt'}")]
+)
+def test_an_image_suite_building_something_else_is_refused(old, new):
+    command = [word.replace(old, new) for word in _image_stage_module().build_command(pathlib.Path("/out"))]
+    with pytest.raises(AssertionError, match="and image.yml builds"):
+        check_the_suite_builds_what_image_yml_builds(command, yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8")))
+
+
+def check_governance_never_collects_the_image_suite(manifest: dict, pytest_config: dict) -> None:
+    """Raise unless each file the image suite selects sits under the governance suite's selection as a name pytest
+    collects only when it is named: the governance suite runs where there is no Docker daemon."""
+    patterns = pytest_config.get("python_files", ["test_*.py", "*_test.py"])
+    patterns = patterns.split() if isinstance(patterns, str) else patterns
+    governance = manifest["suites"]["governance"]["default_selection"]
+    for path in manifest["suites"]["image"]["default_selection"]:
+        assert any(path.startswith(f"{root}/") for root in governance), f"{path} is not under {governance}"
+        assert path.endswith(".py"), f"the image suite selects {path}, a directory or not a module"
+        name = pathlib.PurePosixPath(path).name
+        matched = [p for p in patterns if fnmatch.fnmatch(name, p)]
+        assert not matched, f"the governance suite collects {path} (python_files {matched}), and has no Docker"
+
+
+def _root_pytest_config() -> dict:
+    return tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["pytest"]["ini_options"]
+
+
+def test_the_governance_suite_never_collects_the_image_suite():
+    check_governance_never_collects_the_image_suite(
+        tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8")), _root_pytest_config()
+    )
+
+
+@pytest.mark.parametrize(
+    "selection,config",
+    [
+        (["tests/test_image_stage.py"], {}),
+        ([IMAGE_SUITE_FILE], {"python_files": ["*.py"]}),
+        ([IMAGE_SUITE_FILE], {"python_files": "*_stage.py"}),
+    ],
+)
+def test_an_image_suite_file_the_governance_suite_would_collect_is_refused(selection, config):
+    manifest = tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8"))
+    manifest["suites"]["image"]["default_selection"] = selection
+    with pytest.raises(AssertionError, match="the governance suite collects"):
+        check_governance_never_collects_the_image_suite(manifest, config)
+
+
+#: Lines copied from the suite's first build on the pool (2026-11-20, a runner with Docker,
+#: request 93a4a6c667164af997fd0978fffd96a6): two of pytest's progress lines inside the build,
+#: and the lines that said what failed.
+_OBSERVED_BUILD_TAIL = "\n".join(
+    [
+        "#38 87.77 ........................................................................ [ 72%]",
+        "#38 106.9 ......................................                                   [100%]",
+        "#38 120.2 =========================== short test summary info ============================",
+        "#38 120.2 FAILED tests/system/test_server_process_guards.py::"
+        "test_a_relative_art_root_is_resolved_where_the_server_runs_and_refused",
+        "#38 120.2 1 failed, 7307 passed, 2 xfailed, 14 warnings in 117.88s (0:01:57)",
+        " 123 | >>> RUN uv run --no-sync pytest -q -p no:cacheprovider --ignore=tests/browser --junitxml=/tmp/results.xml",
+        'ERROR: failed to build: failed to solve: process "/bin/sh -c uv run --no-sync pytest -q -p no:cacheprovider '
+        '--ignore=tests/browser --junitxml=/tmp/results.xml" did not complete successfully: exit code: 1',
+    ]
+)
+
+
+def test_the_failure_text_keeps_what_failed_and_drops_pytests_progress():
+    kept = _image_stage_module().tail(_OBSERVED_BUILD_TAIL).splitlines()
+
+    assert kept == _OBSERVED_BUILD_TAIL.splitlines()[2:]
+    assert _image_stage_module().tail(_OBSERVED_BUILD_TAIL, lines=2).splitlines() == _OBSERVED_BUILD_TAIL.splitlines()[-2:]

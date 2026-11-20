@@ -529,10 +529,13 @@ _EARNED = [
 ]
 #: What a fallback leaves out, as `pool_or_fallback.fallback_plan` words it for the manifest:
 #: the browser suite for want of Chrome, the real-Player suite by the owner's ruling of
-#: 2026-11-20. Named `_EXCUSED` before the real-Player suite joined it.
+#: 2026-11-20. Named `_EXCUSED` before the real-Player suite joined it. The image suite,
+#: which CI never runs in either mode, in the driver's own words (`NOT_CI`, Chunk 65).
+_NOT_CI = _load()._decider().NOT_CI
 _EXCUSED = {
     "browser": "needs a runner labelled chrome, which only the pool has",
     "player": "is the pool's alone, so GitHub's minutes are not spent on it (the owner's ruling of 2026-11-20)",
+    "image": _NOT_CI["image"],
 }
 
 
@@ -608,6 +611,33 @@ def test_a_pool_run_with_every_suite_passes(tmp_path):
     assert guard.main_with_decision(report, MANIFEST, decision) == 0
 
 
+def test_a_pool_run_without_the_image_suite_passes_and_says_so_by_name(tmp_path, capsys):
+    """CI never asks the pool for the image suite (`NOT_CI`), so a pool run lacks it, by name and with why."""
+    guard = _load()
+    report = _report(
+        tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("player", 1, 0), ("contract", 2, 0))
+    )
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
+
+    assert guard.main_with_decision(report, MANIFEST, decision) == 0
+    assert f"::warning::the image suite was not asked for: it {_NOT_CI['image']}" in capsys.readouterr().out
+
+
+def test_a_pool_run_may_lack_only_the_suites_ci_never_asks_for(tmp_path, capsys, monkeypatch):
+    """The excuse is `NOT_CI`'s by name: with it empty, the same pool run fails on the image suite."""
+    guard = _load()
+    report = _report(
+        tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("player", 1, 0), ("contract", 2, 0))
+    )
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
+    decider = guard._decider()
+    monkeypatch.setattr(decider, "NOT_CI", {})
+    monkeypatch.setattr(guard, "_decider", lambda: decider)
+
+    assert guard.main_with_decision(report, MANIFEST, decision) == 1
+    assert "these suites ran no test: image (not in the report)" in capsys.readouterr().out
+
+
 def test_a_pool_record_that_excuses_a_suite_fails(tmp_path, capsys):
     """Even with every suite in the report: the excuse itself is the defect, so the per-suite check cannot rescue it."""
     guard = _load()
@@ -647,7 +677,7 @@ def test_a_fallback_that_excuses_more_than_the_browser_suite_fails(tmp_path, cap
     decision = _decision(tmp_path, "fallback", _EARNED, reports, {**_EXCUSED, "curation": "slow"})
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
-    assert "excuses only ['browser', 'player']" in capsys.readouterr().out
+    assert "excuses only ['browser', 'image', 'player']" in capsys.readouterr().out
 
 
 def test_a_fallback_whose_suite_collected_nothing_fails(tmp_path, capsys):

@@ -5,9 +5,14 @@
 # falls back, because an outage must not block every merge (ruling 4 of 2026-11-19).
 #
 # - All five suites, governance, curation, browser, player (the real-Player test: a real
-#   Arrt Player against the server) and contract, run on the pool: `testament run` with no
+#   Arrt Player against the server) and contract, run on the pool: the line below names no
 #   `--suite`, so a suite added to the manifest is in CI the day it is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
 #   reads the report this run writes, with every declared suite required to run something.
+# - But not the sixth, the image suite (the server image's test stage, built on a runner's
+#   host): host work needs a run signed with an owner secret, which CI's key does not hold,
+#   and asking for it would end every run red. The driver adds `--suite` for every other
+#   declared suite (`NOT_CI`, `pool_run_argv`), the skip guard excuses it by name, and the
+#   summary says so (build-plan-audit-wave-2b, Chunk 65; `tests/test_ci_fallback.py`).
 # - The type check runs there too, once per change: the governance suite's
 #   `tests/preferences/test_type_gate.py` runs mypy in `arrt/` and `contract/` with each
 #   project's own configuration. Lint here installs only ruff and black.

@@ -210,10 +210,10 @@ def test_a_pool_unavailable_for_ten_minutes_falls_back_without_the_browser_suite
     assert (decision.mode, decision.exit_code) == ("fallback", 0)
     assert sum(slept) == pof.BUDGET_S and slept[:4] == [15, 30, 60, 120]
     assert decision.reports == {s: f"fallback/{s}.xml" for s in ("governance", "curation", "contract")}
-    assert sorted(decision.not_run) == ["browser", "player"]
+    assert sorted(decision.not_run) == ["browser", "image", "player"]
     assert pof.fallback_is_earned(decision.attempts)
-    assert "without the browser and real-Player suites" in said[-1]
-    assert said[-1].endswith("not run: browser, player.")
+    assert "without the browser and real-Player suites (nor the image suite, which CI never runs)" in said[-1]
+    assert said[-1].endswith("not run: browser, player, image.")
 
 
 def test_a_console_that_answers_503_for_ten_minutes_falls_back_and_never_runs(tmp_path):
@@ -354,9 +354,11 @@ def test_the_fallback_plan_is_the_manifest_less_the_suites_that_need_a_labelled_
     labelled = {name for name, suite in MANIFEST["suites"].items() if suite.get("requires")}
 
     assert set(reports) | set(not_run) == set(MANIFEST["suites"])
-    assert labelled == {"browser"}
-    assert set(not_run) == labelled | set(pof.POOL_ONLY) == {"browser", "player"}
+    assert labelled == {"browser", "image"}
+    assert set(not_run) == labelled | set(pof.POOL_ONLY) | set(pof.NOT_CI) == {"browser", "player", "image"}
     assert not_run["player"] == pof.POOL_ONLY["player"] and "2026-11-20" in not_run["player"]
+    # The image suite requires Docker too, but its reason is that it is not CI's at all.
+    assert not_run["image"] == pof.NOT_CI["image"]
 
 
 def test_the_suites_the_pool_keeps_to_itself_are_suites_it_would_otherwise_run_here():
@@ -367,11 +369,15 @@ def test_the_suites_the_pool_keeps_to_itself_are_suites_it_would_otherwise_run_h
 
 
 def check_the_words_for_the_suites_left_out(manifest: dict) -> None:
-    """Raise unless `LEFT_OUT` names exactly the suites the manifest's fallback leaves out."""
+    """Raise unless `LEFT_OUT` names exactly the suites the manifest's fallback leaves out that the pool runs for CI.
+
+    The suites in `NOT_CI` are left out of both modes, so the headlines name them on their own.
+    """
     _, not_run = pof.fallback_plan(manifest)
-    assert sorted(pof.LEFT_OUT) == sorted(not_run), (
-        f"LEFT_OUT names {sorted(pof.LEFT_OUT)}, and the fallback leaves out {sorted(not_run)}: a headline would "
-        "omit a suite that did not run, or name one that did"
+    fallback_only = set(not_run) - set(pof.NOT_CI)
+    assert sorted(pof.LEFT_OUT) == sorted(fallback_only), (
+        f"LEFT_OUT names {sorted(pof.LEFT_OUT)}, and the fallback leaves out {sorted(fallback_only)} that the pool runs "
+        "for CI: a headline would omit a suite that did not run, or name one that did"
     )
 
 
@@ -382,6 +388,10 @@ def test_the_words_for_the_suites_left_out_are_the_suites_the_fallback_leaves_ou
         for text in (pof.HEADLINES["pool"], pof.HEADLINES["fallback"], pof.BROWSER_NO_VERDICT):
             assert words in text, f"{text!r} does not name the {name} suite"
         assert f"--suite {name}" in pof.BROWSER_NO_VERDICT
+    for name in pof.NOT_CI:
+        for text in (pof.HEADLINES["pool"], pof.HEADLINES["fallback"]):
+            assert f"the {name} suite" in text, f"{text!r} does not say the {name} suite is not CI's"
+        assert f"--suite {name}" not in pof.BROWSER_NO_VERDICT, "CI cannot run it, so its re-run would not either"
 
 
 # -- the summary --------------------------------------------------------------------------
@@ -405,7 +415,9 @@ def test_the_summary_opens_with_the_pool_when_the_pool_ran(tmp_path):
     decision, _, _ = drive(ScriptedPool([install()], [run_attempt(FAILED, tmp=tmp_path)]))
     lines, notes = _summary(tmp_path, decision, FAILED)
 
-    assert lines[0] == "### Ran on the pool: every suite, the browser and real-Player suites included."
+    assert lines[0] == "### Ran on the pool: every suite but the image suite, the browser and real-Player suites included."
+    assert "Lint and format ran on GitHub's runner; every suite but the image suite ran on the pool." in lines
+    assert f"- the image suite was not asked for: it {pof.NOT_CI['image']}." in lines
     assert any("tests/test_red.py::test_red" in line for line in lines)
     assert notes and notes[0].startswith("::error title=tests/test_red.py%3A%3Atest_red::")
 
@@ -414,8 +426,12 @@ def test_the_summary_opens_with_the_fallback_and_names_the_browser_and_real_play
     decision, _, _ = drive(ScriptedPool([CONSOLE_503], []))
     lines, _ = _summary(tmp_path, decision, reports=("governance", "curation", "contract"))
 
-    assert lines[0] == "### The pool was unavailable; ran here, on GitHub's runner, without the browser and real-Player suites."
+    assert lines[0] == (
+        "### The pool was unavailable; ran here, on GitHub's runner, without the browser and real-Player suites "
+        "(nor the image suite, which CI never runs)."
+    )
     assert any(line.startswith("| **not run** | the browser suite") for line in lines)
+    assert f"| **not run** | the image suite: {pof.NOT_CI['image']}. |" in lines
     assert f"| **not run** | the player suite: {pof.POOL_ONLY['player']}. |" in lines
     assert not any(line.startswith("| GitHub's runner | the player suite") for line in lines)
     for suite in ("governance", "curation", "contract"):
@@ -1543,3 +1559,87 @@ def test_a_fallback_that_does_not_provision_a_type_checked_project_is_refused(pr
     monkeypatch.setitem(pof.FALLBACK_SETUP, "governance", setup)
     with pytest.raises(AssertionError, match=f"without {project}'s environment"):
         check_the_fallback_provisions_the_type_gate(MANIFEST)
+
+
+# -- the suites CI never runs: the image suite (build-plan-audit-wave-2b, Chunk 65) ----------
+#
+# A host suite runs on the pool only for a run signed with its submitter's owner secret, and
+# CI's key holds none. Asked for from a machine with none, the image suite ended the whole
+# run `failed`, `no_warrant`, exit 2 (observed 2026-11-20, identity from the environment and
+# no `~/.config/testament`, as a CI job has), which would be a red required check on every
+# pull request. So the pool step asks for every other suite by name.
+
+
+def _workflow_pool_line() -> list[str]:
+    """The `testament run` line `tests.yml` hands the pool step, as the step's shell would split it."""
+    for job in _workflow()["jobs"].values():
+        for step in job.get("steps", []):
+            for line in str(step.get("run", "")).splitlines():
+                if "pool_or_fallback.py pool" in line:
+                    words = shlex.split(line)
+                    return words[words.index("--") + 1 :]
+    raise AssertionError("tests.yml hands the pool step no `testament run` line")
+
+
+def test_ci_asks_the_pool_for_every_declared_suite_but_the_image_suite_by_name():
+    line = _workflow_pool_line()
+    asked = pof.pool_run_argv(MANIFEST, line)
+
+    assert asked[: len(line)] == line
+    assert asked[len(line) :] == [
+        *("--suite", "governance", "--suite", "curation", "--suite", "browser"),
+        *("--suite", "player", "--suite", "contract"),
+    ]
+    assert "image" in MANIFEST["suites"] and "image" not in asked
+
+
+def test_a_suite_added_to_the_manifest_is_asked_for_the_day_it_is_added():
+    """The names come from the manifest, so CI's request still grows with it, as `testament run` with no `--suite` did."""
+    sixth = tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8") + _SIXTH)
+
+    assert pof.pool_run_argv(sixth, ["testament", "run"])[-2:] == ["--suite", "sixth"]
+
+
+def test_with_no_suite_ci_leaves_out_declared_the_line_goes_as_written():
+    without = {"suites": {name: suite for name, suite in MANIFEST["suites"].items() if name not in pof.NOT_CI}}
+
+    assert pof.pool_run_argv(without, ["testament", "run", "--no-fallback"]) == ["testament", "run", "--no-fallback"]
+
+
+@pytest.mark.parametrize("named", [["--suite", "curation"], ["--suite=curation"]])
+def test_a_line_that_already_names_a_suite_is_refused(named):
+    with pytest.raises(ValueError, match="already names a suite"):
+        pof.pool_run_argv(MANIFEST, ["testament", "run", *named])
+
+
+def test_the_suites_are_asked_for_before_a_pytest_selection():
+    asked = pof.pool_run_argv(MANIFEST, ["testament", "run", "--json", "--", "-k", "x"])
+
+    assert asked[-3:] == ["--", "-k", "x"] and asked[2:4] == ["--json", "--suite"]
+
+
+def test_the_pool_step_hands_the_pool_the_derived_line(tmp_path, monkeypatch):
+    """Through `main`, as `tests.yml` calls it: the pool is given the line with the suites named, never the bare one."""
+    given = []
+
+    class RecordingPool:
+        def __init__(self, out, argv):
+            given.append(argv)
+
+        def install(self):
+            raise StepKilledMidway
+
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(pof, "RealPool", RecordingPool)
+    with pytest.raises(StepKilledMidway):
+        pof.main(["pool", "--out", str(tmp_path), "--", "testament", "run", "--no-fallback"])
+
+    assert given == [pof.pool_run_argv(MANIFEST, ["testament", "run", "--no-fallback"])]
+    assert "--suite" in given[0] and "image" not in given[0]
+
+
+def test_every_suite_ci_leaves_out_is_a_host_suite_the_manifest_declares():
+    """A name the manifest no longer declares is stale, and a container suite CI's key can run is not CI's to drop."""
+    for name in pof.NOT_CI:
+        assert name in MANIFEST["suites"], f"NOT_CI names {name!r}, which .testament.toml does not declare"
+        assert MANIFEST["suites"][name].get("executor") == "host", f"{name!r} is not a host suite; CI's key can run it"

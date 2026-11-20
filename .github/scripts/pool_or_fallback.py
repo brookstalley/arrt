@@ -25,6 +25,10 @@ a pass:
   suites that `require` a label (the browser suite needs Chrome) and those in
   `POOL_ONLY` (the real-Player suite) are not run, and the summary and the second
   job say so by name.
+
+In every mode, the suites in `NOT_CI` (the image suite) are not CI's: `pool` asks the
+pool for every other suite by name (`pool_run_argv`), the fallback never runs them,
+and the summary says so by name.
 - **none**: nothing ran, and the job fails: no key (a pull request from a fork), the
   console refused the key or the address, the wheel did not match its digest, the
   client could not be installed, `testament run` ended in a way the contract does not
@@ -119,10 +123,31 @@ POOL_ONLY = {
 LEFT_OUT = {"browser": "browser", "player": "real-Player"}
 _LEFT_OUT = " and ".join(LEFT_OUT.values()) + (" suites" if len(LEFT_OUT) > 1 else " suite")
 
+#: Suites CI never runs, in either mode, each with why. The image suite builds the server
+#: image's test stage on a runner's host (`executor = "host"`), and the pool runs host work
+#: only for a run signed with its submitter's owner secret, which CI's key does not hold
+#: (`testament guide client`, "In CI"). Asked for anyway, it ends the whole run `failed`,
+#: `no_warrant`, exit 2, as a run with no owner secret was seen to on 2026-11-20
+#: (build-plan-audit-wave-2b, Chunk 65), and that would be a red required check on every
+#: pull request. So `pool` asks the pool for every other suite by name (`pool_run_argv`),
+#: and the image suite runs in the full `testament run` from a machine doing the work,
+#: and in `image.yml` on a pull request into `main`.
+NOT_CI = {
+    "image": (
+        "is not CI's: it builds the server image on a runner's host, which the pool does only for a run signed "
+        "with its submitter's owner secret, and CI's key holds none; it runs in the full `testament run` from a "
+        "machine doing the work, and `image.yml` builds the same stage on a pull request into `main`"
+    ),
+}
+_NOT_CI = " and ".join(NOT_CI) + (" suites" if len(NOT_CI) > 1 else " suite")
+
 #: The words the summary opens with, one per mode, and the one for no record at all.
 HEADLINES = {
-    "pool": f"Ran on the pool: every suite, the {_LEFT_OUT} included.",
-    "fallback": f"The pool was unavailable; ran here, on GitHub's runner, without the {_LEFT_OUT}.",
+    "pool": f"Ran on the pool: every suite but the {_NOT_CI}, the {_LEFT_OUT} included.",
+    "fallback": (
+        f"The pool was unavailable; ran here, on GitHub's runner, without the {_LEFT_OUT} "
+        f"(nor the {_NOT_CI}, which CI never runs)."
+    ),
     "none": "Nothing ran.",
 }
 NO_RECORD = "Nothing ran: the pool step recorded no decision (lint failed before it, or the job was cancelled)."
@@ -309,12 +334,16 @@ def fallback_plan(manifest: dict) -> tuple[dict[str, str], dict[str, str]]:
     suite needs `chrome`) runs only where the pool's labelled runners are, a suite in
     `POOL_ONLY` runs only on the pool by ruling, and every other suite runs here. A
     suite added to the manifest is therefore expected of the fallback the day it is
-    added, and `assert_tests_ran.py` fails the job until the workflow runs it.
+    added, and `assert_tests_ran.py` fails the job until the workflow runs it. A suite
+    in `NOT_CI` is not CI's in either mode, so it is not run here either, for that
+    reason, whatever it requires.
     """
     reports, not_run = {}, {}
     for name, suite in manifest.get("suites", {}).items():
         needs = suite.get("requires") or []
-        if needs:
+        if name in NOT_CI:
+            not_run[name] = NOT_CI[name]
+        elif needs:
             not_run[name] = f"needs a runner labelled {', '.join(needs)}, which only the pool has"
         elif name in POOL_ONLY:
             not_run[name] = POOL_ONLY[name]
@@ -371,6 +400,26 @@ def fallback_pytest(name: str, suite: dict, report: str) -> list[str]:
             raise FallbackRefused(f"the {name} suite's command carries {word!r}, a parallelism flag this does not translate")
         argv.append(word)
     return [*argv, *selection, "-o", f"junit_suite_name={name}", "--junitxml", report]
+
+
+def pool_run_argv(manifest: dict, argv: list[str]) -> list[str]:
+    """The `testament run` line `tests.yml` hands over, asking for every declared suite but `NOT_CI`'s by name.
+
+    `testament run` has no flag that leaves a suite out, only `--suite` for each one
+    kept. The kept ones are derived from the manifest, so a suite added to it is in CI
+    the day it is added, as it is with no `--suite`; with no `NOT_CI` suite declared,
+    the line goes as written. A line that already names a suite is refused: the
+    workflow's line runs every suite (`tests/test_default_suite_ci_scope.py`), and this
+    is the one place that narrows it.
+    """
+    if any(word == "--suite" or word.startswith("--suite=") for word in argv):
+        raise ValueError(f"the pool's run already names a suite: {shlex.join(argv)}")
+    declared = list(manifest.get("suites", {}))
+    if not any(name in NOT_CI for name in declared):
+        return list(argv)
+    kept = [word for name in declared if name not in NOT_CI for word in ("--suite", name)]
+    at = argv.index("--") if "--" in argv else len(argv)
+    return [*argv[:at], *kept, *argv[at:]]
 
 
 def fallback_commands(manifest: dict, name: str, out: Path) -> list[list[str]]:
@@ -859,7 +908,8 @@ def summary_lines(out: Path) -> tuple[list[str], list[str]]:
             lines.append(f"| **not run** | the {suite} suite: {why}. |")
         lines += ["", f"The check **{BROWSER_JOB}** is red for this tree. {BROWSER_NO_VERDICT}", ""]
     if decision.mode == "pool":
-        lines.append("Lint and format ran on GitHub's runner; every suite ran on the pool.")
+        lines.append(f"Lint and format ran on GitHub's runner; every suite but the {_NOT_CI} ran on the pool.")
+        lines += [f"- the {suite} suite was not asked for: it {why}." for suite, why in NOT_CI.items()]
         lines += _envelope_lines(out, notes)
         lines += _pool_suite_lines(out / "all.xml")
         lines.append("")
@@ -920,8 +970,10 @@ def main(argv: list[str]) -> int:
             # Before anything can hang: a step killed from here on leaves this record, not none.
             _write_decision(out, Decision("none", STOPPED, []))
             manifest = tomllib.loads(Path(".testament.toml").read_text(encoding="utf-8"))
+            run_argv = pool_run_argv(manifest, argv[4:])
+            say_now(f"$ {shlex.join(run_argv)}")
             decision = drive(
-                RealPool(out, argv[4:]),
+                RealPool(out, run_argv),
                 manifest,
                 checkpoint=lambda attempts: _write_decision(out, Decision("none", STOPPED, list(attempts))),
             )

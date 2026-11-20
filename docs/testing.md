@@ -108,6 +108,55 @@ image is amd64-only for dezoomify-rs), `max_batches_per_runner = 1`, its one tes
 running `docker buildx build --target test-report --build-context repo=. arrt/`
 and reading the report with `.github/scripts/assert_tests_ran.py`.
 
+### The image's test stage on the pool
+
+Since 2026-11-20 the pool's allowlist gives this project the host executor (the
+owner's ruling of that day), and the image's test stage is testament's sixth suite,
+`image` (build-plan-audit-wave-2b, Chunk 65). Its one test,
+`tests/the_image_test_stage.py`, builds the stage as `image.yml` does (target
+`test-report`, context `arrt/`, the repository root as `repo`, `linux/amd64`) and
+reads the exported report with `.github/scripts/assert_tests_ran.py`, so a red
+suite, a skip and an empty run all fail it. A failure carries the build's last 80
+lines, pytest's progress lines left out, and names where the whole log is on the
+runner.
+
+    testament run --json=summary --suite image
+
+- **Where it runs.** On the host of a runner with `docker`, `docker-heavy` and
+  `arch:x86_64`, one batch a runner, and only on the submitter's own runners: host
+  work needs a run signed with the submitter's owner secret
+  (`testament guide pool`, "Running on the host: the owner secret").
+- **A machine without an owner secret does not pass.** Its run ends exit 2,
+  `verdict: failed`, `error.code: no_warrant`, with `setup.state: no_owner_secret`
+  (observed 2026-11-20 with the identity taken from the environment, as a CI job has
+  it, both for the suite alone and beside another suite that passed). On an arm64
+  machine the message adds that this machine lacks `arch:x86_64`, so it did not run
+  here either.
+- **CI never runs it.** Its key holds no owner secret, so asking for it would end
+  every pull request's run red. The pool step asks for every other suite by name
+  (`NOT_CI` and `pool_run_argv` in `.github/scripts/pool_or_fallback.py`), the
+  fallback never runs it, and the summary names it as not asked for. A full
+  `testament run` from a machine doing the work runs it, which is where its
+  evidence comes from; `image.yml` builds the same stage on a pull request into
+  `main`.
+- **What it leaves on a runner's host.** A buildx builder of its own,
+  `arrt-image-stage`: one BuildKit container, stopped after every build, and its
+  state volume, which holds this suite's build cache alone; its cache is pruned to
+  8 GB after each build (`docker buildx prune --builder arrt-image-stage`, which
+  reaches no other cache). No image and no container of its own: the report is
+  exported as a file. The first build on a host pulls `moby/buildkit:buildx-stable-1`,
+  shared with other builders and never removed by it. One log file,
+  `<tmp>/arrt-image-stage/last-build.log`, overwritten by each build. To take all of
+  it away: `docker buildx rm arrt-image-stage`.
+- **Cost, as measured on 2026-11-20** (one runner with Docker, N = 1 each): 147 s
+  cold, on a builder with no cache; 125 to 127 s with the dependency layers cached
+  and the code changed, which is nearly every run, since any change under `arrt/`
+  reruns the stage's whole suite; 2 s when nothing the stage copies changed (its
+  layers all cached); 1 s to fail when a `COPY` names a missing file. In a full
+  `testament run` it runs beside the other suites and is not the long pole: the
+  browser suite took 303 s of that run's 304 s. What it costs there is a runner
+  host's cores for about two minutes while it rebuilds.
+
 ## The browser suite
 
 The client under `arrt/src/arrt/http/static/` is the product's only
