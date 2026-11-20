@@ -60,8 +60,10 @@ about how the suite runs. They select (`testament run --suite curation --area un
 `--not-area system`), break a run's report down, and divide its history (`testament
 time --by area`).
 
-**There are five suites on the pool:** governance (the root), curation, browser,
-contract, and `player`, the real-Player test (§ The real-Player test).
+**There are six suites on the pool:** governance (the root), curation, browser,
+contract, `player`, the real-Player test (§ The real-Player test), and `image`, the
+server image's test stage, which CI never asks for (§ The image's test stage on the
+pool).
 
 **The root suite holds no product code, and it is not optional.** It carries
 `tests/preferences/`, where this repo's artifact-versus-code contracts
@@ -85,8 +87,9 @@ CI builds it only on a pull request into `main` and by hand
 (`.github/workflows/image.yml`, by the owner's ruling of 2026-11-20 that CI is
 kept small); before that it also built on any pull request that changed the
 image's inputs (the Dockerfile, a lockfile, an interpreter pin, the workflow),
-about seven minutes of GitHub's runner each, and seconds otherwise. Run it yourself, by hand on the branch, when you change the
-Dockerfile, a lockfile or the interpreter pin.
+about seven minutes of GitHub's runner each, and seconds otherwise. The pool runs it
+as the `image` suite from a machine doing the work (below); run that when you change
+the Dockerfile, a lockfile or the interpreter pin.
 
 The one class it caught that nothing else did, a test reading a file the image
 does not carry (`.env.example` in wave 1, `docs/source-plugins.md` in wave 2b),
@@ -98,15 +101,11 @@ work out to one path (`.parents` walked as a whole) is declared there with what
 it reads. It does not see a path built from a string, from the working
 directory or inside a subprocess; those still meet the image at the release.
 
-Why not on the pool: a suite of testament's runs in the project's container,
-which has no Docker daemon and builds no target of the Dockerfile, or on the
-runner's host, which this project is not granted. The probe of 2026-11-20 for a
-host suite answered `host suites (image): arrt may use ['container'] here, not
-executor 'host'`. Granting it is a pool admin's act. The suite it would be:
-`executor = "host"`, `requires = ["docker", "docker-heavy", "arch:x86_64"]` (the
-image is amd64-only for dezoomify-rs), `max_batches_per_runner = 1`, its one test
-running `docker buildx build --target test-report --build-context repo=. arrt/`
-and reading the report with `.github/scripts/assert_tests_ran.py`.
+*Until 2026-11-20 it could not run on the pool:* a suite ran in the project's
+container, which has no Docker daemon, or on a runner's host, which this project was
+not granted (`host suites (image): arrt may use ['container'] here, not executor
+'host'`, the probe of that day). The owner's ruling of the same day granted the host
+executor, and the stage is now a suite of its own, below.
 
 ### The image's test stage on the pool
 
