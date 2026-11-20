@@ -1058,13 +1058,22 @@ def test_a_neighbour_that_cannot_be_rebuilt_leaves_the_act_done_and_says_why(
 
 
 def test_a_slower_neighbour_that_cannot_be_rebuilt_keeps_its_schedule_and_the_hall_steps_aside_from_it(
-    display, mastered, theme_of, wall_id, feed, monkeypatch, caplog
+    display, mastered, theme_of, wall_id, wall_settings, feed, monkeypatch, caplog
 ):
-    """Rebuilt before the hall, as a slower wall is; refused, it goes on as it was, and the hall is built against that."""
+    """Rebuilt before the hall, as a slower wall is; refused, it goes on as it was, and the hall is built against that.
+
+    The study was hung a while before the hall, as two walls hung by hand
+    always are, so its slots start off the hall's. Hung within one wall-clock
+    second, as the suite once left them, the two lined up by chance and the
+    hall stepped aside without lining up; a second apart, every hall slot
+    spanning one of the study's boundaries met both works, and half the
+    horizon clashed (`schedule.run_household_pass` lines it up now).
+    """
     x, y = mastered("X"), mastered("Y")
     study = display.add_wall(name="Study").id
     display.set_playback(study, rotation_interval_seconds=2 * HOUR, shuffle=False)
     display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=97))
     before = feed(study).slots
     hall = theme_of(x, y, name="Hall's", interval=HOUR)
     built = display._feeds.build_manifest

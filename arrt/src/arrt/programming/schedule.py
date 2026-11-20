@@ -41,7 +41,9 @@ rebuilt whole, and against only the slot covering now on each wall still to
 come that has room to step aside (`movable`, chosen by `movable_walls`); the
 wall republished, when it is still to come, counts by its first slot. Each
 neighbour keeps its slot now, run on until the slots after it are in step with
-the wall it lines up with, where that is cheap (`align_to`, `_lengthened`). Two
+the wall it lines up with, where that is cheap (`align_to`, `_lengthened`);
+the wall republished, built again after walls put before it, lines up with
+the last of them, which may be one that could not be rebuilt. Two
 walls whose slots start seconds apart could otherwise not alternate two works
 at all: every slot of one would overlap one of each on the other. Nothing on
 any screen changes: the slot covering now keeps its work and its start, and may
@@ -298,9 +300,12 @@ def household_pass(
 
     Each wall built before the wall republished lines up with the wall built
     just before it (the first, with the wall republished's first build), so a
-    slower wall's boundaries fall on the next slower one's; each built after
-    it lines up with it. `movable` is `movable_walls`'s answer; each step's
-    own is those of them still to come.
+    slower wall's boundaries fall on the next slower one's; the wall
+    republished, built again, lines up with the last of them, which matters
+    when that one could not be rebuilt and kept its published slots (its
+    step names none: `run_household_pass` lines it up); each built after it
+    lines up with it. `movable` is `movable_walls`'s answer; each step's own
+    is those of them still to come.
     """
 
     def free(wall: str) -> int:
@@ -369,7 +374,10 @@ def run_household_pass(
     movable neighbour, which fixes its first slot. When `household_pass` puts
     walls before it, each is built against that first slot alone, and the wall
     republished is built again with `Keep`, the first slot standing as its
-    published one, so it keeps it. Nothing is written here: the wall republished
+    published one, so it keeps it, lined up with the wall built just before
+    it: a no-op where that wall was rebuilt in step with it, and otherwise
+    the first slot runs on to that wall's next boundary, as a neighbour's
+    slot now does (`_lengthened`). Nothing is written here: the wall republished
     comes first in what is returned, so a caller that writes in this order
     writes no neighbour around a first slot that was never published.
     """
@@ -397,7 +405,13 @@ def run_household_pass(
         current[wall_id] = (first,)
         for step in steps[:mine]:
             neighbour(step)
-        republished = build_republished(PassView(dict(current), steps[mine].movable, ()), Keep(), frozenset({first.work_id}))
+        # Lined up with the wall built just before it, as each wall before it
+        # was. Where that wall was rebuilt and lined up with this one's first
+        # slot, this moves nothing. Where it could not be rebuilt it keeps its
+        # published slots, which start wherever its last publish fell, and a
+        # slot here out of step with them meets both of two shared works.
+        before = tuple(slot.start for slot in shown[steps[mine - 1].wall_id])
+        republished = build_republished(PassView(dict(current), steps[mine].movable, before), Keep(), frozenset({first.work_id}))
     current[wall_id] = shown[wall_id] = republished.slots
     for step in steps[mine + 1 :]:
         neighbour(step)
