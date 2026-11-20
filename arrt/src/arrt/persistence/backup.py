@@ -451,7 +451,7 @@ def take_pre_migration_snapshot(
             extra={"event": "catalogue.snapshot_failed", "directory": str(directory), "detail": str(exc), "drops": list(drops)},
         )
         raise SnapshotFailed(
-            f"The catalogue at {catalogue_path} needs a migration that drops {', '.join(drops)}, and the copy "
+            f"The catalogue at {catalogue_path} needs a migration that {_what_it_does(drops)}, and the copy "
             f"taken first could not be written to {directory}: {exc}. Nothing in the catalogue has been changed. "
             "Free space there or make it writable (or set BACKUP_DIR to a directory that is), then start again."
         ) from exc
@@ -463,6 +463,20 @@ def take_pre_migration_snapshot(
         extra={"event": "catalogue.snapshot_taken", "path": str(final), "drops": list(drops), "removed": list(removed)},
     )
     return final
+
+
+def _what_it_does(replaced: tuple[str, ...]) -> str:
+    """What the migration a copy is taken for does, as `SnapshotFailed` says it: what it drops, then a generation it raises.
+
+    A rise (`migrations.ShapeGenerationRise`) is said as one, "raises the
+    catalogue shape generation from 1 to 2", never as something dropped.
+    """
+    dropped = [item for item in replaced if not isinstance(item, migrations.ShapeGenerationRise)]
+    raised = [item for item in replaced if isinstance(item, migrations.ShapeGenerationRise)]
+    said = [f"drops {', '.join(dropped)}"] if dropped else []
+    if raised:
+        said.append(f"raises {', '.join(raised)}")
+    return " and ".join(said)
 
 
 def finish_migration(connection: sqlite3.Connection) -> None:
