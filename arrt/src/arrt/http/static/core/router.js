@@ -488,7 +488,7 @@ export function notFound(lead = null, why = null) {
     backRow(),
     el("div", { class: "not-found" }, [
       el("h1", { text: lead || `That ${entry.thing} is not here` }),
-      el("p", { class: "note", text: why || "Nothing in the library has this address. It was most likely removed." }),
+      el("p", { class: "note", text: why || "Nothing in the Library has this address. It was most likely removed." }),
       el("div", { class: "row" }, [link({ view: index }, { class: "action", text: table[index].page })]),
     ]),
   ];

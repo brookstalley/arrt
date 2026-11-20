@@ -43,7 +43,7 @@ export async function viewArtists(artistId, generation) {
     return;
   }
   const listing = await api("/api/artists");
-  const count = `${counted(listing.artists.length, "artist")} with works in the library`;
+  const count = `${counted(listing.artists.length, "artist")} with works in the Library`;
   const shown = artistView();
   render(
     generation,
@@ -210,7 +210,7 @@ async function oneArtist(artistId, generation) {
   try {
     view = await api(`/api/artists/${encodeURIComponent(artistId)}/registry`);
   } catch (failure) {
-    view = { state: "unavailable", note: "Wikidata could not be asked just now. What the library holds is above; try again later." };
+    view = { state: "unavailable", note: "Wikidata could not be asked just now. What the Library holds is above; try again later." };
   }
   if (!registrySection.isConnected) return;
   paintRegistry(registrySection, about, view, { name: artist.name, artistId, selection });
@@ -285,7 +285,7 @@ function namesakeOffer(artist, qid) {
       class: "action",
       type: "button",
       text: "Link them to this item",
-      "aria-label": `Link the library's ${artist.name} to ${qid}`,
+      "aria-label": `Link the Library's ${artist.name} to ${qid}`,
       onclick: (event) =>
         attempt(event.currentTarget, `link ${artist.name} to ${qid}`, () => storeIdentity("artist", artist.artist_id, qid), {
           then: () => redirect("artist", artist.artist_id),
@@ -466,7 +466,7 @@ function paintRegistry(section, about, view, { name = null, artistId = null, sel
     view.works.length
       ? el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
           el("caption", {
-            text: `The most renowned of the ${number(view.works_total)} works Wikidata lists, by how many Wikipedias cover them, and every one the library holds`,
+            text: `The most renowned of the ${number(view.works_total)} works Wikidata lists, by how many Wikipedias cover them, and every one the Library holds`,
           }),
           el("thead", {}, [listHeadings(["Get", "Work", "Year", "State"])]),
           el("tbody", {}, rows),
