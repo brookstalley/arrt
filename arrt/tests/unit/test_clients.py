@@ -15,7 +15,7 @@ import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS, Admission, PlayerAccess
-from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.programming.client_heartbeat import MAX_OUTPUTS, client_heartbeat_path_in
 from arrt.programming.display_state import ScreenState
 from arrt.programming.player_state import PlayerState
 from arrt.services.errors import ServiceError
@@ -386,6 +386,35 @@ def test_a_report_this_server_cannot_read_is_refused_and_not_written(clients, pi
         clients.record_heartbeat(pi.id, {**_REPORT, "outputs": [{**_REPORT["outputs"][0], "kind": "hdmi"}]})
 
     assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
+
+
+def _screens(count):
+    return [{"name": f"hdmi-a-{n}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for n in range(count)]
+
+
+def _panels(count):
+    return [{"name": f"panel-{n}", "kind": "epaper", "connected": True, "size": [800, 480]} for n in range(count)]
+
+
+@pytest.mark.parametrize(
+    ("key", "many", "word"),
+    [("outputs", _screens, "outputs"), ("label_outputs", _panels, "label outputs")],
+    ids=["outputs", "labels"],
+)
+def test_a_report_of_more_outputs_than_the_cap_is_refused_by_name_and_keeps_nothing(
+    clients, pi, wall_settings, services, key, many, word
+):
+    """Audit-8 F10: every output a report names can become a row the server keeps; one report may name at most the cap."""
+    displays_before = len(services.clients.placements.survey().displays)
+
+    with pytest.raises(ServiceError, match=rf"at most {MAX_OUTPUTS} {word}, and this report carries {MAX_OUTPUTS + 1}\."):
+        clients.record_heartbeat(pi.id, {**_REPORT, key: many(MAX_OUTPUTS + 1)})
+
+    assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
+    assert len(services.clients.placements.survey().displays) == displays_before
+    # The cap itself is a report a Player may send.
+    clients.record_heartbeat(pi.id, {**_REPORT, key: many(MAX_OUTPUTS)})
+    assert client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
 
 
 def test_a_report_from_an_unknown_client_is_refused(clients):
