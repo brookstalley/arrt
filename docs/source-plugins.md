@@ -311,11 +311,29 @@ without being made, until one of them returns. So bound your own work as well
 (every read, every lock you wait for, every child process): a call that never
 returns holds its thread for the life of the process.
 
-**A run waits for every source.** Every finder is asked at once and the run
-answers when the last has answered or reached its deadline, so a longer
-deadline is how long your plugin can hold every Get when it is slow. A look
-waits behind a run asking your plugin, and asks it again once the run is done
-or has given up.
+**A run answers within a window, not at your deadline** (since wave 2b). Every
+finder is asked at once; once a source of images has answered and 30 seconds have
+passed (`ANSWER_WINDOW_SECONDS`, `arrt/src/arrt/library/discovery/pool.py`), the run
+answers with the sources that answered, and a source still asking is *owed* an
+answer for that work. If your answer comes later, it is written to the work's search
+record and the work's next pass reads it, waiting for your plugin as long as its
+deadline allows; so a long deadline no longer holds every other source's answer on
+this pass. A run in which no source of images has answered by the window waits on
+for the first that does, never past the slowest deadline. A look waits behind a run
+asking your plugin, and asks it again once the run is done or has given up.
+
+**Within one pass, a plugin that keeps answering "could not be asked" is not asked
+again until the next** (since wave 2b; `HOLD_BACK_AFTER`, 3, in
+`arrt/src/arrt/library/sources/loading.py`). A pass is the acquisition queue's over
+the works it owes, or phase 2's over one run's works. After three "could not be
+asked" answers in a row from your plugin in one pass (an `ImageSearchFailure` or a
+missed deadline), the rest of that pass does not call it: the works it would have
+been asked about are **left exactly as they were**, their queue rows unchanged (no
+new failure, no new `failed_at`) and no search recorded, and the next pass asks
+again from a fresh count. Any other answer resets the count. Outside a pass (a look,
+a preview, Ask) nothing is held back. The journal says it once per pass per plugin
+held back (`event=source.plugin_held_back`, with `not_asked` and `after`). The cost
+is that a plugin that fails three unrelated asks in a row waits for the next pass.
 
 **Your calls may arrive on any thread, and several at once.** Each call runs on
 a thread started for it, which is how Arrt can stop waiting for it, so no two
