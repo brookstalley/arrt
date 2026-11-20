@@ -51,7 +51,11 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    SEARCHES_COUNTED,
+    SearchOutcome,
+    SearchTally,
     Sighting,
+    SourceSearch,
     SourceYield,
     SpendCategory,
     SpendRecord,
@@ -360,6 +364,29 @@ CREATE TABLE IF NOT EXISTS run_citations (
     position          INTEGER NOT NULL,
     PRIMARY KEY (discovery_run_id, url)
 );
+
+-- The newest search of each work at each source (`SourceSearch`): when phase 2
+-- asked, what the source said, and whether its answer came after the run stopped
+-- waiting. A new table, so `CREATE TABLE IF NOT EXISTS` reaches a file written
+-- before it, and a release from before it ignores it. Keyed by the work and the
+-- source's name, never by a URL: a second search of the work at that source
+-- replaces the first. Candidate works are never deleted, so nothing cascades.
+CREATE TABLE IF NOT EXISTS source_searches (
+    candidate_work_id  TEXT NOT NULL REFERENCES candidate_works(id),
+    provider           TEXT NOT NULL,
+    asked_at           TEXT NOT NULL,
+    outcome            TEXT NOT NULL,
+    answered_at        TEXT,
+    images             INTEGER NOT NULL,
+    late               INTEGER NOT NULL,
+    PRIMARY KEY (candidate_work_id, provider)
+);
+
+-- Status counts each source's newest searches on every page: an index in the
+-- order it reads them, holding every column it counts, so it reads that many
+-- entries of the index and never the rows, however many works were searched.
+CREATE INDEX IF NOT EXISTS source_searches_by_provider
+    ON source_searches(provider, asked_at, outcome, answered_at);
 """
 
 #: The join's own key. A work appears at most once per resolve run.
@@ -370,6 +397,37 @@ _SIGHTING_KEY: Final[tuple[str, ...]] = ("wikidata_qid", "url")
 
 #: One row per page per run: a search that cited a page twice read it once.
 _CITATION_KEY: Final[tuple[str, ...]] = ("discovery_run_id", "url")
+
+#: One row per work per source: the newest search replaces the one before it.
+_SEARCH_KEY: Final[tuple[str, ...]] = ("candidate_work_id", "provider")
+
+#: One source's newest `SEARCHES_COUNTED` searches, counted by what it said
+#: (`search_tallies`). An answer is any of the three that are neither "could not
+#: be asked" nor "owed". Bound by the source and a LIMIT, so it reads that many
+#: entries of `source_searches_by_provider` and no more.
+_SEARCH_TALLIES: Final[str] = """
+SELECT COUNT(*) AS searched,
+       COALESCE(SUM(CASE WHEN outcome IN (?, ?, ?) THEN 1 ELSE 0 END), 0) AS answered,
+       COALESCE(SUM(CASE WHEN outcome = ? THEN 1 ELSE 0 END), 0) AS unasked,
+       COALESCE(SUM(CASE WHEN outcome = ? THEN 1 ELSE 0 END), 0) AS owed,
+       MAX(CASE WHEN outcome IN (?, ?, ?) THEN answered_at END) AS last_answered_at,
+       MAX(asked_at) AS last_asked_at
+  FROM (SELECT outcome, answered_at, asked_at FROM source_searches
+         WHERE provider = ? ORDER BY asked_at DESC LIMIT ?)
+"""
+
+#: The outcomes `_SEARCH_TALLIES` counts as answers, and every value it binds, in its order.
+_ANSWERS: Final[tuple[str, ...]] = (
+    str(SearchOutcome.ANSWERED),
+    str(SearchOutcome.DECLINED),
+    str(SearchOutcome.LINK_GONE),
+)
+_TALLY_VALUES: Final[tuple[str, ...]] = (
+    *_ANSWERS,
+    str(SearchOutcome.UNREACHABLE),
+    str(SearchOutcome.OWED),
+    *_ANSWERS,
+)
 
 #: Newest first: a run list is a history, and the run someone is asking about is
 #: almost always the last one.
@@ -660,6 +718,33 @@ class SqliteDiscovery(TableAdapter):
         )
         return [Sighting(wikidata_qid=row["wikidata_qid"], url=row["url"]) for row in rows]
 
+    # -- searches ---------------------------------------------------------------
+
+    def record_search(self, search: SourceSearch) -> None:
+        self._store.upsert("source_searches", _search_row(search), pk=_SEARCH_KEY, on_conflict="update")
+
+    def searches_of(self, candidate_work_id: str) -> Mapping[str, SourceSearch]:
+        rows = self._store.scan("source_searches", {"candidate_work_id": candidate_work_id})
+        return {row["provider"]: _search(row) for row in rows}
+
+    def search_tallies(self, providers: Sequence[str]) -> Mapping[str, SearchTally]:
+        found: dict[str, SearchTally] = {}
+        # One statement per source, each its own: the sources' counts need not
+        # agree with one another, so no read scope holds the store between them.
+        for provider in dict.fromkeys(providers):
+            (row,) = self._store.select_rows(_SEARCH_TALLIES, (*_TALLY_VALUES, provider, SEARCHES_COUNTED))
+            if row["searched"]:
+                found[provider] = SearchTally(
+                    provider=provider,
+                    searched=row["searched"],
+                    answered=row["answered"],
+                    unasked=row["unasked"],
+                    owed=row["owed"],
+                    last_answered_at=from_iso(row["last_answered_at"]),
+                    last_asked_at=from_iso(row["last_asked_at"]),
+                )
+        return found
+
     # -- citations --------------------------------------------------------------
 
     def add_run_citations(self, run_id: str, urls: Sequence[str]) -> None:
@@ -931,6 +1016,30 @@ def _affinity(row: Mapping[str, Any]) -> Affinity:
         updated_at=require_datetime(row["updated_at"], "updated_at"),
         rationale=row["rationale"],
         artist_id=row["artist_id"],
+    )
+
+
+def _search_row(search: SourceSearch) -> dict[str, Any]:
+    return {
+        "candidate_work_id": search.candidate_work_id,
+        "provider": search.provider,
+        "asked_at": to_iso(search.asked_at),
+        "outcome": str(search.outcome),
+        "answered_at": to_iso(search.answered_at),
+        "images": search.images,
+        "late": int(search.late),
+    }
+
+
+def _search(row: Mapping[str, Any]) -> SourceSearch:
+    return SourceSearch(
+        candidate_work_id=row["candidate_work_id"],
+        provider=row["provider"],
+        asked_at=require_datetime(row["asked_at"], "asked_at"),
+        outcome=SearchOutcome(row["outcome"]),
+        answered_at=from_iso(row["answered_at"]),
+        images=row["images"],
+        late=bool(row["late"]),
     )
 
 
