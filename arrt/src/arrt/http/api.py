@@ -22,7 +22,7 @@ that safe.
 """
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -1183,7 +1183,8 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 def list_walls(request: Request) -> WallListOut:
     """Every wall, what is hanging on each, and where each is shown."""
     services = _services(request)
-    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
+    waiting = services.health.observe_waiting()
+    return WallListOut(walls=[_wall(services, view, waiting) for view in services.display.survey_walls()])
 
 
 @router.post("/walls")
@@ -1218,7 +1219,8 @@ def delete_wall(request: Request, wall_id: str) -> WallListOut:
     """
     services = _services(request)
     services.display.delete_wall(wall_id)
-    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
+    waiting = services.health.observe_waiting()
+    return WallListOut(walls=[_wall(services, view, waiting) for view in services.display.survey_walls()])
 
 
 @router.post("/walls/{wall_id}/client")
@@ -2404,7 +2406,9 @@ def _scenes(services: Services) -> ScenesOut:
     )
 
 
-def _wall(services: Services, view: WallView) -> WallOut:
+def _wall(services: Services, view: WallView, waiting: Mapping[str, WallWait] | None = None) -> WallOut:
+    """One wall's answer. `waiting` is `HealthService.observe_waiting()`, read once for a list; read here for one wall."""
+    waiting = services.health.observe_waiting() if waiting is None else waiting
     survey = services.clients.placements.survey()
     placement = survey.placement_of(view.wall)
     return WallOut(
@@ -2435,6 +2439,7 @@ def _wall(services: Services, view: WallView) -> WallOut:
         **_size_fields(services.display.judge_sizes(view.wall.id)),
         last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
         upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
+        waiting_for=_wall_wait(waiting.get(view.wall.id)),
     )
 
 

@@ -773,6 +773,91 @@ def test_a_walls_display_state_agrees_value_for_value_but_for_the_one_rename():
     assert tool["last"]["artwork_id"] == "wrk_1"
 
 
+#: `WallHeartbeatOut.heartbeat` is one nested record on HTTP; the status carries
+#: it flattened onto the wall, in these names, MCP's first. `has_reported` is
+#: `absent` negated, the status's name since before wave 2b.
+STATUS_WALL_HEARTBEAT: dict[str, str] = {
+    "observation": "description",
+    "has_reported": "absent",
+    "reported_at": "reported_at",
+    "age_seconds": "age_seconds",
+    "problem": "problem",
+    "reported": "reported",
+}
+
+#: `HeartbeatOut`'s fields the status leaves off, and why.
+STATUS_WALL_LEAVES_OF_THE_HEARTBEAT: dict[str, str] = {
+    "path": "where the heartbeat file lies on the server's disk is the operator's to read, not a question a model is asked",
+}
+
+#: The one name MCP's wall and `WallOut` spell differently, MCP's first: what
+#: hangs on the wall. Named before the two were paired here (wave 2b, Chunk 66).
+WALL_RECORD_RENAMES: dict[str, str] = {"hanging": "theme"}
+
+
+def _a_wall_waiting_for_its_player(services):
+    """A wall shown by a Player with no token: it waits, so every wait field is a value, not null."""
+    wall = services.display.add_wall(name="The hall")
+    player = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall.id, client_id=player.id, output="hdmi-a-1")
+    return wall, player
+
+
+def check_status_wall(tool: dict, route: dict) -> None:
+    """Raise unless a status wall is `WallHeartbeatOut`'s fields, the heartbeat flattened and `path` left off by name."""
+    left = set(STATUS_WALL_LEAVES_OF_THE_HEARTBEAT)
+    assert set(STATUS_WALL_HEARTBEAT.values()) | left == _fields(http_models.HeartbeatOut), (
+        "HeartbeatOut carries a field the status neither flattens onto its wall nor leaves off by name: "
+        f"{sorted(_fields(http_models.HeartbeatOut) - set(STATUS_WALL_HEARTBEAT.values()) - left)}"
+    )
+    assert set(STATUS_WALL_HEARTBEAT) <= set(tool), f"the status wall lost {sorted(set(STATUS_WALL_HEARTBEAT) - set(tool))}"
+    check_parity("WallHeartbeat", (set(tool) - set(STATUS_WALL_HEARTBEAT)) | {"heartbeat"}, set(route))
+
+
+def test_a_status_wall_is_the_health_answers_wall_by_name_and_by_value(services):
+    """`art_display(action='status')`'s walls against `WallHeartbeatOut`, `waiting_for` included (Chunk 66).
+
+    Unpaired until Chunk 66, so `waiting_for` reached the health answer with
+    neither a twin nor an exemption and nothing said so. A field added to a
+    wall's health answer now fails here by name until the status carries it.
+    """
+    wall, player = _a_wall_waiting_for_its_player(services)
+    reading = services.health.observe()
+    [tool] = [e for e in bindings._wall_status(services, {})["walls"] if e["wall_id"] == wall.id]
+    [route] = [e for e in http_api._health(reading).model_dump()["walls"] if e["wall_id"] == wall.id]
+
+    check_status_wall(tool, route)
+    check_parity("WallWait", set(tool["waiting_for"]), _fields(http_models.WallWaitOut))
+    assert tool["waiting_for"] == route["waiting_for"]
+    assert route["waiting_for"]["client_id"] == player.id
+    assert tool["has_reported"] is not route["heartbeat"]["absent"]
+    for mcp_name, http_name in STATUS_WALL_HEARTBEAT.items():
+        if mcp_name != "has_reported":
+            assert tool[mcp_name] == route["heartbeat"][http_name], mcp_name
+
+
+def test_a_field_added_to_a_walls_health_answer_and_not_to_the_status_is_refused_by_name():
+    tool = {"wall_id", "wall_name", "display_state", "waiting_for", *STATUS_WALL_HEARTBEAT}
+    route = dict.fromkeys(_fields(http_models.WallHeartbeatOut))
+    with pytest.raises(AssertionError, match=r"carries \['waiting_for'\] that the MCP projection does not"):
+        check_status_wall(dict.fromkeys(tool - {"waiting_for"}), route)
+    with pytest.raises(AssertionError, match="the status wall lost"):
+        check_status_wall(dict.fromkeys(tool - {"problem"}), route)
+
+
+def test_a_wall_reads_alike_on_the_walls_answer_and_mcp_walls_but_for_the_one_rename(services):
+    """`art_display(action='walls')` against `WallOut`, by name, and `waiting_for` by value (Chunk 66)."""
+    wall, player = _a_wall_waiting_for_its_player(services)
+    view = services.display.get_wall_view(wall.id)
+    tool = bindings._wall_view_fields(services, view)
+    route = http_api._wall(services, view).model_dump()
+
+    check_parity("Wall", check_renamed("Wall", set(tool), set(route), WALL_RECORD_RENAMES), _fields(http_models.WallOut))
+    waits = services.health.observe_waiting()
+    assert tool["waiting_for"] == route["waiting_for"] == bindings._wall_wait_fields(waits[wall.id])
+    assert route["waiting_for"]["client_id"] == player.id
+
+
 def test_a_walls_last_showing_agrees_value_for_value_but_for_the_one_rename():
     from arrt.persistence.records import Showing
 

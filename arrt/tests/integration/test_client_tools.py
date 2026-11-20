@@ -572,3 +572,38 @@ async def test_one_player_with_no_token_showing_two_walls_is_one_step_on_the_rou
         assert not [t for t in answer["troubles"] if t["about"] in {"wall", "player"}], answer["troubles"]
     said = f"{names[0]} and {names[1]} wait for Hall Pi, which has no token yet."
     assert route["description"] == tool["observation"] == said
+
+
+async def test_whom_a_wall_waits_for_is_said_by_the_status_the_walls_and_the_walls_answer(server_url, services, hall, wall):
+    """Chunk 66: MCP's status, MCP's walls and `GET /api/walls` each name the Player both walls wait for.
+
+    In the health answer's own words (`services.health.walls_waiting`), value
+    for value with `GET /api/health`'s; and a wall a Player shows, beside them,
+    waits for nothing on every surface. Before, only the health answer said it,
+    and the status's walls read as a wall no Player had reported for.
+    """
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    study = (await ok(server_url, "add_wall", name="The study"))["wall"]["wall_id"]
+    await ok(server_url, "assign_wall", wall_id=study, client_id=hall, output="hdmi-a-2")
+    shown = (await ok(server_url, "add_wall", name="The landing"))["wall"]["wall_id"]
+    reporting = (await ok(server_url, "add_client", name="Landing Pi"))["client"]["client_id"]
+    services.access.issue(reporting)
+    services.clients.record_heartbeat(reporting, _frame_report())
+    await ok(server_url, "assign_wall", wall_id=shown, client_id=reporting, output="frame")
+
+    health = {e["wall_id"]: e["waiting_for"] for e in (await request("GET", f"{server_url}/api/health")).json()["walls"]}
+    walls_answer = {e["wall_id"]: e["waiting_for"] for e in (await request("GET", f"{server_url}/api/walls")).json()["walls"]}
+    status = {e["wall_id"]: e["waiting_for"] for e in (await ok(server_url, "status"))["walls"]}
+    listed = {e["wall_id"]: e["waiting_for"] for e in (await ok(server_url, "walls"))["walls"]}
+
+    # The case itself, so a household where nothing waits cannot pass as agreement.
+    assert {key: (wait and (wait["client_id"], wait["state"])) for key, wait in health.items()} == {
+        wall: (hall, "no_token"),
+        study: (hall, "no_token"),
+        shown: None,
+    }
+    assert health[study]["words"] == "The study waits for Hall Pi, which has no token yet"
+    assert walls_answer == status == listed == health
+    # One wall's answer says it too, not only the list.
+    renamed = (await request("POST", f"{server_url}/api/walls/{study}", json={"name": "The study"})).json()
+    assert renamed["waiting_for"] == health[study]
