@@ -138,9 +138,22 @@ Developer preferences for how code is written in this project. Captured during d
   curation suite and its interpreter — the recorded decision accepted a second
   language's package manifest as a cost, and the Python bindings simply do not
   charge it. Its dependency is the opt-in `browser` group, not `dev`, because a
-  ~200MB browser has no place on the default install path. **Do not add a Node
+  ~200MB browser has no place on the default install path. A test reads the page through Playwright's retrying `expect`, never a one-shot read
+  (`docs/testing.md` § Assertions read the page through `expect`; `arrt/tests/unit/test_browser_reads_retry.py` holds it). **Do not add a Node
   toolchain or a build step for the shipped client** — that is a separate standing
   decision (`design_decisions.visual_direction`) and this one does not touch it.
+- **System tests** (added 2026-11-19, audit wave 2): `arrt/tests/system/` runs the product
+  as it is assembled, with nothing mocked inside it. A catalogue each past release left
+  (made by that release's own code) is opened by today's; a backup generation is restored
+  by the runbook's steps and the server started on it; and, behind the `player_e2e` marker
+  (off by default, because it fetches Arrt Player from GitHub), a real Arrt Player is run
+  as a second process against the server as a first, at the commit
+  `arrt/tests/system/player-ref.txt` names, and both sides' records are compared with every
+  request between them (`docs/testing.md` § The default suites, § The real-Player test).
+  A plugin that misbehaves is driven end to end through a real Get in
+  `arrt/tests/integration/test_a_misbehaving_plugin.py`. Neither the pool's default run nor
+  `tests.yml` runs `player_e2e`; `image.yml` runs it against the built image on a pull
+  request into `main`.
 - **Parallelization**: `-n auto` for the curation suite, in its `addopts`
   (118s → 21s, measured 2026-08-05); the root suite is small enough to stay serial.
   **`-n0` for the browser and live suites** — a command-line `-m` replaces the
