@@ -44,6 +44,7 @@ from arrt.library.discovery.images import (
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    LinkGone,
     offers_images,
 )
 from arrt.library.sources.loading import FINDER_DEADLINE_SECONDS
@@ -84,15 +85,21 @@ class PoolAnswer:
 
     `pages` are the pages the sources found and do not read, each once, kept apart
     from the images because nothing about them can be judged (`FoundPage`).
+
+    `gone` names the sources of images that answered that every page the work's
+    item links at them is gone (`LinkGone`, interface 1.6). Each is an answer,
+    holding nothing, and so never in `unreachable`: a work only they might have
+    held settles rather than waiting for ever on a link that is dead.
     """
 
     images: Sequence[FoundImage]
     unreachable: tuple[str, ...]
     pages: tuple[FoundPage, ...] = ()
+    gone: tuple[str, ...] = ()
 
 
 class AskOutcome(StrEnum):
-    """How one source took one question: the three answers the pool keeps apart."""
+    """How one source took one question: the four answers the pool keeps apart."""
 
     #: It was asked and answered, with whatever it holds, nothing included.
     ANSWERED = "answered"
@@ -102,6 +109,10 @@ class AskOutcome(StrEnum):
     #: It could not be asked (`ImageSearchFailure`): nothing is known about
     #: what it holds.
     UNREACHABLE = "unreachable"
+    #: It answered that every page the work's item links at it is gone
+    #: (`LinkGone`, 1.6): an answer, holding nothing now, kept apart from
+    #: `ANSWERED` so a dead link is reported as one.
+    LINK_GONE = "link_gone"
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +214,7 @@ class ImageSourcePool:
         pages_only: list[str] = []
         unreachable: list[str] = []
         declined: list[str] = []
+        gone: list[str] = []
         for answer in self._every_answer(query):
             images.extend(answer.images)
             for page in answer.pages:
@@ -211,6 +223,20 @@ class ImageSourcePool:
                 # A finder of pages answering says nothing about whether an
                 # image exists, so it is not a source that answered.
                 (answered if answer.offers_images else pages_only).append(answer.provider)
+            elif answer.outcome is AskOutcome.LINK_GONE:
+                # The holder answered: the pages the item links are gone. For a
+                # source of images that settles what it holds now (nothing), so
+                # it counts as answering, and is named apart.
+                log.info(
+                    "an image source answered that every page the work's item links at it is gone: %s",
+                    answer.failure,
+                    extra={"event": "image_pool.link_gone", "provider": answer.provider, "work_title": query.title},
+                )
+                if answer.offers_images:
+                    answered.append(answer.provider)
+                    gone.append(answer.provider)
+                else:
+                    pages_only.append(answer.provider)
             elif answer.outcome is AskOutcome.DECLINED:
                 # Not asked, in effect: this source has nothing to say about
                 # works like this one, which is neither "holds none" nor "down".
@@ -238,7 +264,7 @@ class ImageSourcePool:
                 *(f"{museum_name(name)} finds pages only" for name in pages_only),
             ]
             raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
-        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
+        return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages), gone=tuple(gone))
 
     def _every_answer(self, query: ImageQuery) -> list[SourceAnswer]:
         """Every source's answer, in preference order, each waited for no longer than the run's deadline.
@@ -316,6 +342,9 @@ class ImageSourcePool:
                     images.append(found)
         except ImageQueryUnanswerable:
             outcome, failure = AskOutcome.DECLINED, None
+        # Before `ImageSearchFailure`, which it is: a dead link is an answer.
+        except LinkGone as exc:
+            outcome, failure = AskOutcome.LINK_GONE, str(exc)
         except ImageSearchFailure as exc:
             outcome, failure = AskOutcome.UNREACHABLE, str(exc)
         else:

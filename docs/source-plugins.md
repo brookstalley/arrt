@@ -75,7 +75,7 @@ from its own modules, so a plugin from elsewhere passes `museum=`.
 **Say which minor you need** (1.5): `api_minor` is the newest interface minor
 your plugin reads, `0` when you pass nothing. A plugin needing a newer minor
 than the Arrt it is installed in is refused at startup, naming both ("it needs
-source interface 1.6, and this Arrt is 1.5"), rather than loaded to fault on
+source interface 1.7, and this Arrt is 1.6"), rather than loaded to fault on
 the first call that reads a field this Arrt does not have. A plugin passing
 `museum=` needs 1.4, and one passing `deadlines=` or `api_minor=` needs 1.5. Like
 `museum`, `api_minor` and `deadlines` are a `TypeError` at import on an older
@@ -111,11 +111,12 @@ configured the plugin.
   also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 5)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 6)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
 optional capabilities. 1.1 added `ImageQuery.pages`, 1.2 `SourceContext.data_dir`,
-1.3 the IIIF parsers (§ Reading IIIF), 1.4 `SourcePlugin.museum`, and 1.5
-`SourcePlugin.api_minor` and `SourcePlugin.deadlines`.
+1.3 the IIIF parsers (§ Reading IIIF), 1.4 `SourcePlugin.museum`, 1.5
+`SourcePlugin.api_minor` and `SourcePlugin.deadlines`, and 1.6 `LinkGone`
+(§ Answers).
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -209,13 +210,53 @@ hosts, and check that a service is on a host you trust before you read it.
 Each raises `ImageSearchFailure` for a body that is not the shape expected. `yale`
 is the example.
 
-## Three answers, and the page that is not the page
+## Answers, and the page that is not the page
 
 | Answer | Finder | Reader |
 |---|---|---|
 | holds nothing | an empty list | `FetchLocator.none(reason)` |
+| the page is gone (1.6) | raise `LinkGone` | raise `LinkGone` |
 | could not be asked | raise `ImageSearchFailure` | raise `ImageSearchFailure` |
 | cannot answer this kind of work | raise `ImageQueryUnanswerable` | `claims` returns `False` |
+
+**The page is gone** (1.6) is the holder's own answer that it no longer has
+the page: a 404 or a 410, or its "no such object". A finder raises `LinkGone`
+only when *every* page the work's registry item links at its holder is gone;
+one gone page beside another that answered is the other's answer. A reader
+raises it when the page it was given is gone. It is an answer, not a failure
+to ask: the run counts the source as having answered, holding nothing, so a
+work only it might have held is settled rather than searched again for ever,
+and acquisition records the source's fetch as `link_gone` and asks no more
+until the work's Wikidata item changes or someone presses Retry.
+
+`LinkGone` is a subclass of `ImageSearchFailure`, so the change is one word
+where you raise for a dead link today, and your own `except
+ImageSearchFailure` still catches it. An Arrt older than 1.6 has no such name:
+a plugin that must load on one imports it as
+`getattr(arrt.library.sources, "LinkGone", ImageSearchFailure)`, and there a
+dead link is "could not be asked", as it was before. Declare `api_minor=6`
+only if the plugin should refuse to load on an older Arrt instead. A plugin
+written for 1.5 never raises it, and is treated exactly as it was.
+
+**What Arrt records of a reader's answer, and when it asks again.** Each
+acquisition records what its fetch said beside the coarse status (`ok`,
+`partial_tiles`, `failed`), which is all an older Arrt reads; the queue retries
+by it, and Activity › Queue groups failed works by it and the plugin:
+
+| Outcome | From | Coarse status | Asked again |
+|---|---|---|---|
+| `ok` | the image was fetched whole | `ok` | `held` |
+| `partial_tiles` | the image was fetched, a few tiles missing | `partial_tiles` | `held` |
+| `none_held` | the reader's `FetchLocator.none(reason)` | `failed` | `settled` |
+| `link_gone` | the reader raised `LinkGone` | `failed` | `settled` |
+| `unasked` | the reader raised `ImageSearchFailure`, or did not answer in time | `failed` | `next_pass` |
+| `faulted` | the reader raised anything else, or answered in a shape not allowed | `failed` | `next_load` |
+| `failed` | anything else: the fetch itself failed, an address was refused | `failed` | `schedule` |
+
+`held`: not a failure. `settled`: not again until Retry, or until the work's
+Wikidata item is another. `next_pass`: on the acquisition queue's next pass,
+never given up. `next_load`: once Arrt next starts and loads its plugins.
+`schedule`: after an hour, a day and three days, then given up until Retry.
 
 **A page that is not the page you expected is "could not be asked", never
 "holds nothing."** A site that answers HTTP 200 with "This site is unavailable"

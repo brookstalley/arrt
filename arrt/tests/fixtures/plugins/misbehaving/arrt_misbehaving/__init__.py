@@ -13,11 +13,13 @@ from dataclasses import dataclass, field
 from typing import Final, Protocol
 from urllib.parse import quote, urlsplit
 
+import arrt.library.sources
 from arrt.library.sources import (
     AcquisitionMethod,
     FetchLocator,
     FoundImage,
     ImageQuery,
+    ImageSearchFailure,
     RightsStatus,
     SourceClass,
     SourceContext,
@@ -25,9 +27,14 @@ from arrt.library.sources import (
     SourcePlugin,
 )
 
+#: How a plugin that must also load on an Arrt older than 1.6 takes `LinkGone`
+#: (`docs/source-plugins.md` § Answers): there, a dead link reads as could not be asked.
+LinkGone = getattr(arrt.library.sources, "LinkGone", ImageSearchFailure)
+
 MISBEHAVING_HOST: Final = "misbehaving.example.org"
 STEADY_HOST: Final = "steady.example.org"
 PATIENT_HOST: Final = "patient.example.org"
+GONE_HOST: Final = "gone.example.org"
 
 #: The finder deadline `misbehaving` declares. Not the host's default (60 s, the
 #: steady plugin's), so the test's clock can tell its calls from steady's by the
@@ -53,7 +60,8 @@ class Clock(Protocol):
 class Control:
     """What the test steers, and what it reads back."""
 
-    #: `answers`, `nothing`, `raises`, `hangs`, `wrong_type`, `oversized` or `not_a_list`.
+    #: `answers`, `nothing`, `raises`, `hangs`, `wrong_type`, `oversized`, `not_a_list`,
+    #: or `dead_link`: a dead link said the 1.5 way, as could-not-be-asked.
     mode: str = "answers"
     clock: Clock | None = None
     steady_holds: set[str] = field(default_factory=set)
@@ -67,6 +75,9 @@ class Control:
     returned: int = 0
     #: `misbehaving`'s reader calls.
     reads: int = 0
+    #: The titles whose every page `gone`'s finder says is gone; the rest it finds,
+    #: on pages its reader then says are gone.
+    gone_for: set[str] = field(default_factory=set)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def count(self, name: str) -> None:
@@ -145,6 +156,10 @@ class MisbehavingFinder:
                 return [FoundImage(**{**_fields(found), "title": "x" * 5_000})]
             if mode == "not_a_list":
                 return None
+            if mode == "dead_link":
+                # What a 1.5 plugin raises for a dead link: could not be asked.
+                message = "every page the item links at the gallery answered 404"
+                raise ImageSearchFailure(message)
             if query.title in CONTROL.misbehaving_holds:
                 return [_image("misbehaving", MISBEHAVING_HOST, query)]
             return []
@@ -193,6 +208,29 @@ class PatientFinder:
         return CONTROL.preview
 
 
+class GoneFinder:
+    """Says every linked page is gone for the titles in `CONTROL.gone_for`; finds the rest."""
+
+    @property
+    def provider(self) -> str:
+        return "gone"
+
+    def find_images(self, query: ImageQuery) -> Sequence[FoundImage]:
+        if query.title in CONTROL.gone_for:
+            message = "every page the item links at the Gone Archive answered 404"
+            raise LinkGone(message)
+        return [_image("gone", GONE_HOST, query)]
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        return CONTROL.preview
+
+
+class _GoneReader:
+    def read(self, url: str) -> FetchLocator:
+        message = f"{url} answered 410"
+        raise LinkGone(message)
+
+
 def _misbehaving(context: SourceContext) -> SourceParts:
     # Its reader raises: a fault, outside the interface, on every read.
     return SourceParts(finder=MisbehavingFinder(), reader=_Reader(raises=True))
@@ -211,6 +249,10 @@ def _overdue(context: SourceContext) -> SourceParts:
     raise AssertionError(message)
 
 
+def _gone(context: SourceContext) -> SourceParts:
+    return SourceParts(finder=GoneFinder(), reader=_GoneReader())
+
+
 MISBEHAVING: Final = SourcePlugin(
     api_major=1,
     api_minor=5,
@@ -226,3 +268,5 @@ PATIENT: Final = SourcePlugin(
 OVERDUE: Final = SourcePlugin(
     api_major=1, api_minor=5, create=_overdue, museum="Overdue Archive", deadlines={"finder": OVERDUE_FINDER_SECONDS}
 )
+GONE: Final = SourcePlugin(api_major=1, api_minor=6, create=_gone, claims=_on(GONE_HOST), museum="Gone Archive")
+NEWER: Final = SourcePlugin(api_major=1, api_minor=7, create=_overdue, museum="Newer Archive")

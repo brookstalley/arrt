@@ -202,6 +202,8 @@ class PhaseTwoEngine:
         the image the others lack, so the work is reported unreachable, as it is
         when no source answers, and is searched again later. Calling it
         unresolved would record a fact about the work that nobody observed.
+        A source that answered that the work's pages at it are gone (`LinkGone`)
+        did answer, holding nothing, and leaves nothing in doubt.
         """
         answer = self._sources.find_images(query)
         judged: list[JudgedImage] = []
@@ -228,6 +230,9 @@ class PhaseTwoEngine:
                 "instances_below_floor": sum(1 for entry in judged if entry.below_minimum),
                 "refused_at": sorted(str(reason) for reason in refusals),
                 "unreachable": list(answer.unreachable),
+                # Sources that answered their linked pages are gone (1.6): an
+                # answer holding nothing, so they settle the work, named apart.
+                "gone": list(answer.gone),
             },
         )
         return Resolution(instances=judged, refusals=frozenset(refusals), pages=answer.pages)

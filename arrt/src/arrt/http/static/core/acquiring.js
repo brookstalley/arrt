@@ -28,6 +28,15 @@ const PHASES = {
 //: retries (`library/acquisition/queue.py`, `GIVE_UP_AFTER`).
 const TRIES = 4;
 
+//: When a failed work whose fetch said one of these is tried again, by its
+//: outcome (`FetchOutcome`): the rules in `queue.RETRY_RULES` that are not the
+//: schedule. `SETTLED` are the outcomes a holder's answer settles.
+const AGAIN = {
+  unasked: "It is asked again on the queue's next pass.",
+  faulted: "It is asked again once Arrt next starts and loads its plugins.",
+};
+const SETTLED = new Set(["none_held", "link_gone"]);
+
 function when(iso) {
   return iso ? dated(iso) : null;
 }
@@ -45,7 +54,10 @@ export function acquisitionBadge(state) {
  * `cause: false` leaves out why a failed or given-up work failed, for a work
  * read under its cause on Queue, where the cause is the group's heading. */
 export function acquisitionSentence(state, { cause = true } = {}) {
-  const why = cause ? `: ${state.detail}` : ".";
+  // A recorded reason is acquisition's or a plugin's words, which often end
+  // without a full stop ("…: RuntimeError"); the next sentence follows one.
+  const detail = state.detail || "";
+  const why = cause ? `: ${/[.!?]$/.test(detail) ? detail : `${detail}.`}` : ".";
   switch (state.phase) {
     case "queued":
       return state.failures
@@ -54,8 +66,15 @@ export function acquisitionSentence(state, { cause = true } = {}) {
     case "fetching":
       return `Being fetched since ${when(state.since)}, then prepared for the wall. A tiled fetch can take up to half an hour.`;
     case "failed":
+      // What the fetch said decides when it is tried again (`queue.RETRY_RULES`):
+      // only the schedule has a moment and a count of tries; the others wait for
+      // the next pass or the next start, and are never given up.
+      if (AGAIN[state.outcome]) return `Try ${state.failures} failed${why} ${AGAIN[state.outcome]}`;
       return `Try ${state.failures} of ${TRIES} failed${why} It tries again at ${when(state.next_try_at)}.`;
     case "gave_up":
+      if (SETTLED.has(state.outcome)) {
+        return `Settled after ${counted(state.failures, "try", "tries")}${why} Nothing tries again until you retry, or until its Wikidata item changes.`;
+      }
       return `Gave up after ${counted(state.failures, "try", "tries")}${why} Nothing tries again until you retry.`;
     case "paused":
       return `Every fetch is paused: ${state.detail} ${state.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`;

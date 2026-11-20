@@ -11,11 +11,13 @@ instead would let one broken package, after an upgrade, take every wall's new ar
 with it, and the startup log already names what did load.
 
 **A fault in a loaded plugin is contained to the call.** A plugin is answering
-one of three things (holds nothing, could not be asked, cannot answer this kind of
-work), and anything else it does is a fault: raising something else, or answering
-in a shape the interface does not allow (an image recorded under another plugin's
-name, a `None` where a list belongs). A fault is recorded as "could not be asked"
-for that plugin, logged at error, and counted per plugin for the health panel.
+one of four things (holds nothing, could not be asked, cannot answer this kind of
+work, and since 1.6 the page is gone), and anything else it does is a fault:
+raising something else, or answering in a shape the interface does not allow (an
+image recorded under another plugin's name, a `None` where a list belongs). A
+fault is recorded as "could not be asked" for that plugin (a `PluginFaulted`,
+which acquisition alone tells apart, as `faulted`), logged at error, and counted
+per plugin for the health panel.
 Before plugins, a fault propagated and failed the run, which was right when every
 source was this repository's code and a fault was a bug the suite should see. The
 suites keep that strictness by failing any test that logs `source.plugin_fault`
@@ -66,6 +68,7 @@ from arrt.library.discovery.images import (
     ImageQuery,
     ImageQueryUnanswerable,
     ImageSearchFailure,
+    LinkGone,
     offers_images,
 )
 from arrt.library.sources.names import declare_museums, museum_name
@@ -309,6 +312,19 @@ class Route:
 
 class _InterfaceBreach(Exception):
     """A plugin answered in a shape the interface does not allow."""
+
+
+class PluginFaulted(ImageSearchFailure):
+    """A plugin's call ended outside its interface, and the containment says so in Arrt's words.
+
+    Not part of the interface: no plugin raises it, and `arrt.library.sources`
+    does not export it. A subclass of `ImageSearchFailure`, so every caller that
+    reads a plugin's call as answered or could-not-be-asked still reads a fault
+    as the second, as it always has; acquisition alone tells it apart, and
+    records the source's fetch as `faulted` rather than `unasked`
+    (`FetchOutcome`), because a fault is fixed by a new release of the plugin,
+    never by asking the holder again.
+    """
 
 
 class _DeadlinePassed(Exception):
@@ -588,7 +604,7 @@ def _past_deadline(plugin: str, operation: str, passed: _DeadlinePassed, tally: 
     return said
 
 
-def _scrubbed(exc: Exception, kind: type[Exception]) -> Exception:
+def _scrubbed[Failure: Exception](exc: Failure, kind: type[Failure]) -> Failure:
     """`exc` itself when its message carries no query string; else a `kind` saying the same without one.
 
     `_reraise_scrubbed`'s rule, for a failure raised later rather than now (`_Said`).
@@ -599,6 +615,21 @@ def _scrubbed(exc: Exception, kind: type[Exception]) -> Exception:
     replacement = kind(cleaned)
     replacement.__suppress_context__ = True
     return replacement
+
+
+def _heard_failure(exc: ImageSearchFailure, plugin: str, tally: _Tally) -> ImageSearchFailure:
+    """A finder's or reader's own `ImageSearchFailure`, counted, and scrubbed as it passes on.
+
+    `LinkGone` (1.6) is the holder's answer that the page is gone, so it counts
+    as answered and keeps its type; any other is "could not be asked". Each is
+    itself when its message carries no query string, else one of its kind
+    saying the same without one (`_scrubbed`).
+    """
+    if isinstance(exc, LinkGone):
+        tally.answered(plugin)
+        return _scrubbed(exc, LinkGone)
+    tally.unasked(plugin, str(exc))
+    return _scrubbed(exc, ImageSearchFailure)
 
 
 def _groups(answer: object) -> tuple[OfferedGroup, ...]:
@@ -663,13 +694,12 @@ class _ContainedFinder:
             self._calls.run("find_images", self._deadlines.finder, ask)
         except _DeadlinePassed as passed:
             failure: Exception = ImageSearchFailure(_past_deadline(self._plugin, "find_images", passed, self._tally))
-        # Two of the interface's three answers, passed on as themselves with their
-        # message scrubbed. Two clauses rather than one tuple, because the
-        # formatter writes a bare tuple in a form Python 3.12 cannot parse, and the
-        # root suite's guards parse this file under 3.12 (#166).
+        # The interface's answers that are not a list, passed on as themselves
+        # with their message scrubbed. One clause each rather than a tuple,
+        # because the formatter writes a bare tuple in a form Python 3.12 cannot
+        # parse, and the root suite's guards parse this file under 3.12 (#166).
         except ImageSearchFailure as exc:
-            self._tally.unasked(self._plugin, str(exc))
-            failure = _scrubbed(exc, ImageSearchFailure)
+            failure = _heard_failure(exc, self._plugin, self._tally)
         except ImageQueryUnanswerable as exc:
             self._tally.answered(self._plugin)
             failure = _scrubbed(exc, ImageQueryUnanswerable)
@@ -677,7 +707,7 @@ class _ContainedFinder:
             # Nothing it said is kept: a plugin answering outside its interface
             # has said nothing that can be trusted.
             self._tally.fault(self._plugin, "find_images", exc)
-            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+            raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
         else:
             self._tally.answered(self._plugin)
             return heard.so_far()
@@ -718,11 +748,14 @@ class _ContainedReader:
         except _DeadlinePassed as passed:
             raise ImageSearchFailure(_past_deadline(self._plugin, "read", passed, self._tally)) from None
         except ImageSearchFailure as exc:
-            self._tally.unasked(self._plugin, str(exc))
-            _reraise_scrubbed(exc, ImageSearchFailure)
+            # As `_reraise_scrubbed`: itself when clean, else its scrubbed twin `from None`.
+            heard = _heard_failure(exc, self._plugin, self._tally)
+            if heard is exc:
+                raise
+            raise heard from None
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
             self._tally.fault(self._plugin, "read", exc)
-            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+            raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
         self._tally.answered(self._plugin)
         return locator
 

@@ -29,6 +29,7 @@ import { GLYPHS } from "../core/glyphs.js";
 import { hold, heldFor, showHold } from "../core/holding.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
+import { OUTCOME_WORDS } from "../core/providers.js";
 import { go, link } from "../core/router.js";
 import { runKind, STATE_WORDS } from "../core/runs.js";
 import { tierMark } from "../core/spend.js";
@@ -203,6 +204,9 @@ function failurePanel(listing, causes, opened, generation) {
   const rows = causes.causes.map((group) => {
     const isOpen = opened && opened.cause === group.cause;
     const split = group.gave_up && group.failed ? ` (${group.failed} failed, ${group.gave_up} gave up)` : "";
+    // A cause that is what one plugin's fetches said is labelled by it and the
+    // museum, so "could not be asked at Tate" reads at a glance beside its sentence.
+    const said = group.outcome ? `${OUTCOME_WORDS[group.outcome] || group.outcome} · ${group.museum || group.plugin} · ` : "";
     return el("li", { class: "failure-cause" }, [
       el("div", { class: "failure-cause-head" }, [
         el("p", { class: "failure-cause-why" }, [
@@ -210,7 +214,7 @@ function failurePanel(listing, causes, opened, generation) {
           " ",
           el("span", { text: group.cause }),
         ]),
-        el("p", { class: "muted failure-cause-count", text: `${counted(group.works, "work")}${split}` }),
+        el("p", { class: "muted failure-cause-count", text: `${said}${counted(group.works, "work")}${split}` }),
         el("div", { class: "row" }, [
           link(
             { view: "queue", params: { ...params, cause: isOpen ? "" : group.cause, cause_offset: "" } },

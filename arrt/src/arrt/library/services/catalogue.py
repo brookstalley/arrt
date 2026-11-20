@@ -49,6 +49,7 @@ from arrt.persistence.records import (
     EventKind,
     EventPage,
     FacetDerivation,
+    FetchOutcome,
     FetchStatus,
     HistoryEvent,
     IdentitySetBy,
@@ -988,19 +989,28 @@ class CatalogueService:
             store_write(self._store.update_source, promoted)
         return promoted
 
-    def record_fetch(self, source_id: str, *, status: FetchStatus, at: datetime | None = None) -> Source:
+    def record_fetch(
+        self, source_id: str, *, status: FetchStatus, outcome: FetchOutcome | None = None, at: datetime | None = None
+    ) -> Source:
         """Record how the last fetch from this source went.
 
         `partial_tiles` is a normal dezoomify outcome rather than an error: a
         tile server dropping a few tiles still yields a usable master image.
+        `outcome` is what the fetch said, finer than `status`, and must be one
+        whose coarse status is `status`; `None` records none, and clears the
+        outcome of an earlier fetch, which says nothing about this one.
         """
         source = self._store.get_source(source_id)
         if source is None:
             raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+        status = require_member(status, enum=FetchStatus, field="status")
+        if outcome is not None and FetchOutcome(outcome).fetch_status is not status:
+            raise ValueError(f"A fetch whose outcome is {outcome} has status {FetchOutcome(outcome).fetch_status}, not {status}.")
         updated = replace(
             source,
-            last_fetch_status=require_member(status, enum=FetchStatus, field="status"),
+            last_fetch_status=status,
             last_fetched_at=at if at is not None else datetime.now(UTC),
+            last_fetch_outcome=None if outcome is None else FetchOutcome(outcome),
         )
         store_write(self._store.update_source, updated)
         return updated
