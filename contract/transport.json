@@ -1,5 +1,5 @@
 {
-  "_about": "What each route in routes.json answers, and what each answer means to a Player (player-contract.md § Transport, which this file states as data). One row per answer a Player may meet: its case name, its status, which body comes with it, what the server means by it, and what a Player does on meeting it. Arrt's suite drives a real server through every row (arrt/tests/contract/test_transport_table.py), so a row is what the server answers, not what it was meant to; Arrt Player's server double answers from these rows. A status a route answers that no row names is read by its class: any 5xx as unanswered, any other 4xx on a GET as a configuration error, and on a POST as the route's 400. body is one of: document (the route's schema, below), error (the error_body shape), framework (a body the server's web framework writes, not the error shape), media (the bytes a hash names), none.",
+  "_about": "What each route in routes.json answers, and what each answer means to a Player (player-contract.md § Transport, which this file states as data). One row per answer a Player may meet: its case name, its status, which body comes with it, what the server means by it, and what a Player does on meeting it. Arrt's suite drives a real server through every row (arrt/tests/contract/test_transport_table.py), so a row is what the server answers, not what it was meant to; Arrt Player's server double answers from these rows. A status a route answers that no row names is read by its class: any 5xx as unanswered, any other 4xx on a GET as a configuration error, and on a POST as the route's 400. body is one of: document (the route's schema, below), error (the error_body shape), framework (a body the server's web framework writes, not the error shape; no row answers it since 1.3.0), media (the bytes a hash names), none. A row whose answer changed within this major carries corrected: the version it changed in (in), what it answered before (was: its status and body) and why; contract/tests/test_transport.py lists each correction, so one is a decision, never a side effect.",
   "size_bounds": {
     "description": "A route's max_bytes is the largest document the server sends on it, in bytes of body. A Player may stop reading past it and treat the answer as unreadable, keeping what it has. The server's obligation, not yet a guard of its publisher: a client or label document is a few kilobytes, and a home wall's feed at the default three-minute rotation is about 1,440 slots of about 130 bytes for its three-day horizon plus about a kilobyte a work (reasoned from the fixtures' sizes, not measured on a household), so 16 MiB is reached only past 100,000 slots, a rotation of a few seconds. Media has no bound here: its length is the feed's bytes for that hash."
   },
@@ -207,10 +207,18 @@
         },
         {
           "case": "not_an_object",
-          "status": 422,
-          "body": "framework",
-          "means": "The body is not JSON, or JSON that is not an object. The server's web framework refuses it before the route reads it, in its own body ({\"detail\": [...]}) rather than the error shape, which the client heartbeat's route answers as 400. Nothing is recorded.",
-          "player": "As for 400."
+          "status": 400,
+          "body": "error",
+          "means": "The body is not JSON, or JSON that is not an object, as the client heartbeat's route answers it. Nothing is recorded.",
+          "player": "As for 400.",
+          "corrected": {
+            "in": "1.3.0",
+            "was": {
+              "status": 422,
+              "body": "framework"
+            },
+            "why": "Until 1.3.0 the server's web framework refused such a body before the route read it, with 422 in its own body ({\"detail\": [...]}), and this row recorded that as found. The route now reads the body itself and answers as the client heartbeat's route does. A Player reacted to the 422 as for 400, so nothing a Player does changes; a double replaying 1.2.0's row answers 422 where a 1.3.0 server answers 400."
+          }
         },
         {
           "case": "too_large",

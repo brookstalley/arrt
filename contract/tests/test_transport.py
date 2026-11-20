@@ -7,12 +7,15 @@ server's test and a Player's double are each iterating over something whole: a
 route with no answers would be a route both sides test by reading nothing.
 """
 
+from importlib.metadata import version
+
 import pytest
 
 from arrt_contract import routes, schema, specification, transport
 
 TABLE = transport()
 ROUTES = routes()
+ROWS = [(name, answer) for name, route in TABLE["routes"].items() for answer in route["answers"]]
 BODIES = {"document", "error", "framework", "media", "none"}
 
 
@@ -94,3 +97,47 @@ def test_an_error_body_is_one_key():
 def test_the_specification_points_at_the_table():
     """§ Transport says the table is the statement of its rules, so a reader of either finds the other."""
     assert "`contract/transport.json`" in specification().read_text(encoding="utf-8")
+
+
+#: Each row whose answer changed within this major, with the version it changed in.
+#: A correction changes what a Player's double replays, so it is a decision recorded
+#: here and in the row's `corrected`, never an edit that leaves no trace.
+CORRECTED = {("heartbeat", "not_an_object"): "1.3.0"}
+
+
+def _triple(spelling: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in spelling.split("."))
+
+
+def test_the_rows_that_say_they_were_corrected_are_the_corrections_this_file_lists():
+    said = {(name, answer["case"]): answer["corrected"]["in"] for name, answer in ROWS if "corrected" in answer}
+
+    assert said == CORRECTED
+
+
+@pytest.mark.parametrize(("name", "case"), sorted(CORRECTED))
+def test_a_corrected_row_says_what_it_answered_before_and_why(name, case):
+    answer = next(answer for answer in TABLE["routes"][name]["answers"] if answer["case"] == case)
+    corrected = answer["corrected"]
+
+    assert set(corrected) == {"in", "was", "why"}, corrected
+    assert _triple(corrected["in"]) <= _triple(version("arrt-contract")), corrected
+    assert isinstance(corrected["was"]["status"], int)
+    assert corrected["was"]["body"] in BODIES
+    assert (corrected["was"]["status"], corrected["was"]["body"]) != (answer["status"], answer["body"])
+    assert corrected["why"].strip()
+
+
+def test_no_route_answers_in_the_frameworks_body():
+    """Since 1.3.0 every refusal a Player may meet is in the error shape; `framework` stays a known kind for 1.2.0's rows."""
+    framework = [(name, answer["case"]) for name, answer in ROWS if answer["body"] == "framework"]
+
+    assert framework == []
+
+
+def test_both_heartbeat_routes_refuse_a_body_that_is_not_a_json_object_alike():
+    """The correction's point: the wall heartbeat answers as the client heartbeat does."""
+    wall = next(answer for answer in TABLE["routes"]["heartbeat"]["answers"] if answer["case"] == "not_an_object")
+    client = next(answer for answer in TABLE["routes"]["client_heartbeat"]["answers"] if answer["case"] == "not_json")
+
+    assert (wall["status"], wall["body"]) == (client["status"], client["body"]) == (400, "error")
