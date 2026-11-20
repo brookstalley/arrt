@@ -341,6 +341,14 @@ Appended while building, each in the plan's form, with its cost and the rulings 
 against, and as vetoable as the ones above. Where one changes a chunk's text, the chunk is
 left as planned and this section is the later word.
 
+- **2026-11-20, by the owner's ruling of the same day** (`.prawduct/owner-rulings.md`: CI is
+  kept small, tests run on the pool first, CI makes no paid call): (a) Chunk 29's fallback
+  does not run the real-Player suite on GitHub's runner; it leaves it out and says so by
+  name, as it does for the browser suite. (b) Chunk 56 is added: the image's test stage
+  stops building on GitHub's runner for every pull request. (c) No chunk of this plan adds a
+  step, a job or an install to a workflow that runs on GitHub's runner except to remove or
+  shorten one; a chunk that needs CI to do more gives the work to the pool.
+
 ## The items 2a carried forward, and where each went
 
 Collected from `landing-log.md` § Wave 2 (the `arrt W2` entries, the integration passes, the
@@ -1469,6 +1477,43 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   and the owned integration and unit files.
 - **Model:** Opus-class, high.
 - **Waits for:** 30, 32, 33, 35, 40, 45.
+
+### Chunk 56: The image's test stage leaves GitHub's runner for ordinary pull requests
+
+- **Type:** code
+- **Closes:** the owner's ruling of 2026-11-20 (CI is kept small); audit-8's note that the
+  image job is the largest per-pull-request cost on GitHub's runner (about seven minutes of
+  build and test, measured on pull request 446).
+- **Model:** Opus-class, medium: it changes what a pull request is checked by, and the
+  image's test stage has caught a defect the pool did not (four tests reading a
+  repository-root file the image does not carry, wave 1).
+- **Waits for:** 29 and 52 (one chunk at a time edits `.github/` and `.testament.toml`).
+- **Owns:** `.github/workflows/image.yml`, `.testament.toml` (one suite added, if the pool
+  can build), `arrt/Dockerfile` (comments only), `docs/testing.md` (the image paragraph),
+  `CLAUDE.md` (one line, if the command table changes), the root tests that read
+  `image.yml`.
+- **Deliverables:**
+  - Find out, by running it, whether a runner of the pool can build `arrt/Dockerfile`'s
+    `test` target and run it (the pool has runners labelled for Docker; read
+    `testament guide project` for a suite that runs in a container or needs a label). If it
+    can: a suite of its own on the pool runs the image's test stage, selected for every pull
+    request by the same step that runs the other suites, and its result is in the same
+    verdict. If it cannot: say exactly why, with the output, and keep the stage for pull
+    requests into `main` and for `workflow_dispatch`.
+  - `image.yml` runs on pull requests into `main` and by hand, not on every pull request;
+    the `player` job is unchanged.
+  - The guarantee the job gave is listed and kept: a test that reads a file outside what
+    the image carries fails before `develop`, not at the release. If the pool cannot hold
+    it, a cheap guard does (a root test that the image's build context contains every
+    repository-root file a test under `arrt/tests/` opens), shown red on wave 1's case.
+- **Acceptance:** on an ordinary pull request no job builds an image on GitHub's runner
+  (read from the workflows as data, by a root test); the wave-1 defect (a test reading
+  `.env.example` from the repository root with the file left out of the image) is caught
+  by whatever now holds the guarantee, shown red; the required check's name is unchanged;
+  what the first pull request should show is stated for the coordinator to compare.
+- **Verification ceiling:** the root tests that read the workflows, the governance suite
+  whole, `actionlint` if installed; the pool suite itself if one is added. No image is
+  built on this machine.
 
 ### Chunk 54: Records, and the change record
 
