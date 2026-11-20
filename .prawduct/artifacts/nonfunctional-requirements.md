@@ -932,8 +932,11 @@ search cap is for. A number a run can freely exceed is not an estimate.
 > answered without a cost or that was sent and never answered. **Every cost a person
 > reads is `SpendTotal.words`**, the server's `summary` shown as sent: Ask's reply,
 > General's allowance, each Watch and a Get's figure included. The words round down, to
-> the cent from a dollar up and to a hundredth of a cent below one, so a figure that some
-> screens said as "under $0.01" now reads, for example, "$0.0024". A figure the server
+> the cent from a dollar up, grouped by thousands ("$1,234.56"), and to a hundredth of a
+> cent below one, so a figure that some screens said as "under $0.01" now reads, for
+> example, "$0.0024". Something spent below a hundredth of a cent is never said as
+> nothing: it reads "under $0.0001", and beside calls whose cost is unknown "more than
+> $0.00, and N calls whose cost is unknown" (Chunk 66). A figure the server
 > sends bare (an estimate, a cap, what is left) goes through the client's one helper,
 > `dollars()` in `core/spend.js`; `arrt/tests/unit/test_one_cost_formatter.py` refuses a
 > dollar formatted in any other client module.
