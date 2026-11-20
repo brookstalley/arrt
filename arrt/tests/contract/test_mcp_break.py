@@ -1,4 +1,4 @@
-"""The MCP surface's one break (wave 2b, Chunk 45), and nothing else breaking with it.
+"""The MCP surface's one break, and nothing else breaking with it.
 
 `SNAPSHOT` is the surface as it stood before the break the owner allowed once
 (ruling 3 of 2026-11-19), recorded by `record()` from the registry and the
@@ -96,7 +96,7 @@ def record() -> None:
 #
 # Ruling 3 of 2026-11-19 allows the surface to break once: `work_id` becomes
 # `artwork_id` in wall answers and the acts on a wall are gathered in one tool.
-# Wave 2b's Chunk 45 made it, and these four tables are the whole of it. Anything
+# These four tables are the whole of it. Anything
 # the recording holds and these do not name must still be there, unchanged: a
 # second break, made by accident, fails below by tool, action and name. Adding
 # is not breaking (`api-contract.md` § Versioning), so an action, an optional
@@ -265,7 +265,7 @@ def test_a_second_break_fails_by_name():
 
 
 def test_no_answer_on_the_wall_tools_says_work_id():
-    """Acceptance 3 of Chunk 45, over every key every action of both tools can answer.
+    """No wall answer says `work_id`, over every key every action of both tools can answer.
 
     `art_display(action='status')`'s `reported` is the one exception, and it is
     not a key here: it is the Player's heartbeat document, passed on in the

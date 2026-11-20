@@ -520,7 +520,7 @@ class TestHanging:
         assert services.display.hanging_on(wall.id) is None
 
     def test_a_wall_whose_player_has_no_token_is_said_to_wait_in_the_servers_words(self, ui, winter, services):
-        """Chunk 66, through a theme's *Hang…*: nothing shows the wall until its Player is set up, so nobody sees it change."""
+        """Through a theme's *Hang…*: nothing shows the wall until its Player is set up, so nobody sees it change."""
         wall = services.display.survey_walls()[0].wall
         hall = services.clients.add_client(name="Hall Pi")
         services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")

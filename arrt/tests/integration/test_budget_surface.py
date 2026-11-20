@@ -64,7 +64,7 @@ def test_asking_carries_the_tier_of_its_bound(http, settings):
 
 
 def test_a_run_s_spend_counts_its_calls_whose_cost_is_unknown_apart(http, services):
-    """Chunk 35: the figure is what is known, the unknown calls are counted beside it, and the words say "at least"."""
+    """The figure is what is known, the unknown calls are counted beside it, and the words say "at least"."""
     run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.WEB_UI)
     services.discovery.record_spend(category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("0.0213"), discovery_run_id=run.id)
     services.discovery.record_spend(

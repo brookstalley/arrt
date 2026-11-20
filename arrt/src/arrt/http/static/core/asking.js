@@ -296,8 +296,8 @@ function turnView(asked, events) {
 /* What a reply cost, in the server's words (`summary`, `SpendTotal.words`,
  * the one writer of a cost): "at least $0.002, and 1 call whose cost is
  * unknown" when a step carried no cost, so it never reads as cheaper than it
- * was, and in the words the Spend page uses. None is formatted here (wave 2b,
- * Chunk 62); an end that carries no summary says so. */
+ * was, and in the words the Spend page uses. None is formatted here;
+ * an end that carries no summary says so. */
 export function costSentence(metadata) {
   const summary = metadata && typeof metadata.summary === "string" && metadata.summary ? metadata.summary : null;
   return summary ? `This reply cost ${summary}.` : "What this reply cost was not said.";

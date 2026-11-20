@@ -38,7 +38,7 @@ def _http_walls(server_url):
 
 
 #: Which of `test_surface_parity.WALL_RENAMES`' records each field is: MCP's wall
-#: answers say `artwork_id` where `/api/walls` says `work_id` (wave 2b, ruling 3).
+#: answers say `artwork_id` where `/api/walls` says `work_id` (ruling 3 of 2026-11-19).
 _RECORDS = {"last_shown": "LastShown", "upcoming": "Upcoming"}
 
 

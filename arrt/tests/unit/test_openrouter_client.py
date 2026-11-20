@@ -625,7 +625,7 @@ def test_spend_is_booked_to_the_model_asked_when_the_provider_does_not_say_which
 
 # -- a call that fails after it was sent ------------------------------------------
 #
-# The one failure that may have been billed (audit-2 S5): the provider had the
+# The one failure that may have been billed: the provider had the
 # whole request, and nothing came back saying what it cost. `CostUnknown` is what
 # a caller that records spend catches; every other failure costs nothing.
 

@@ -62,7 +62,7 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
         "last_unasked_age_seconds": None,
         "last_unasked": None,
         "answered": 0,
-        # Never searched: the search record holds nothing of it (Chunk 33).
+        # Never searched: the search record holds nothing of it.
         "searched": 0,
         "searches_answered": 0,
         "searches_unasked": 0,
@@ -88,6 +88,6 @@ async def test_the_tool_answers_what_the_route_answers(server_url):
     assert model["success"] is True
     assert model["interface_version"] == browser["interface_version"]
     # Every field alike, the counts since startup and the search record's
-    # included: the tool carries them since wave 2b's Chunk 53.
+    # included: the tool carries them.
     assert model["sources"] == browser["sources"]
     assert model["count"] == len(browser["sources"])

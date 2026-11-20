@@ -303,7 +303,7 @@ function scheduleRunPoll(runId, generation, { done }) {
  * the figure itself would say the Get cost less than the server knows it may
  * have. The Get's own figure is the run record's, said in the server's words
  * too (`RunOut.summary`, "at least" when one of its own calls never said what
- * it cost: wave 2b, Chunk 62), and alone only where the family has no unknown
+ * it cost), and alone only where the family has no unknown
  * call: otherwise the family's sentence stands for the whole. */
 function costWords(own, ownWords, family, finished) {
   const unknown = family ? family.unknown_cost_calls > 0 : false;

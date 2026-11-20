@@ -1,7 +1,7 @@
 """The type gate holds in the environment CI's fallback builds, not only on the pool.
 
-The fault this guards (2026-11-20, `build-plan-audit-wave-2b.md` Chunk 61): Chunk 50
-widened the type check to `tests/system` with `mypy_path = ["tests", "tools"]`, so mypy
+The fault this guards (seen 2026-11-20): the type check reads
+`tests/system` with `mypy_path = ["tests", "tools"]`, so mypy
 follows the system tests into `arrt/tools/ux_walk.py`, which imports `playwright.sync_api`
 under `TYPE_CHECKING`. The pool's `[setup]` syncs arrt's `browser` group, where Playwright
 is installed; the fallback's `FALLBACK_SETUP` (`.github/scripts/pool_or_fallback.py`) syncs

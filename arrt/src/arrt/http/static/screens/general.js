@@ -133,7 +133,7 @@ function picker(setting, fieldId) {
 /* What unattended work has spent this month against its allowance, whatever the standing:
  * the sentence above carries figures only when work may run or the allowance is spent.
  * What was spent is the server's words (`summary`, `SpendTotal.words`), "at least"
- * when a call's cost is unknown, never a figure formatted here (wave 2b, Chunk 62);
+ * when a call's cost is unknown, never a figure formatted here;
  * the allowance and what is left are figures, said through the one helper. */
 function spendWords(unattended) {
   return `Spent this month: ${unattended.summary}, of a ${dollars(unattended.allowance_usd)} allowance; ${dollars(unattended.remaining_usd)} left.`;

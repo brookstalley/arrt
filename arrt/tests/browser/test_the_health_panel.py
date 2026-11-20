@@ -78,7 +78,7 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
 def _on_a_player(services, *walls) -> None:
     """Put each wall on one of a reporting Player's screens, as Walls › Edit… does: only then is a report expected of it.
 
-    The Player has reported (Chunk 62): one that has not, or has no token, is
+    The Player has reported: one that has not, or has no token, is
     still being set up, and a wall it shows that has never reported waits for
     it rather than being called quiet (`test_a_wall_waiting_for_its_player_…`).
     """
@@ -122,8 +122,7 @@ def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, t
     expect(ui.view).to_contain_text("No Player shows a wall yet, so there is no report to read.", use_inner_text=True)
     expect(ui.view).not_to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
     # Its own panel says the step, in the contract's word, and the top bar says it as a step to take
-    # (the server's `setup_steps`, chunk 41), never as a wall gone quiet. It named nothing of the
-    # wall until then, and asserted the study's name was absent from it.
+    # (the server's `setup_steps`), never as a wall gone quiet.
     panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
     expect(panel.locator(".wall-state")).to_have_text(re.compile(r"No Player yet$"), use_inner_text=True)
     # Anchored on what the top bar does say of this deployment (no backup has run).
@@ -154,9 +153,9 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     # In the household's words (audit 2026-11-19, F5): a Player reports for a
-    # wall; "heartbeat" and "display" for the Player are retired. It read "No
-    # Player has ever reported for this wall." until audit wave 2b (chunk 31):
-    # that is still said of a wall a Player shows that has never reported
+    # wall; "heartbeat" and "display" for the Player are retired. "No Player
+    # has ever reported for this wall." is not said of a wall no Player shows:
+    # it is said of a wall a Player shows that has never reported
     # (`test_the_sidebar.py`), and a wall no Player shows has its own state.
     panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
     expect(panel.locator(".wall-state")).to_have_text(re.compile(r"^○\s*No Player yet$"), use_inner_text=True)
@@ -180,7 +179,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
 def test_a_player_being_set_up_that_shows_two_walls_reads_as_one_step_everywhere(
     ui, a_health_reading, a_wall_reading, player, state
 ):
-    """Chunk 62's acceptance on the screens: one step naming both walls, each wall's panel waiting, and no problem anywhere.
+    """On the screens: one step naming both walls, each wall's panel waiting, and no problem anywhere.
 
     Before, this household read three steps on the top bar ("System: 3 steps
     to finish") and each wall's panel read "▲ Not reporting" beside "Nothing

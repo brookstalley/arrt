@@ -366,7 +366,7 @@ function readings(health) {
 }
 
 /* The Player each wall waits for while that Player is being set up, as the
- * server states it (`waiting_for`, wave 2b Chunk 62): only walls that wait. */
+ * server states it (`waiting_for`): only walls that wait. */
 function waits(health) {
   const rows = Array.isArray(health.walls) ? health.walls : [];
   return new Map(rows.filter((reading) => reading.waiting_for).map((reading) => [reading.wall_id, reading.waiting_for]));
@@ -560,7 +560,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
  * carries the state as the server sent it, so it is legible to a test and to a
  * reader who cannot see the hue.
  *
- * A wall waiting for its Player (`waiting_for`, the server's, Chunk 62) is a
+ * A wall waiting for its Player (`waiting_for`, the server's) is a
  * setup step too: its badge is the Player's state in the contract's word, with
  * a setup step's mark, never its `silent`, as Status draws the wall's panel. */
 function stateBadge(wall, now, live, wait = null) {
@@ -1170,7 +1170,7 @@ function emptyTheme(wall, manifest) {
  * nothing is added here. When none of the theme reaches the wall either, that
  * sentence leads this one in the same notice rather than stacking a second.
  *
- * **A wall waiting for its Player is no notice** (`waiting_for`, Chunk 62): it
+ * **A wall waiting for its Player is no notice** (`waiting_for`): it
  * is a step of setting that Player up, so it is a muted line in the server's
  * words linking to the Player, as Status says it, and no fault's notice. */
 function notReported(wall, beat, shownBy, dark, wait = null) {

@@ -486,7 +486,7 @@ def test_a_run_s_report_reads_at_least_its_figure_with_the_calls_whose_cost_is_u
 
 
 def test_the_month_reads_at_least_its_figure_and_the_calls_whose_cost_is_unknown(services, runner):
-    """ "At least $X, and N calls whose cost is unknown" (Chunk 35, acceptance 3)."""
+    """ "At least $X, and N calls whose cost is unknown"."""
     july = datetime(2026, 7, 9, tzinfo=UTC)
     services.discovery.record_spend(category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("1.20"), at=july)
     services.discovery.record_spend(category=SpendCategory.ASK_TOKENS, cost_usd=Decimal("2.00"), at=july)

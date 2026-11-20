@@ -1,9 +1,8 @@
 """Hang… on any selection: Artworks, an Artist's works, the search results, a Topic.
 
 `information-architecture.md` § Flow 6 and § One selection model on every list:
-the IA gives *Hang…* to any set of works, and until `build-plan-audit-wave-2b.md`
-Chunk 34 only the Work page and a theme's page had it (audit 5, F9), so hanging
-an artist's works meant building a theme first.
+the IA gives *Hang…* to any set of works, so hanging an artist's works never
+means building a theme first.
 
 **The claim is the request.** Each test reads what the page sent to
 `POST /api/walls/<id>/selection` and what the server then holds on the wall:
@@ -251,7 +250,7 @@ def test_hang_waits_for_a_tick_and_asks_naming_the_works_and_the_wall(ui, servic
 
 @pytest.mark.parametrize("two_on", ["artworks"], indirect=True)
 def test_a_selection_hung_on_a_wall_whose_player_has_no_token_says_it_waits_and_hangs(ui, api, services, two_on):
-    """Chunk 66, through a list's *Hang…*: the server's words for the wait, not "Everyone in the house sees"; it still hangs."""
+    """Through a list's *Hang…*: the server's words for the wait, not "Everyone in the house sees"; it still hangs."""
     address, works = two_on
     wall = the_wall(services)
     hall = services.clients.add_client(name="Hall Pi")

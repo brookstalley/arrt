@@ -322,6 +322,18 @@ this pass. A run in which no source of images has answered by the window waits o
 for the first that does, never past the slowest deadline. A look waits behind a run
 asking your plugin, and asks it again once the run is done or has given up.
 
+**While your plugin owes one answer, it is not asked another question** (since wave
+2b; `OWED_CALLS_PER_PLUGIN`, 1, in `arrt/src/arrt/library/sources/loading.py`). A call
+the run stopped waiting for, still inside its deadline, is owed. While one is, neither
+a run nor a pass of the acquisition queue starts another call to your plugin: the work
+is not asked at your source, as a held-back pass leaves it (no search recorded, its
+queue row unchanged, nothing counted against your plugin), and a later pass asks it.
+So a slow museum is asked one owed question at a time, where a run going from work to
+work would otherwise start one per work. The journal says so
+(`event=image_pool.still_asking` for a run, `event=source.plugin_still_asking` within a
+pass, each with how many calls are owed). A look, a preview and Ask, which are neither
+a run nor a pass, make their call all the same.
+
 **Within one pass, a plugin that keeps answering "could not be asked" is not asked
 again until the next** (since wave 2b; `HOLD_BACK_AFTER`, 3, in
 `arrt/src/arrt/library/sources/loading.py`). A pass is the acquisition queue's over

@@ -17,9 +17,8 @@ due*, precisely so that absence over an interval is itself the fault. This is
 that idea applied to a workflow: a successful run is the positive signal, and its
 age is the thing measured.
 
-**One tier, the free probes, weekly.** There was a paid tier, monthly, until the
-owner's ruling of 2026-11-20 that CI makes no paid call took the paid probe out of
-CI altogether (wave 2b, Chunk 66): it is run by hand on a person's machine, and
+**One tier, the free probes, weekly.** The paid probe is not in CI, by the
+owner's ruling of 2026-11-20 that CI makes no paid call: it is run by hand on a person's machine, and
 nothing here can observe it. The tier is read from which *jobs* succeeded in each
 run, so a run whose free jobs failed or were skipped refreshes nothing.
 

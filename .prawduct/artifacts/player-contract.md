@@ -170,7 +170,10 @@ field asks for it as a change to the package.
 - **1.3.0** (audit wave 2b, 2026-11-20): **not cut yet**. `contract/pyproject.toml`
   says 1.3.0 and no `contract-v1.3.0` tag exists; the tag is cut on the merge
   commit after the 2b plan merges, and its frozen copy is written then with
-  `contract/tools/freeze_release.py`. Additive but for one corrected answer.
+  `contract/tools/freeze_release.py`. Additive but for two answers, each a bounded
+  exception recorded in `build-plan-audit-wave-2b.md` § Decisions made mid-build: one
+  corrected (the wall heartbeat's `not_an_object`, below) and one narrowed (the cap of
+  32 outputs and 32 label outputs, below).
   - `contract/vocabulary.json`, `vocabulary()`: `player_states`, a Player's five
     states as the server reads them, each with its `word`, `setup` and `means`:
     `no_token` "No token yet" and `awaiting_report` "Waiting for its first report"
@@ -195,6 +198,13 @@ field asks for it as a change to the package.
     schema=…)` (the default schema is unchanged): no two outputs share a name, nor
     two label outputs; and a report carries at most `MAX_OUTPUTS_PER_REPORT` (32)
     of each (§ Transport). Four fixtures break them; each passes the schema.
+    **The cap is the narrowed answer**: 1.2.0's schema bounds no list of outputs,
+    and a report of 33 outputs and 33 label outputs (5,533 bytes, inside the
+    routes' 256 KiB body) was valid under it; the server has refused one since
+    2026-11-19. A Player pinned to 1.2.0 that sent more would be refused whole by
+    a server it believes it conforms to. None does: a real Player drives two
+    screens and a handful of panels. The cap bounds the rows one report can make
+    the server keep (`arrt/src/arrt/programming/clients.py`).
   - `contract/released/1.2.0/` holds that release's `transport.json` and
     `vocabulary.json` as they are at the tag, and the package's suite holds HEAD
     to them (§ The package). `freeze_release.py`, `py.typed`, and `released()`'s

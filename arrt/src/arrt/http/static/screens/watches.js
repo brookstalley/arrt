@@ -123,7 +123,7 @@ function watchPanel(watch) {
       el("dd", {}, [capField(watch)]),
       el("dt", { text: "This month" }),
       // What its runs spent, in the server's words (`summary`, `SpendTotal.words`):
-      // "at least" when a call's cost is unknown (wave 2b, Chunk 62).
+      // "at least" when a call's cost is unknown.
       el("dd", { class: "watch-spend", text: `Spent ${watch.summary}, of ${dollars(watch.effective_cap_usd)}.` }),
       el("dt", { text: "Next" }),
       el("dd", { class: "watch-next" }, nextWords(watch)),

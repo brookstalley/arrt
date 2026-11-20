@@ -386,10 +386,10 @@ async def test_a_reply_the_client_abandons_records_what_it_spent_before_it_stopp
 
 
 async def test_a_reply_whose_calls_reported_no_cost_records_each_as_unknown_never_as_nothing():
-    """Chunk 62: a call answered with no cost on it may have been billed, so the ledger is told so.
+    """A call answered with no cost on it may have been billed, so the ledger is told so.
 
-    Until then this recorded nothing at all, and the month's total read those
-    calls as a known $0.
+    Recording nothing at all would make the month's total read those calls as
+    a known $0.
     """
     recorded: list[ReplyCost] = []
     ask = Ask(
@@ -500,7 +500,7 @@ async def test_a_cost_the_ledger_refuses_is_logged_and_the_reply_still_ends(capl
     assert any("ended=answered" in message for message in messages), "the reply's own log line was lost"
 
 
-# -- a call sent that never said what it cost (audit-2 S5) ---------------------------
+# -- a call sent that never said what it cost -----------------------------------------
 
 
 class CaughtMidCall(ScriptedModel):
@@ -633,7 +633,7 @@ def test_a_reply_with_only_an_unanswered_call_writes_no_zero_bill(services, disc
 
 
 def test_a_reply_with_no_billed_cost_and_no_unknown_call_writes_no_row(services, discovery_store):
-    """Chunk 66: nothing billed and nothing unknown is nothing to record, never a known $0 row in the month."""
+    """Nothing billed and nothing unknown is nothing to record, never a known $0 row in the month."""
     _record_ask_cost(
         services, ReplyCost(cost_usd=Decimal(0), model_id=ANSWERED_BY, input_tokens=0, output_tokens=0, unknown_calls=0)
     )

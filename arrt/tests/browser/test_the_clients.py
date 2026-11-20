@@ -181,8 +181,8 @@ def test_a_row_offers_only_edit_and_never_assigns_or_captions(ui, services, sett
 #: What each sidebar page paints only once it has its data, so a test that reads a
 #: page waits for it first. `#view h1` is not that: Artworks paints its heading in
 #: a loading state, and several pages paint it before their rows, so a test that
-#: waited for the heading and read the page read what had not arrived (audit wave
-#: 2b, C15). A page with nothing of its own in this state anchors on the empty
+#: waited for the heading and read the page read what had not arrived.
+#: A page with nothing of its own in this state anchors on the empty
 #: sentence it says instead. A sidebar page missing here fails the test below.
 PAINTED = {
     "collection": "#view ul.grid li[data-artwork]",
@@ -196,7 +196,7 @@ PAINTED = {
     "history": "#view .history-events li, #view .empty",
     "settings": "#view ul.settings-index li",
     "sources": "#view li.source-entry",
-    # System › Spend (chunk 36) is in the sidebar, and a page missing here fails the check below.
+    # System › Spend is in the sidebar, and a page missing here fails the check below.
     "spend": "#view .spend-month",
     "clients": "#view tr[data-player]",
     "watches": "#view .watches-standing",

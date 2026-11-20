@@ -102,7 +102,7 @@ def test_a_half_rounds_to_even_as_python_does():
 def screen_states(ages: list[float | None]) -> list[str]:
     """`screenState` for a Player whose report of each age lists hdmi-a-1 as connected.
 
-    Since audit wave 2b (chunk 31) the client judges no age itself: it reads the
+    The client judges no age itself: it reads the
     Player's state the server derives (`player_state.player_reading`, served by
     the clients route as `_player_state` serves it), so each age goes through the
     server's function and then the client's, which is the path a page takes.

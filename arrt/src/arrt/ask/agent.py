@@ -93,7 +93,7 @@ class ReplyCost:
     A call that reported no cost adds nothing to `cost_usd` and is one of
     `unknown_calls`: the provider answered it and never said what it cost, so it
     may have been billed, and the ledger records it as unknown, never as a
-    known $0 (wave 2b, Chunk 62).
+    known $0.
     """
 
     cost_usd: Decimal

@@ -280,7 +280,7 @@ class Scenes:
         The walls, the exclusions and each screen are read in one scope, and each
         wall from the one listing that decides which pins are on held walls: a
         wall deleted between that listing and a read of its own was asserted
-        present, and the answer was a fault (C2). Whether a wall's report says
+        present, and the answer was a fault. Whether a wall's report says
         the scene, and its screen, are from one read of that report and one
         survey of who shows what (`WallsReading`), never a read apiece.
         """
@@ -382,7 +382,7 @@ class Scenes:
         Every path that acts on a scene's pins takes them through here, so none
         meets the deleted wall in a way of its own. Each wall comes from the
         listing that decided it is held, never from a read of its own after it,
-        which a delete could land before (C2).
+        which a delete could land before.
         """
         held = {wall.id: wall for wall in self._store.list_walls()}
         return [(pin, held[pin.wall_id]) for pin in pins if pin.wall_id in held]

@@ -225,7 +225,7 @@ def test_a_test_root_no_suite_selects_is_named():
 IMAGE_WORKFLOW = REPO / ".github" / "workflows" / "image.yml"
 WORKFLOWS = REPO / ".github" / "workflows"
 
-# -- the image is built on GitHub's runner only for a release (build-plan-audit-wave-2b, Chunk 56) --
+# -- the image is built on GitHub's runner only for a release --------------------------------------
 #
 # The owner, 2026-11-20 (`.prawduct/owner-rulings.md`): CI is kept small, GitHub's minutes are
 # nearly spent. The image's test stage, about seven minutes of build per pull request, runs on a
@@ -353,7 +353,7 @@ def test_an_image_built_by_the_suites_workflow_is_refused(step):
 def check_the_image_triggers(workflow: dict) -> None:
     """Raise unless image.yml runs on a pull request into `main`, unfiltered by path, and by hand, and on nothing else.
 
-    Unfiltered by path because a release builds whatever it changes (audit-7 S4: two of the
+    Unfiltered by path because a release builds whatever it changes (two of the
     image's first three reds were tests, which no path filter on the image's inputs watched).
     """
     triggers = _triggers(workflow)
@@ -404,7 +404,7 @@ def test_the_required_check_and_the_browsers_mark_keep_their_names():
     assert (jobs["pool"]["name"], jobs["browser"]["name"]) == ("Lint, then every suite", "The browser suite ran on the pool")
 
 
-# -- the real-Player test: its own suite, and nowhere else (build-plan-audit-wave-2b, Chunk 29) --
+# -- the real-Player test: its own suite, and nowhere else ----------------------------------------
 #
 # What the old arrangement (deselected by the addopts, run unasked only by `image.yml`)
 # guaranteed without saying so, and what holds each now:
@@ -524,7 +524,7 @@ def test_the_curation_runs_header_quotes_the_manifests_player_suite():
     assert "-m player_e2e" in header.BY_HAND and str(header.TEST_MODULE.relative_to(ARRT)) in header.BY_HAND
 
 
-# -- the image's test stage, as a suite on the pool (build-plan-audit-wave-2b, Chunk 65) --------
+# -- the image's test stage, as a suite on the pool -----------------------------------------------
 #
 # `tests/the_image_test_stage.py` builds the stage on a runner's host. What holds it here, on
 # every pull request: it is the build `image.yml` makes; it is routed where that build can run;

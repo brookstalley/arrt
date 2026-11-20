@@ -3,7 +3,7 @@
 The owner's ruling of 2026-11-20 (`.prawduct/owner-rulings.md`, a hang can be started
 from Walls): a wall's Hanging line offers *Choose works* beside its themes, which opens
 Artworks selecting for that wall; the selection's *Hang…* then hangs there without asking
-which wall (`build-plan-audit-wave-2b.md` Chunk 57).
+which wall.
 
 **The claim is the request and what the server then holds**, as in
 `test_hanging_a_selection.py`: a page that named the right wall and sent the works to
@@ -334,7 +334,7 @@ def test_a_theme_filter_chosen_while_choosing_keeps_the_wall_and_the_hang_still_
 
 
 def test_a_theme_the_address_names_that_is_gone_says_so_and_the_page_is_still_choosing_for_the_wall(ui, walls, two_works):
-    """A bookmark outlives its theme: the note says so (Chunk 37), and Chunk 57's flow is not what it takes down.
+    """A bookmark outlives its theme: the note says so, and choosing works for the wall is not what it takes down.
 
     The Artworks listing refuses an unknown theme (400 or 404) and the page then asks again
     without it (`screens/collection.js`); that retry must drop the theme and nothing else, so
@@ -390,7 +390,7 @@ def test_a_hang_from_the_card_of_a_wall_whose_player_has_no_token_yet_is_recorde
     The wall's Player is chosen for it but has been issued no token, and has
     never reported: the hang is recorded and the card says what the wall hangs.
     The question says whom the wall waits for, as the health panel does, and
-    not that everyone in the house sees it change (Chunk 66).
+    not that everyone in the house sees it change.
     """
     _, study = walls
     waiting = services.clients.add_client(name="Study Pi")

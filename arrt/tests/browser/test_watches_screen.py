@@ -201,7 +201,7 @@ def _spent_with_one_unknown(services, *, initiated_by, watch_id=None):
 
 
 def test_what_a_watch_spent_is_the_servers_words_and_says_at_least_for_a_cost_unknown(ui, services):
-    """Chunk 62: the Watch's line shows its `summary` (`SpendTotal.words`), never `$${spent_usd}` formatted here.
+    """The Watch's line shows its `summary` (`SpendTotal.words`), never `$${spent_usd}` formatted here.
 
     Red before: the line read "$0.02 spent of $0.00." for a month with a call
     whose cost is unknown, a figure the server says is only a floor.
@@ -217,7 +217,7 @@ def test_what_a_watch_spent_is_the_servers_words_and_says_at_least_for_a_cost_un
 
 
 def test_what_unattended_work_spent_on_general_is_the_servers_words_and_says_at_least(ui, services):
-    """Chunk 62: General's spend line shows the allowance's `summary`, never `$${spent_usd}` formatted there."""
+    """General's spend line shows the allowance's `summary`, never `$${spent_usd}` formatted there."""
     said = _spent_with_one_unknown(services, initiated_by=InitiatedBy.UNATTENDED)
 
     ui.open("#general")

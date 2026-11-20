@@ -112,7 +112,7 @@ class Action:
     `retired` names arguments this action no longer takes, or never took under
     that name, each with what to send instead. A caller still sending one is
     refused with that sentence rather than with the bare "does not take": the
-    surface broke once (wave 2b, the owner's ruling 3 of 2026-11-19), and an
+    surface broke once (the owner's ruling 3 of 2026-11-19), and an
     agent or a household's script written before it learns the new form from
     the refusal itself. Never a shim: the call is refused, not translated.
     """

@@ -127,8 +127,8 @@ _LEFT_OUT = " and ".join(LEFT_OUT.values()) + (" suites" if len(LEFT_OUT) > 1 el
 #: image's test stage on a runner's host (`executor = "host"`), and the pool runs host work
 #: only for a run signed with its submitter's owner secret, which CI's key does not hold
 #: (`testament guide client`, "In CI"). Asked for anyway, it ends the whole run `failed`,
-#: `no_warrant`, exit 2, as a run with no owner secret was seen to on 2026-11-20
-#: (build-plan-audit-wave-2b, Chunk 65), and that would be a red required check on every
+#: `no_warrant`, exit 2, as a run with no owner secret was seen to on 2026-11-20,
+#: and that would be a red required check on every
 #: pull request. So `pool` asks the pool for every other suite by name (`pool_run_argv`),
 #: and the image suite runs in the full `testament run` from a machine doing the work,
 #: and in `image.yml` on a pull request into `main`.

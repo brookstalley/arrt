@@ -521,7 +521,7 @@ async def test_status_says_plainly_that_a_walls_player_has_never_reported(server
     two rooms the useful sentence is "the study has not reported", and one shared
     file could only ever have said that *something* had not. The wall is given a
     Player first: one with none is a step of setting up, never named as silent
-    (the next test). The Player holds a token and reports (wave 2b, Chunk 62):
+    (the next test). The Player holds a token and reports:
     one still being set up makes the wall wait for it, which is said as that.
     """
     [only] = services.display.survey_walls()

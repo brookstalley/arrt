@@ -1,7 +1,7 @@
-"""Programming reads what it decides from inside the scope that writes it (audit wave 2b, Chunk 48; C1, C2).
+"""Programming reads what it decides from inside the scope that writes it.
 
-Part 2a's split of `DisplayService` moved each method verbatim, and its builder
-listed the ones that checked the catalogue, then opened the transaction that
+When `DisplayService` was split, each method moved verbatim, and seven of them
+checked the catalogue, then opened the transaction that
 acts on the answer: a second act landing between the check and the write was
 decided against a catalogue that no longer stood. Requests run on a threadpool,
 so a second curator's tab, an agent or a Player's heartbeat is that second act.
@@ -125,7 +125,7 @@ def _beat_with_screen(width: int, height: int) -> dict:
 
 
 def _seven(display, ready_work, wall_id, on_a_display):
-    """Each of the seven methods C1 named, as a callable over a facade, set up through the services' own."""
+    """Each of the seven methods, as a callable over a facade, set up through the services' own."""
 
     def delete_theme(facade):
         theme = display.add_theme(name="Unhung")
@@ -173,7 +173,7 @@ def _seven(display, ready_work, wall_id, on_a_display):
     ["delete_theme", "exclude_work", "allow_work", "remove_from_theme", "make_default", "update_theme", "_record_screen"],
 )
 def test_each_of_the_seven_reads_inside_the_scope_that_writes(scoped, display, ready_work, wall_id, on_a_display, method):
-    """Acceptance 1 of Chunk 48: red on 2b's head for each method, naming the reads it made outside."""
+    """Each method reads inside its writing scope; red, naming the reads made outside, on a method that does not."""
     spy, facade = scoped
     act = _seven(display, ready_work, wall_id, on_a_display)[method](facade)
 
@@ -181,7 +181,7 @@ def test_each_of_the_seven_reads_inside_the_scope_that_writes(scoped, display, r
 
 
 def test_a_scenes_walls_are_read_in_one_scope(scoped, display, ready_work, wall_id):
-    """C2: `scene_walls` read with no read scope, so a wall deleted meanwhile was asserted present."""
+    """`scene_walls` once read with no read scope, so a wall deleted meanwhile was asserted present."""
     spy, facade = scoped
     work = ready_work("Pinned")
     theme = display.add_theme(name="Hung")
@@ -393,7 +393,7 @@ def two_walls_in_a_scene(display, ready_work, wall_id, hung_theme):
 def test_a_wall_deleted_while_a_scenes_walls_are_read_does_not_fail_the_read(
     display, store, wall_id, two_walls_in_a_scene, monkeypatch
 ):
-    """Acceptance 2 of Chunk 48 (C2): a wall deleted between `_pins_on_held_walls` and its read ended as a 500."""
+    """A wall deleted between `_pins_on_held_walls` and its read ended as a 500."""
     view, study = two_walls_in_a_scene
     finish = _another_act_at(monkeypatch, store, "list_walls", lambda: display.delete_wall(study))
 

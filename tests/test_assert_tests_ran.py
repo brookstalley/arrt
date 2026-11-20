@@ -530,7 +530,7 @@ _EARNED = [
 #: What a fallback leaves out, as `pool_or_fallback.fallback_plan` words it for the manifest:
 #: the browser suite for want of Chrome, the real-Player suite by the owner's ruling of
 #: 2026-11-20. Named `_EXCUSED` before the real-Player suite joined it. The image suite,
-#: which CI never runs in either mode, in the driver's own words (`NOT_CI`, Chunk 65).
+#: which CI never runs in either mode, in the driver's own words (`NOT_CI`).
 _NOT_CI = _load()._decider().NOT_CI
 _EXCUSED = {
     "browser": "needs a runner labelled chrome, which only the pool has",

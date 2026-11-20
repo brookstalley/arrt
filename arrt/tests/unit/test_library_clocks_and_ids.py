@@ -14,8 +14,7 @@ back from the store, and must carry:
   one moment, so a second reading inside one act is the defect this refuses.
 
 Built from `store` and `discovery_store` directly rather than through the
-container, because the container is what must not change (build-plan-audit-wave-2b,
-Chunk 43).
+container, because the container is what must not change.
 """
 
 import dataclasses

@@ -26,7 +26,7 @@ NOW = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
 MUSEUM = "Museum APIs (free)"
 BINARY = "dezoomify-rs (free)"
-#: The paid probe's job, which `api-drift.yml` no longer has (wave 2b, Chunk 66): the
+#: The paid probe's job, which `api-drift.yml` no longer has: the
 #: runs GitHub lists still hold it, from before.
 GONE = "OpenRouter (spends money)"
 
@@ -77,8 +77,8 @@ def test_a_free_tier_that_has_never_run_fails(capsys):
 def test_the_free_tier_going_quiet_is_caught_though_a_later_run_held_the_paid_job(capsys):
     """A recent run is not a fresh tier: only a free job's success refreshes it.
 
-    The runs GitHub lists still hold the paid job from before Chunk 66 took it out
-    of CI (the owner's ruling of 2026-11-20, CI makes no paid call). Its success
+    The runs GitHub lists still hold the paid job from before it left
+    CI (the owner's ruling of 2026-11-20, CI makes no paid call). Its success
     three days ago says nothing about the weekly probes, and three Mondays have
     passed with nothing. Nor is the paid tier reported: CI no longer observes it.
     """
@@ -150,7 +150,7 @@ def test_the_thresholds_match_the_cadences_they_are_derived_from():
     workflow = (SCRIPT.parents[2] / ".github" / "workflows" / "api-drift.yml").read_text(encoding="utf-8")
 
     assert 'cron: "17 6 * * 1"' in workflow, "the free tier is no longer weekly — revisit STALE_AFTER['free']"
-    # Chunk 66: the paid tier left CI altogether, so the free tier is the one tier.
+    # The paid tier left CI altogether, so the free tier is the one tier.
     assert workflow.count("cron:") == 1, "a second schedule: say which tier it runs, and give it a threshold"
     assert set(guard.STALE_AFTER) == set(guard.TIER_JOBS) == {"free"}
 

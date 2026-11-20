@@ -150,9 +150,9 @@ def test_a_get_shows_the_model_s_reading_of_the_request_only_in_debug(ui):
 def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_reading, a_wall_reading):
     """The failure rows `observability-strategy.md` gives Status a reader for are not engineering detail.
 
-    Rewritten in audit wave 2b (chunk 31). It asserted "Television: Not
-    reachable" and "Label panel: Not working", read from `television_reachable`
-    and `label_surface_working`, which the contract marks superseded (1.2.0):
+    Not "Television: Not reachable" or "Label panel: Not working", read from
+    `television_reachable` and `label_surface_working`, which the contract marks
+    superseded (1.2.0):
     the screen's state is now the wall's display state as the server states it
     (a Player that names no work and says nothing of its screen is `unreachable`,
     "Not known"), and a label panel is an output of its Player, said with the
@@ -184,9 +184,8 @@ def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_read
 def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wall_reading):
     """The screen's state is the display state, never the superseded `television_showing_art` beside it.
 
-    Acceptance 4 of audit wave 2b's chunk 31: a heartbeat claiming the
-    television shows art, with `display_state: dark`, reads "Screen off". It
-    asserted "Television: Showing art" from that superseded field until then.
+    A heartbeat claiming the television shows art, with `display_state: dark`,
+    reads "Screen off", never "Television: Showing art" from that superseded field.
     """
     wall = a_wall_reading(
         reported={

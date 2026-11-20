@@ -96,7 +96,7 @@ def shown_by_a_reporting_player(shown_by_a_player, services, settings):
     """`shown_by_a_player`, past its setup: the Player holds a token and has just reported each screen.
 
     A wall whose Player is still being set up (no token, or no report yet) is a
-    step of that Player's setup and never a trouble (Chunk 60), so a test about
+    step of that Player's setup and never a trouble, so a test about
     a wall that has not reported puts it on a Player that is reporting.
     """
 
@@ -498,7 +498,7 @@ class TestHealth:
     ):
         """The sentence a two-room installation is actually read for.
 
-        On a Player that reports (Chunk 62): a wall whose Player has no token
+        On a Player that reports: a wall whose Player has no token
         yet waits for it, and is said to, never named as not having reported.
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
@@ -589,7 +589,7 @@ class TestHealth:
     def test_a_wall_with_no_player_is_left_out_of_the_count_of_walls_a_player_shows(
         self, http, settings, wall, shown_by_a_reporting_player
     ):
-        # On a Player that reports: one with no token yet makes its walls wait (Chunk 62).
+        # On a Player that reports: one with no token yet makes its walls wait.
         second = http.post("/api/walls", json={"name": "The study"}).json()
         third = http.post("/api/walls", json={"name": "The landing"}).json()
         shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
@@ -724,8 +724,8 @@ class TestHealth:
         """The step is gone once taken: the wall is on a Player, whose own step (no token yet) takes its place.
 
         The wall, which has not reported because its Player cannot yet, waits
-        for that Player (Chunk 60), and is named by the Player's one step
-        (Chunk 62), never a step of its own: no longer "has no Player yet".
+        for that Player, and is named by the Player's one step,
+        never a step of its own: no longer "has no Player yet".
         """
         player = shown_by_a_player(wall["wall_id"])
 
@@ -754,7 +754,7 @@ class TestHealth:
     def test_a_player_being_set_up_that_shows_two_walls_is_one_step_naming_both(
         self, http, wall, shown_by_a_player, token, step, waits
     ):
-        """Chunk 62's acceptance: one cause, one step, linked to the Player; each wall says it waits, and nothing is a trouble.
+        """One cause, one step, linked to the Player; each wall says it waits, and nothing is a trouble.
 
         Before, this household read three steps (each wall's, then the
         Player's), and each wall's panel read "Not reporting" beside "Nothing
@@ -881,7 +881,7 @@ class TestHealth:
         ]
 
     def test_a_wall_waiting_for_its_player_can_still_be_hung(self, http, wall, shown_by_a_player):
-        """How a waiting wall is said changed (Chunk 62); what it allows did not: a theme hangs on it, and it still waits."""
+        """A waiting wall is said as waiting, and allows what any wall does: a theme hangs on it, and it still waits."""
         player = shown_by_a_player(wall["wall_id"])
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
 
@@ -1035,7 +1035,7 @@ class TestHealth:
         # (audit 2026-11-19): each Player's state, the queue's failed works, and
         # the faults among every reading here, which the top bar counts.
         # `setup_steps` is what remains to be set up, which it states and never
-        # counts (audit wave 2b): a step, never a verdict.
+        # counts: a step, never a verdict.
         assert set(http.get("/api/health").json()) == {
             "walls",
             "description",

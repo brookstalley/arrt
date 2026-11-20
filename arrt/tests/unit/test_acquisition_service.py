@@ -1216,7 +1216,7 @@ class TestResolvingTheTileTargetBeforeFetching:
         assert not argv_log.exists()
 
 
-# -- what a fetch said, kept beside the coarse status (wave 2b, Chunk 32) --------------
+# -- what a fetch said, kept beside the coarse status ----------------------------------
 
 #: v0.11.0's `FetchStatus`, frozen here as that release shipped it: what an older
 #: release reads `last_fetch_status` with (`FetchStatus(value)`, which refuses
@@ -1377,8 +1377,8 @@ def test_no_remedy_a_household_page_shows_names_a_setting(condition):
     Read as those surfaces read it, through a paused work's state, and driven
     from `DEPLOYMENT_REMEDIES` itself so a remedy added later is held too. A
     setting is an upper-case word with an underscore, or the `.env` file: the
-    setup notes' and the journal's, not the household's (audit-6 finding 8, the
-    owner's ruling of 2026-10-11).
+    setup notes' and the journal's, not the household's (the owner's ruling of
+    2026-10-11).
     """
     remedy = AcquisitionState("w-1", AcquisitionPhase.PAUSED, condition=condition).remedy
 

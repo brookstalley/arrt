@@ -108,7 +108,7 @@ _EXPECTED_SCHEMA = {
         "cost_usd",
         "occurred_at",
         # Widened 2026-11-19: whether cost_usd is the provider's figure or a
-        # call sent that never said (audit-wave-2b Chunk 35).
+        # call sent that never said.
         "cost_status",
     },
     "affinities": {
@@ -124,8 +124,7 @@ _EXPECTED_SCHEMA = {
         "updated_at",
     },
     "settings": {"key", "value", "updated_at", "updated_by"},
-    # Added 2026-11-20: the newest search of each work at each source (audit-wave-2b
-    # Chunk 33). A new table, so growth within the shape generation.
+    # Added 2026-11-20: the newest search of each work at each source. A new table, so growth within the shape generation.
     "source_searches": {
         "candidate_work_id",
         "provider",
@@ -207,8 +206,8 @@ def _tables_made_by(schema: str) -> set[str]:
 def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
     """Every table `DISCOVERY_SCHEMA` makes is pinned, column for column, and none is pinned that the file lacks.
 
-    **Exact, in the form `test_catalogue_store.py` took on 2026-11-19 (audit-wave-2b
-    Chunk 49).** Which tables are the pipeline's is asked of SQLite running
+    **Exact, in the form `test_catalogue_store.py` took on 2026-11-19.** Which tables are the pipeline's is
+    asked of SQLite running
     `DISCOVERY_SCHEMA`, never listed here, and the file a store opened is what
     holds them. It was `_EXPECTED_SCHEMA.keys() <= tables` until 2026-11-20, which
     passed two tables nobody had listed (`affinities`, `settings`), so a table could
@@ -522,7 +521,7 @@ def _without_cost_status(path) -> None:
 
 
 def test_a_row_written_before_the_column_existed_reads_as_known(tmp_path):
-    """Chunk 35, acceptance 4: the widening's default is what an older row is, and it held the provider's figure."""
+    """The widening's default is what an older row is, and it held the provider's figure."""
     path = tmp_path / "catalogue.sqlite"
     open_catalogue_file(path).close()
     _without_cost_status(path)
@@ -550,7 +549,7 @@ def test_a_row_written_before_the_column_existed_reads_as_known(tmp_path):
 
 
 def test_a_row_whose_cost_is_unknown_sums_as_nothing_to_a_reader_that_ignores_the_column(tmp_path):
-    """Chunk 35, acceptance 5: what v0.11.0 makes of such a row, which reads every column but this one.
+    """What v0.11.0 makes of such a row, which reads every column but this one.
 
     With the column gone and the file reopened, the row is what a release that
     never heard of it sees: a known cost of $0, which is what such a release

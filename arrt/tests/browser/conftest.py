@@ -230,7 +230,7 @@ def a_player_shows(services):
     A Player chosen with no token, or with no report yet, is still being set up
     (`player_state.py`), and the walls it shows wait for it
     (`services.health.walls_waiting`): the question before a hang says so, never
-    that everyone sees them change (wave 2b, Chunk 66). A test of a wall a
+    that everyone sees them change. A test of a wall a
     Player shows makes it shown through the server's own routes, so the wall is
     one `walls_waiting` does not name. `player` puts a second wall on the same one.
     """

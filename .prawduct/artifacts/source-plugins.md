@@ -219,7 +219,10 @@ waited behind it. A call past its deadline is recorded against the plugin beside
 its faults (`source.plugin_deadline`) and is not a fault. Python cannot stop the
 call, so it runs on, on a daemon thread: its answer, when it comes, is discarded
 (`source.plugin_late`), and at most four such calls per plugin run at once,
-after which a new call is "could not be asked" without being made. The pool has
+after which a new call is "could not be asked" without being made. Since wave 2b a
+run answers at its window and a call still inside its deadline is owed; while a plugin
+owes one, no run or pass starts another there (`OWED_CALLS_PER_PLUGIN`,
+`docs/source-plugins.md` § Deadlines). The pool has
 a backstop of its own, a source's deadline and five seconds, for a finder handed
 to it unwrapped. *The defaults are a plan decision (audit wave 1, 2026-11-19, vetoable by the
 owner). A plugin that reads through a browser cannot keep them: its pages

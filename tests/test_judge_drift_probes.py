@@ -379,7 +379,7 @@ def test_the_free_probe_jobs_record_pytests_exit_and_let_the_judge_decide(drift,
 
 
 def test_every_drift_job_is_a_free_probe_the_judge_decides(drift):
-    """The two free jobs are the workflow's every job (wave 2b, Chunk 66).
+    """The two free jobs are the workflow's every job.
 
     The paid OpenRouter job, which this file once held to have no judge (its
     probes skip for want of a key, which no row excuses), left CI by the owner's

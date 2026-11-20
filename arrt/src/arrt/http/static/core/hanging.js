@@ -44,8 +44,8 @@ function names(walls) {
  * Player at all). Shared with `core/selection.js`, so a selection hung on a
  * wall says it in the same words.
  *
- * **A wall waiting for its Player is neither** (`waiting_for`, the server's,
- * wave 2b Chunk 66): a Player is chosen for it, so its display state is not
+ * **A wall waiting for its Player is neither** (`waiting_for`, the server's):
+ * a Player is chosen for it, so its display state is not
  * `unassigned`, but that Player is still being set up and shows nothing yet.
  * It is said in the server's own words, the ones its card and the health panel
  * say, never in words composed here; hanging on it is still allowed. */

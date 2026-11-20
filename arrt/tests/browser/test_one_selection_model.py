@@ -105,7 +105,7 @@ def a_topic_held(services, service):
     services.topic_sweep.run()
 
 
-#: *Hang…* is among them since Chunk 34 of `build-plan-audit-wave-2b.md`: the IA gives it to any
+#: *Hang…* is among them: the IA gives it to any
 #: selection (`test_hanging_a_selection.py` holds what it sends).
 HELD_ACTS = ["button.selection-hang", "button.selection-add", "button.selection-archive"]
 GET_ACTS = ["button.get-open"]

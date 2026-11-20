@@ -51,9 +51,8 @@ def test_status_says_when_a_wall_was_last_heard_from_once(ui, a_health_reading):
     expect(panel.locator(".reading-sentence")).to_have_text(re.compile("^" + re.escape("Last heard from ")), use_inner_text=True)
     # After the panel's sentence, which is what shows the page is drawn.
     expect(ui.view).not_to_contain_text("display plane", use_inner_text=True)
-    # The server's summary for these walls, whatever it says: the fixture's
-    # hand-written "Every wall has reported." until audit wave 2b (chunk 31)
-    # derived it through `HealthReading.describe`.
+    # The server's summary for these walls, whatever it says, as
+    # `HealthReading.describe` derives it, never a sentence written here.
     expect(ui.view, "with one wall the summary is its panel said twice").not_to_contain_text(
         reading["description"], use_inner_text=True
     )

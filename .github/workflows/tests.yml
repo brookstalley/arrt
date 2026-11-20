@@ -12,7 +12,7 @@
 #   host): host work needs a run signed with an owner secret, which CI's key does not hold,
 #   and asking for it would end every run red. The driver adds `--suite` for every other
 #   declared suite (`NOT_CI`, `pool_run_argv`), the skip guard excuses it by name, and the
-#   summary says so (build-plan-audit-wave-2b, Chunk 65; `tests/test_ci_fallback.py`).
+#   summary says so (`tests/test_ci_fallback.py`).
 # - The type check runs there too, once per change: the governance suite's
 #   `tests/preferences/test_type_gate.py` runs mypy in `arrt/` and `contract/` with each
 #   project's own configuration. Lint here installs only ruff and black.
@@ -56,7 +56,7 @@
 # - Not on a push to `main` or `develop`: the pull request already ran this on the tree it
 #   merges. The drift-freshness check, which only makes sense on `main`, has its own file.
 # - The server image's test target is `image.yml`, and runs only on a pull request into
-#   `main` and by hand: this workflow builds no image (build-plan-audit-wave-2b, Chunk 56).
+#   `main` and by hand: this workflow builds no image.
 #   What the image caught that nothing else did, a test reading a file the image does not
 #   carry, is the governance suite's `tests/test_the_image_carries_what_tests_read.py`, so
 #   it runs here, on the pool, on every pull request.
@@ -178,7 +178,7 @@ jobs:
         # ran and the reports they wrote, and fails on any skip that is not an expected
         # failure, on a suite that ran nothing, and on a fallback the record does not earn.
         # It does not fail on a failed test: after a fallback it passes over a report that
-        # holds one (seen when Chunk 52 was integrated). What turns the job red then is the
+        # holds one. What turns the job red then is the
         # fallback step's own exit code, so no fallback step, nor the pool step nor this one,
         # may carry `continue-on-error` or swallow its code (`tests/test_ci_fallback.py`).
         if: always()

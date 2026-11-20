@@ -19,7 +19,7 @@ nobody wrote down, so what it must not change is held here:
 - every module says its lines under `arrt.programming.display`, the logger the
   journal's readers filter on.
 
-On 2026-11-20 (audit wave 2b, Chunk 48) the existence-checking lookups left
+On 2026-11-20 the existence-checking lookups left
 `FeedPublisher` for a home of their own (`Lookups`, `lookups.py`), every
 collaborator and the facade calling the one instance the facade builds, and
 `DisplaySettings` left `display.py` for `settings.py`. What the lookups guaranteed
@@ -127,9 +127,9 @@ BEFORE = {
     "work_ids_on_walls": "(self) -> 'frozenset[str]'",
 }
 
-#: Public methods the facade gained after chunk 21's base, each a delegation
-#: like the rest, so `BEFORE` stays the record of what the move had to keep.
-#: Wave 2b's walls fix: one reading of the reports and placements per walls
+#: Public methods the facade gained after the base `BEFORE` records, each a
+#: delegation like the rest, so `BEFORE` stays the record of what the move had to
+#: keep. The walls answers' one reading of the reports and placements per walls
 #: answer, with the views (`read_walls`) and without them, for the health
 #: answer (`read_wall_reports`), and a wall's sizes judged by the row that
 #: reading read (`judge_sizes_of`).
@@ -141,7 +141,7 @@ ADDED = {
 
 #: Every public module-level name `display.py` had on chunk 21's base, by the
 #: module it lives in now. `DisplayService` stayed; `DisplaySettings` moved to
-#: `settings.py` in 2b's Chunk 48.
+#: `settings.py`.
 IMPORTED_FROM_DISPLAY = {
     display_module: ["DisplayService"],
     settings_module: ["DisplaySettings"],
@@ -216,7 +216,7 @@ def test_one_store_and_one_publisher_under_every_collaborator(display, store):
     """One act is one transaction and one set of staged feeds only while every collaborator shares them.
 
     The store is found through the collaborators: the facade keeps none of its
-    own since 2b's Chunk 48, so it is the one the services were bound with.
+    own, so it is the one the services were bound with.
     """
     for attribute in COLLABORATORS:
         collaborator = getattr(display, attribute)
@@ -231,7 +231,7 @@ def test_one_store_and_one_publisher_under_every_collaborator(display, store):
 
 
 def test_the_facade_keeps_no_store_library_or_settings_of_its_own(display):
-    """C19: it set `_store`, `_library` and `_settings` and read none; what it holds now is its collaborators."""
+    """It once set `_store`, `_library` and `_settings` and read none; what it holds now is its collaborators."""
     assert set(vars(display)) == set(COLLABORATORS)
 
 
@@ -330,7 +330,7 @@ def test_a_line_from_each_collaborator_reaches_the_journal_under_the_display_log
     }
 
 
-# -- the lookups' one home (Chunk 48, C9) ---------------------------------------------------
+# -- the lookups' one home ------------------------------------------------------------------
 
 #: The existence-checking lookups, which `Lookups` alone defines.
 LOOKUPS = ("get_wall", "get_theme", "require_hanging", "current_draft")
@@ -373,7 +373,7 @@ def _sources():
 
 
 def test_no_collaborator_but_the_lookups_defines_a_wall_or_theme_lookup():
-    """Acceptance 3 of Chunk 48: one home, so a change to what a lookup raises (Chunk 37) is made once."""
+    """One home, so a change to what a lookup raises is made once."""
     assert _lookups_defined_outside(_sources()) == []
     assert {name for name in LOOKUPS if callable(getattr(Lookups, name, None))} == set(LOOKUPS)
 
@@ -396,7 +396,7 @@ def test_a_lookup_planted_in_a_collaborator_is_found():
 def test_the_refusals_are_the_lookups_sentences_word_for_word(services, display, wall_id):
     """Implicit guarantee: the sentences a person and an agent read, and the error class each is raised as.
 
-    A wall or theme that is not there is `NotFound` (Chunk 37: 404 on `/api`, a
+    A wall or theme that is not there is `NotFound` (404 on `/api`, a
     `ServiceError` to everything else); a wall with nothing hanging is a plain
     `ServiceError`, because the wall is there.
     """
@@ -480,6 +480,6 @@ def test_a_lookup_replaced_on_the_facade_reaches_every_collaborator(display, rea
 
 
 def test_display_settings_is_one_class_imported_from_either_module():
-    """Acceptance 4 of Chunk 48: moved, and re-exported as the same object, so `__main__` and the container still build it."""
+    """Moved, and re-exported as the same object, so `__main__` and the container still build it."""
     assert display_module.DisplaySettings is settings_module.DisplaySettings
     assert settings_module.DisplaySettings.__module__ == "arrt.programming.settings"

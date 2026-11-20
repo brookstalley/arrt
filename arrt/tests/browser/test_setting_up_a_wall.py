@@ -445,7 +445,7 @@ def test_hanging_a_work_promises_the_house_sees_it_only_where_a_player_shows_the
     "Everyone in the house sees {wall} change" is true of a wall a Player shows,
     and of nothing else: with no Player, the question says nothing shows it yet;
     with a Player that has no token yet, it says the wall waits for it, in the
-    server's words (Chunk 66). The Player that shows it has its token and has reported.
+    server's words. The Player that shows it has its token and has reported.
     """
     work = work_with_an_image("Automat")
     if shown is True:

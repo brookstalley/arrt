@@ -1,4 +1,4 @@
-"""Months of spending, read through the service the Spend page and any twin of it use (Chunk 36).
+"""Months of spending, read through the service the Spend page and any twin of it use.
 
 Each answer is compared with the service's own figure for the same month
 (`month_spend`) and its own words (`SpendTotal.words`), never with arithmetic

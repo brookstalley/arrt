@@ -879,7 +879,7 @@ def _artic_declined() -> SourceRoster:
     return SourceRoster.of(unavailable={"artic": (artic_claims, "ARTIC_USER_AGENT is unset")})
 
 
-# -- the queue: Activity › Queue's twins (wave 2b, Chunk 53) ----------------------------------
+# -- the queue: Activity › Queue's twins -----------------------------------------------------
 
 
 def _failing(services, store, count: int, detail: str) -> list[str]:
@@ -1025,9 +1025,9 @@ async def test_retrying_one_cause_leaves_the_other_causes_works_exactly_as_they_
 async def test_a_missing_thing_is_refused_in_the_services_words_as_the_route_refuses_it(server_url, tool, arguments, path):
     """The binding passes the service's refusal through and writes none of its own (`server.dispatch`).
 
-    The status the route answers is not asserted: "not found" is to become its
-    own status in one place (`programming/lookups.py`, wave 2b's Chunk 37), and
-    what this holds is the sentence, which both surfaces take from the service.
+    The status the route answers is not asserted: not found is its own status,
+    decided in one place (`programming/lookups.py`), and what this holds is the sentence,
+    which both surfaces take from the service.
     A work's history is the case where neither refuses: no work by that id has
     any, so both answer an empty page.
     """

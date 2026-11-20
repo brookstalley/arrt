@@ -1,6 +1,6 @@
 """Clients and wall assignment through `art_players`, driven by a real MCP client.
 
-`art_display` carried these until wave 2b, when every act on a wall was gathered
+`art_display` carried these before the MCP break, when every act on a wall was gathered
 there and the Player actions moved to `art_players`, unrenamed (the owner's
 ruling 3 of 2026-11-19); the walls themselves are still `art_display`'s.
 
@@ -123,7 +123,7 @@ async def test_the_listing_carries_what_the_client_reported_in_the_browsers_fiel
 
     assert client.keys() == browser.keys()
     # The Player's state, each output's, and its settings page: the tool carries
-    # them since wave 2b's Chunk 53, in the route's values.
+    # them in the route's values.
     assert client["state"] == browser["state"]
     assert client["state"]["state"] == "reporting"
     assert [output["name"] for output in client["state"]["outputs"]] == ["hdmi-a-1", "hdmi-a-2"]
@@ -324,7 +324,7 @@ async def test_the_walls_read_carries_each_walls_display_state_in_the_browsers_s
     }
 
     # The age is read at each request, so it is the one field the two may differ in; and the work is
-    # `artwork_id` on the tool, `work_id` on the route (wave 2b), the rename map's one pair.
+    # `artwork_id` on the tool, `work_id` on the route, the rename map's one pair.
     renames = WALL_RENAMES["DisplayState"]
     check_renamed("DisplayState", set(tool[wall]), set(browser[wall]), renames)
     assert {k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in in_http_names(tool, renames).items()} == {
@@ -520,7 +520,7 @@ async def test_the_walls_of_a_player_still_being_set_up_are_setup_steps_on_both_
     Each wall has never reported, which by itself reads `silent`; it has not
     because its Player has not yet been able to, so `GET /api/health` and
     `art_display(action='status')` both name it in its Player's one setup step
-    (Chunk 62: one step for one cause, not a step for the wall beside the
+    (one step for one cause, not a step for the wall beside the
     Player's), never among the troubles, and both say so in their sentence.
     """
     await ok(server_url, "issue_client_token", client_id=hall)
@@ -554,7 +554,7 @@ async def test_the_walls_of_a_player_still_being_set_up_are_setup_steps_on_both_
 
 
 async def test_one_player_with_no_token_showing_two_walls_is_one_step_on_the_route_and_the_status(server_url, hall, wall):
-    """Chunk 62's acceptance on both surfaces: one step naming both walls, one sentence, and no trouble.
+    """On both surfaces: one step naming both walls, one sentence, and no trouble.
 
     Before, both answered three steps for this household: one for each wall,
     and the Player's.
@@ -576,7 +576,7 @@ async def test_one_player_with_no_token_showing_two_walls_is_one_step_on_the_rou
 
 
 async def test_whom_a_wall_waits_for_is_said_by_the_status_the_walls_and_the_walls_answer(server_url, services, hall, wall):
-    """Chunk 66: MCP's status, MCP's walls and `GET /api/walls` each name the Player both walls wait for.
+    """MCP's status, MCP's walls and `GET /api/walls` each name the Player both walls wait for.
 
     In the health answer's own words (`services.health.walls_waiting`), value
     for value with `GET /api/health`'s; and a wall a Player shows, beside them,

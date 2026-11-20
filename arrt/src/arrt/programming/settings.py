@@ -1,6 +1,6 @@
 """`DisplaySettings`: where this installation keeps each wall's files, and the pace a wall inherits.
 
-Its own module since 2026-11-20 (audit wave 2b, Chunk 48), so the collaborators
+Its own module so that the collaborators
 `display.py` composes (`feeds.py`, `walls.py`, `scenes.py`, `reports.py`) import
 it at run time without importing the facade that builds them. `display.py`
 re-exports it, so `from arrt.programming.display import DisplaySettings` names

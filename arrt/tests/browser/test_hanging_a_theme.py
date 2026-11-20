@@ -139,7 +139,7 @@ def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_th
     Both changed walls are given a Player: since 2026-11-19 the question says
     "Everyone in the house sees" only of walls a Player shows (chunk 06 of
     `build-plan-audit-wave-1.md`, audit 6 finding 19). It has its token and has
-    reported, since a Player with none shows nothing yet (Chunk 66)."""
+    reported, since a Player with none shows nothing yet."""
     the_wall = services.display.survey_walls()[0].wall
     study = services.display.add_wall(name="Study")
     landing = services.display.add_wall(name="Landing")

@@ -98,10 +98,7 @@ def test_the_real_server_without_a_key_says_nothing_spends(ui):
 
 @pytest.mark.parametrize("state", ["known", "uncapped", "not_configured", "unavailable"])
 def test_the_budget_line_is_a_link_to_the_spend_page_in_every_state(ui, state):
-    """Checking spend has somewhere to go (audit-6 finding 10): System › Spend, since Chunk 36 of wave 2b.
-
-    It was History filtered to Gets until a page of what was spent existed.
-    """
+    """Checking spend has somewhere to go: System › Spend, a page of what was spent, not History filtered to Gets."""
     ui.serve("**/api/budget", a_budget(state, remaining="12.4" if state == "known" else None))
     ui.serve("**/api/spend", a_spend_history())
     ui.open("#collection")
@@ -235,7 +232,7 @@ def _a_finished_get(ui, spend, *, own="0.0134"):
     ],
 )
 def test_a_gets_cost_is_said_in_the_servers_sentence_when_a_call_is_unknown(ui, spend, own, said):
-    """Chunk 36: no screen words a total from `cost_usd` itself; the server's `summary` says "at least"."""
+    """No screen words a total from `cost_usd` itself; the server's `summary` says "at least"."""
     _a_finished_get(ui, spend, own=own)
 
     expect(_cost_row(ui)).to_have_text(said, use_inner_text=True)

@@ -12,7 +12,7 @@ guarantee is checked where it now lives:
   reader of the journal filters on, so the lines `feeds.py` says are said under
   `arrt.programming.display`, as they were.
 
-And the publisher's promises of audit wave 2b, Chunk 39:
+And the publisher's two promises:
 
 - **A feed is never over the bound a Player reads** (`FEED_MAX_BYTES`, quoted
   from `contract/transport.json` through `arrt_contract`): the act asked for is
@@ -280,7 +280,7 @@ def test_a_neighbour_at_the_walls_pace_that_cannot_be_rebuilt_is_stepped_aside_f
 ):
     """The study is at the hall's pace, so it is built after the hall; refused, it keeps its slots, and the hall steps aside.
 
-    The case Chunk 43 left: its fix lines the hall up with a slower wall
+    The case a slower neighbour leaves: the hall is lined up with a slower wall
     refused before it, and a wall built after the hall was counted by its slot
     now alone, as one that would step aside. Refused, it does not, so the pass
     runs again without it and the hall is built against its whole schedule.

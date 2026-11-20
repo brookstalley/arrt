@@ -149,7 +149,7 @@ def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, a
     expect(cards.nth(0).get_by_role("button", name="Get this work")).to_have_count(1)
     expect(cards.nth(1)).to_contain_text("Pieter Brueghel the Elder", use_inner_text=True)
     expect(cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder")).to_have_count(1)
-    # The server's words (`summary`, `SpendTotal.words`, Chunk 62): two calls at $0.0012, said as they are.
+    # The server's words (`summary`, `SpendTotal.words`): two calls at $0.0012, said as they are.
     expect(turn.locator(".ask-ending")).to_have_text("This reply cost $0.0024.", use_inner_text=True)
 
 

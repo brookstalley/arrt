@@ -15,7 +15,7 @@ product's characteristic failure wearing a UI, and it would be worse than no
 panel at all because it manufactures confidence. Each reading says what was
 found, when, and — when there is nothing to say — that there is nothing to say.
 
-**One health model** (audit 2026-11-19, audit-5 F4 and audit-6 3): each wall is
+**One health model**: each wall is
 read through its display state and each Player through its Player state, the
 same states Walls and Players serve, and `HealthReading.troubles` lists the
 faults among them by name for the top bar and the System badge to count. The
@@ -227,7 +227,7 @@ class FailedFetches:
     Counted from `AcquisitionQueue.failed_states`, the works Activity › Queue
     lists as failed or given up on, so the badge and the page cannot disagree. A health
     observation, because 2,000 failed fetches once raised nothing anywhere
-    (audit 2026-11-19, audit-6 finding 3).
+    (seen 2026-11-19).
     """
 
     #: Every work the Queue lists as failed: those it will try again and those it gave up on.
