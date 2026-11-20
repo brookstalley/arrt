@@ -497,6 +497,116 @@ entry point passes every test of the parts and fails only here. (`loading` is
 Arrt's, not the interface, which is why this check belongs in a script rather than
 in the plugin.)
 
+### A plugin tested as the host runs it
+
+Testing your parts directly shows your parser is right. It cannot show what Arrt
+*makes* of what your parts answer: whether a `LinkGone` settles the work or asks
+it again, which outcome a reader's `none` is recorded as, whether an image of
+another artist survives phase two, what a call past your deadline looks like.
+`arrt.library.sources.testing` answers those by running the host's own code on
+your plugin, offline, so a plugin tested with it cannot pass in your suite and
+behave otherwise in a server. **Your plugin never imports it; your tests do.**
+`arrt.library.sources` does not import it either.
+
+```python
+from arrt.library.sources import ImageQuery
+from arrt.library.sources.testing import AskOutcome, FetchOutcome, RetryRule, host
+
+from arrt_gallery import PLUGIN
+
+
+def test_a_dead_page_settles_the_work_and_is_not_asked_again():
+    gallery = host(PLUGIN, name="gallery")  # `name` is what pyproject.toml registers
+
+    asked = gallery.ask(ImageQuery(title="Nighthawks"))
+    read = gallery.read("https://gallery.example.org/objects/9")
+
+    assert asked.outcome is AskOutcome.LINK_GONE
+    assert (read.outcome, read.again) == (FetchOutcome.LINK_GONE, RetryRule.SETTLED)
+```
+
+What it does, and each answer comes from the host's code, never from a copy of
+it:
+
+- `host` loads the plugin with the loader a server uses (`load_sources`): the
+  version checks, the deadlines you declared, the containment of your faults
+  and the scrubbing of your words. A plugin the host refuses is refused here,
+  and its `reading` says why; asking it raises `NotAvailable`. Given an entry
+  point rather than a `SourcePlugin`, it loads it as the host does, so a typo in
+  `pyproject.toml` fails here.
+- `ask` asks your finder one question, the way a run and a look do, and says how
+  the pool sorted the answer: `answered`, `declined`, `unreachable` (a fault and
+  a missed deadline included, told apart by `faulted` and the counts in
+  `reading`) or `link_gone`.
+- `resolve` runs phase two on that answer with your plugin as the only source:
+  the images kept, which gates refused the rest, and whether the work waits to be
+  asked again (`waits`) or is settled. `judge` is phase two's verdict on one image
+  you hold, asking your plugin nothing.
+- `read` acquires a stored source whose URL your plugin claims, through the
+  roster's routing, your reader under its deadline and containment, and the
+  acquisition code that sorts the answer into an outcome. It stops where the
+  host would fetch: `fetch` says what it would fetch, after the host's address
+  check, and nothing is downloaded. `again` is the acquisition queue's own rule
+  for the outcome.
+
+It reaches no network and writes nothing outside a directory of its own. It does
+not cover previews or collections. Your finder's and reader's own requests are
+yours: give them the transport your tests use, as above.
+
+**What is public.** Exactly these names, with these parameters and fields, and
+nothing else in the module:
+
+| Name | What it is |
+|---|---|
+| `host` | loads a plugin as the host does, and returns a `PluginHost` |
+| `PluginHost` | the loaded plugin: `name`, `reading`, `ask`, `resolve`, `judge`, `read` |
+| `Reading` | what the host has counted of the plugin since `host` loaded it |
+| `Asked` | how the host sorted one finder answer |
+| `Settled` | what phase two made of the answer, the plugin the only source |
+| `JudgedInstance` | one image phase two kept, as it judged it |
+| `Read` | what acquisition records of a stored source the plugin claims, and does next |
+| `WouldFetch` | what the host would fetch after a reader's answer |
+| `NotAvailable` | raised for a plugin that did not load or has no finder |
+| `AskOutcome` | the pool's four ways to take an answer (re-exported) |
+| `FetchOutcome` | the seven outcomes above (re-exported) |
+| `RetryRule` | when the host asks again, the table above (re-exported) |
+| `UnresolvedReason` | the gate that refused an image or a work (re-exported) |
+
+| Callable | Parameters |
+|---|---|
+| `host` | `(plugin, *, name=, environ=, registry=, user_agent=, preview_max_bytes=, data_root=, wait_for=)` |
+| `PluginHost.ask` | `(query)` |
+| `PluginHost.resolve` | `(query, *, minimum_long_edge_px=)` |
+| `PluginHost.judge` | `(query, found, *, minimum_long_edge_px=)` |
+| `PluginHost.read` | `(url, *, resolve=)` |
+
+| Result | Fields |
+|---|---|
+| `Reading` | `state, reason, faults, unasked, answered, last_fault, last_unasked` |
+| `Asked` | `outcome, images, pages, failure, faulted` |
+| `Settled` | `instances, refusals, pages, waits` |
+| `JudgedInstance` | `found, confidence, meets_minimum, rationale` |
+| `WouldFetch` | `method, url` |
+| `Read` | `plugin, outcome, again, detail, fetch, unavailable` |
+
+`wait_for` is the loader's own seam for how a call is waited for, so a test can
+run a deadline of minutes on a clock it moves: it is given the call's
+`threading.Event` and the deadline in seconds, and answers whether the event was
+set. `resolve` on `read` is the address check's lookup of a name; the default
+answers every name with a public address.
+
+**When the interface moves.** The helper follows the interface's own version
+rule (`API_VERSION` above, § Versioning and errors): within a major, a name, a
+parameter and a field stay and keep their meaning; a minor may add a name, a
+field or a keyword parameter with a default; a removal or a changed meaning is a
+new major. What your test asserts about a plugin stays true across minors for
+the reason the plugin does: the helper runs the host as it is, so a plugin
+written for 1.5 and tested on 1.7 is tested against 1.7's rules, and gets the
+outcome a 1.7 server gives it. A test that lists every member of `AskOutcome`,
+`FetchOutcome` or `RetryRule` is the one that a minor can break, as it can break
+any code that does: compare to the members you mean. To pin the version you test
+against, pin Arrt's commit, as above.
+
 **The built-ins are the examples**, written against the same interface and held
 to it by a test:
 
