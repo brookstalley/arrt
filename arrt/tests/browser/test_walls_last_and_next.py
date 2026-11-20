@@ -375,7 +375,8 @@ def test_after_a_skip_next_is_redrawn_from_the_new_schedule(ui, services, the_wa
 
     with ui.page.expect_response(is_the_step) as answered:
         ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
-    assert answered.value.ok, f"the step was answered {answered.value.status}: {answered.value.text()}"
+    step = answered.value
+    assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
     # prints everything the card says, a failure beside Skip included (#442).
