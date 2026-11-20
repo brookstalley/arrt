@@ -34,9 +34,12 @@ from arrt.library.acquisition.queue import (
     ACQUISITION_QUEUE_THREAD_NAME,
     GIVE_UP_AFTER,
     IDLE_SECONDS,
+    OUTCOME_CAUSES,
     PAUSED_RETRY_SECONDS,
+    RETRY_RULES,
     AcquisitionPhase,
     AcquisitionQueue,
+    RetryRule,
     run_acquisition_queue,
     start_acquisition_queue,
 )
@@ -48,6 +51,7 @@ from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import (
     AcquisitionMethod,
+    FetchOutcome,
     FetchStatus,
     MatColor,
     MatMethod,
@@ -248,6 +252,17 @@ class FakeAcquisition:
             if isinstance(answer, Exception):
                 raise answer
             source = self.service.list_sources(artwork_id)[0]
+            if isinstance(answer, tuple):
+                # A failed fetch that said something (`FetchOutcome`), in the holder's words, at a plugin.
+                said, detail, plugin = (*answer, "tate")[:3]
+                return AcquisitionResult(
+                    artwork_id=artwork_id,
+                    source_id=source.id,
+                    outcome=AcquisitionOutcome.FAILED,
+                    detail=detail,
+                    fetch_outcome=said,
+                    plugin=plugin,
+                )
             if answer in (AcquisitionOutcome.ACQUIRED, AcquisitionOutcome.PARTIAL):
                 self.service.record_original(
                     artwork_id=artwork_id,
@@ -1059,3 +1074,237 @@ class TestTheRunningQueue:
             until(lambda: queue.state_of([artwork_id]) == {})
         finally:
             halt()
+
+
+# -- what the fetch said decides when it is tried again (wave 2b, Chunk 32) ------------
+
+
+#: What each rule leaves a work as, straight after the failure: its phase, and
+#: how long until its next try on the schedule (None when the schedule does not set one).
+_AFTER_ONE = {
+    RetryRule.SCHEDULE: (AcquisitionPhase.FAILED, timedelta(hours=1)),
+    RetryRule.NEXT_PASS: (AcquisitionPhase.FAILED, None),
+    RetryRule.NEXT_LOAD: (AcquisitionPhase.FAILED, None),
+    RetryRule.SETTLED: (AcquisitionPhase.GAVE_UP, None),
+}
+
+_FAILURES = [outcome for outcome in FetchOutcome if RETRY_RULES[outcome] is not RetryRule.HELD]
+
+
+@pytest.mark.parametrize("outcome", list(FetchOutcome))
+def test_every_fetch_outcome_has_a_retry_rule_and_every_one_that_waits_has_words_to_be_listed_under(outcome):
+    rule = RETRY_RULES[outcome]
+
+    if rule in (RetryRule.SCHEDULE, RetryRule.HELD):
+        assert outcome not in OUTCOME_CAUSES, "a scheduled failure keeps its own words; one held is no failure"
+    else:
+        assert "{museum}" in OUTCOME_CAUSES[outcome]
+    assert (rule is RetryRule.HELD) == (outcome.fetch_status is not FetchStatus.FAILED)
+
+
+def test_the_rules_the_plan_ruled_are_the_rules_held():
+    """The DECISION's sentence: unasked next pass, faulted next load, none_held and link_gone settled, failed scheduled."""
+    assert {str(outcome): str(rule) for outcome, rule in RETRY_RULES.items()} == {
+        "ok": "held",
+        "partial_tiles": "held",
+        "none_held": "settled",
+        "link_gone": "settled",
+        "unasked": "next_pass",
+        "faulted": "next_load",
+        "failed": "schedule",
+    }
+
+
+class TestEachOutcomeIsRetriedByItsRule:
+    @pytest.mark.parametrize("outcome", _FAILURES)
+    def test_straight_after_the_failure_the_work_reads_as_its_rule_says(self, queue, work, fetcher, clock, outcome):
+        artwork_id = work()
+        fetcher.answers = [(outcome, f"a {outcome} fetch")]
+
+        queue.run()
+
+        state = queue.state_of([artwork_id])[artwork_id]
+        phase, wait = _AFTER_ONE[RETRY_RULES[outcome]]
+        assert (state.phase, state.outcome, state.plugin, state.failures) == (phase, outcome, "tate", 1)
+        assert state.next_try_at == (None if wait is None else clock.now + wait)
+        assert state.failed_at == clock.now
+
+    def test_failed_keeps_the_schedule_an_hour_a_day_three_days_then_given_up(self, queue, work, fetcher, clock):
+        artwork_id = work()
+        fetcher.answers = [(FetchOutcome.FAILED, "the museum answered 500")] * GIVE_UP_AFTER
+
+        for wait in (timedelta(hours=1), timedelta(days=1), timedelta(days=3)):
+            assert queue.run().failed == 1
+            assert queue.run().due == 0, "tried again before its schedule"
+            clock.now += wait
+        assert queue.run().gave_up == 1
+
+        assert _phase(queue, artwork_id) is AcquisitionPhase.GAVE_UP
+        clock.now += timedelta(days=365)
+        assert queue.run().due == 0
+        assert len(fetcher.calls) == GIVE_UP_AFTER
+
+    def test_unasked_is_asked_again_on_every_pass_and_never_given_up(self, queue, work, fetcher):
+        artwork_id = work()
+        passes = GIVE_UP_AFTER + 2
+        fetcher.answers = [(FetchOutcome.UNASKED, "Tate could not be asked")] * passes
+
+        for _ in range(passes):
+            assert queue.run().failed == 1, "a holder that could not be asked was not asked again on the next pass"
+
+        state = queue.state_of([artwork_id])[artwork_id]
+        assert (state.phase, state.failures) == (AcquisitionPhase.FAILED, passes)
+        assert queue.run().acquired == 1, "the pass after the holder answers fetches it"
+
+    def test_faulted_waits_for_the_plugins_next_load_and_not_for_any_clock(self, store, service, work, fetcher, preparer, clock):
+        artwork_id = work()
+        fetcher.answers = [(FetchOutcome.FAULTED, "the Tate plugin faulted while reading this source: KeyError")]
+        loaded = AcquisitionQueue(store, service, fetcher, preparer, clock=clock)
+        loaded.run()
+        clock.now += timedelta(days=30)
+
+        assert loaded.run().due == 0, "a plugin that faulted was asked again under the same load"
+        assert _phase(loaded, artwork_id) is AcquisitionPhase.FAILED
+
+        reloaded = AcquisitionQueue(store, service, fetcher, preparer, clock=clock)
+        assert reloaded.run().acquired == 1, "the next load did not ask again"
+
+    @pytest.mark.parametrize("outcome", [FetchOutcome.NONE_HELD, FetchOutcome.LINK_GONE])
+    def test_a_settled_work_waits_until_its_wikidata_item_is_another(self, queue, work, fetcher, store, clock, outcome):
+        artwork_id = work()
+        store.update_artwork(replace(store.get_artwork(artwork_id), wikidata_qid="Q1001"))
+        fetcher.answers = [(outcome, "the page says so")]
+        queue.run()
+        assert store.get_queued_acquisition(artwork_id).settled_qid == "Q1001"
+        clock.now += timedelta(days=365)
+
+        assert queue.run().due == 0, "a settled work was asked again with nothing changed"
+        assert queue.listing().causes[0].gave_up == 1
+
+        store.update_artwork(replace(store.get_artwork(artwork_id), wikidata_qid="Q1002"))
+        assert _phase(queue, artwork_id) is AcquisitionPhase.QUEUED
+        assert queue.run().acquired == 1
+
+    def test_a_settled_work_is_asked_again_on_retry(self, queue, work, fetcher):
+        artwork_id = work()
+        fetcher.answers = [(FetchOutcome.LINK_GONE, "the page answered 410")]
+        queue.run()
+
+        queue.retry(artwork_id)
+
+        assert queue.run().acquired == 1
+
+    def test_a_failure_recorded_before_outcomes_were_keeps_the_schedule(self, queue, work, store, clock):
+        """A row an older release wrote has no outcome: its four failures are given up, as they always were."""
+        artwork_id = work()
+        _fail(store, artwork_id, "the museum answered 404.", failures=GIVE_UP_AFTER)
+
+        state = queue.state_of([artwork_id])[artwork_id]
+
+        assert (state.phase, state.outcome, state.failed_at) == (AcquisitionPhase.GAVE_UP, None, None)
+        clock.now += timedelta(days=365)
+        assert queue.run().due == 0
+
+    def test_a_retry_an_older_release_wrote_beside_a_settled_outcome_is_still_a_retry(self, queue, work, store):
+        """An older release's Retry resets the columns it knows and leaves `outcome`: no failures means none to settle."""
+        artwork_id = work()
+        store.set_queued_acquisition(
+            QueuedAcquisition(artwork_id=artwork_id, outcome=FetchOutcome.LINK_GONE, plugin="tate", settled_qid=None)
+        )
+
+        assert _phase(queue, artwork_id) is AcquisitionPhase.QUEUED
+        assert queue.run().acquired == 1
+
+
+class TestWhenAWorkLastFailed:
+    """`failed_at`, written at every recorded failure, the one given up on included (the health model reads it)."""
+
+    def test_each_failure_records_its_moment_the_one_given_up_on_included(self, queue, work, fetcher, store, clock):
+        artwork_id = work()
+        fetcher.answers = [AcquisitionOutcome.FAILED] * GIVE_UP_AFTER
+        moments = []
+        for wait in (timedelta(hours=1), timedelta(days=1), timedelta(days=3), timedelta(0)):
+            queue.run()
+            moments.append(store.get_queued_acquisition(artwork_id).failed_at)
+            assert moments[-1] == clock.now
+            clock.now += wait
+
+        assert _phase(queue, artwork_id) is AcquisitionPhase.GAVE_UP
+        assert store.get_queued_acquisition(artwork_id).next_try_at is None, "given up: no next try, and still a moment"
+        assert len(set(moments)) == GIVE_UP_AFTER, "each failure's moment, not the first one kept"
+        assert queue.listing().causes[0].entries[0].state.failed_at == moments[-1]
+
+    def test_a_refusal_and_a_failed_preparation_record_theirs_too(self, queue, service, work, fetcher, preparer, store, clock):
+        sourceless = service.add_artwork(title="Sourceless").id
+        fetcher.answers = [ServiceError(f"Artwork {sourceless!r} has no source to acquire from.")]
+        unprepared = work("Unprepared")
+        preparer.failures = 1
+
+        queue.run()
+
+        assert store.get_queued_acquisition(sourceless).failed_at == clock.now
+        assert store.get_queued_acquisition(unprepared).failed_at == clock.now
+
+    def test_a_later_success_leaves_no_row_and_a_retry_leaves_no_moment(self, queue, work, fetcher, store, clock):
+        succeeded, retried = work("Succeeded"), work("Retried")
+        fetcher.answers = [AcquisitionOutcome.FAILED, AcquisitionOutcome.FAILED]
+        queue.run()
+        assert store.get_queued_acquisition(retried).failed_at == clock.now
+
+        queue.retry(retried)
+        assert store.get_queued_acquisition(retried).failed_at is None, "a Retry forgets the failures, and when"
+        clock.now += timedelta(hours=1)
+        queue.run()
+
+        assert store.get_queued_acquisition(succeeded) is None
+        assert store.get_queued_acquisition(retried) is None
+
+
+class TestFailuresGroupedByOutcomeAndPlugin:
+    """#318: one cause worded two ways split into two groups; what the fetch said, at which plugin, is the group."""
+
+    def test_two_works_that_could_not_be_asked_in_two_wordings_are_one_group(self, queue, work, fetcher):
+        first, second, elsewhere = work("Toward a Folded Map"), work("Harbour at Dusk"), work("A Third")
+        fetcher.answers = [
+            (FetchOutcome.UNASKED, "the Tate plugin could not read this source: Tate answered 503 for 12 tiles"),
+            (FetchOutcome.UNASKED, "the Tate plugin could not read this source: Tate took longer than 240 s"),
+            (FetchOutcome.UNASKED, "the Met plugin could not read this source: Met answered 503", "met"),
+        ]
+
+        queue.run()
+        causes = queue.listing().causes
+
+        assert [(group.outcome, group.plugin, len(group.entries)) for group in causes] == [
+            (FetchOutcome.UNASKED, "tate", 2),
+            (FetchOutcome.UNASKED, "met", 1),
+        ]
+        assert [entry.state.artwork_id for entry in causes[0].entries] == [first, second]
+        assert causes[1].entries[0].state.artwork_id == elsewhere
+        assert causes[0].cause == OUTCOME_CAUSES[FetchOutcome.UNASKED].format(museum="tate")
+        # Each work still reads its own words, where its own page shows them.
+        assert {entry.state.detail for entry in causes[0].entries} == {
+            "the Tate plugin could not read this source: Tate answered 503 for 12 tiles",
+            "the Tate plugin could not read this source: Tate took longer than 240 s",
+        }
+
+    def test_a_group_of_one_outcome_is_retried_together(self, queue, work, fetcher):
+        work("One")
+        work("Two")
+        fetcher.answers = [(FetchOutcome.LINK_GONE, "gone: 404"), (FetchOutcome.LINK_GONE, "gone: 410")]
+        queue.run()
+        (group,) = queue.listing().causes
+
+        assert queue.retry_cause(group.cause).retried == 2
+        assert queue.run().acquired == 2
+
+    def test_a_failure_that_said_only_failed_keeps_its_own_words(self, queue, work, fetcher):
+        work("One")
+        work("Two")
+        fetcher.answers = [(FetchOutcome.FAILED, "the museum answered 500"), (FetchOutcome.FAILED, "the bytes are no image")]
+
+        queue.run()
+
+        assert sorted((group.cause, group.outcome) for group in queue.listing().causes) == [
+            ("the bytes are no image", None),
+            ("the museum answered 500", None),
+        ]

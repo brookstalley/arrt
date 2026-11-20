@@ -2165,6 +2165,9 @@ def _acquisition(state: AcquisitionState) -> AcquisitionStateOut:
         since=None if state.since is None else state.since.isoformat(),
         condition=state.condition,
         remedy=state.remedy,
+        outcome=None if state.outcome is None else str(state.outcome),
+        plugin=state.plugin,
+        failed_at=None if state.failed_at is None else state.failed_at.isoformat(),
     )
 
 
@@ -2177,7 +2180,15 @@ def _queued_work(entry: QueueEntry) -> QueuedWorkOut:
 
 
 def _failure_cause(group: FailureCause) -> FailureCauseOut:
-    return FailureCauseOut(cause=group.cause, works=len(group.entries), failed=group.failed, gave_up=group.gave_up)
+    return FailureCauseOut(
+        cause=group.cause,
+        works=len(group.entries),
+        failed=group.failed,
+        gave_up=group.gave_up,
+        outcome=None if group.outcome is None else str(group.outcome),
+        plugin=group.plugin,
+        museum=None if group.plugin is None else museum_name(group.plugin),
+    )
 
 
 def _queue_page[T](items: Sequence[T], limit: int | None, offset: int) -> tuple[int, Sequence[T]]:
@@ -2799,6 +2810,11 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
         last_fault_at=None if reading.last_fault_at is None else reading.last_fault_at.isoformat(),
         last_fault_age_seconds=health.last_fault_age_seconds,
         last_fault=reading.last_fault,
+        unasked=reading.unasked,
+        last_unasked_at=None if reading.last_unasked_at is None else reading.last_unasked_at.isoformat(),
+        last_unasked_age_seconds=health.last_unasked_age_seconds,
+        last_unasked=reading.last_unasked,
+        answered=reading.answered,
         description=health.describe(),
         distribution=reading.identity.distribution,
         version=reading.identity.version,

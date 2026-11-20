@@ -704,6 +704,16 @@ class AcquisitionStateOut(BaseModel):
     since: str | None
     condition: str | None
     remedy: str | None
+    #: What the last failed fetch said, when it said more than that it failed:
+    #: `none_held`, `unasked`, `faulted`, `link_gone`, or `failed`; null for a
+    #: failure that was no fetch's or was recorded before outcomes were. It is
+    #: what decides when the work is tried again.
+    outcome: str | None
+    #: The source plugin that answered that fetch, by its name; null when none did.
+    plugin: str | None
+    #: When the last failure was recorded, the one the queue gave up on
+    #: included; null when the work has not failed or the time was not recorded.
+    failed_at: str | None
 
 
 class QueuePauseOut(BaseModel):
@@ -752,6 +762,13 @@ class FailureCauseOut(BaseModel):
     #: queue gave up on and wait for Retry.
     failed: int
     gave_up: int
+    #: When the cause is what one plugin's fetches said, that outcome and the
+    #: plugin, and the museum it answers for; all null for a cause grouped by
+    #: its own words. Works whose fetches said one thing at one plugin share a
+    #: cause however the holder worded each.
+    outcome: str | None
+    plugin: str | None
+    museum: str | None
 
 
 class FailureCausesOut(BaseModel):
@@ -1334,6 +1351,16 @@ class SourcePluginOut(BaseModel):
     last_fault_at: str | None
     last_fault_age_seconds: float | None
     last_fault: str | None
+    #: Calls since startup that were "could not be asked" (the plugin's own
+    #: failure to ask, or a call past its deadline), counted apart from
+    #: `faults`, with when the last was, its age and what it said; and every
+    #: other answer the plugin gave. With `answered` 0 and `unasked` above it,
+    #: the plugin has said nothing since startup but that it could not be asked.
+    unasked: int
+    last_unasked_at: str | None
+    last_unasked_age_seconds: float | None
+    last_unasked: str | None
+    answered: int
     description: str
     #: The installed distribution that registers the plugin, and its version;
     #: null for a plugin registered by hand, or one two distributions both claim.
