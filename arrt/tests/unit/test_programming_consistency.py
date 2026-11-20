@@ -11,7 +11,7 @@ for it:
   outside the transaction, it lands, and the curator's write puts the old row
   back; read inside, it waits for the store's lock and lands after.
 - **A feed is written only once the act that decided it can no longer roll back**
-  (`DisplayService._publishing`), and the walls one act changes change together.
+  (`FeedPublisher.publishing`, `programming/feeds.py`), and the walls one act changes change together.
 - **A bulk act is one announcement and one reconciliation**, so each wall's feed is
   written once for it.
 """
@@ -312,7 +312,7 @@ def test_a_feed_one_act_has_decided_is_not_read_by_a_request_on_another_thread(
 
 
 def test_a_feed_is_never_written_outside_an_act(display, ready_work, wall_id):
-    """`_publish_feed` stages; a caller outside `_publishing` would stage a feed nothing writes, so it is refused by name."""
+    """`_publish_feed` stages; a caller outside `publishing` would stage a feed nothing writes, so it is refused by name."""
     theme = display.add_theme(name="Late night")
     display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
     display.activate_theme(theme.id, wall_id=wall_id)

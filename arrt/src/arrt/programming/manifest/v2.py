@@ -130,7 +130,7 @@ class Published:
     #: The entry of each work the schedule names, keyed by id. The schedule's
     #: works only: a work the scene or staging alone names is not part of the
     #: wall's cycle, nor a work another wall shares with it, and every writer
-    #: derives the control layer afresh (`DisplayService._control_layer`).
+    #: derives the control layer afresh (`FeedPublisher._control_layer`, `programming/feeds.py`).
     works: Mapping[str, dict[str, Any]]
     #: The feed's presentation defaults as published, so a patch keeps them.
     settings: Mapping[str, Any] = field(default_factory=dict)
@@ -176,7 +176,7 @@ def published_from(document: dict[str, Any], *, where: Path | str) -> Published 
     """A major 2 document read back, as `read_published` reads one from its file; `where` names it in the log.
 
     Separate so a feed decided in a transaction that has not yet written it
-    (`DisplayService._published`) is read exactly as the file it becomes.
+    (`FeedPublisher.published`, `programming/feeds.py`) is read exactly as the file it becomes.
     """
     try:
         schedule = document["schedule"]

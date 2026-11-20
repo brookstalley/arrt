@@ -3,7 +3,7 @@
 A scene is a work per wall, applied together over each wall's schedule; while
 it is a draft, each pin stages its work on its wall. The server writes both
 keys into a wall's private feed from the store at every write, through the one
-writer (`DisplayService._publish_feed`), so the tests below drive every path
+writer (`FeedPublisher._publish_feed`, `programming/feeds.py`), so the tests below drive every path
 that writes a feed and assert the control layer survives it. Every feed any
 test here publishes is also checked against the contract as it is built
 (`feed_guard.py`, wrapped round every test by `conftest.py`).

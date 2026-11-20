@@ -58,7 +58,7 @@ class ProgrammingStore(Protocol):
 
         Programming asks it to keep the feeds one act decided (`ActState`), and
         to refuse publishing a feed inside a transaction it did not open
-        (`DisplayService._publishing`), whose feeds would be written before
+        (`FeedPublisher.publishing`, `programming/feeds.py`), whose feeds would be written before
         that transaction decided anything.
         """
         ...

@@ -1,6 +1,6 @@
 """Each path that changes what a wall shows publishes its feed, manifest major 2.
 
-The paths are the comment over `programming/display.py`'s feed methods (derived
+The paths are the comment over `programming/feeds.py`'s feed methods (derived
 from that module and its callers), and each test below names the path it drives
 and what that path must do to the slot on the wall now. Every feed any test
 here publishes is also checked against the contract as it is built
