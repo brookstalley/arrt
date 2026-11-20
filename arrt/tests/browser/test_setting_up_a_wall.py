@@ -436,25 +436,35 @@ def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
 # -- hanging, before and after a Player shows the wall ------------------------------
 
 
-@pytest.mark.parametrize("shown", [False, True], ids=["no Player", "a Player"])
+@pytest.mark.parametrize("shown", [False, "waiting", True], ids=["no Player", "a Player with no token", "a Player"])
 def test_hanging_a_work_promises_the_house_sees_it_only_where_a_player_shows_the_wall(
-    ui, services, work_with_an_image, the_wall, shown
+    ui, services, a_player_shows, work_with_an_image, the_wall, shown
 ):
     """Finding 19 of audit 2026-11-19, the client half, through the Work page's *Hang…* (`core/selection.js`).
 
     "Everyone in the house sees {wall} change" is true of a wall a Player shows,
-    and of nothing else: with no Player, the question says nothing shows it yet.
+    and of nothing else: with no Player, the question says nothing shows it yet;
+    with a Player that has no token yet, it says the wall waits for it, in the
+    server's words (Chunk 66). The Player that shows it has its token and has reported.
     """
     work = work_with_an_image("Automat")
-    if shown:
+    if shown is True:
+        a_player_shows(the_wall.id)
+    elif shown == "waiting":
         hall = services.clients.add_client(name="Hall Pi")
         services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.open(f"#work/{work.id}")
     ui.page.locator(".page-toolbar button:text-is('Hang…')").click()
 
     consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
-    if shown:
+    if shown is True:
         expect(consequence).to_contain_text(f"Everyone in the house sees {the_wall.name} change.")
+        expect(consequence).not_to_contain_text("No Player shows")
+    elif shown == "waiting":
+        words = services.health.observe_waiting()[the_wall.id].words
+        assert words == f"{the_wall.name} waits for Hall Pi, which has no token yet"
+        expect(consequence).to_contain_text(f"{words}.")
+        expect(consequence).not_to_contain_text("Everyone in the house")
         expect(consequence).not_to_contain_text("No Player shows")
     else:
         expect(consequence).to_contain_text(f"No Player shows {the_wall.name} yet, so nothing shows it until one does.")

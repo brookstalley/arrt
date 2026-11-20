@@ -1085,6 +1085,11 @@ class WallOut(BaseModel):
     #: Up to three works the wall's published schedule puts up next, in order,
     #: not counting the one on it now. Empty with no feed published.
     upcoming: list[UpcomingOut] = []
+    #: The Player the wall waits for while that Player is still being set up,
+    #: as `GET /api/health` says it (`services.health.walls_waiting`), or null:
+    #: `display_state` still reads `silent`, and this says nothing shows the
+    #: wall yet, which the question before a hang reads (wave 2b, Chunk 66).
+    waiting_for: WallWaitOut | None = None
 
 
 class LastShownOut(BaseModel):

@@ -665,6 +665,15 @@ class HealthService:
             failed_fetches=self.observe_failed_fetches(),
         )
 
+    def observe_waiting(self) -> Mapping[str, WallWait]:
+        """Every wall waiting for its Player now, by wall id (`walls_waiting`): for an answer about walls.
+
+        The rule `observe()`'s reading applies, over the same two reads, so the
+        walls answer and the health answer cannot disagree about whom a wall
+        waits for.
+        """
+        return walls_waiting(self._display.survey_wall_status(), tuple(self._players()))
+
     def observe_failed_fetches(self) -> FailedFetches | None:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""
         if self._queue is None:
