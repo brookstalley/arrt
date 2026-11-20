@@ -1000,7 +1000,7 @@ class DiscoveryService:
                 )
                 # In the verdict's transaction, so a verdict and the taste it
                 # implies commit together or not at all.
-                observe_artist(self._store, work.proposed_artist)
+                observe_artist(self._store, work.proposed_artist, at=at, mint_id=self._mint_id)
                 return outcome
             rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=at)
             store_write(self._store.update_candidate_work, rejected)
@@ -1012,7 +1012,7 @@ class DiscoveryService:
                 detail={"title": work.proposed_title, "candidate_work_id": work.id},
                 at=at,
             )
-            observe_artist(self._store, work.proposed_artist)
+            observe_artist(self._store, work.proposed_artist, at=at, mint_id=self._mint_id)
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------

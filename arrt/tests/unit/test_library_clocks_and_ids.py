@@ -120,6 +120,7 @@ def _everything(lib: Library) -> dict[tuple[str, str], Any]:
         for work in works:
             keep(discovery.list_candidate_images(work.id))
     keep(discovery.list_spend_records())
+    keep(discovery.list_affinities())
     return held
 
 
@@ -370,6 +371,14 @@ def _reject(lib: Library) -> Act:
     return lambda: lib.discovery.set_verdict(work, Verdict.REJECTED)
 
 
+def _reject_the_fifth_work_of_an_artist(lib: Library) -> Act:
+    """The verdict that makes the artist's rejections a taste: the act also writes the observed affinity (`taste.observe_artist`)."""
+    for _ in range(4):
+        lib.discovery.set_verdict(_found_work(lib, artist="Edward Hopper"), Verdict.REJECTED)
+    fifth = _found_work(lib, artist="Edward Hopper")
+    return lambda: lib.discovery.set_verdict(fifth, Verdict.REJECTED)
+
+
 def _reject_alternate(lib: Library) -> Act:
     work = _found_work(lib, images=2)
     alternate = next(image for image in lib.discovery.list_candidate_images(work) if not image.is_selected)
@@ -442,6 +451,7 @@ CASES: dict[str, tuple[Callable[[Library], Act], bool, bool]] = {
     "discovery.record_image": (_record_image, False, True),
     "discovery.set_verdict accepted": (_accept, True, True),
     "discovery.set_verdict rejected": (_reject, True, True),
+    "discovery.set_verdict rejected, writing an observed affinity": (_reject_the_fifth_work_of_an_artist, True, True),
     "discovery.reject_image": (_reject_alternate, True, False),
     "discovery.want turning down": (_want_turning_down, True, False),
     "discovery.record_spend": (_record_spend, True, True),
