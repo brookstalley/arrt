@@ -376,6 +376,34 @@ left as planned and this section is the later word.
   when it adds them; and the status observation's test assigns its wall to a Player, with a new
   case for a wall that has none. No tool name, argument or result key changes in Chunk 30.
 
+- **2026-11-20 (Chunk 58 added), from the integration of Chunk 47:** a frozen release holds
+  its `fixtures/` and `routes.json` and not its `contract/transport.json` or
+  `contract/vocabulary.json`, which contract 1.2.0 introduced. So nothing holds an answer or a
+  word to the last release: the integrator changed one answer in the table with no
+  `corrected` record and the contract's suite stayed green (only the server's own table test
+  caught it, and only because the server had not moved with it). Chunk 58 puts both files in
+  the frozen copy of 1.2.0, as they are at the tag, and makes the package's suite hold HEAD
+  to them.
+- **2026-11-20 (Chunk 33), a rule added to its work, from what Chunk 32 built:** a work that
+  could not be asked is asked again on the next pass, with no limit (the Goals' rule). During
+  a museum's outage that makes every pass ask every such work at that museum, one at a time,
+  each up to the plugin's deadline. So within one pass, after a small number of consecutive
+  could-not-be-asked answers from one plugin, the rest of that pass does not ask it: those
+  works stay as they are and the next pass tries again. The number and its reason are
+  recorded by Chunk 33, which first finds out whether the pool already holds a plugin back.
+- **2026-11-20 (Chunk 40), four items added to its work, from what Chunks 30 and 32 built:**
+  the health model's instant of a work's last failure reads the queue's `failed_at`, with
+  the derivation kept only for rows written before that column; a read of the queue's failed
+  states that reads no titles replaces the one the health route uses today (87 to 93 ms per
+  read at two thousand failed works, measured, against 0.3 ms without the count); a Player
+  not heard from and the walls it shows are one trouble, stated on the Player and naming
+  the walls, not two; and a wall with no Player does not read "this wall's Player has not
+  reported yet" (`arrt/src/arrt/programming/manifest/heartbeat.py`).
+- **2026-11-20 (Chunk 43), a test added to its work:** `arrt/tests/unit/test_major_2_feed.py`'s
+  test of a slower neighbour that cannot be rebuilt failed once in a five-suite run on a
+  loaded runner (once in 39 recorded runs) and has not been reproduced. Chunk 43 establishes
+  whether it reads the real clock and fixes the cause where it is.
+
 ## The items 2a carried forward, and where each went
 
 Collected from `landing-log.md` § Wave 2 (the `arrt W2` entries, the integration passes, the
@@ -1541,6 +1569,43 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
 - **Verification ceiling:** the root tests that read the workflows, the governance suite
   whole, `actionlint` if installed; the pool suite itself if one is added. No image is
   built on this machine.
+
+### Chunk 58: The frozen release holds the transport table and the vocabulary
+
+- **Type:** code
+- **Closes:** the gap the integration of Chunk 47 measured (above, § Decisions made
+  mid-build); the rule in `.prawduct/artifacts/player-contract.md` § The package that a
+  minor is additive, for the two data files 1.2.0 added.
+- **Model:** Opus-class, medium: a release's frozen copy is amended once, before it has
+  left this branch, and the check it enables must fail for a change of meaning and pass
+  for a recorded correction.
+- **Waits for:** 28 and 47.
+- **Owns:** `contract/released/1.2.0/` (two files added, `sha256.json` rewritten by the
+  same writer that wrote it), `contract/tests/test_released.py`,
+  `contract/src/arrt_contract/__init__.py` (only if `released()` must expose the new
+  files), `.prawduct/artifacts/player-contract.md` (§ The package: what a release's copy
+  holds).
+- **Deliverables:**
+  - `contract/released/1.2.0/` gains `transport.json` and `vocabulary.json` with the bytes
+    they have at the tag `contract-v1.2.0`, and its `sha256.json` covers them. The copy has
+    not left this branch, so amending it is honest; the specification says from which
+    release on a copy holds these files (1.0.0 and 1.1.0 had neither).
+  - The package's suite holds HEAD to every frozen copy that has them: every answer of a
+    release (a route, a case, its status and its body's shape) still holds, unless HEAD's
+    row carries a `corrected` record naming the version it changed in, what it was and
+    why; no route or case of a release is gone; every state and word of a release's
+    vocabulary is still there with the same meaning (a word may be added, a state may be
+    added; a word changed is a change of meaning and fails).
+  - The one recorded correction (the wall heartbeat's answer to a body that is not an
+    object, 422 to 400 in 1.3.0) passes because it is recorded.
+- **Acceptance:** with an answer of 1.2.0 changed in HEAD's table and no `corrected`
+  record the suite is red naming the route and case (the integrator's own experiment:
+  `label`/`captions_no_wall` 404 to 410); with the record added it is green; a route's
+  case removed is red; a vocabulary word of 1.2.0 reworded is red, and a state added is
+  green; a byte changed in either frozen file is red by its hash. Each shown.
+- **Verification ceiling:** the contract suite whole, the server's contract tests
+  (`arrt/tests/contract`), the governance suite whole, the contract project's mypy, ruff
+  and black in `contract/`.
 
 ### Chunk 54: Records, and the change record
 
