@@ -5,6 +5,8 @@ transaction a feed is decided in and written at the end of (`publishing`), the
 manifest a theme makes on a wall (`build_manifest`, `sync`), keeping published
 feeds true to what the Library will show (`reconcile`), and the schedule each
 feed carries, rebuilt beside every wall it shares a work with (`_write_v2`).
+Every act decides its feeds for one instant (`_now`), and no feed is published
+over the bound a Player reads (`FEED_MAX_BYTES`, `_publish_feed`).
 `DisplayService` (`display.py`) composes it and delegates to it; every surface
 still calls `services.display`.
 
@@ -17,7 +19,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import json
 import logging
-from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -69,17 +71,109 @@ class _Held:
 class _Beside:
     """A wall rebuilt in a household pass beside the wall republished (`schedule.run_household_pass`).
 
-    `view` is what it is built against, and `now` the instant the wall
-    republished is built from, so every wall of one pass is scheduled for one
-    moment, however long the pass takes. Its feed is not written there: what
-    would be written goes into `held`, and the pass writes it once the wall
-    republished has been, so no wall is left scheduled round a first slot that
-    was never published.
+    `view` is what it is built against. It is built from the act's one instant
+    (`FeedPublisher._now`), as every wall of the pass is, so every wall of one
+    pass is scheduled for one moment however long the pass takes. Its feed is
+    not written there: what would be written goes into `held`, and the pass
+    writes it once the wall republished has been, so no wall is left scheduled
+    round a first slot that was never published.
     """
 
     view: PassView
-    now: datetime
     held: list[_Held] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class _Act:
+    """What one publishing act holds while it is open (`FeedPublisher.publishing`)."""
+
+    #: The feeds it has decided, by wall, written as its last step.
+    staged: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: The act's one instant, read from the clock the first time the act asks,
+    #: which is inside the store's lock: every schedule, step and scene layer
+    #: of the act is decided for this moment (`FeedPublisher._now`).
+    now: datetime | None = None
+
+
+@dataclass(slots=True)
+class _Household:
+    """One household pass beside the wall republished, across its runs (`FeedPublisher._write_v2`).
+
+    A run that a refusal caught out is run again: from the feeds as the act
+    had them before the first run (`before`, put back into the act's staged
+    feeds), without each neighbour refused after the wall republished was
+    built counting it by its slot now alone (`outside`), and with each
+    refused neighbour counted by its published slots (`refused`).
+    """
+
+    act: _Act
+    rebuild_beside: Callable[[str, _Beside], None]
+    walls: Mapping[str, Wall]
+    #: Every wall's feed as the act had it when the pass began.
+    feeds: Mapping[str, Published]
+    #: Every wall whose feed shares a work with the wall republished.
+    neighbours: Sequence[str]
+    #: The works each wall's feed names, the wall republished's to come for it.
+    held: Mapping[str, Collection[str]]
+    #: The act's staged feeds before the pass, put back before a run again.
+    before: Mapping[str, dict[str, Any]]
+    #: Each neighbour rebuilt in the current run.
+    rebuilt: dict[str, _Held] = field(default_factory=dict)
+    #: The neighbours staged in the current run, in the order staged.
+    staged: list[str] = field(default_factory=list)
+    #: Each neighbour that could not be rebuilt or staged, with why.
+    refused: dict[str, ServiceError] = field(default_factory=dict)
+    #: Neighbours refused after the wall republished was built counting them by
+    #: their slot now alone, left out of the next run so they count as walls
+    #: outside the pass, by their whole published schedule.
+    outside: set[str] = field(default_factory=set)
+
+    def outside_starts(self, pace: Callable[[str], int]) -> tuple[datetime, ...]:
+        """The slot starts of the slowest neighbour left out of the pass, if any, which the wall republished lines up with."""
+        if not self.outside:
+            return ()
+        slowest = max(sorted(self.outside), key=pace)
+        return tuple(slot.start for slot in self.feeds[slowest].slots)
+
+    def among(self) -> list[str]:
+        """The neighbours this run rebuilds."""
+        return [other for other in self.neighbours if other not in self.outside]
+
+    def build_neighbour(self, neighbour: str, view: PassView) -> Schedule | None:
+        """`run_household_pass`'s builder of a neighbour: None for one that cannot be rebuilt, or was refused before."""
+        if neighbour in self.refused:
+            return None
+        beside = _Beside(view)
+        try:
+            self.rebuild_beside(neighbour, beside)
+        except ServiceError as error:
+            self.refused[neighbour] = error
+            return None
+        if not beside.held:
+            return None
+        self.rebuilt[neighbour] = beside.held[-1]
+        return self.rebuilt[neighbour].schedule
+
+    def rebuilt_in(self, built: Mapping[str, Schedule]) -> list[str]:
+        """The neighbours a run rebuilt, in the order to stage them, with the run's staged list begun afresh."""
+        self.staged.clear()
+        return [neighbour for neighbour in built if neighbour in self.rebuilt]
+
+    def run_again(self, discounted: Collection[str], *, refused_at_staging: bool) -> bool:
+        """Whether a refusal caught this run out; if so, set the next run up.
+
+        Caught out: a neighbour refused that the wall republished counted by its
+        slot now alone (`discounted`), or one refused at staging, whose rebuilt
+        slots the run was built against.
+        """
+        caught_out = (set(self.refused) & set(discounted)) - self.outside
+        if not caught_out and not refused_at_staging:
+            return False
+        self.act.staged.clear()
+        self.act.staged.update(self.before)
+        self.outside |= caught_out
+        self.rebuilt.clear()
+        return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +188,8 @@ class Reconciliation:
     #: sharing a work with one of them has its slots to come rebuilt too
     #: (`_write_v2`), and is not listed for that.
     republished: Sequence[str]
+    #: How many walls it looked at: every wall the store holds.
+    walls: int = 0
 
     @property
     def changed(self) -> bool:
@@ -119,10 +215,17 @@ class FeedPublisher:
         self._settings = settings
         #: The facade's one set of lookups, over the same store (`lookups.py`).
         self._lookups = lookups
-        #: The feeds the open publishing transaction has decided, by wall, written
-        #: as its last step (`publishing`). Seen only by the act that opened it:
-        #: any other reads the published file, which is what Players have.
-        self._staged: ActState[dict[str, dict[str, Any]]] = ActState(store)
+        #: The open publishing transaction's feeds, decided by wall and written
+        #: as its last step, and its one instant (`publishing`, `_Act`). Seen
+        #: only by the act that opened it: any other reads the published file,
+        #: which is what Players have.
+        self._act: ActState[_Act] = ActState(store)
+        #: The size of the feed last refused for each wall for being over the
+        #: bound (`_publish_feed`), so a refusal repeated at every heartbeat's
+        #: roll or every scheduled reconcile is said once, not each time. A wall
+        #: leaves it when a feed of its is next staged. Touched only under the
+        #: store's lock, inside an act.
+        self._over_bound: dict[str, int] = {}
 
     # -- the feeds' transaction -----------------------------------------------
 
@@ -156,22 +259,40 @@ class FeedPublisher:
         inside another kind of transaction is refused by name, since its feeds
         would be written before that transaction decided anything.
         """
-        if self._staged.current() is not None:
+        if self._act.current() is not None:
             with self._store.transaction():
                 yield
             return
         if self._store.in_transaction():
             raise RuntimeError("A feed is published from a transaction of its own (`publishing`), never inside another.")
-        with self._staged.opened({}) as staged:
+        with self._act.opened(_Act()) as act:
             yield
-            self._write_staged(staged)
+            self._write_staged(act.staged)
+
+    def _now(self) -> datetime:
+        """The open act's one instant, or the clock's when no act is open.
+
+        **One reading of the clock per act**, made the first time the act asks,
+        under the store's lock. Read twice, two steps of one act can be decided
+        for different moments: a step chose the work after the one on the wall
+        at one reading and scheduled from a later one, which a slot boundary
+        between the two turned into showing the work already up (no move on);
+        and each wall's scene layer read its own, so a scene ending between two
+        readings was on one wall's feed and off its neighbour's.
+        """
+        act = self._act.current()
+        if act is None:
+            return datetime.now(UTC)
+        if act.now is None:
+            act.now = datetime.now(UTC)
+        return act.now
 
     def published(self, wall_id: str) -> Published | None:
         """The wall's feed as this act has decided it, else as published: what every build reads back."""
-        staged = self._staged.current()
-        if staged is not None and wall_id in staged:
+        act = self._act.current()
+        if act is not None and wall_id in act.staged:
             # Through JSON, so it reads exactly as the file it will be.
-            return published_from(json.loads(json.dumps(staged[wall_id])), where=f"the feed staged for wall {wall_id}")
+            return published_from(json.loads(json.dumps(act.staged[wall_id])), where=f"the feed staged for wall {wall_id}")
         return read_published_v2(self._settings.manifest_v2_path(wall_id))
 
     def _write_staged(self, staged: Mapping[str, dict[str, Any]]) -> None:
@@ -324,15 +445,21 @@ class FeedPublisher:
         theme while it is hung). This superseded the ruling of 2026-09-30 that
         additions wait for sync.
 
-        **Run at every start**, because an announcement lost to a crash between
-        the Library's commit and this handler would otherwise leave a wall
-        showing a work the curator withdrew until someone happened to hang the
-        theme again. A lost announcement that would have added a work is not
+        **Run at every start, and on every scheduler pass** (`FeedsJob`,
+        `services/container.py`, cause `SCHEDULED`), because an announcement lost
+        to a crash between the Library's commit and this handler would otherwise
+        leave a wall showing a work the curator withdrew until someone happened
+        to hang the theme again, and a feed changed on disk behind the server's
+        back (removed, an entry no longer the Library's, another theme's) would
+        stay so until the next start. A lost announcement that would have added a work is not
         searched for here: a feed names only what its horizon schedules, so a
         member it does not name may simply not be due, and the next roll, which
         builds the hung theme, carries it (`roll_v2`).
         """
         named = None if work_ids is None else set(work_ids)
+        # Whether this is its own act or a step of a person's: what a feed
+        # over the bound does to it (`_passed_over_if_too_large`).
+        own = self._act.current() is None
         with self.publishing():
             walls = self._store.list_walls()
             feeds = {wall.id: self.published(wall.id) for wall in walls}
@@ -360,9 +487,11 @@ class FeedPublisher:
             # Each feed read again as its turn comes: an earlier wall's republish
             # may have rebuilt it beside that wall, and the copy read above would
             # write the old schedule back over the new.
-            republished = [
-                wall.id for wall in walls if self._reconcile_v2(wall.id, self.published(wall.id), answers, cause=cause)
-            ]
+            republished: list[str] = []
+            for wall in walls:
+                with self._passed_over_if_too_large(own=own):
+                    if self._reconcile_v2(wall.id, self.published(wall.id), answers, cause=cause):
+                        republished.append(wall.id)
             for wall_id, theme_id in hung.items():
                 shown = {work_id for work_id in joining[wall_id] if isinstance(answers.get(work_id), PlayableWork)}
                 # At a start, a feed of another theme than the one hung too: what
@@ -370,27 +499,52 @@ class FeedPublisher:
                 # commit then failed (`publishing`), which no roll would mend
                 # until the horizon ran low.
                 disowned = named is None and self._of_another_theme(wall_id, theme_id)
-                if (shown or disowned or self._unpublished(wall_id)) and self._publish_additions(
-                    wall_id, theme_id, shown, cause=cause, whole=disowned
-                ):
-                    republished.append(wall_id)
+                if not (shown or disowned or self._unpublished(wall_id)):
+                    continue
+                with self._passed_over_if_too_large(own=own):
+                    if self._publish_additions(wall_id, theme_id, shown, cause=cause, whole=disowned):
+                        republished.append(wall_id)
             kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
             for wall_id, candidates in returning.items():
                 back = sorted(w for w in candidates if isinstance(answers.get(w), PlayableWork) and w not in kept_off)
                 if back and feeds[wall_id] is not None:
-                    self.patch_walls([wall_id])
-                    republished.append(wall_id)
-                    log.info(
-                        "Wall %r: %s back in its scene (after %s).",
-                        self._lookups.get_wall(wall_id).name,
-                        ", ".join(back),
-                        cause,
-                    )
+                    with self._passed_over_if_too_large(own=own):
+                        self.patch_walls([wall_id])
+                        republished.append(wall_id)
+                        log.info(
+                            "Wall %r: %s back in its scene (after %s).",
+                            self._lookups.get_wall(wall_id).name,
+                            ", ".join(back),
+                            cause,
+                        )
 
-        result = Reconciliation(asked=len(asked), refused=tuple(sorted(refused)), republished=tuple(dict.fromkeys(republished)))
-        if work_ids is None and not result.changed:
-            log.info("Reconciled %d walls against the Library at startup: nothing to change.", len(walls))
+        result = Reconciliation(
+            asked=len(asked),
+            refused=tuple(sorted(refused)),
+            republished=tuple(dict.fromkeys(republished)),
+            walls=len(walls),
+        )
+        if work_ids is None:
+            _say_reconciled(result, {wall.id: wall.name for wall in walls}, cause=cause)
         return result
+
+    @contextmanager
+    def _passed_over_if_too_large(self, *, own: bool) -> Iterator[None]:
+        """One wall's step of a reconciliation: as its own act, a feed over the bound passes the wall over.
+
+        Inside a person's act (a work joining its theme) the refusal is that
+        act's, so the person is told. As its own act (a start, a scheduled
+        pass, a Library announcement) it has nobody to tell, so the wall keeps
+        the feed it has, said once (`_publish_feed`), and the other walls go on.
+        Nothing of the wall's step was staged: a feed is refused before it is.
+        """
+        if not own:
+            yield
+            return
+        try:
+            yield
+        except FeedTooLarge:
+            return
 
     def _held(self, theme_id: str, work_ids: set[str] | None) -> set[str]:
         """Which of these works the theme holds; none when none are named, since startup adds by publishing whole."""
@@ -406,8 +560,8 @@ class FeedPublisher:
         bad file cannot stop the server starting. A work joining the wall's theme
         is such a publish, as a hang is.
         """
-        staged = self._staged.current()
-        if staged is not None and wall_id in staged:
+        act = self._act.current()
+        if act is not None and wall_id in act.staged:
             return False
         return not self._settings.manifest_v2_path(wall_id).exists()
 
@@ -507,7 +661,9 @@ class FeedPublisher:
         works = dict(previous.works)
         if pinned is not None:
             works[pinned.work_id] = work_document(pinned)
-        first = pinned.work_id if pinned is not None else previous.after(datetime.now(UTC))
+        # The work after the one on the wall at the act's instant, which is the
+        # instant the schedule below starts from (`_now`).
+        first = pinned.work_id if pinned is not None else previous.after(self._now())
         schedule = self._rebuild_v2(wall_id, previous, works=works, start=StartFresh(first))
         return schedule.slots[0].work_id
 
@@ -550,21 +706,27 @@ class FeedPublisher:
         reaches the wall at the next roll, within a day, without a re-hang. A wall with nothing hung
         goes on with what its feed carries.
         """
-        with self.publishing():
-            previous = self.published(wall_id)
-            if previous is None or previous.horizon_until - datetime.now(UTC) >= ROLL_WHEN_LEFT:
-                return
-            build = self.republish(wall_id, previous)
-            if build is not None:
-                # Said, because this is also how a work whose announcement was
-                # lost reaches the wall, and how a reorder or a new pace does.
-                log.info(
-                    "Wall %r: rolled its horizon forward from theme %r, %d of %d works.",
-                    build.wall.name,
-                    build.theme.name,
-                    len(build.entries),
-                    build.considered,
-                )
+        try:
+            with self.publishing():
+                previous = self.published(wall_id)
+                if previous is None or previous.horizon_until - self._now() >= ROLL_WHEN_LEFT:
+                    return
+                build = self.republish(wall_id, previous)
+        except FeedTooLarge:
+            # A Player's heartbeat is no place to refuse: the wall keeps the
+            # feed it has, which is what a Player does with one over the bound,
+            # and the refusal was said once (`_publish_feed`).
+            return
+        if build is not None:
+            # Said, because this is also how a work whose announcement was
+            # lost reaches the wall, and how a reorder or a new pace does.
+            log.info(
+                "Wall %r: rolled its horizon forward from theme %r, %d of %d works.",
+                build.wall.name,
+                build.theme.name,
+                len(build.entries),
+                build.considered,
+            )
 
     def _rebuild_v2(
         self,
@@ -636,11 +798,32 @@ class FeedPublisher:
         neighbour has been rewritten round it. A wall rebuilt `beside` another
         is one step of that pass: it is built against the pass's view, handed
         back unwritten, and rebuilds no neighbours of its own.
-        """
-        now = beside.now if beside is not None else datetime.now(UTC)
-        cycle = [work_id for work_id in order if work_id in works]
 
-        def scheduled(view: PassView, start: Start, also: Collection[str]) -> Schedule:
+        **A neighbour that cannot be rebuilt keeps its published feed, and this
+        wall is built against that.** One refused while the pass builds it, if
+        it was built before this wall (a slower one), is counted by its
+        published slots and this wall lines up with them (`run_household_pass`).
+        One built after this wall, at its pace or quicker, was counted by its
+        slot now alone, as a wall that would step aside; refused, it does not,
+        so the pass is run again without it, this wall built against its whole
+        published schedule, as a wall outside the pass is. One whose feed cannot
+        be staged (`_publish_feed`: over the bound, or its scene's works cannot
+        be asked about) is refused in the same way, after this wall was staged,
+        so the pass is run again and this wall staged again. Each run reads the
+        act's one instant, and nothing reaches a file until the act ends, so a
+        second run costs builds, never a second write. Each refusal is said
+        once, after the last run.
+        """
+        now = self._now()
+        cycle = [work_id for work_id in order if work_id in works]
+        #: The walls that were still to come, and so counted by their slot now
+        #: alone, when this wall was last built: the ones a refusal can catch out.
+        discounted: set[str] = set()
+        #: In a run without a neighbour refused after this wall was built, that
+        #: neighbour's published slot starts, which this wall lines up with.
+        outside: list[datetime] = []
+
+        def build(view: PassView, start: Start, also: Collection[str]) -> Schedule:
             return build_schedule(
                 wall_id=wall_id,
                 work_ids=cycle,
@@ -655,55 +838,90 @@ class FeedPublisher:
                 align_to=view.align_to,
             )
 
+        def scheduled(view: PassView, start: Start, also: Collection[str]) -> Schedule:
+            if beside is not None:
+                return build(view, start, also)
+            discounted.clear()
+            discounted.update(view.movable)
+            schedule = build(view, start, also)
+            if not outside or view.align_to:
+                return schedule
+            # Lined up with the neighbour left out of the pass, as with one
+            # refused before this wall (`run_household_pass`): built again
+            # keeping its first slot, which runs on to that wall's next boundary,
+            # so a slot here does not span two of its slots and meet both of
+            # two works the walls share.
+            first = schedule.slots[0]
+            again = PassView({**view.published, wall_id: (first,)}, view.movable, tuple(outside))
+            return build(again, Keep(), {*also, first.work_id})
+
         if beside is not None:
             schedule = scheduled(beside.view, start, ())
             beside.held.append(_Held(wall_id, playlist, schedule, works))
             return schedule
+        household = self._household(wall_id, works, cycle)
+        while True:
+            outside[:] = household.outside_starts(lambda other: self.pace(household.walls[other])[0])
+            built = run_household_pass(
+                wall_id,
+                household.among(),
+                start=start,
+                movable=movable_walls(wall_id, household.among(), household.held),
+                slot_seconds={
+                    wall_id: slot_seconds,
+                    **{other: self.pace(household.walls[other])[0] for other in household.among()},
+                },
+                works=household.held,
+                published={other: feed.slots for other, feed in household.feeds.items()},
+                build_republished=scheduled,
+                build_neighbour=household.build_neighbour,
+            )
+            schedule = built[wall_id]
+            self._publish_feed(wall_id, playlist=playlist, schedule=schedule, works=works)
+            refused_at_staging = False
+            for neighbour in household.rebuilt_in(built):
+                feed = household.rebuilt[neighbour]
+                try:
+                    self._publish_feed(neighbour, playlist=feed.playlist, schedule=feed.schedule, works=feed.works)
+                except ServiceError as error:
+                    household.refused[neighbour] = error
+                    refused_at_staging = True
+                    continue
+                household.staged.append(neighbour)
+            if not household.run_again(discounted, refused_at_staging=refused_at_staging):
+                break
+        self._say_pass(household, wall_id, schedule)
+        return schedule
+
+    def _household(self, wall_id: str, works: Mapping[str, Any], cycle: Sequence[str]) -> _Household:
+        """The household pass that republishes this wall: its neighbours, as the act has their feeds now."""
+        act = self._act.current()
+        if act is None:
+            raise RuntimeError(f"Wall {wall_id}'s feed was built outside `publishing`, where nothing would write it.")
         walls = {wall.id: wall for wall in self._store.list_walls()}
         feeds = {other: current for other in walls if (current := self.published(other)) is not None}
-        neighbours = sorted(
-            other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
-        )
         held: dict[str, Collection[str]] = {other: feed.works.keys() for other, feed in feeds.items()}
         held[wall_id] = cycle
-        rebuilt: dict[str, _Held] = {}
-
-        def build_neighbour(neighbour: str, view: PassView) -> Schedule | None:
-            beside = _Beside(view, now)
-            try:
-                self._rebuild_beside(neighbour, beside)
-            except ServiceError as error:
-                self._say_not_rebuilt(walls[neighbour], walls[wall_id], error)
-                return None
-            if not beside.held:
-                return None
-            rebuilt[neighbour] = beside.held[-1]
-            return rebuilt[neighbour].schedule
-
-        built = run_household_pass(
-            wall_id,
-            neighbours,
-            start=start,
-            movable=movable_walls(wall_id, neighbours, held),
-            slot_seconds={wall_id: slot_seconds, **{other: self.pace(walls[other])[0] for other in neighbours}},
-            works=held,
-            published={other: feed.slots for other, feed in feeds.items()},
-            build_republished=scheduled,
-            build_neighbour=build_neighbour,
+        return _Household(
+            act=act,
+            rebuild_beside=self._rebuild_beside,
+            walls=walls,
+            feeds=feeds,
+            neighbours=sorted(
+                other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
+            ),
+            held=held,
+            before=dict(act.staged),
         )
-        schedule = built[wall_id]
-        self._publish_feed(wall_id, playlist=playlist, schedule=schedule, works=works)
+
+    def _say_pass(self, household: _Household, wall_id: str, schedule: Schedule) -> None:
+        """Say what a household pass did: each neighbour it could not rebuild, each clash, each neighbour rebuilt."""
+        walls = household.walls
+        for neighbour, refusal in household.refused.items():
+            self._say_not_rebuilt(walls[neighbour], walls[wall_id], refusal)
         self._say_clashes(walls[wall_id], schedule)
-        for neighbour in built:
-            if neighbour == wall_id:
-                continue
-            feed = rebuilt[neighbour]
-            try:
-                self._publish_feed(neighbour, playlist=feed.playlist, schedule=feed.schedule, works=feed.works)
-            except ServiceError as error:
-                self._say_not_rebuilt(walls[neighbour], walls[wall_id], error)
-                continue
-            self._say_clashes(walls[neighbour], feed.schedule)
+        for neighbour in household.staged:
+            self._say_clashes(walls[neighbour], household.rebuilt[neighbour].schedule)
             # Said, because a wall's feed changing when nobody touched that wall
             # is otherwise a mystery in the journal.
             log.info(
@@ -711,7 +929,6 @@ class FeedPublisher:
                 walls[neighbour].name,
                 walls[wall_id].name,
             )
-        return schedule
 
     def _say_clashes(self, wall: Wall, schedule: Schedule) -> None:
         """Name the clashes a schedule kept, if any.
@@ -763,8 +980,8 @@ class FeedPublisher:
         Returns the build when it built the theme. From the theme so one with
         more works than a horizon names is not narrowed to those its feed named.
         **A feed not of the hung theme** (its files renamed into place, then the
-        hang's commit failed, `publishing`) is put right at the next start
-        (`reconcile`) or by the wall's own roll or setting change, which publish
+        hang's commit failed, `publishing`) is put right at the next start or
+        scheduled pass (`reconcile`) or by the wall's own roll or setting change, which publish
         the hung theme and so start it fresh; a pass `beside` another wall
         leaves it as it is, since that would change the picture on a wall
         nobody touched.
@@ -880,6 +1097,14 @@ class FeedPublisher:
         is the caller's, read back from the published document because its
         stability rule needs the one before; the control layer needs no such
         thing, and is never read back.
+
+        **A feed over `FEED_MAX_BYTES` is not staged** (`FeedTooLarge`): a
+        Player may stop reading past the bound and keep what it has, so a feed
+        over it is one no Player would take. The wall keeps the feed it has;
+        the act asked for on it is refused whole, and a neighbour rebuilt
+        beside it keeps its feed as one that cannot be rebuilt does
+        (`_write_v2`). Said once per wall, with the event `feed.over_bound`,
+        until a feed of that wall is staged again.
         """
         control = self._control_layer(wall_id)
         feed = Feed(
@@ -891,10 +1116,30 @@ class FeedPublisher:
             scene=control.scene,
             staging=control.staging,
         )
-        staged = self._staged.current()
-        if staged is None:
+        act = self._act.current()
+        if act is None:
             raise RuntimeError(f"Wall {wall_id}'s feed was published outside `publishing`, where nothing would write it.")
-        staged[wall_id] = as_v2_document(feed)
+        document = as_v2_document(feed)
+        size = served_size(document)
+        if size > FEED_MAX_BYTES:
+            raise self._over_the_bound(wall_id, size)
+        self._over_bound.pop(wall_id, None)
+        act.staged[wall_id] = document
+
+    def _over_the_bound(self, wall_id: str, size: int) -> FeedTooLarge:
+        """The refusal of a feed over the bound, said once for the wall (`_publish_feed`)."""
+        wall = self._lookups.get_wall(wall_id)
+        if wall_id not in self._over_bound:
+            log.warning(
+                "Wall %r: its feed would be %d bytes, over the %d a Player reads, so it was not published; "
+                "the wall keeps the feed it has.",
+                wall.name,
+                size,
+                FEED_MAX_BYTES,
+                extra={"event": "feed.over_bound", "wall_id": wall_id, "bytes": size, "max_bytes": FEED_MAX_BYTES},
+            )
+        self._over_bound[wall_id] = size
+        return FeedTooLarge(wall.name, size)
 
     def _control_layer(self, wall_id: str) -> _Control:
         """The scene this wall shows now and the works a draft stages on it, with their entries.
@@ -905,7 +1150,7 @@ class FeedPublisher:
         it cannot carry is one the Player refuses whole. The wall then shows its
         schedule, which is what it would show with no scene.
         """
-        now = datetime.now(UTC)
+        now = self._now()
         pinned, staged = self._control_pins(wall_id, now)
         if pinned is None and not staged:
             return _Control(scene=None, staging=(), works={})
@@ -952,7 +1197,7 @@ class FeedPublisher:
 
     def _pinned_work_ids(self, wall_id: str) -> set[str]:
         """Every work a scene pins or stages on this wall now, whether or not the wall can show it."""
-        pinned, staged = self._control_pins(wall_id, datetime.now(UTC))
+        pinned, staged = self._control_pins(wall_id, self._now())
         return set(staged) | ({pinned[1].work_id} if pinned is not None else set())
 
     # -- republishing a feed as it stands, and taking a work off ---------------
@@ -983,11 +1228,70 @@ class FeedPublisher:
             self.withdraw_v2(wall_id, {artwork_id}, cause=cause)
 
 
+#: The largest feed this server publishes, in bytes of the file a Player is
+#: sent: `contract/transport.json`'s `max_bytes` for the `manifest_major` route,
+#: quoted because the server cannot read the contract package at run time (it
+#: is a dev dependency, and the image's app stage installs none), and held to
+#: the package by `tests/unit/test_feed_publisher.py`.
+FEED_MAX_BYTES: Final[int] = 16_777_216
+
+
+def served_size(document: Mapping[str, Any]) -> int:
+    """How many bytes this feed is as its file, which is what a Player is sent.
+
+    Spelled as `manifest.builder.write_atomically` writes it (two-space
+    indents, UTF-8, a closing newline); a test holds the two to one length.
+    """
+    return len(json.dumps(document, indent=2, ensure_ascii=False).encode("utf-8")) + 1
+
+
+class FeedTooLarge(ServiceError):
+    """A wall's feed would be over `FEED_MAX_BYTES`, so it was not published and the wall keeps the one it has."""
+
+    def __init__(self, wall_name: str, size: int) -> None:
+        super().__init__(
+            f"The feed for {wall_name!r} would be {size:,} bytes, past the {FEED_MAX_BYTES:,} a Player reads, "
+            "so nothing was changed and the wall keeps the feed it has. A longer rotation interval on the wall "
+            "makes its feed smaller."
+        )
+        self.size = size
+
+
 #: When a wall's published horizon has less than this left, its next heartbeat
 #: republishes it. Two of the horizon's three days: a server that comes back after
 #: a day away still finds a day in hand on every wall, and a live wall, which
 #: reports every few seconds, is extended about once a day.
 ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)
+
+
+#: The cause a scheduled reconciliation names in its lines, as a start names
+#: "startup" and an announcement the change it announced.
+SCHEDULED: Final[str] = "the scheduled check"
+
+
+def _say_reconciled(result: Reconciliation, names: Mapping[str, str], *, cause: str) -> None:
+    """Say what a reconciliation of every wall did: what it corrected, with the event `feeds.reconciled`.
+
+    A start says so when there was nothing to change, as it always has; a
+    scheduled pass that changed nothing says nothing here, since the
+    scheduler's own `scheduler.pass` line is its line on every pass.
+    """
+    if result.changed:
+        log.info(
+            "Reconciled %d walls against the Library (after %s): republished %s.",
+            result.walls,
+            cause,
+            ", ".join(repr(names.get(wall_id, wall_id)) for wall_id in result.republished),
+            extra={
+                "event": "feeds.reconciled",
+                "cause": cause,
+                "walls": result.walls,
+                "republished": list(result.republished),
+                "refused": list(result.refused),
+            },
+        )
+    elif cause == "startup":
+        log.info("Reconciled %d walls against the Library at startup: nothing to change.", result.walls)
 
 
 def applied_at(scene: Scene) -> datetime:
