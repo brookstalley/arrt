@@ -19,6 +19,7 @@ import pytest
 from async_http import request
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from unit.test_surface_parity import CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET, check_not_yet_on_mcp
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
@@ -98,7 +99,9 @@ async def test_the_listing_carries_what_the_client_reported_in_the_browsers_fiel
     [client] = (await ok(server_url, "clients"))["clients"]
     [browser] = (await request("GET", f"{server_url}/api/clients")).json()["clients"]
 
-    assert client.keys() == browser.keys()
+    # Alike but for the fields the browser's route answers first and the tool
+    # gains later, named once beside the other surface exemptions.
+    check_not_yet_on_mcp("Client", set(client), set(browser), CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)
     assert client["heartbeat"].keys() == browser["heartbeat"].keys()
     assert client["heartbeat"]["outputs"] == browser["heartbeat"]["outputs"]
     assert [output["name"] for output in client["heartbeat"]["outputs"]] == ["hdmi-a-1", "hdmi-a-2"]

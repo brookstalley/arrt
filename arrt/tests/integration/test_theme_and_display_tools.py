@@ -511,17 +511,22 @@ async def test_deleting_a_theme_with_works_in_it_leaves_the_works_alone(server_u
 # -- the wall -------------------------------------------------------------------
 
 
-async def test_status_says_plainly_that_the_display_plane_has_never_reported(server_url):
-    """The display plane does not exist yet, and the honest answer is to say so.
+async def test_status_says_plainly_that_the_display_plane_has_never_reported(server_url, services):
+    """A wall a Player shows that has never reported, and the honest answer is to say so.
 
-    Not a zero, not a green light: both would read as a reading. This is the
-    state a fresh deployment is in, and it has to be legible rather than
-    look like a healthy wall.
+    Not a zero, not a green light: both would read as a reading. It has to be
+    legible rather than look like a healthy wall.
 
     **And it names the wall**, which is what one heartbeat per wall bought: with
     two rooms the useful sentence is "the study has not reported", and one shared
-    file could only ever have said that *something* had not.
+    file could only ever have said that *something* had not. The wall is given a
+    Player first: one with none is a step of setting up, never named as silent
+    (the next test).
     """
+    [only] = services.display.survey_walls()
+    pi = services.clients.add_client(name="The Pi in the hall")
+    services.clients.assign_wall(only.wall.id, client_id=pi.id, output="hdmi-a-1")
+
     payload, errored = await call(server_url, "art_display", action="status")
 
     assert errored is False
@@ -530,9 +535,26 @@ async def test_status_says_plainly_that_the_display_plane_has_never_reported(ser
     assert reading["age_seconds"] is None
     assert "has not reported yet" in reading["observation"]
     assert payload["observation"] == (
-        f"{reading['wall_name']!r} has not reported. "
-        "Each wall's own reading says whether nothing was ever written or what could not be read."
+        f"{reading['wall_name']!r} has not reported. Each wall's own reading says whether nothing was ever "
+        "written, what could not be read, or when it last reported."
     )
+
+
+async def test_status_never_names_a_wall_no_player_shows_as_not_reporting(server_url):
+    """A wall with no Player is a step not yet taken (`vocabulary.json`'s `unassigned`), not a silent wall.
+
+    The sentence is the health panel's own (`describe_wall_status`, shared), so
+    the two surfaces are held to one string rather than to two copies of it.
+    """
+    from async_http import request
+
+    payload, errored = await call(server_url, "art_display", action="status")
+
+    assert errored is False
+    [reading] = payload["walls"]
+    assert reading["wall_name"] not in payload["observation"]
+    assert payload["observation"] == "No Player shows a wall yet, so there is no report to read."
+    assert payload["observation"] == (await request("GET", f"{server_url}/api/health")).json()["description"]
 
 
 async def test_status_and_the_health_panel_state_the_same_picture_store_count(server_url, services):

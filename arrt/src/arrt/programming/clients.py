@@ -40,6 +40,7 @@ from arrt.programming.display_state import DisplayState, ScreenState, display_st
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading, heartbeat_path_in
+from arrt.programming.player_state import PlayerReading, player_reading
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_text
@@ -149,6 +150,14 @@ class PlacementSurvey:
             labels=[label for label in self.label_outputs if label.wall_id == wall.id],
         )
 
+    def shows(self, wall: Wall) -> bool:
+        """Whether a client shows this wall now: what turns a wall's report into a display state, or `unassigned`."""
+        return self.placement_of(wall).shown_by is not None
+
+    def wall_state(self, wall: Wall, reading: HeartbeatReading) -> DisplayState:
+        """The wall's display state from its report as read, by this survey's placements."""
+        return display_state_of(reading, shown=self.shows(wall))
+
     def shown_walls(self, client_id: str) -> Sequence[ShownWall]:
         """The walls this client shows now, in the order walls are listed. Its own question, every poll."""
         shown = []
@@ -217,8 +226,7 @@ class Placements:
     def wall_state(self, wall: Wall) -> WallState:
         """The wall's display state, the one answer Walls, the MCP walls read and every label give."""
         reading = heartbeat.read(heartbeat_path_in(self._art_root, wall.id))
-        shown = self.placement_of(wall).shown_by is not None
-        return WallState(state=display_state_of(reading, shown=shown), reading=reading)
+        return WallState(state=self.survey().wall_state(wall, reading), reading=reading)
 
 
 def is_current(reading: ClientHeartbeatReading) -> bool:
@@ -274,6 +282,9 @@ class ClientView:
     #: The display faults it is one side of.
     faults: Sequence[DisplayFault]
     heartbeat: ClientHeartbeatReading
+    #: Its state and each of its outputs', from its token and `heartbeat`
+    #: (`player_state.py`), so no surface derives them from the raw report.
+    player: PlayerReading
 
 
 @dataclass(frozen=True, slots=True)
@@ -762,14 +773,7 @@ class ClientService:
         return placed
 
     def _view(self, client: Client, survey: PlacementSurvey) -> ClientView:
-        return ClientView(
-            client=client,
-            walls=survey.shown_walls(client.id),
-            displays=survey.displays_of(client.id),
-            label_outputs=survey.label_outputs_of(client.id),
-            faults=survey.faults_of(client.id),
-            heartbeat=survey.readings.get(client.id) or self.read_heartbeat(client.id),
-        )
+        return view_of(client, survey, survey.readings.get(client.id) or self.read_heartbeat(client.id))
 
     def _notice(self, display: Display, client: Client | None) -> str | None:
         if client is None:
@@ -855,6 +859,26 @@ class ClientService:
 
     def _heartbeat_path(self, client_id: str) -> Path:
         return client_heartbeat.client_heartbeat_path_in(self._settings.art_root, client_id)
+
+
+def view_of(client: Client, survey: PlacementSurvey, reading: ClientHeartbeatReading) -> ClientView:
+    """One client's view from a survey and its report as read: the clients route's row, and the health route's Player."""
+    displays = survey.displays_of(client.id)
+    labels = survey.label_outputs_of(client.id)
+    return ClientView(
+        client=client,
+        walls=survey.shown_walls(client.id),
+        displays=displays,
+        label_outputs=labels,
+        faults=survey.faults_of(client.id),
+        heartbeat=reading,
+        player=player_reading(
+            token_issued=client.token_issued_at is not None,
+            reading=reading,
+            recorded_displays=[display.output for display in displays],
+            recorded_labels=[label.output for label in labels],
+        ),
+    )
 
 
 def _captioned_work(found: WallState) -> str | None:

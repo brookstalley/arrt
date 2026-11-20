@@ -72,6 +72,7 @@ from arrt.http.models import (
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
+    FailedFetchesOut,
     FailureCauseOut,
     FailureCausesOut,
     FitOut,
@@ -105,9 +106,12 @@ from arrt.http.models import (
     NotAgainRequest,
     OfferedTopicOut,
     OriginalOut,
+    OutputStateOut,
     PickItem,
     PicturesOut,
     PinScene,
+    PlayerHealthOut,
+    PlayerStateOut,
     QueuedWorkOut,
     QueuePauseOut,
     RefusedRetryOut,
@@ -176,6 +180,7 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    TroubleOut,
     UnattendedOut,
     UnlinkedArtistOut,
     UpcomingOut,
@@ -251,10 +256,11 @@ from arrt.programming.display import UNSET, SceneView, SizeJudgement, ThemeCount
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
+from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import HealthReading, PicturesReading, SourceHealth
+from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth
 from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
@@ -2492,6 +2498,19 @@ def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
                 for label in reading.label_outputs
             ],
         ),
+        state=_player_state(view.player),
+        settings_url=reading.settings_url,
+    )
+
+
+def _player_state(reading: PlayerReading) -> PlayerStateOut:
+    return PlayerStateOut(
+        state=str(reading.state),
+        since=_instant(reading.since),
+        outputs=[
+            OutputStateOut(kind=str(output.kind), name=output.name, state=str(output.state), connected=output.connected)
+            for output in reading.outputs
+        ],
     )
 
 
@@ -2767,7 +2786,12 @@ def _spend(report: SpendReport) -> SpendOut:
 def _health(reading: HealthReading) -> HealthOut:
     return HealthOut(
         walls=[
-            WallHeartbeatOut(wall_id=seen.wall.id, wall_name=seen.wall.name, heartbeat=_heartbeat(seen.heartbeat))
+            WallHeartbeatOut(
+                wall_id=seen.wall.id,
+                wall_name=seen.wall.name,
+                heartbeat=_heartbeat(seen.heartbeat),
+                display_state=_display_state(seen.state),
+            )
             for seen in reading.walls
         ],
         description=reading.describe(),
@@ -2775,6 +2799,27 @@ def _health(reading: HealthReading) -> HealthOut:
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
         watches=WatchesHealthOut(overdue=list(reading.watches.overdue), allowance_spent=reading.watches.allowance_spent),
+        players=[
+            PlayerHealthOut(client_id=view.client.id, name=view.client.name, state=_player_state(view.player))
+            for view in reading.players
+        ],
+        failed_fetches=None if reading.failed_fetches is None else _failed_fetches(reading.failed_fetches),
+        troubles=[
+            TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
+            for trouble in reading.troubles()
+        ],
+    )
+
+
+def _failed_fetches(found: FailedFetches) -> FailedFetchesOut:
+    return FailedFetchesOut(
+        count=found.count,
+        will_retry=found.will_retry,
+        given_up=found.given_up,
+        newest_failed_at=_instant(found.newest_failed_at),
+        newest_age_seconds=found.newest_age_seconds,
+        age_unknown=found.age_unknown,
+        description=found.describe(),
     )
 
 

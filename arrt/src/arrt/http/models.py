@@ -1122,6 +1122,40 @@ class ClientHeartbeatOut(BaseModel):
     label_outputs: list[ReportedLabelOutputOut]
 
 
+class OutputStateOut(BaseModel):
+    """One of a Player's outputs, a screen or a label panel, in the state its Player's report puts it in.
+
+    Per output, as well as per Player (the owner's ruling 8 of 2026-11-19): a
+    Player with several label panels and no screen has one of these per panel.
+    """
+
+    #: `display` (a screen a wall is shown on) or `label` (a label panel).
+    kind: str
+    #: The output's name, as the Player names it.
+    name: str
+    #: A `player_states` key (`contract/vocabulary.json`): its Player's state,
+    #: or `awaiting_report` for an output the server recorded that a reporting
+    #: Player's report does not list.
+    state: str
+    #: As the current report says, only while `state` is `reporting`; null otherwise.
+    connected: bool | None
+
+
+class PlayerStateOut(BaseModel):
+    """A Player's state (`programming/player_state.py`): one of the contract's `player_states` keys.
+
+    `no_token`, `awaiting_report`, `reporting`, `not_heard_from` or
+    `report_unreadable`. The first two are setup steps, never a fault; the words
+    for each are `vocabulary.json`'s, which the screens quote.
+    """
+
+    state: str
+    #: The last report's instant for `reporting` and `not_heard_from` ("Not heard
+    #: from since {date}"); null otherwise.
+    since: str | None
+    outputs: list[OutputStateOut]
+
+
 class ClientOut(BaseModel):
     """An installed Player: its name, when its token was issued, its walls and its last report.
 
@@ -1141,6 +1175,12 @@ class ClientOut(BaseModel):
     #: The display faults it is one side of, each naming every client involved.
     faults: list[DisplayFaultOut]
     heartbeat: ClientHeartbeatOut
+    #: Its state and each output's, so no screen derives them from `heartbeat`.
+    state: PlayerStateOut
+    #: The address of the Player's own settings page, as its last readable report
+    #: gave it, only when it passes `client-heartbeat.v1`'s check; null otherwise.
+    #: A link's address set as text, never markup (the contract's obligation).
+    settings_url: str | None
 
 
 class ClientListOut(BaseModel):
@@ -1316,6 +1356,10 @@ class WallHeartbeatOut(BaseModel):
     wall_id: str
     wall_name: str
     heartbeat: HeartbeatOut
+    #: The wall's display state, the one Walls serves (`display_state_of`): what
+    #: a screen says of the wall, where `heartbeat` is the report handed through.
+    #: `unassigned` (no Player shows it) is a setup step, never a trouble.
+    display_state: DisplayStateOut
 
 
 class SourcePluginOut(BaseModel):
@@ -1373,6 +1417,50 @@ class PicturesOut(BaseModel):
     description: str
 
 
+class PlayerHealthOut(BaseModel):
+    """One Player and its state, for Status and the top bar."""
+
+    client_id: str
+    name: str
+    state: PlayerStateOut
+
+
+class FailedFetchesOut(BaseModel):
+    """The works whose picture the queue could not fetch: Activity › Queue's own figures, with the newest's age.
+
+    `newest_age_seconds` is the age of the newest failure among the works whose
+    failure instant is recorded; `age_unknown` counts those whose instant is
+    not (today every work the queue gave up on), so "2,000 failed, newest an
+    hour ago" and "2,000 failed, when is not recorded" read apart.
+    """
+
+    #: Every work the Queue lists as failed: `will_retry` plus `given_up`.
+    count: int
+    will_retry: int
+    given_up: int
+    newest_failed_at: str | None
+    newest_age_seconds: float | None
+    #: Of `count`, how many failed at an instant not recorded; equal to `count`
+    #: when the newest failure's age is not known at all.
+    age_unknown: int
+    description: str
+
+
+class TroubleOut(BaseModel):
+    """One fault the top bar and the System badge count, never a setup step (`HealthReading.troubles`)."""
+
+    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch` or
+    #: `failed_fetches`: what it is about, so a screen links it to where it is mended.
+    about: str
+    #: The wall's or Player's id, the plugin's name, or the display's identity;
+    #: null for the backup, a Watch and the failed fetches.
+    subject: str | None
+    #: The wall's display state or the Player's state, for those two; null otherwise.
+    state: str | None
+    #: A short phrase in the household's words.
+    words: str
+
+
 class WatchesHealthOut(BaseModel):
     """The Watches a person needs to know about: overdue ones, by their words, and a spent allowance holding one."""
 
@@ -1399,9 +1487,10 @@ class HealthOut(BaseModel):
     """
 
     walls: list[WallHeartbeatOut]
-    #: One sentence across every wall, naming the ones that have not reported.
-    #: An observation and never a verdict: no threshold is applied here, so this
-    #: says how long ago rather than whether that is too long.
+    #: One sentence across every wall a Player shows, naming the ones that are
+    #: not reporting (`display_state` `silent`) and never one with no Player. An
+    #: observation and never a verdict: the only threshold is the contract's
+    #: staleness, which Walls and Players share.
     description: str
     backup: BackupOut
     #: Every installed source plugin, most preferred first. Empty when none is
@@ -1410,6 +1499,13 @@ class HealthOut(BaseModel):
     pictures: PicturesOut
     #: What the Watches need a person to know, since nothing else will tell them.
     watches: WatchesHealthOut
+    #: Every Player with its state and each output's, in the order Players lists them.
+    players: list[PlayerHealthOut]
+    #: What the queue holds as failed; null when it holds no failed work.
+    failed_fetches: FailedFetchesOut | None
+    #: Every fault this reading holds, in one list: what the top bar and the
+    #: System badge count. Derived only from states whose setup flag is false.
+    troubles: list[TroubleOut]
 
 
 class SourceYieldOut(BaseModel):

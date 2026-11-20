@@ -10,9 +10,10 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from arrt_contract import root
+from arrt_contract import root, vocabulary
 from arrt_contract import schema as contract_schema
 
+from arrt.programming import display_state
 from arrt.programming.display_state import ScreenState, display_state_of
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS
@@ -170,6 +171,42 @@ def test_survey_walls_carries_each_walls_state(services, wall_settings):
 
     assert states == {hall.id: ScreenState.IN_USE, study.id: ScreenState.UNASSIGNED}
     assert services.display.get_wall_view(hall.id).display_state.state is ScreenState.IN_USE
+
+
+def test_the_health_survey_carries_the_same_state_walls_does(services):
+    """`survey_wall_status`, which the health route and the MCP status read, gives each wall Walls' state.
+
+    A heartbeat claiming the television shows art beside a minor 3 state of
+    `dark` is dark on both: the superseded field is never read over the state.
+    """
+    hall = services.display.survey_walls()[0].wall
+    study = services.display.add_wall(name="Study")
+    client = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(hall.id, client_id=client.id, output="hdmi-a-1")
+    services.display.record_heartbeat(
+        hall.id,
+        {
+            **minor_3("dark"),
+            "television_showing_art": True,
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        },
+    )
+
+    surveyed = {seen.wall.id: seen.state.state for seen in services.display.survey_wall_status()}
+
+    assert surveyed == {hall.id: ScreenState.DARK, study.id: ScreenState.UNASSIGNED}
+    assert surveyed == {view.wall.id: view.display_state.state for view in services.display.survey_walls()}
+
+
+@pytest.mark.parametrize("key", sorted(vocabulary()["display_states"]))
+def test_each_display_states_setup_flag_is_the_one_the_server_quotes(key):
+    """`display_state.SETUP` quotes the package's setup flags; one differing turns its case red."""
+    assert (ScreenState(key) in display_state.SETUP) is vocabulary()["display_states"][key]["setup"]
+
+
+def test_the_package_words_exactly_the_states_the_server_has():
+    """Both ways, so a state the package gains has a case above, and one the server gains has a word."""
+    assert set(vocabulary()["display_states"]) == {str(state) for state in ScreenState}
 
 
 def test_the_server_knows_exactly_the_states_the_schema_names():

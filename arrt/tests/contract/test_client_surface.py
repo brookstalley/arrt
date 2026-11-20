@@ -10,10 +10,12 @@ the bindings Settings › Players uses.
 
 import hashlib
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
 from arrt_contract import fixtures, released, root, routes, validator
+from arrt_contract import schema as contract_schema
 from jsonschema import Draft202012Validator
 
 from arrt.programming import client_heartbeat
@@ -252,6 +254,122 @@ def test_the_client_heartbeat_refuses_without_a_valid_client_token(heartbeat_url
     assert httpx.post(heartbeat_url, json=document).status_code == 401
     assert httpx.post(heartbeat_url, json=document, headers=_bearer("not-a-token")).status_code == 401
     assert not client_heartbeat_path_in(wall_settings.art_root, hall_pi.id).exists()
+
+
+# -- the Player's settings page address (contract 1.2.0) ------------------------------
+
+#: Every client heartbeat fixture carrying `settings_url`, valid and invalid.
+WITH_SETTINGS_URL = [row for row in HEARTBEATS if client_heartbeat.SETTINGS_URL_KEY in _fixture(row["path"])]
+
+
+def test_the_index_holds_settings_addresses_the_server_serves_and_ones_it_does_not():
+    """The vacuity check for the parametrised test below, both ways."""
+    assert any(row["valid"] for row in WITH_SETTINGS_URL)
+    assert any(not row["valid"] for row in WITH_SETTINGS_URL)
+
+
+def test_the_servers_settings_address_check_is_the_schemas_pattern():
+    """The server quotes the schema's pattern (it carries no validator at run time); a quote that drifts is red here."""
+    pattern = contract_schema("schemas/client-heartbeat.v1.schema.json")["properties"]["settings_url"]["pattern"]
+
+    assert f"^{client_heartbeat.SETTINGS_URL.pattern}$" == pattern
+
+
+@pytest.mark.parametrize("row", WITH_SETTINGS_URL, ids=lambda row: row["path"])
+def test_a_settings_address_is_served_exactly_when_the_contract_calls_it_valid(heartbeat_url, token, hall_pi, server_url, row):
+    """A valid address is served on the Player's row as it came; an invalid one, `javascript:` among them, not at all."""
+    document = _fixture(row["path"])
+
+    assert httpx.post(heartbeat_url, json=document, headers=_bearer(token)).status_code == 204
+    [listed] = [entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == hall_pi.id]
+
+    assert listed["settings_url"] == (document["settings_url"] if row["valid"] else None)
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        'http://player.example:8771/"><script>alert(1)</script>',
+        "http://player.example:8771/\n",
+        "http://player.example:8771/ settings",
+        "https://",
+        "HTTP://player.example/",
+        "data:text/html,<p>hi</p>",
+    ],
+    ids=["markup", "trailing-newline", "space", "no-host", "upper-scheme", "data"],
+)
+def test_an_address_markup_could_be_made_of_is_never_served(heartbeat_url, token, hall_pi, server_url, address):
+    """Beyond the fixtures: nothing that could close an attribute or start a tag reaches the answer."""
+    document = {**_fixture("fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json"), "settings_url": address}
+
+    assert httpx.post(heartbeat_url, json=document, headers=_bearer(token)).status_code == 204
+    [listed] = [entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == hall_pi.id]
+
+    assert listed["settings_url"] is None
+    assert listed["heartbeat"]["problem"] is None
+
+
+def test_a_report_with_no_settings_address_serves_none(heartbeat_url, token, hall_pi, server_url):
+    document = _fixture("fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json")
+    assert "settings_url" not in document
+
+    assert httpx.post(heartbeat_url, json=document, headers=_bearer(token)).status_code == 204
+    [listed] = [entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == hall_pi.id]
+
+    assert listed["settings_url"] is None
+
+
+# -- a Player's state on its row -------------------------------------------------------
+
+
+def test_each_players_row_carries_its_state_and_each_outputs(heartbeat_url, token, hall_pi, server_url, services):
+    """No token, waiting for a first report, and reporting with each output's own state, on `GET /api/clients`."""
+    spare = services.clients.add_client(name="A spare Pi")
+
+    def rows():
+        return {entry["client_id"]: entry for entry in httpx.get(server_url + "/api/clients").json()["clients"]}
+
+    before = rows()
+    assert before[spare.id]["state"] == {"state": "no_token", "since": None, "outputs": []}
+    assert before[hall_pi.id]["state"]["state"] == "awaiting_report"
+    assert {output["state"] for output in before[hall_pi.id]["state"]["outputs"]} == {"awaiting_report"}
+
+    report = _fixture("fixtures/client-heartbeat.v1/valid/frame-with-identity-and-a-panel.json")
+    report["reported_at"] = datetime.now(UTC).isoformat()
+    assert httpx.post(heartbeat_url, json=report, headers=_bearer(token)).status_code == 204
+    after = rows()[hall_pi.id]["state"]
+
+    assert after["state"] == "reporting"
+    assert after["since"] is not None
+    reported = {(o["kind"], o["name"]): (o["state"], o["connected"]) for o in after["outputs"]}
+    for output in report["outputs"]:
+        assert reported[("display", output["name"])] == ("reporting", output["connected"])
+    for label in report["label_outputs"]:
+        assert reported[("label", label["name"])] == ("reporting", label["connected"])
+    # The outputs the server recorded that this report does not list: named by
+    # the curator before the Player had them, so each waits for its first report.
+    recorded_only = {key for key in reported if key[1] not in {o["name"] for o in report["outputs"]}} - {
+        ("label", label["name"]) for label in report["label_outputs"]
+    }
+    assert recorded_only
+    assert {reported[key] for key in recorded_only} == {("awaiting_report", None)}
+
+
+def test_a_player_with_two_label_panels_and_no_screen_has_a_state_for_each(server_url, services, heartbeat_url):
+    """Acceptance 4 (ruling 8): per output, so two panels on one Player read apart."""
+    door = services.clients.add_client(name="The Pi by the door")
+    token = services.access.issue(door.id).token
+    report = _fixture("fixtures/client-heartbeat.v1/valid/panels-and-no-display.json")
+    report["reported_at"] = datetime.now(UTC).isoformat()
+    assert [label["connected"] for label in report["label_outputs"]] == [True, False]
+    assert httpx.post(heartbeat_url, json=report, headers=_bearer(token)).status_code == 204
+
+    [listed] = [entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == door.id]
+
+    assert listed["state"]["outputs"] == [
+        {"kind": "label", "name": label["name"], "state": "reporting", "connected": label["connected"]}
+        for label in report["label_outputs"]
+    ]
 
 
 # -- the server's reader agrees with the contract --------------------------------------

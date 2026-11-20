@@ -462,11 +462,58 @@ def test_the_picture_store_readings_agree_value_for_value():
     assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
 
 
+#: Health readings the panel carries that `art_display(action='status')` neither
+#: places nor leaves off by name yet: each Player's state, and the queue's failed
+#: fetches. The plan's MCP chunk (`build-plan-audit-wave-2b.md`, "MCP II: the
+#: twins of 2b's new fields") places them and removes this.
+HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET = frozenset({"players", "failed_fetches"})
+
+#: Fields `GET /api/clients` answers for each Player that the MCP `clients`
+#: listing does not yet: the Player's state with each output's, and its settings
+#: page address. The same MCP chunk adds them and removes this;
+#: `test_client_tools.py` holds the two listings to it with `check_not_yet_on_mcp`.
+CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"state", "settings_url"})
+
+
+def check_not_yet_on_mcp(record: str, mcp: set[str], http: set[str], not_yet: frozenset[str]) -> None:
+    """Raise unless the two surfaces agree but for `not_yet`, each of which HTTP answers and MCP does not.
+
+    Both ways an exemption goes stale fail by name: a field it names that HTTP
+    no longer answers, and one MCP now answers too (then the exemption is
+    deleted, not kept as a name that reads as considered).
+    """
+    gone = not_yet - http
+    arrived = not_yet & mcp
+    assert not gone, f"{sorted(gone)} is exempted as not yet on MCP for {record}, but HTTP does not answer it"
+    assert not arrived, f"{sorted(arrived)} is exempted as not yet on MCP for {record}, but MCP answers it now: delete it"
+    assert mcp == http - not_yet, (
+        f"{record}: MCP answers {sorted(mcp - http)} HTTP does not, and HTTP answers "
+        f"{sorted(http - mcp - not_yet)} MCP does not"
+    )
+
+
+def test_an_exemption_for_a_field_http_no_longer_answers_is_refused():
+    with pytest.raises(AssertionError, match="HTTP does not answer it"):
+        check_not_yet_on_mcp("Client", mcp={"name"}, http={"name"}, not_yet=frozenset({"state"}))
+
+
+def test_an_exemption_for_a_field_mcp_now_answers_is_refused():
+    with pytest.raises(AssertionError, match="MCP answers it now"):
+        check_not_yet_on_mcp("Client", mcp={"name", "state"}, http={"name", "state"}, not_yet=frozenset({"state"}))
+
+
+def test_a_field_neither_answered_alike_nor_exempted_is_refused():
+    with pytest.raises(AssertionError, match=r"HTTP answers \['shuffle'\] MCP does not"):
+        check_not_yet_on_mcp("Client", mcp={"name"}, http={"name", "shuffle", "state"}, not_yet=frozenset({"state"}))
+
+
 def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name():
     """`art_display(action='status')` is the panel's twin; a new panel signal must be placed, not forgotten.
 
     Derived from `HealthReading`'s own fields, so a reading added to the panel
-    fails here until the binding says whether its twin carries it.
+    fails here until the binding says whether its twin carries it, or it is
+    named above as not placed yet; a name there the binding already places, or
+    that the panel no longer has, is refused as stale.
     """
     from dataclasses import fields
 
@@ -474,10 +521,18 @@ def test_every_health_reading_is_placed_on_the_mcp_status_or_left_off_it_by_name
 
     panel = {field.name for field in fields(HealthReading)}
     carried, left = set(bindings._STATUS_CARRIES), set(bindings._STATUS_LEAVES)
+    not_yet = set(HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET)
 
-    assert carried | left == panel
+    assert not not_yet & (carried | left), "an exemption is stale: the binding places that reading now"
+    assert not_yet <= panel, "an exemption names a reading the panel does not have"
+    assert carried | left | not_yet == panel
     assert not carried & left
     assert all(reason.strip() for reason in bindings._STATUS_LEAVES.values())
+
+
+def test_the_client_fields_not_yet_on_mcp_are_fields_the_http_model_has():
+    """The exemption cannot outlive the fields it names: each is one `ClientOut` declares."""
+    assert _fields(http_models.ClientOut) >= CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
 
 
 #: The one name a look's picture carries on MCP alone: which image block is its

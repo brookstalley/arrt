@@ -30,10 +30,12 @@ from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
     MatMethod,
+    QueuedAcquisition,
     RenditionKind,
     RightsStatus,
     SourceClass,
 )
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 
 def _contextual_and_destination_screens() -> set[str]:
@@ -69,6 +71,44 @@ def wall(http):
     walls = http.get("/api/walls").json()["walls"]
     assert len(walls) == 1, f"a fresh deployment should serve exactly one wall, got {walls}"
     return walls[0]
+
+
+@pytest.fixture
+def shown_by_a_player(http):
+    """Put walls on a Player's screens over the surface, one screen each: what Walls › Edit… does.
+
+    A wall with no Player is `unassigned`, a step of setting up, so a test about
+    a wall that has not reported puts it on a Player first.
+    """
+
+    def _shown(*wall_ids: str) -> str:
+        player = http.post("/api/clients", json={"name": "The Pi in the hall"}).json()["client_id"]
+        for index, wall_id in enumerate(wall_ids, start=1):
+            placed = http.post(f"/api/walls/{wall_id}/client", json={"client_id": player, "output": f"hdmi-a-{index}"})
+            assert placed.status_code == 200, placed.text
+        return player
+
+    return _shown
+
+
+@pytest.fixture
+def accepted(service):
+    """An accepted work with one source and no picture, which the queue owes a fetch."""
+
+    def _accepted(title: str):
+        work = service.add_artwork(title=title)
+        service.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}.jpg",
+            provider="gallery_site",
+            source_class=SourceClass.CONTEMPORARY_WEB,
+            acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+            rights_status=RightsStatus.UNKNOWN,
+            is_primary=True,
+        )
+        return work
+
+    return _accepted
 
 
 def card_for(listing: dict, artwork_id: str) -> dict:
@@ -399,61 +439,89 @@ class TestHealth:
         assert "has not reported yet" in reading["heartbeat"]["description"]
         assert set(reading["heartbeat"]) == self.OBSERVATION_FIELDS | {"reported_at"}
 
-    def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall):
+    #: What follows the names of walls not reporting (`reports.describe_wall_status`).
+    SILENCE_TOLD = (
+        "Each wall's own reading says whether nothing was ever written, what could not be read, or when it last reported."
+    )
+
+    def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall, shown_by_a_player):
         """The reason the heartbeat became one file per wall.
 
         A one-room installation could be told "the display plane has not
         reported" and act on it; a two-room one cannot, and one shared heartbeat
         had no way to say which room was dark — the second display would have
-        overwritten the first's report every minute.
+        overwritten the first's report every minute. Both walls are on a Player:
+        a wall with none is never named as silent (below).
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
+        shown_by_a_player(wall["wall_id"], second["wall_id"])
 
         health = http.get("/api/health").json()
 
         assert {reading["wall_id"] for reading in health["walls"]} == {wall["wall_id"], second["wall_id"]}
         # Named in the order walls are listed in, which is the order every other
         # surface shows them in — so a reader is not asked to hold two orderings.
-        assert health["description"] == (
-            "2 of 2 walls have not reported: 'The study', 'The wall'. "
-            "Each wall's own reading says whether nothing was ever written or what could not be read."
-        )
+        assert health["description"] == f"2 of 2 walls have not reported: 'The study', 'The wall'. {self.SILENCE_TOLD}"
+        assert [(t["about"], t["subject"], t["state"]) for t in health["troubles"] if t["about"] == "wall"] == [
+            ("wall", second["wall_id"], "silent"),
+            ("wall", wall["wall_id"], "silent"),
+        ]
 
-    def test_a_wall_that_has_reported_is_named_apart_from_one_that_has_not(self, http, settings, wall):
+    def test_a_wall_that_has_reported_is_named_apart_from_one_that_has_not(self, http, settings, wall, shown_by_a_player):
         """The sentence a two-room installation is actually read for."""
-        http.post("/api/walls", json={"name": "The study"})
+        second = http.post("/api/walls", json={"name": "The study"}).json()
+        shown_by_a_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": datetime.now(UTC).isoformat()}),
             encoding="utf-8",
         )
 
-        assert http.get("/api/health").json()["description"] == (
-            "'The study' has not reported. "
-            "Each wall's own reading says whether nothing was ever written or what could not be read."
-        )
+        assert http.get("/api/health").json()["description"] == f"'The study' has not reported. {self.SILENCE_TOLD}"
 
-    def test_the_one_wall_installation_gets_a_sentence_about_its_wall(self, http, settings, wall):
+    def test_the_one_wall_installation_gets_a_sentence_about_its_wall(self, http, settings, wall, shown_by_a_player):
         """The sentence every deployment that exists today actually reads.
 
         Four of this function's five branches were pinned to an exact string and
         this one was not — the single-wall case, which is every installation in
         the world right now. It must not borrow the plural branch's phrasing
         either: "the least recent is" is a comparison, and there is nothing to
-        compare one wall against.
+        compare one wall against. Two minutes, inside the contract's staleness
+        threshold (three), so the wall is reporting.
         """
+        shown_by_a_player(wall["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=3)).isoformat()}), encoding="utf-8"
+            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
         )
 
-        assert http.get("/api/health").json()["description"] == "'The wall' last reported 3 minutes ago."
+        assert http.get("/api/health").json()["description"] == "'The wall' last reported 2 minutes ago."
 
-    def test_a_summary_over_walls_that_have_all_reported_still_states_an_age(self, http, settings, wall):
-        """Never "well", and never a threshold: the age is the whole answer.
+    def test_a_summary_over_walls_that_have_all_reported_still_states_an_age(self, http, settings, wall, shown_by_a_player):
+        """Never "well": the age is the whole answer.
 
         The *least* recent, deliberately. A summary quoting the freshest would
         read as an all-clear bought from whichever wall happened to report last.
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
+        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        settings.heartbeat_path(wall["wall_id"]).write_text(
+            json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
+        )
+        settings.heartbeat_path(second["wall_id"]).write_text(
+            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
+        )
+
+        assert http.get("/api/health").json()["description"] == (
+            "Every wall has reported; the least recent is 'The study', 2 minutes ago."
+        )
+
+    def test_a_wall_whose_report_is_past_the_threshold_is_named_with_how_long(self, http, settings, wall, shown_by_a_player):
+        """The sentence agrees with Walls, which says "Not reporting" past the contract's threshold.
+
+        It once read "every wall has reported; the least recent is 4 days ago"
+        while Walls called the same wall silent: two stories about one wall.
+        """
+        second = http.post("/api/walls", json={"name": "The study"}).json()
+        shown_by_a_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
         )
@@ -461,9 +529,121 @@ class TestHealth:
             json.dumps({"reported_at": (datetime.now(UTC) - timedelta(days=4)).isoformat()}), encoding="utf-8"
         )
 
-        assert http.get("/api/health").json()["description"] == (
-            "Every wall has reported; the least recent is 'The study', 4 days ago."
+        health = http.get("/api/health").json()
+
+        assert health["description"] == f"'The study' has not reported for 4 days. {self.SILENCE_TOLD}"
+        studied = next(reading for reading in health["walls"] if reading["wall_id"] == second["wall_id"])
+        walls = {entry["wall_id"]: entry for entry in http.get("/api/walls").json()["walls"]}
+        assert studied["display_state"]["state"] == walls[second["wall_id"]]["display_state"]["state"] == "silent"
+        assert [t["words"] for t in health["troubles"] if t["about"] == "wall"] == ["The study has not reported for 4 days"]
+
+    def test_a_wall_with_no_player_is_a_step_not_yet_taken_and_never_a_trouble(self, http, wall):
+        """Acceptance 1 of the one health model: `unassigned`, not named, not counted.
+
+        The fresh deployment's own wall, which no Player shows: the top bar once
+        said "The wall has not reported" and Status called it the correct reading
+        on the same page.
+        """
+        health = http.get("/api/health").json()
+
+        [reading] = health["walls"]
+        assert reading["display_state"]["state"] == "unassigned"
+        assert not [trouble for trouble in health["troubles"] if trouble["about"] in {"wall", "player"}]
+        assert wall["name"] not in health["description"]
+        assert health["description"] == "No Player shows a wall yet, so there is no report to read."
+
+    def test_a_wall_with_no_player_is_left_out_of_the_count_of_walls_a_player_shows(
+        self, http, settings, wall, shown_by_a_player
+    ):
+        second = http.post("/api/walls", json={"name": "The study"}).json()
+        third = http.post("/api/walls", json={"name": "The landing"}).json()
+        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        settings.heartbeat_path(wall["wall_id"]).write_text(
+            json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
         )
+
+        silent = http.get("/api/health").json()["description"]
+        settings.heartbeat_path(second["wall_id"]).write_text(
+            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
+        )
+        reported = http.get("/api/health").json()["description"]
+
+        assert silent == f"'The study' has not reported. {self.SILENCE_TOLD}"
+        assert reported == "Every wall a Player shows has reported; the least recent is 'The study', 2 minutes ago."
+        assert third["name"] not in silent + reported
+
+    def test_the_screens_state_is_read_over_the_superseded_field_on_the_panel(self, http, settings, wall, shown_by_a_player):
+        """Acceptance 2: a report saying the television shows art, with `display_state` dark, reads dark here as on Walls."""
+        shown_by_a_player(wall["wall_id"])
+        settings.heartbeat_path(wall["wall_id"]).write_text(
+            json.dumps(
+                {
+                    "schema": {"major": 1, "minor": 3},
+                    "reported_at": datetime.now(UTC).isoformat(),
+                    "television_reachable": True,
+                    "television_showing_art": True,
+                    "current_work_id": "w-dali",
+                    "display_state": {"state": "dark", "work_id": None, "since": datetime.now(UTC).isoformat()},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        [reading] = http.get("/api/health").json()["walls"]
+        [listed] = http.get("/api/walls").json()["walls"]
+
+        assert reading["display_state"]["state"] == listed["display_state"]["state"] == "dark"
+        # The same reading, but for its age, which grows between the two requests.
+        assert {**reading["display_state"], "age_seconds": None} == {**listed["display_state"], "age_seconds": None}
+
+    def test_a_player_being_set_up_is_never_a_trouble_and_one_not_heard_from_is(self, http, settings):
+        """Each Player's state on the panel; the setup states (no token, no report yet) are counted nowhere."""
+        added = http.post("/api/clients", json={"name": "The spare Pi"}).json()["client_id"]
+        waiting = http.post("/api/clients", json={"name": "The Pi in the hall"}).json()["client_id"]
+        quiet = http.post("/api/clients", json={"name": "The Pi in the study"}).json()["client_id"]
+        for client_id in (waiting, quiet):
+            assert http.post(f"/api/clients/{client_id}/token").status_code == 200
+        client_heartbeat_path_in(settings.art_root, quiet).write_text(
+            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(hours=3)).isoformat(), "outputs": []}),
+            encoding="utf-8",
+        )
+
+        health = http.get("/api/health").json()
+
+        states = {player["client_id"]: player["state"]["state"] for player in health["players"]}
+        assert states == {added: "no_token", waiting: "awaiting_report", quiet: "not_heard_from"}
+        assert [(t["about"], t["subject"], t["state"], t["words"]) for t in health["troubles"] if t["about"] == "player"] == [
+            ("player", quiet, "not_heard_from", "The Pi in the study has not been heard from for 3 hours")
+        ]
+
+    def test_failed_fetches_are_counted_with_the_newest_failures_age(self, http, accepted, store):
+        """Acceptance 5: three failed rows, the newest two hours old, read 3 and its age; none, no observation.
+
+        Rows written as the queue's worker would have left them (the suite runs no
+        worker): two that will be tried again, a day after a second failure, and
+        one given up on, whose failure instant the queue does not record.
+        """
+        assert http.get("/api/health").json()["failed_fetches"] is None
+        assert not [t for t in http.get("/api/health").json()["troubles"] if t["about"] == "failed_fetches"]
+
+        now = datetime.now(UTC)
+        for title, failed_ago in (("Nighthawks", timedelta(hours=2)), ("Automat", timedelta(hours=5))):
+            store.set_queued_acquisition(
+                QueuedAcquisition(
+                    artwork_id=accepted(title).id, failures=2, next_try_at=now - failed_ago + timedelta(days=1), detail="a 404."
+                )
+            )
+        store.set_queued_acquisition(QueuedAcquisition(artwork_id=accepted("Chop Suey").id, failures=4, detail="a 404."))
+
+        health = http.get("/api/health").json()
+        found = health["failed_fetches"]
+
+        assert (found["count"], found["will_retry"], found["given_up"], found["age_unknown"]) == (3, 2, 1, 1)
+        assert found["newest_age_seconds"] == pytest.approx(2 * 3600, abs=30)
+        assert found["description"].startswith("The queue holds 3 works whose picture could not be fetched; the newest")
+        # The figure Activity › Queue counts, so the badge and the page cannot disagree.
+        assert found["count"] == http.get("/api/acquisitions").json()["failing"]
+        assert [t["words"] for t in health["troubles"] if t["about"] == "failed_fetches"] == ["3 works could not fetch a picture"]
 
     def test_the_panel_reports_what_the_display_plane_said_about_itself(self, http, settings, wall):
         """The failure table maps TV, panel and last-error state onto this document.
@@ -575,7 +755,20 @@ class TestHealth:
         # television's, and the owner removed it on 2026-10-08 (#266). `watches` is
         # the overdue Watches and whether a spent allowance holds one, added
         # 2026-11-09 because a Watch runs with nobody watching (`build-plan-watches.md`).
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "sources", "pictures", "watches"}
+        # `players`, `failed_fetches` and `troubles` are the one health model
+        # (audit 2026-11-19): each Player's state, the queue's failed works, and
+        # the faults among every reading here, which the top bar counts.
+        assert set(http.get("/api/health").json()) == {
+            "walls",
+            "description",
+            "backup",
+            "sources",
+            "pictures",
+            "watches",
+            "players",
+            "failed_fetches",
+            "troubles",
+        }
 
     def test_each_installed_sources_yield_is_counted_from_the_library(self, http, hold):
         """`GET /api/sources/yields`, one row per plugin the health reading lists, in its order.

@@ -9,12 +9,15 @@ import hashlib
 import json
 import logging
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS, Admission, PlayerAccess
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.programming.display_state import ScreenState
+from arrt.programming.player_state import PlayerState
 from arrt.services.errors import ServiceError
 
 _REPORT = {
@@ -388,3 +391,49 @@ def test_a_report_this_server_cannot_read_is_refused_and_not_written(clients, pi
 def test_a_report_from_an_unknown_client_is_refused(clients):
     with pytest.raises(ServiceError, match="No client with id 'nobody'"):
         clients.record_heartbeat("nobody", _REPORT)
+
+
+# -- what the health reading makes of Players (the one health model) ---------------------
+
+
+def test_a_display_two_players_report_is_a_trouble_though_its_wall_reads_unassigned(services, clients, wall_id):
+    """`unassigned` is a setup step, but the fault behind this one is not: the health reading names it."""
+    now = datetime.now(UTC).isoformat()
+    frame = {"name": "frame", "kind": "frame", "connected": True, "screen": [3840, 2160], "identity": "uuid:the-one-frame"}
+    hall = clients.add_client(name="The Pi in the hall")
+    study = clients.add_client(name="The Pi in the study")
+    clients.record_heartbeat(hall.id, {"reported_at": now, "outputs": [frame]})
+    clients.assign_wall(wall_id, client_id=hall.id, output="frame")
+    clients.record_heartbeat(study.id, {"reported_at": now, "outputs": [frame]})
+
+    reading = services.health.observe()
+
+    assert [seen.state.state for seen in reading.walls if seen.wall.id == wall_id] == [ScreenState.UNASSIGNED]
+    assert [(t.about, t.subject, t.words) for t in reading.troubles() if t.about in {"wall", "display_fault"}] == [
+        ("display_fault", "uuid:the-one-frame", "The Pi in the hall and The Pi in the study both report one display")
+    ]
+
+
+def test_players_being_set_up_are_on_the_health_reading_and_not_among_its_troubles(services, clients, pi, access):
+    """No token, then a token and no report: both setup states, so neither is counted."""
+    spare = clients.add_client(name="A spare Pi")
+    access.issue(pi.id)
+
+    reading = services.health.observe()
+
+    assert {view.client.id: view.player.state for view in reading.players} == {
+        pi.id: PlayerState.AWAITING_REPORT,
+        spare.id: PlayerState.NO_TOKEN,
+    }
+    assert not [t for t in reading.troubles() if t.about == "player"]
+
+
+def test_a_player_whose_report_cannot_be_read_is_a_trouble(services, clients, pi, access, wall_settings):
+    access.issue(pi.id)
+    client_heartbeat_path_in(wall_settings.art_root, pi.id).write_text("{ not json", encoding="utf-8")
+
+    troubles = [t for t in services.health.observe().troubles() if t.about == "player"]
+
+    assert [(t.subject, t.state, t.words) for t in troubles] == [
+        (pi.id, "report_unreadable", "The Pi in the hall's report cannot be read")
+    ]
