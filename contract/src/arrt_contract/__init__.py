@@ -3,7 +3,7 @@
 `player-contract.md` is the specification. This package is what both sides are
 tested against: the JSON Schemas, the fixtures that pin each schema's rules, the
 conformance vectors every Player runs, the routes a Player may request, and
-`semantic_errors`, the reference statement of the manifest rules a schema cannot
+`semantic_errors`, the reference statement of the manifest's and the client heartbeat's rules a schema cannot
 state, what each route answers (`transport`), the household's words both sides
 say (`vocabulary`), and frozen copies of each released minor (`released`). They
 travel together because the schemas alone do not carry those rules,
@@ -158,7 +158,9 @@ def vocabulary() -> dict[str, Any]:
 
     `display_states` maps each display state to its `word`, who reports it
     (`reported_by`), whether it is a setup step (`setup`) and what it `means`;
-    `pairing` names the settings page's two pairing fields.
+    `player_states` (since 1.3.0) maps each state a Player can be in to its
+    `word`, `setup` and `means`, a `{date}` in a word being the date of the
+    report it names; `pairing` names the settings page's two pairing fields.
     """
     words: dict[str, Any] = _load("vocabulary.json")
     return words
@@ -194,7 +196,47 @@ def _instant(text: str) -> datetime:
     return datetime.fromisoformat(text)
 
 
-def semantic_errors(document: dict[str, Any]) -> list[str]:
+#: The schemas with rules no schema can state, by path under `root()`.
+_MANIFEST = "schemas/manifest.v2.schema.json"
+_CLIENT_HEARTBEAT = "schemas/client-heartbeat.v1.schema.json"
+
+
+def semantic_errors(document: dict[str, Any], schema: str = _MANIFEST) -> list[str]:
+    """The rules a schema cannot state, for the document's schema, each broken rule reported once.
+
+    `schema` is the document's schema by its path under `root()`, as the fixture
+    index names it, and is the manifest's when not given. Two have such rules:
+    the manifest (major 2, below) and, since 1.3.0, the client heartbeat, where no
+    two outputs and no two label outputs share a name (`player-contract.md` §
+    Transport). Any other schema has none, which is `[]`; a path that names no
+    schema is refused (`ValueError`), because reading it as one with no rules
+    would pass every document.
+    """
+    if schema == _CLIENT_HEARTBEAT:
+        return _client_heartbeat_errors(document)
+    if schema == _MANIFEST:
+        return _manifest_errors(document)
+    if not schema.startswith("schemas/") or not (root() / schema).is_file():
+        raise ValueError(f"{schema} is not a schema of this contract")
+    return []
+
+
+def _client_heartbeat_errors(document: dict[str, Any]) -> list[str]:
+    """No two outputs share a name, nor two label outputs: a name is how a wall or a label is placed on one.
+
+    For a document the schema accepts, as for the manifest's rules.
+    """
+    errors = []
+    names = [output["name"] for output in document["outputs"]]
+    if len(names) != len(set(names)):
+        errors.append("two outputs share a name")
+    label_names = [label_output["name"] for label_output in document.get("label_outputs", [])]
+    if len(label_names) != len(set(label_names)):
+        errors.append("two label outputs share a name")
+    return errors
+
+
+def _manifest_errors(document: dict[str, Any]) -> list[str]:
     """The major 2 rules a schema cannot state, each broken rule reported once.
 
     Every work the schedule, a scene or staging names is in `works`; slots run

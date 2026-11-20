@@ -1,5 +1,5 @@
 {
-  "_about": "The household's words that Arrt and every Arrt Player must say alike, owned here so that neither side states them alone. Each side quotes them and holds its quote to this file in a test. display_states: the word for each state a wall's display can be in, as Walls says it on a wall's badge and a Player's settings page says it of its own screens; reported_by names who decides the state (the wall's controller, in heartbeat.v1's display_state, or the server, which adds unassigned and silent in label.v1), and setup marks a state that is a step not yet taken rather than a fault. A reader that meets a state it has no word for says unreachable's word, never another state's. pairing: the names of the two fields a Player's settings page asks for and the server's token dialog tells a person to fill in.",
+  "_about": "The household's words that Arrt and every Arrt Player must say alike, owned here so that neither side states them alone. Each side quotes them and holds its quote to this file in a test. display_states: the word for each state a wall's display can be in, as Walls says it on a wall's badge and a Player's settings page says it of its own screens; reported_by names who decides the state (the wall's controller, in heartbeat.v1's display_state, or the server, which adds unassigned and silent in label.v1), and setup marks a state that is a step not yet taken rather than a fault. A reader that meets a state it has no word for says unreachable's word, never another state's. player_states: the word for each state a Player can be in, as the server judges it from the Player's token and its client heartbeat and says it of the Player, and as a Player's settings page says it of itself; setup marks a step not yet taken, which is never shown as a fault, and {date} in a word is filled with the date of the report it names, in the reader's own way of writing a date. pairing: the names of the two fields a Player's settings page asks for and the server's token dialog tells a person to fill in.",
   "display_states": {
     "showing_art": {
       "word": "Showing",
@@ -42,6 +42,33 @@
       "reported_by": "server",
       "setup": false,
       "means": "The wall's last report is older than the staleness threshold (timing.json), or there is none."
+    }
+  },
+  "player_states": {
+    "no_token": {
+      "word": "No token yet",
+      "setup": true,
+      "means": "The server has issued this Player no token, so it cannot report: a step of setting it up, not a fault."
+    },
+    "awaiting_report": {
+      "word": "Waiting for its first report",
+      "setup": true,
+      "means": "The Player has a token and has not yet reported with it: a step of setting it up, not a fault."
+    },
+    "reporting": {
+      "word": "Reporting",
+      "setup": false,
+      "means": "The Player's last report is one the server could read, and it is no older than the staleness threshold (timing.json)."
+    },
+    "not_heard_from": {
+      "word": "Not heard from since {date}",
+      "setup": false,
+      "means": "The Player has reported, and its last report is older than the staleness threshold (timing.json); {date} is that report's date."
+    },
+    "report_unreadable": {
+      "word": "Report unreadable",
+      "setup": false,
+      "means": "The report the server holds for this Player is one it cannot read."
     }
   },
   "pairing": {
