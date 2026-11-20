@@ -109,7 +109,7 @@ export async function viewWalls(generation) {
   }
 
   const [beats, shownBy, builds, scenes] = await Promise.all([
-    heartbeats(),
+    heartbeats(walls.walls),
     clientListing(),
     Promise.all(walls.walls.map(built)),
     // A scene that cannot be read leaves every wall's card standing: the section
@@ -340,20 +340,38 @@ function listedParts(items) {
   return items.flatMap((parts, at) => [at === 0 ? "" : at === items.length - 1 ? " and " : ", ", ...parts]);
 }
 
-/* Every wall's last observation, or the fact that the reading did not arrive.
+/* Every wall's last observation, or the fact that the reading did not arrive;
+ * asked only when a card needs what only that reading says.
+ *
+ * **Everything else on a card is the walls answer's**: its state, whom it
+ * waits for (`waiting_for`), who shows it. The one thing that answer does not
+ * carry is what made a report unreadable, which a silent wall's notice says
+ * (`notReported`), so the status reading is asked only when some wall is in
+ * that case (`needsReading`), and never otherwise: a card built from two
+ * readings could say a wall waits beside a state from another instant.
  *
  * Caught here rather than left to `guard`, for `core/status.js`'s reason: a
  * health read that failed is not a refusal of anything the curator did, and
  * putting it in the page's error banner would report it as one. It is a fact
  * about what this screen can say, and it belongs in the wall it cannot speak for.
  */
-async function heartbeats() {
+async function heartbeats(walls) {
+  if (!walls.some(needsReading)) return { byWall: new Map() };
   try {
-    const health = await api("/api/health");
-    return { byWall: readings(health), waits: waits(health) };
+    return { byWall: readings(await api("/api/health")) };
   } catch (failure) {
-    return { failure: failure.message };
+    // No wall's reading, so a card that never needed one still draws.
+    return { byWall: new Map(), failure: failure.message };
   }
+}
+
+/* Whether this wall's card says something only the status reading holds: a
+ * hung wall a Player shows, silent with nothing it last said, that waits for
+ * nobody. Its notice says whether a report was ever readable. */
+function needsReading(wall) {
+  const shown = wall.display_state;
+  const silent = !shown || (shown.state === "silent" && !shown.last);
+  return Boolean(wall.theme) && silent && shownByAPlayer(wall) && !wall.waiting_for;
 }
 
 /* `walls` absent or the wrong shape leaves every wall with no reading, which
@@ -365,16 +383,10 @@ function readings(health) {
   return new Map(rows.map((reading) => [reading.wall_id, reading.heartbeat]));
 }
 
-/* The Player each wall waits for while that Player is being set up, as the
- * server states it (`waiting_for`): only walls that wait. */
-function waits(health) {
-  const rows = Array.isArray(health.walls) ? health.walls : [];
-  return new Map(rows.filter((reading) => reading.waiting_for).map((reading) => [reading.wall_id, reading.waiting_for]));
-}
-
-/* The wait the server states for this wall, or null. */
-function waitOf(wall, beats) {
-  return beats && beats.waits ? beats.waits.get(wall.wall_id) || null : null;
+/* The Player this wall waits for while that Player is being set up, as the
+ * walls answer states it (`waiting_for`), or null. */
+function waitOf(wall) {
+  return wall.waiting_for || null;
 }
 
 /* The work a wall's display state names, or null where it names none: the
@@ -456,7 +468,6 @@ function reasonFor(wall, build, beats) {
   if (!wall.theme) return "no-theme";
   if (build.failure) return "unreachable";
   if (build.manifest.considered === 0) return "empty-theme";
-  if (beats.failure) return "unreachable";
   // From the wall's display state, as the server states it (`display_state_of`),
   // never from the raw report: a wall no Player shows is a step of setting it
   // up, and one whose Player has never readably reported for it is `silent`
@@ -464,6 +475,9 @@ function reasonFor(wall, build, beats) {
   // stopped reporting, and its lead says since when.
   const shown = wall.display_state;
   if (shown && shown.state === "unassigned") return "unassigned";
+  // Out of reach only for a card that needed the status reading: every other
+  // card is said from the walls answer, which arrived.
+  if (needsReading(wall) && beats.failure) return "unreachable";
   if (!shown || (shown.state === "silent" && !shown.last)) return "silent";
   return "hanging";
 }
@@ -488,7 +502,7 @@ function cardNotice(wall, reason, build, beats, shownBy, dark) {
     ["fault", () => (wall.display && wall.display.fault ? [faultNotice(wall)] : null)],
     ["unreachable", () => (reason === "unreachable" ? unreachable(cannotReach(wall, build, beats)) : null)],
     ["feed", () => (wall.feed_notice ? [el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })])] : null)],
-    ["silent", () => (reason === "silent" ? notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark, waitOf(wall, beats)) : null)],
+    ["silent", () => (reason === "silent" ? notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark, waitOf(wall)) : null)],
     ["empty-theme", () => (reason === "empty-theme" ? emptyTheme(wall, build.manifest) : null)],
     ["dark", () => (dark ? [summaryLine(dark)] : null)],
   ];
@@ -523,7 +537,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
     // work inside it. The badge beside it is the screen's state in one word.
     el("header", { class: "wall-head" }, [
       el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
-      stateBadge(wall, now, live, waitOf(wall, beats)),
+      stateBadge(wall, now, live, waitOf(wall)),
       // The wall's settings, one step away (the page rules of 2026-10-27).
       el("button", {
         class: "action quiet wall-edit",
