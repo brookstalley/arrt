@@ -234,7 +234,9 @@ client key) and fails by name for any other a workflow reads, on any event. The 
 probe is run by hand, `cd arrt && uv run pytest tests/live -m live_api -n0`. That answers
 the standing question of #150 as the ruling answered it; the issue, opened by the drift
 job, asks to be closed once someone has reconciled the findings against what the API
-returns now, which is a hand run's to settle, so it is not closed here.
+returns now, which is a hand run's to settle, so it is not closed here. The repository
+holds no model key to delete: its secrets list names `TESTAMENT_KEY` alone (read with
+`gh secret list` on 2026-11-20).
 
 **For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`): Q1 (the four norm texts in `project-preferences.md`, and with it the
 forbidden-columns check in `test_catalogue_store.py`), and Q3 (which household settings are set
@@ -252,8 +254,7 @@ waits for the real-Player pair and that a fork's pull request can never pass it;
 `live_binary` dezoomify probe on this machine; one manual `drift-freshness.yml` dispatch
 after this reaches `main`; the real-Player test's docker path, first seen on the release's
 pull request into `main`; the one scratch pull request for the fallback, closed unmerged;
-deleting the repository's `OPENROUTER_API_KEY` secret on GitHub, which nothing reads any
-more; the paid probe by hand when the OpenRouter findings are to be re-checked (#150);
+the paid probe by hand when the OpenRouter findings are to be re-checked (#150);
 and the entries in `.prawduct/operator-verification.md`.
 
 ## Consumer note
