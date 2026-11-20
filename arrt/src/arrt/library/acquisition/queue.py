@@ -56,7 +56,7 @@ import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from enum import Enum, StrEnum, auto
+from enum import StrEnum
 from typing import Final, Protocol
 
 from arrt import atomic
@@ -200,12 +200,6 @@ class Preparer(Protocol):
     """What the queue needs of preparation: `PreparationService.prepare`."""
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult: ...
-
-
-class _Unread(Enum):
-    """`_wait`'s mark for a caller that read no Wikidata item, so a settled row reads its own."""
-
-    UNREAD = auto()
 
 
 class AcquisitionPhase(StrEnum):
@@ -691,7 +685,9 @@ class AcquisitionQueue:
         with self._pass_lock:
             candidates = self._store.works_to_acquire()
             now = self._clock()
-            due = self._in_turn([work for work in candidates if self._wait(work.queued, now) is _Wait.DUE])
+            # Each work's item from the list itself, as `failed_states` takes it:
+            # a settled row costs no read of its own to learn it is not due.
+            due = self._in_turn([work for work in candidates if self._wait(work.queued, now, work.wikidata_qid) is _Wait.DUE])
             acquired = failed = gave_up = 0
             paused: QueuePause | None = None
             # One pass for the plugins (`one_pass`): after three could-not-be-asked
@@ -919,28 +915,37 @@ class AcquisitionQueue:
         artwork = self._store.get_artwork(artwork_id)
         return None if artwork is None else artwork.wikidata_qid
 
-    def _wait(self, queued: QueuedAcquisition | None, now: datetime, qid: str | _Unread | None = _Unread.UNREAD) -> _Wait:
-        """Whether a work is tried on this pass, waits, or waits for Retry: its outcome's rule, applied.
+    def _wait(self, queued: QueuedAcquisition | None, now: datetime, qid: str | None) -> _Wait:
+        """Whether a work is tried on this pass, waits, or waits for Retry: its outcome's rule, applied (`_standing`)."""
+        return self._standing(queued, now, qid)[0]
+
+    def _standing(self, queued: QueuedAcquisition | None, now: datetime, qid: str | None) -> tuple[_Wait, datetime | None]:
+        """Where a work stands against its outcome's rule, and when a clock next makes it due: the queue's one statement of both.
 
         `qid` is the work's Wikidata item as the caller read it, for the item a
-        settled work is compared against; read here only for a settled row when
-        the caller read none.
+        settled work is compared against; every caller has read it already
+        (`WorkToAcquire.wikidata_qid`, or the work itself), so nothing here reads
+        a work. The time is the schedule's `next_try_at`, while the schedule has
+        not given up, which is what `wait_for_work` sleeps until; every other
+        rule falls due by an event no clock marks (a pass, a load of the
+        plugins, a Retry, another item), and has none.
         """
         if queued is None:
-            return _Wait.DUE
+            return _Wait.DUE, None
         rule = retry_rule(queued)
         if rule is RetryRule.NEXT_PASS:
-            return _Wait.DUE
+            return _Wait.DUE, None
         if rule is RetryRule.NEXT_LOAD:
             # A fault recorded under this load waits for the next; one recorded
             # under an earlier load (or not recorded when) is due now.
-            return _Wait.DUE if queued.failed_at is None or queued.failed_at < self._loaded_at else _Wait.LATER
+            due = queued.failed_at is None or queued.failed_at < self._loaded_at
+            return (_Wait.DUE if due else _Wait.LATER), None
         if rule is RetryRule.SETTLED:
-            current = self._qid_of(queued.artwork_id) if qid is _Unread.UNREAD else qid
-            return _Wait.DUE if current != queued.settled_qid else _Wait.GIVEN_UP
+            return (_Wait.DUE if qid != queued.settled_qid else _Wait.GIVEN_UP), None
         if queued.failures >= GIVE_UP_AFTER:
-            return _Wait.GIVEN_UP
-        return _Wait.DUE if queued.next_try_at is None or queued.next_try_at <= now else _Wait.LATER
+            return _Wait.GIVEN_UP, None
+        due = queued.next_try_at is None or queued.next_try_at <= now
+        return (_Wait.DUE if due else _Wait.LATER), queued.next_try_at
 
     # -- the pause and the order -----------------------------------------------
 
@@ -968,13 +973,14 @@ class AcquisitionQueue:
         return sorted(due, key=lambda work: rank.get(work.artwork_id, len(rank)))
 
     def _seconds_until_due(self) -> float:
+        """How long `wait_for_work` sleeps: a paused queue's interval, or until a clock next makes a work due (`_standing`)."""
         if self.pause is not None:
             return PAUSED_RETRY_SECONDS
         now = self._clock()
         upcoming = [
-            work.queued.next_try_at
+            at
             for work in self._store.works_to_acquire()
-            if work.queued is not None and work.queued.next_try_at is not None and work.queued.failures < GIVE_UP_AFTER
+            if (at := self._standing(work.queued, now, work.wikidata_qid)[1]) is not None
         ]
         if not upcoming:
             return IDLE_SECONDS

@@ -836,6 +836,27 @@ class TestThePause:
 
         assert queue._seconds_until_due() == IDLE_SECONDS
 
+    @pytest.mark.parametrize(
+        "outcome", [each for each in FetchOutcome if RETRY_RULES[each] not in (RetryRule.SCHEDULE, RetryRule.HELD)]
+    )
+    def test_a_work_whose_rule_is_not_the_schedule_never_wakes_the_queue_by_a_clock(self, queue, work, store, clock, outcome):
+        """When the queue wakes is read through the rule a pass reads, so a row's `next_try_at` is the schedule's alone."""
+        artwork_id = work()
+        store.set_queued_acquisition(
+            QueuedAcquisition(
+                artwork_id=artwork_id,
+                failures=1,
+                next_try_at=clock.now + timedelta(minutes=5),
+                detail="said so",
+                outcome=outcome,
+                plugin="tate",
+                failed_at=clock.now,
+                settled_qid=None,
+            )
+        )
+
+        assert queue._seconds_until_due() == IDLE_SECONDS
+
     def test_an_unexpected_error_from_one_work_counts_against_it_and_the_next_is_still_fetched(self, queue, work, fetcher, clock):
         """One work that always raises must not hold every work behind it, and must not spin.
 
@@ -1259,6 +1280,21 @@ class TestEachOutcomeIsRetriedByItsRule:
         assert (state.phase, state.outcome, state.failed_at) == (AcquisitionPhase.GAVE_UP, None, None)
         clock.now += timedelta(days=365)
         assert queue.run().due == 0
+
+    def test_a_pass_reads_no_settled_work_a_second_time_to_learn_it_is_not_due(self, queue, work, fetcher, store, monkeypatch):
+        """The pass's list already carries each work's Wikidata item: a settled row costs no read of its own."""
+        settled = [work(f"Settled {n}") for n in range(3)]
+        for artwork_id in settled:
+            store.update_artwork(replace(store.get_artwork(artwork_id), wikidata_qid="Q1001"))
+        fetcher.answers = [(FetchOutcome.LINK_GONE, "the page answered 410")] * len(settled)
+        queue.run()
+        reads = []
+        read = store.get_artwork
+        monkeypatch.setattr(store, "get_artwork", lambda artwork_id: reads.append(artwork_id) or read(artwork_id))
+
+        assert queue.run().due == 0
+
+        assert reads == [], f"the pass read {len(reads)} settled works again"
 
     def test_a_retry_an_older_release_wrote_beside_a_settled_outcome_is_still_a_retry(self, queue, work, store):
         """An older release's Retry resets the columns it knows and leaves `outcome`: no failures means none to settle."""
