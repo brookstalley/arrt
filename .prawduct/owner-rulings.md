@@ -4,6 +4,32 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-20: CI is kept small, tests run on the pool first, and CI makes no paid call
+
+Asked while part 2b was being built (which pool runners may run this repository, and what
+ceiling the CI's model key should have). The owner: "All runners are fine. We should
+minimize CI and prioritize local tests. We are almost out of ci minutes. The pool has six
+runners, not one. Ci should not make paid calls". As ruled:
+
+1. **Every runner of the pool may run this repository's tests.** The advisor's question
+   assumed one runner; the pool has six.
+2. **CI is kept small, and tests run from the machine doing the work come first.** A pull
+   request's evidence is the pool run made before it is opened (`testament run`, `AGENTS.md`
+   § Running tests); CI confirms that run, it is not where a change is first tested.
+   GitHub's runner minutes are nearly spent, so nothing adds work to GitHub's runners, and
+   work that runs there today is moved to the pool or to pull requests into `main` where it
+   can be. This sharpens the 2026-11-18 ruling below (no heavy builds on GitHub's runners);
+   it does not withdraw ruling 4 of 2026-11-19 (an outage must not block a merge): the
+   fallback stays, and costs minutes only while the pool cannot answer.
+3. **CI makes no paid call.** No workflow holds a model key or reaches a paid service;
+   probes and evaluations that cost money are run by hand (`live_api`, `llm_eval`). That
+   answers the standing question on the drift probes that need a key (#150): they are not
+   CI's.
+
+What it changes in `build-plan-audit-wave-2b.md`: the real-Player suite (Chunk 29) runs on
+the pool and the fallback leaves it out by name; a chunk added the same day (56) takes the
+image's test stage off GitHub's runner for ordinary pull requests.
+
 ## 2026-11-19: during wave 2 of the audit fixes, two rulings
 
 Asked while part 2a's pull request (#446) was in its checks. The owner: "The testament
