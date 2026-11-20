@@ -565,7 +565,7 @@ def test_the_unattended_projections_agree():
 #: Spend's fields HTTP carries first: the count of calls whose cost is unknown,
 #: and the figure in words, "at least" with any (audit-wave-2b Chunk 35). Owed to
 #: `art_discovery(action='spend')` by Chunk 53, which removes this exemption.
-HTTP_ONLY_ON_SPEND_UNTIL_CHUNK_53 = frozenset({"unknown_cost_calls", "summary"})
+SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_NOT_YET = frozenset({"unknown_cost_calls", "summary"})
 
 #: MCP's `run_direct_cost_usd`, which `SpendOut`'s docstring leaves off HTTP by
 #: decision: the browser reads that figure off the run record.
@@ -583,7 +583,7 @@ def test_the_spend_projections_agree_but_for_the_named_fields():
 
     projected = set(bindings._spend(services, {"run_id": "r1"})) - {"success"}
     assert projected >= MCP_ONLY_ON_SPEND, "an MCP-only field named here that MCP no longer has is a stale exemption"
-    check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut), HTTP_ONLY_ON_SPEND_UNTIL_CHUNK_53)
+    check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut), SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_NOT_YET)
 
 
 def test_the_watch_projections_agree_value_for_value():
