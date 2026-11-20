@@ -9,8 +9,9 @@ is an HTTP endpoint instead of a method.
 **Events make Programming prompt, not correct.** Once the two sides have
 separate stores, no transaction spans the Library's commit and Programming's
 handler, so a crash between them loses the event. Programming therefore
-reconciles against the facade at every start. A lost event delays a correction
-until the next start and never leaves it undone.
+reconciles against the facade at every start and again every half hour
+(`FeedsJob`: the first scheduler pass, then every sixth). A lost event delays a
+correction until the next reconcile and never leaves it undone.
 
 **An event is published only after the change it describes has committed**
 (`CatalogueStore.after_commit`). Acceptance adds a work inside discovery's own
@@ -94,7 +95,7 @@ class LibraryEvents:
                 handler(event)
             except Exception:  # prawduct:allow prawduct/broad-except -- event boundary after commit; logged, then reconciled
                 log.exception(
-                    "A subscriber failed to act on %s for work %s; the change stands, and the next start reconciles it.",
+                    "A subscriber failed to act on %s for work %s; the change stands, and the next reconcile puts it right.",
                     event.change.value,
                     ", ".join(event.work_ids),
                 )

@@ -445,13 +445,14 @@ class FeedPublisher:
         theme while it is hung). This superseded the ruling of 2026-09-30 that
         additions wait for sync.
 
-        **Run at every start, and on every scheduler pass** (`FeedsJob`,
-        `services/container.py`, cause `SCHEDULED`), because an announcement lost
+        **Run at every start, and by the scheduler** (`FeedsJob`,
+        `services/container.py`, cause `SCHEDULED`: at its first pass, then
+        every `RECONCILE_EVERY_PASSES`th, which is half an hour), because an announcement lost
         to a crash between the Library's commit and this handler would otherwise
         leave a wall showing a work the curator withdrew until someone happened
         to hang the theme again, and a feed changed on disk behind the server's
         back (removed, an entry no longer the Library's, another theme's) would
-        stay so until the next start. A lost announcement that would have added a work is not
+        stay so until the next reconcile. A lost announcement that would have added a work is not
         searched for here: a feed names only what its horizon schedules, so a
         member it does not name may simply not be due, and the next roll, which
         builds the hung theme, carries it (`roll_v2`).

@@ -461,10 +461,6 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
 #: together rather than leaving two numbers to drift.
 MAX_FAILURES = 5
 
-#: What the service answers for a run id it does not know. A bookmarked
-#: `#get/<id>` outlives its run; that is a page of its own, not a watch to retry.
-GONE = (400, {"error": "There is no run with that id."})
-
 #: A server that keeps failing in a way that could pass: the case the failure
 #: limit exists for, now that a refusal ends the watch at once.
 DOWN = (502, {"error": "The server answered 502."})
@@ -513,8 +509,17 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
 
 
 def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
-    """A bookmarked Get whose run is gone: one request, one page, no banner."""
-    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+    """A bookmarked Get whose run is gone: one request, one page, no banner.
+
+    **The answer served is the server's own.** A bookmarked `#get/<id>` outlives its run,
+    and since Chunk 37 the server says so with a 404 and its own sentence; the stub is
+    what the real route answers for an id it does not hold, asked here, never a status and
+    a sentence written in this file (it was a hand-written 400 that no server sent).
+    """
+    answer = ui.page.request.get(f"{ui.base_url}/api/runs/{RUN_ID}")
+    assert answer.status == 404, "the server's answer for a run it does not hold is the premise of this test"
+    assert answer.json()["error"], "and it says why"
+    ui.serve(f"**/api/runs/{RUN_ID}", (answer.status, answer.json()))
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view .not-found")

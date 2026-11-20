@@ -552,8 +552,9 @@ class Services:
         offers any accepted work never offered its theme (the default, or the
         one its Get named), and publishes the hung theme's feed for any wall
         with a theme hung and none on disk, so a lost announcement delays a
-        correction until the next start rather than leaving it undone. A lost
-        addition reaches the wall at its next roll.
+        correction until the next reconcile (the start's, or `FeedsJob`'s: the
+        first scheduler pass, then every sixth) rather than leaving it undone. A
+        lost addition reaches the wall at its next roll.
         """
         self.discovery.reconcile()
         # After discovery's own repairs, so the verdicts it reads are settled.
@@ -584,7 +585,7 @@ class Services:
             # why. The reconciliation is one act (`FeedPublisher.publishing`):
             # every feed it decided is written beside its file first, and a
             # write that fails there removes those and rolls the act back, so
-            # no wall's feed has changed and the next start tries again.
+            # no wall's feed has changed and the next reconcile (the scheduler's, within half an hour) tries again.
             log.exception("Could not reconcile the walls' manifests against the Library at startup; serving anyway.")
 
 

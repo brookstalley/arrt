@@ -9,6 +9,7 @@ the test talks to it.
 """
 
 import json
+import re
 import shutil
 import tempfile
 import threading
@@ -19,7 +20,7 @@ from pathlib import Path
 import httpx
 import pytest
 from fakes import open_catalogue
-from server_process import ArrtProcess, free_port, serving
+from server_process import SERVER_CWD, ArrtProcess, contained, free_port, serving
 
 from arrt.config import CATALOGUE_FILENAME
 from arrt.programming.manifest.v2 import manifest_v2_path_in
@@ -103,12 +104,33 @@ def test_a_server_whose_paths_escape_its_scratch_root_is_refused_before_it_start
 
 
 def test_a_relative_art_root_is_resolved_where_the_server_runs_and_refused(settings, tmp_path_factory):
-    """A relative `ART_ROOT` is relative to the server's working directory, this project's directory in the checkout."""
+    """A relative `ART_ROOT` is relative to the server's working directory, this project's directory in the checkout.
+
+    The path the refusal names is derived from the directory the process runs in (`SERVER_CWD`),
+    never from a name: it is `.../arrt` in a checkout and `/app` in the server image.
+    """
     process = ArrtProcess(art_root=settings.art_root, scratch_root=tmp_path_factory.getbasetemp())
     process.environment = {"ART_ROOT": "escaped-art-root"}
-    with pytest.raises(pytest.fail.Exception, match=r"art_root resolves to .*/arrt/escaped-art-root"):
+    expected = (SERVER_CWD / "escaped-art-root").resolve()
+    with pytest.raises(pytest.fail.Exception, match=rf"art_root resolves to {re.escape(str(expected))}(;|\s|$)"):
         process.start()
     assert process._process is None
+
+
+@pytest.mark.parametrize("directory", ["app", "somewhere-else", "arrt"])
+def test_a_relative_path_is_resolved_against_the_directory_it_is_given_whatever_that_is_called(directory, tmp_path):
+    """The derivation does not depend on a name: the same refusal, run from directories named otherwise.
+
+    `contained` is what `ArrtProcess.start` runs, and takes the working directory it resolves
+    against. Under `app` (the image's), `somewhere-else` and `arrt` (a checkout's), the path in
+    the refusal is that directory's, so a test that derives its expectation from the directory
+    the server runs in holds in each, and one that wrote `/arrt/` into its pattern holds in one.
+    """
+    cwd = tmp_path / directory
+    cwd.mkdir()
+    with pytest.raises(pytest.fail.Exception) as refusal:
+        contained({"ART_ROOT": "escaped-art-root"}, scratch_root=tmp_path / "scratch", cwd=cwd)
+    assert f"art_root resolves to {(cwd / 'escaped-art-root').resolve()}" in str(refusal.value)
 
 
 class _Impostor(BaseHTTPRequestHandler):

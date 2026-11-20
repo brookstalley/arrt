@@ -68,7 +68,7 @@ def require_free_space(path: Path, *, required_bytes: int) -> SpaceCheck:
     if not check.sufficient:
         raise NotEnoughSpace(
             f"{_gib(check.free_bytes)} free where {_gib(check.required_bytes)} is required "
-            f"({_gib(check.shortfall_bytes)} short); acquisition would risk the catalogue on the same disk."
+            f"({_gib(check.shortfall_bytes)} short); acquisition would risk the Library on the same disk."
         )
     return check
 

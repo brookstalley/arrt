@@ -1514,7 +1514,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
         return None
     names = ", ".join(repr(artist.name) for artist in outcome.duplicate_candidates)
     return (
-        f"A new artist {minted.name!r} was recorded, and the catalogue already holds {names}. They may be "
+        f"A new artist {minted.name!r} was recorded, and the Library already holds {names}. They may be "
         "the same painter under different spellings; matching is exact, because a wrong merge puts another "
         "painter's name on a label and leaves no trace. Both rows stand until someone decides."
     )
@@ -1529,7 +1529,7 @@ _STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures", "player
 
 #: The panel's readings this action leaves out, and why.
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
-    "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
+    "backup": "the Library's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
     "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
 }

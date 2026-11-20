@@ -333,6 +333,27 @@ def test_a_theme_filter_chosen_while_choosing_keeps_the_wall_and_the_hang_still_
     expect(ui.page.locator(".confirm-title")).to_have_text("Hang 1 work on The study?", use_inner_text=True)
 
 
+def test_a_theme_the_address_names_that_is_gone_says_so_and_the_page_is_still_choosing_for_the_wall(ui, walls, two_works):
+    """A bookmark outlives its theme: the note says so (Chunk 37), and Chunk 57's flow is not what it takes down.
+
+    The Artworks listing refuses an unknown theme (400 or 404) and the page then asks again
+    without it (`screens/collection.js`); that retry must drop the theme and nothing else, so
+    the wall in the address still names the wall being chosen for, and the hang still goes there.
+    """
+    _, study = walls
+    ui.open(f"#collection?hang_on={study.id}&theme=a-theme-that-is-gone")
+
+    expect(ui.page.locator("#view .stale-theme-note")).to_contain_text("is not in the Library", use_inner_text=True)
+    expect(ui.page.locator("#view .hang-for-wall")).to_contain_text("Choosing works to hang on The study.", use_inner_text=True)
+    for work in two_works:
+        expect(ui.page.locator(f"#view ul.grid li[data-artwork='{work.id}']")).to_have_count(1)
+    assert address_keys(ui)["hang_on"] == study.id
+    expect(ui.page.locator("#error")).to_be_hidden()
+    tick(ui, two_works[0])
+    hang_button(ui).click()
+    expect(ui.page.locator(".confirm-title")).to_have_text("Hang 1 work on The study?", use_inner_text=True)
+
+
 def test_an_address_with_a_search_beside_the_wall_keeps_both_and_the_hang_names_the_wall(
     ui, walls, two_works, work_with_an_image
 ):

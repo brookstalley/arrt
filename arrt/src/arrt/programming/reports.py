@@ -118,7 +118,7 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
         # first open — so it means a file something else wrote, and saying that
         # plainly beats a sentence composed over an empty list that reads as an
         # all-clear.
-        return "No wall is in the catalogue, so there is nothing for a Player to report about."
+        return "No wall is recorded, so there is nothing for a Player to report about."
     shown = [seen for seen in readings if seen.state.state not in SETUP]
     if not shown:
         return "No Player shows a wall yet, so there is no report to read."

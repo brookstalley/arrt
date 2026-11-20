@@ -1,8 +1,10 @@
 """The Library's scheduler: one thread that wakes on an interval and runs each job's pass.
 
-**It knows jobs, not Watches.** Watches are its first job and upgrades (#178) are
-meant to be its second, so a job is anything with a name and a `run_pass` that
-says what it did. The Watch job is here too, because it is the only one.
+**It knows jobs, not Watches.** A job is anything with a name and a `run_pass` that
+says what it did. There are two: the Watch job, which is here because it is the
+Library's own, and Programming's feed reconcile (`FeedsJob`), which
+`services/container.py` hands in because the scheduler imports nothing of
+Programming. Upgrades (#178) are meant to be a third.
 
 **A positive line on every pass, empty ones included** (`scheduler.pass`, one per
 job), because a scheduler that stopped is the new "down looks like up"

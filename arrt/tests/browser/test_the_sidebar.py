@@ -350,7 +350,7 @@ def test_status_keeps_the_address_health_had(ui, seeded_service, a_health_readin
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
     expect(ui.view).to_contain_text("The living room", use_inner_text=True)
-    expect(ui.view).to_contain_text("The catalogue was last backed up", use_inner_text=True)
+    expect(ui.view).to_contain_text("The Library was last backed up", use_inner_text=True)
 
 
 def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_reading, a_wall_reading):
@@ -413,7 +413,7 @@ def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(u
                 "age_seconds": 22440.0,
                 "absent": False,
                 "problem": None,
-                "description": "The catalogue was last backed up 6 hours ago.",
+                "description": "The Library was last backed up 6 hours ago.",
                 "reported": None,
             },
         },
@@ -422,7 +422,7 @@ def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(u
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
     expect(ui.view).to_contain_text("carries no walls", use_inner_text=True)
-    expect(ui.view).to_contain_text("The catalogue was last backed up", use_inner_text=True)
+    expect(ui.view).to_contain_text("The Library was last backed up", use_inner_text=True)
     expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
@@ -602,7 +602,7 @@ def test_the_indicator_names_a_backup_that_has_never_run(ui, a_health_reading, a
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    expect(ui.page.locator("#status")).to_contain_text("The catalogue has never been backed up", use_inner_text=True)
+    expect(ui.page.locator("#status")).to_contain_text("The Library has never been backed up", use_inner_text=True)
 
 
 def test_the_indicator_refuses_to_report_well_from_a_reading_it_did_not_take(ui, a_health_reading):

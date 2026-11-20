@@ -23,10 +23,9 @@ explain nor revisit.
 """
 
 import logging
-import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from fractions import Fraction
 from typing import Final
 
@@ -323,8 +322,19 @@ def _told(text: str) -> str:
 class TasteService:
     """The curator's standing judgments: reading them, correcting them, forgetting one."""
 
-    def __init__(self, store: DiscoveryStore) -> None:
+    def __init__(
+        self,
+        store: DiscoveryStore,
+        *,
+        now: Callable[[], datetime] = machine_now,
+        mint_id: Callable[[], str] = new_id,
+    ) -> None:
         self._store = store
+        #: The clock a judgment set by hand is stamped by and the source of its identity, as
+        #: `CatalogueService`'s are: defaults read the machine, so the container constructs it as
+        #: before and a test passes its own, and the row carries exactly what it said.
+        self._now = now
+        self._mint_id = mint_id
 
     # -- reads ----------------------------------------------------------------
 
@@ -428,11 +438,11 @@ class TasteService:
                 "'stated' if the curator said it."
             )
 
-        now = datetime.now(UTC)
+        now = self._now()
         standing = self._store.find_affinity(kind=write.kind, value=write.value)
         if standing is None:
             fresh = Affinity(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 kind=write.kind,
                 value=write.value,
                 sentiment=write.sentiment,

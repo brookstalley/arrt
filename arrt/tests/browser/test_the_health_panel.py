@@ -127,7 +127,7 @@ def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, t
     panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
     expect(panel.locator(".wall-state")).to_have_text(re.compile(r"No Player yet$"), use_inner_text=True)
     # Anchored on what the top bar does say of this deployment (no backup has run).
-    expect(ui.page.locator("#status")).to_contain_text("The catalogue has never been backed up", use_inner_text=True)
+    expect(ui.page.locator("#status")).to_contain_text("The Library has never been backed up", use_inner_text=True)
     expect(ui.page.locator("#status .status-setup")).to_have_text(
         re.compile(rf"{study.name} has no Player yet"), use_inner_text=True
     )

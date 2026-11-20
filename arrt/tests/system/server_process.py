@@ -29,6 +29,10 @@ import pytest
 from feed_guard import published_problems
 
 _CURATION: Final = Path(__file__).resolve().parents[2]
+#: The directory the server process runs in, and the one a relative path setting is resolved
+#: against. This project's directory, wherever it is: `arrt/` in a checkout, `/app` in the image.
+#: A test that names a path the server resolves derives it from this, never from a directory's name.
+SERVER_CWD: Final = _CURATION
 sys.path.insert(0, str(_CURATION / "tools"))
 
 import ux_walk  # noqa: E402 -- tools/ is not a package; the path is inserted above
@@ -91,7 +95,7 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
-def contained(environment: Mapping[str, str], *, scratch_root: Path, cwd: Path = _CURATION) -> None:
+def contained(environment: Mapping[str, str], *, scratch_root: Path, cwd: Path = SERVER_CWD) -> None:
     """Refuse, naming the setting, an environment under which the server would write outside `scratch_root`.
 
     Resolved by the server's own `Settings.from_env`, under exactly that
@@ -157,7 +161,7 @@ class ArrtProcess:
             offset = log_path.stat().st_size if log_path.exists() else 0
             with log_path.open("a", encoding="utf-8") as log:
                 self._process = subprocess.Popen(  # noqa: S603 -- this interpreter, running the product's own entry point
-                    ux_walk.synthetic_command(), cwd=_CURATION, env=environment, stdout=log, stderr=subprocess.STDOUT
+                    ux_walk.synthetic_command(), cwd=SERVER_CWD, env=environment, stdout=log, stderr=subprocess.STDOUT
                 )
             self.served.append(self.art_root)
             if self._listening(port, offset):
@@ -196,7 +200,7 @@ class ArrtProcess:
             with self._log().open("a", encoding="utf-8") as log:
                 finished = subprocess.run(  # noqa: S603 -- this interpreter, running the product's own entry point
                     ux_walk.synthetic_command(),
-                    cwd=_CURATION,
+                    cwd=SERVER_CWD,
                     env=environment,
                     stdout=log,
                     stderr=subprocess.STDOUT,
