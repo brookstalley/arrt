@@ -24,7 +24,7 @@ from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, F
 from arrt.library.registry import RegistryCreator
 from arrt.library.services import spend_history
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import SpendTotal, VerdictOutcome
+from arrt.library.services.discovery import DiscoveryService, SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.quality import Fit
@@ -784,7 +784,7 @@ def _start_discovery(services: Services, arguments: Mapping[str, Any]) -> dict[s
         initiated_by=InitiatedBy.MCP_CLIENT,
     )
     return ok(
-        **_run_fields(run),
+        **_run_fields(run, services.discovery),
         notice=(
             "The run is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes."
@@ -793,19 +793,19 @@ def _start_discovery(services: Services, arguments: Mapping[str, Any]) -> dict[s
 
 
 def _run_status(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.run_status(arguments["run_id"]))
+    return _run_view(services.runner.run_status(arguments["run_id"]), services.discovery)
 
 
 def _approve_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.approve(arguments["run_id"]))
+    return _run_view(services.runner.approve(arguments["run_id"]), services.discovery)
 
 
 def _decline_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.decline(arguments["run_id"]))
+    return _run_view(services.runner.decline(arguments["run_id"]), services.discovery)
 
 
 def _cancel_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.cancel(arguments["run_id"]))
+    return _run_view(services.runner.cancel(arguments["run_id"]), services.discovery)
 
 
 def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -814,7 +814,7 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
         initiated_by=InitiatedBy.MCP_CLIENT,
     )
     return ok(
-        **_run_fields(run),
+        **_run_fields(run, services.discovery),
         notice=(
             "The re-search is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes. "
@@ -838,7 +838,7 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
             notice="Every item was skipped, so no Get started; `skipped` says why for each.",
         )
     return ok(
-        **_run_fields(outcome.run),
+        **_run_fields(outcome.run, services.discovery),
         skipped=skipped,
         notice=(
             "The Get is under way; this is a handle, not a result. Call "
@@ -943,7 +943,7 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
     )
     return ok(
-        runs=[_run_summary(run) for run in listing.runs],
+        runs=[_run_summary(run, services.discovery) for run in listing.runs],
         # What is left to review: works with an image and no verdict, in all and
         # by listed run, as the HTTP listing carries them.
         awaiting_works=listing.awaiting_works,
@@ -1899,6 +1899,7 @@ def _unattended_fields(standing: Standing) -> dict[str, Any]:
         "may_start": standing.may_start,
         "refusal": None if standing.refusal is None else str(standing.refusal),
         "sentence": standing.sentence,
+        "summary": standing.summary,
     }
 
 
@@ -1986,6 +1987,7 @@ def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
         "in_flight": standing.in_flight,
         "spent_usd": f"{standing.spent_usd:.2f}",
         "sentence": standing.sentence,
+        "summary": standing.summary,
     }
 
 
@@ -2471,7 +2473,7 @@ def _republished_fields(wall_id: str, artwork_id: str) -> dict[str, Any]:
     }
 
 
-def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
+def _run_fields(run: DiscoveryRun, discovery: DiscoveryService) -> dict[str, Any]:
     """One run as a caller sees it.
 
     The terminal state is returned as itself and never collapsed into an
@@ -2496,6 +2498,8 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         "approval_required": run.approval_required,
         "estimated_cost_usd": None if run.estimated_cost_usd is None else str(run.estimated_cost_usd),
         "actual_cost_usd": None if run.actual_cost_usd is None else str(run.actual_cost_usd),
+        # The figure in words, the service's (`DiscoveryService.run_summary`).
+        "summary": discovery.run_summary(run),
         "unresolved_work_count": run.unresolved_work_count,
         "parent_run_id": run.parent_run_id,
         "started_at": _moment(run.started_at),
@@ -2531,7 +2535,7 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
 _RUN_DETAIL_ONLY: Final[frozenset[str]] = frozenset({"strategy"})
 
 
-def _run_summary(run: DiscoveryRun) -> dict[str, Any]:
+def _run_summary(run: DiscoveryRun, discovery: DiscoveryService) -> dict[str, Any]:
     """One run as a *listing* row shows it.
 
     Derived from `_run_fields` by subtraction rather than written out, so a field
@@ -2541,7 +2545,7 @@ def _run_summary(run: DiscoveryRun) -> dict[str, Any]:
     the candidate-work projections took four coordinated edits to maintain before
     they were collapsed into one.
     """
-    return {key: value for key, value in _run_fields(run).items() if key not in _RUN_DETAIL_ONLY}
+    return {key: value for key, value in _run_fields(run, discovery).items() if key not in _RUN_DETAIL_ONLY}
 
 
 def _runs_truncation_notice(listing: RunListing) -> str | None:
@@ -2954,11 +2958,11 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
     }
 
 
-def _run_view(view: RunView) -> dict[str, Any]:
+def _run_view(view: RunView, discovery: DiscoveryService) -> dict[str, Any]:
     """One run in full, with its works and what it has used of its search cap."""
     listed = list(view.works[:MAX_WORKS_LISTED])
     return ok(
-        **_run_fields(view.run),
+        **_run_fields(view.run, discovery),
         works={
             "total": view.work_count,
             # The curator asked for a work list of a stated size, and a supplement

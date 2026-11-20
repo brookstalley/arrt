@@ -250,7 +250,7 @@ def _resolving(kind: RunKind) -> RunView:
     )
 
 
-def test_a_long_work_list_is_capped_and_says_how_much_it_left_out():
+def test_a_long_work_list_is_capped_and_says_how_much_it_left_out(discovery):
     """The contract's rule where it bites hardest: truncation is never silent.
 
     Phase 1 is deliberately uncapped and the approval gate is computed after the
@@ -262,7 +262,7 @@ def test_a_long_work_list_is_capped_and_says_how_much_it_left_out():
     """
     view = replace(_resolving(RunKind.DISCOVERY), works=_works(pending=MAX_WORKS_LISTED + 12))
 
-    payload = _run_view(view)
+    payload = _run_view(view, discovery)
 
     works = payload["works"]
     assert works["total"] == MAX_WORKS_LISTED + 12
@@ -273,9 +273,9 @@ def test_a_long_work_list_is_capped_and_says_how_much_it_left_out():
     assert "Call status again" in payload["notice"]
 
 
-def test_a_list_that_fits_says_nothing_about_truncation():
+def test_a_list_that_fits_says_nothing_about_truncation(discovery):
     """Saying nothing is the honest answer when nothing was left behind."""
-    payload = _run_view(_resolving(RunKind.DISCOVERY))
+    payload = _run_view(_resolving(RunKind.DISCOVERY), discovery)
 
     assert payload["works"]["truncated"] is False
     assert payload["works"]["listed"] == payload["works"]["total"] == 2
@@ -512,7 +512,7 @@ def test_the_capped_rows_are_the_newest_ones():
     assert [run.id for run in listing.runs] == [f"r{index}" for index in range(MAX_RUNS_LISTED)]
 
 
-def test_a_listing_row_drops_the_engine_s_prose_and_keeps_the_operator_s():
+def test_a_listing_row_drops_the_engine_s_prose_and_keeps_the_operator_s(discovery):
     """`api-contract.md § Summary then detail`, applied to the two unbounded fields.
 
     `strategy` is the engine's reading of the intent in its own words, on every
@@ -522,13 +522,13 @@ def test_a_listing_row_drops_the_engine_s_prose_and_keeps_the_operator_s():
     tell one run from another, so trimming it would save bytes by making the
     listing stop answering the question it exists for.
     """
-    row = _run_summary(_runs(1)[0])
+    row = _run_summary(_runs(1)[0], discovery)
 
     assert "strategy" not in row
     assert row["intent"] == "Find me something restful for the hallway, request 0"
 
 
-def test_a_field_added_to_a_run_reaches_the_listing_without_being_added_twice():
+def test_a_field_added_to_a_run_reaches_the_listing_without_being_added_twice(discovery):
     """The summary is the full shape minus a named set, not a second literal shape.
 
     Written as two literal shapes, a new field would land in one and not the
@@ -538,4 +538,4 @@ def test_a_field_added_to_a_run_reaches_the_listing_without_being_added_twice():
     """
     run = _runs(1)[0]
 
-    assert set(_run_fields(run)) - set(_run_summary(run)) == _RUN_DETAIL_ONLY
+    assert set(_run_fields(run, discovery)) - set(_run_summary(run, discovery)) == _RUN_DETAIL_ONLY

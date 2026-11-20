@@ -27,6 +27,7 @@ from threetears.agent.tools.builtin.web_search import create_web_search_tool
 from arrt.app import _record_ask_cost
 from arrt.ask.agent import _SAID, TURNS_REMEMBERED, Ask, ReplyCost, Threads, said, surface_tools
 from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.library.services.discovery import SpendTotal
 from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.services.errors import ServiceError
 
@@ -71,6 +72,10 @@ async def test_a_step_that_reported_no_cost_is_counted_rather_than_read_as_free(
     assert end["metadata"]["uncosted"] == 1
     assert end["metadata"]["cost_usd"] == COST_PER_REPLY
     assert end["metadata"]["steps"] == 2
+    # The figure in the one writer's words, "at least" for the call that said nothing.
+    assert end["metadata"]["summary"] == SpendTotal(cost_usd=PER_CALL, unknown_calls=1).words
+    assert end["metadata"]["summary"].startswith("at least $")
+    assert end["metadata"]["summary"].endswith(", and 1 call whose cost is unknown")
 
 
 async def test_a_thread_is_replying_until_its_stream_is_read_to_the_end():

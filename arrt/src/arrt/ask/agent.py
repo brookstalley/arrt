@@ -41,6 +41,7 @@ from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_C
 from arrt.ask.cards import cards_for
 from arrt.ask.prompt import ASK_SCOPE, ask_system
 from arrt.library.discovery.openrouter import budget_spent, names_the_key_limit
+from arrt.library.services.discovery import SpendTotal
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.server import tool_definitions
@@ -253,6 +254,9 @@ class Ask:
                 metadata={
                     "cost_usd": tally.cost_usd,
                     "uncosted": tally.uncosted,
+                    # The figure in words, the one writer's (`SpendTotal.words`):
+                    # "at least" when a call reported no cost.
+                    "summary": SpendTotal(cost_usd=tally.cost, unknown_calls=tally.uncosted).words,
                     "steps": tally.steps,
                     "cards": cards_for(answer, tally.payloads),
                 }

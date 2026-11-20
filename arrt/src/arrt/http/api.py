@@ -221,7 +221,7 @@ from arrt.library.acquisition.queue import AcquisitionState, FailureCause, Queue
 from arrt.library.services import spend_history
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import DiscoveryService, VerdictOutcome
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
@@ -1715,14 +1715,16 @@ def start_run(request: Request, body: StartRun) -> RunOut:
     hold the request open for the minutes the search takes, which no browser will
     sit through — so the client is handed an id and follows it.
     """
+    services = _services(request)
     return _run(
-        _services(request).runner.start(
+        services.runner.start(
             intent_text=body.intent,
             # Provenance, never authorisation: every surface has identical
             # authority, and this records which one asked so that "who wanted
             # forty Dalí candidates" is answerable from the data afterwards.
             initiated_by=InitiatedBy.WEB_UI,
-        )
+        ),
+        services.discovery,
     )
 
 
@@ -1743,7 +1745,7 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     destination = None if body.theme_id is None else services.display.get_listed_theme(body.theme_id).id
     outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
-        run=None if outcome.run is None else _run(outcome.run),
+        run=None if outcome.run is None else _run(outcome.run, services.discovery),
         skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
     )
 
@@ -1774,9 +1776,10 @@ def list_runs(
     a caller reaches it. A `limit`/`offset` pair would change the contract of a
     shipped surface and earns its own review rather than riding along here.
     """
-    listing = _services(request).runner.list_runs(status=status, kind=kind, awaiting=awaiting)
+    services = _services(request)
+    listing = services.runner.list_runs(status=status, kind=kind, awaiting=awaiting)
     return RunListOut(
-        runs=[_run(run) for run in listing.runs],
+        runs=[_run(run, services.discovery) for run in listing.runs],
         awaiting_works=listing.awaiting_works,
         awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
@@ -1797,25 +1800,29 @@ def get_run(request: Request, run_id: str) -> RunViewOut:
     open that starves the same pool that serves thumbnails. The client asks
     again; nothing is lost but the hold.
     """
-    return _run_view(_services(request).runner.run_status(run_id, wait=False))
+    services = _services(request)
+    return _run_view(services.runner.run_status(run_id, wait=False), services.discovery)
 
 
 @router.post("/runs/{run_id}/approve")
 def approve_run(request: Request, run_id: str) -> RunViewOut:
     """Accept the work list and its price; phase 2 begins behind the response."""
-    return _run_view(_services(request).runner.approve(run_id))
+    services = _services(request)
+    return _run_view(services.runner.approve(run_id), services.discovery)
 
 
 @router.post("/runs/{run_id}/decline")
 def decline_run(request: Request, run_id: str) -> RunViewOut:
     """Refuse the work list. The run ends without phase 2 ever spending."""
-    return _run_view(_services(request).runner.decline(run_id))
+    services = _services(request)
+    return _run_view(services.runner.decline(run_id), services.discovery)
 
 
 @router.post("/runs/{run_id}/cancel")
 def cancel_run(request: Request, run_id: str) -> RunViewOut:
     """Stop a run from wherever it is. Money already spent stays recorded."""
-    return _run_view(_services(request).runner.cancel(run_id))
+    services = _services(request)
+    return _run_view(services.runner.cancel(run_id), services.discovery)
 
 
 @router.get("/spend")
@@ -1843,11 +1850,13 @@ def start_resolve_run(request: Request, body: StartResolve) -> RunOut:
     paths do not overlap, since nothing serves `POST /api/runs/{id}`. It sits here
     because it is the third way a run begins and belongs beside the other two.
     """
+    services = _services(request)
     return _run(
-        _services(request).runner.resolve_images(
+        services.runner.resolve_images(
             candidate_work_ids=body.work_ids,
             initiated_by=InitiatedBy.WEB_UI,
-        )
+        ),
+        services.discovery,
     )
 
 
@@ -1870,7 +1879,8 @@ def list_candidates(
     """
     # `pictures=False`: this surface fetches each picture by URL, so inlining
     # them here would re-encode thirty images per page and discard the output.
-    return _candidate_page(_services(request).review.list_works(run_id, limit=limit, offset=offset, pictures=False))
+    services = _services(request)
+    return _candidate_page(services.review.list_works(run_id, limit=limit, offset=offset, pictures=False), services.discovery)
 
 
 @router.get("/candidates/{work_id}")
@@ -2601,7 +2611,7 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
     )
 
 
-def _run(run: DiscoveryRun) -> RunOut:
+def _run(run: DiscoveryRun, discovery: DiscoveryService) -> RunOut:
     return RunOut(
         run_id=run.id,
         kind=str(run.kind),
@@ -2613,6 +2623,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         approval_required=run.approval_required,
         estimated_cost_usd=None if run.estimated_cost_usd is None else str(run.estimated_cost_usd),
         actual_cost_usd=None if run.actual_cost_usd is None else str(run.actual_cost_usd),
+        summary=discovery.run_summary(run),
         unresolved_work_count=run.unresolved_work_count,
         parent_run_id=run.parent_run_id,
         started_at=run.started_at.isoformat(),
@@ -2623,7 +2634,7 @@ def _run(run: DiscoveryRun) -> RunOut:
     )
 
 
-def _run_view(view: RunView) -> RunViewOut:
+def _run_view(view: RunView, discovery: DiscoveryService) -> RunViewOut:
     """A run with its works and both of its tallies.
 
     Every figure is read off the view's own properties rather than recomputed
@@ -2633,7 +2644,7 @@ def _run_view(view: RunView) -> RunViewOut:
     that counted provenance apart is exactly the defect that reached a review.
     """
     return RunViewOut(
-        run=_run(view.run),
+        run=_run(view.run, discovery),
         tally=RunTallyOut(
             total=view.work_count,
             proposed=view.proposed_count,
@@ -2688,9 +2699,9 @@ def _wanted_work(view: WantedView) -> WantedWorkOut:
     )
 
 
-def _candidate_page(page: CandidatePage) -> CandidatePageOut:
+def _candidate_page(page: CandidatePage, discovery: DiscoveryService) -> CandidatePageOut:
     return CandidatePageOut(
-        run=_run(page.run),
+        run=_run(page.run, discovery),
         works=[_candidate_card(entry) for entry in page.entries],
         total=page.total,
         limit=page.limit,
@@ -3188,6 +3199,7 @@ def _watch(service: WatchService, watch: Watch) -> WatchOut:
         in_flight=standing.in_flight,
         spent_usd=f"{standing.spent_usd:.2f}",
         sentence=standing.sentence,
+        summary=standing.summary,
     )
 
 
@@ -3200,6 +3212,7 @@ def _unattended(standing: Standing) -> UnattendedOut:
         may_start=standing.may_start,
         refusal=None if standing.refusal is None else str(standing.refusal),
         sentence=standing.sentence,
+        summary=standing.summary,
     )
 
 

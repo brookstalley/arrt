@@ -1657,6 +1657,10 @@ class RunOut(BaseModel):
     #: against, and then in a total nobody reconciles.
     estimated_cost_usd: str | None
     actual_cost_usd: str | None
+    #: `actual_cost_usd` in words (`DiscoveryService.run_summary`,
+    #: `SpendTotal.words`): "at least" when one of the run's own calls never said
+    #: what it cost. Null while the run record has no figure.
+    summary: str | None
     unresolved_work_count: int | None
     parent_run_id: str | None
     started_at: str
@@ -2751,6 +2755,10 @@ class UnattendedOut(BaseModel):
     refusal: str | None
     #: One sentence saying which, for the screen.
     sentence: str
+    #: What this month's unattended work spent, in words (`Standing.summary`,
+    #: `SpendTotal.words`): "at least $0.42, and 2 calls whose cost is unknown"
+    #: when any call never said what it cost, where `spent_usd` is the floor.
+    summary: str
 
 
 class WatchOut(BaseModel):
@@ -2789,6 +2797,9 @@ class WatchOut(BaseModel):
     spent_usd: str
     #: One sentence for where it stands.
     sentence: str
+    #: What its runs spent this UTC month, in words (`WatchStanding.summary`,
+    #: `SpendTotal.words`): "at least" when a call's cost is unknown.
+    summary: str
 
 
 class WatchListOut(BaseModel):

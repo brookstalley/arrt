@@ -29,6 +29,7 @@ from scripted_model import (
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryPerson, RegistryText, RegistryWorkMatch
+from arrt.library.services.discovery import SpendTotal
 from arrt.mcp.server import dispatch
 from arrt.persistence.discovery_records import SpendCategory
 
@@ -111,6 +112,8 @@ def test_a_reply_searches_streams_and_ends_with_its_cost_and_cards(server_url, a
     assert metadata["steps"] == 2
     assert metadata["cost_usd"] == pytest.approx(2 * COST_PER_REPLY)
     assert metadata["uncosted"] == 0
+    assert metadata["summary"] == SpendTotal(cost_usd=2 * Decimal(str(COST_PER_REPLY)), unknown_calls=0).words
+    assert not metadata["summary"].startswith("at least")
     # The invented item gets no card, and Harvesters, returned but not named, gets none either.
     assert [card["qid"] for card in metadata["cards"]] == [HUNTERS]
     assert metadata["cards"][0]["kind"] == "work"

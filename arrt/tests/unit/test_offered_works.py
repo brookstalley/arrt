@@ -599,7 +599,7 @@ def test_the_run_payload_reports_the_two_kinds_apart(services, engine, runner, c
     collection.holdings = a_collection_holding(**{"Ellsworth Kelly": ["Kelly 1", "Kelly 2"]}).holdings
 
     run_id = start(runner).id
-    payload = _run_view(runner.run_status(run_id, wait=False))
+    payload = _run_view(runner.run_status(run_id, wait=False), services.discovery)
 
     assert payload["works"]["proposed"] == 1
     assert payload["works"]["offered"] == 2

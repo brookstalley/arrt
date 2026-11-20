@@ -87,6 +87,11 @@ class Standing:
         return max(self.allowance_usd - self.spent_usd, Decimal(0))
 
     @property
+    def summary(self) -> str:
+        """What this month's unattended work spent, in words (`SpendTotal.words`): "at least" when a call's cost is unknown."""
+        return SpendTotal(cost_usd=self.spent_usd, unknown_calls=self.unknown_cost_calls).words
+
+    @property
     def may_start(self) -> bool:
         return self.refusal is None
 
@@ -115,8 +120,12 @@ class UnattendedAllowance:
         return spend_in_month(self._store, self._now(), lambda run: run.initiated_by is InitiatedBy.UNATTENDED)
 
     def spent_by_watch_this_month(self, watch_id: str) -> Decimal:
-        """What the runs one Watch's passes started were billed in this UTC calendar month."""
-        return spent_in_month(self._store, self._now(), lambda run: run.watch_id == watch_id)
+        """What the runs one Watch's passes started are known to have been billed in this UTC calendar month."""
+        return self.spend_by_watch_this_month(watch_id).cost_usd
+
+    def spend_by_watch_this_month(self, watch_id: str) -> SpendTotal:
+        """What the runs one Watch's passes started were billed this UTC month, and their calls whose cost is unknown."""
+        return spend_in_month(self._store, self._now(), lambda run: run.watch_id == watch_id)
 
     def standing(self, estimate_usd: Decimal = Decimal(0)) -> Standing:
         """Where unattended work stands, and whether a piece expected to cost `estimate_usd` may start.
