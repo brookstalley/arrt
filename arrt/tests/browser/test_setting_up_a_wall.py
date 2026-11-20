@@ -102,7 +102,7 @@ def test_a_wall_is_set_up_in_the_order_the_screens_give_it(ui, services, setting
     expect(ui.page.locator("#view .page-facts")).to_have_text("1 Player · waiting for it to report")
     [hall] = [view.client for view in services.clients.list_clients()]
     expect(ui.page.locator(f"#view tr[data-player='{hall.id}'] td[data-label='Status']")).to_contain_text(
-        "Waiting for it to report"
+        "Waiting for its first report"
     )
 
     ui.page.get_by_role("button", name="Copy Hall Pi's token").click()
@@ -383,22 +383,25 @@ def test_no_retired_word_is_read_on_these_screens(
     assert not found, f"{screen} with {state} says {found}"
 
 
-def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading):
+def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading, a_backup_reading):
     """Finding 8: Status printed the backup record's path, a file under a temporary directory, to a household.
 
     With no backup, and with a record that cannot be read, the server's sentence
-    names the file; it is debug's then, and the page says it in words.
+    names the file; it is debug's then, and the page says it in words. The
+    backup is passed into the builder, so the answer's troubles carry it as the
+    server's would; edited after it was built, they said nothing of it.
     """
-    for backup in ({"absent": True}, {"absent": False, "problem": "the record is not JSON"}):
-        reading = a_health_reading()
-        reading["backup"].update(
-            absent=backup["absent"],
-            problem=backup.get("problem"),
-            completed_at=None,
-            age_seconds=None,
-            reported=None,
-            description="No backup has been recorded at /srv/arrt-scratch-9f2/backup-receipt.json; nothing has written one yet.",
-        )
+    for absent, problem in ((True, None), (False, "the record is not JSON")):
+        backup = a_backup_reading(absent=absent, problem=problem) | {
+            "completed_at": None,
+            "age_seconds": None,
+            "reported": None,
+            "description": (
+                "No backup has been recorded at /srv/arrt-scratch-9f2/backup-receipt.json; nothing has written one yet."
+            ),
+        }
+        reading = a_health_reading(backup=backup)
+        assert [trouble["about"] for trouble in reading["troubles"]] == ["backup"]
         ui.serve("**/api/health", reading)
         ui.open("#health")
         expect(ui.page.locator("#view h2:text-is('Backup')")).to_be_visible()

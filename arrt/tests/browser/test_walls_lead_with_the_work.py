@@ -35,6 +35,7 @@ from arrt.persistence.records import ArtworkStatus, MatMethod, RenditionKind
 def the_wall(services):
     wall = services.display.survey_walls()[0].wall
     hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
     services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
     return services.display.get_wall(wall.id)
 
@@ -416,7 +417,9 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
     # "hidden" to Playwright, so the line above alone passed with `hidden` gone.
     expect(lead).to_have_attribute("hidden", "")
     expect(card(ui, the_wall).locator("figure")).to_have_count(0)
-    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_text(re.compile(r"No Player\s*$"), use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-badge[data-state='unassigned']")).to_have_text(
+        re.compile(r"No Player yet\s*$"), use_inner_text=True
+    )
     expect(card(ui, the_wall)).not_to_contain_text("Not assigned to a screen", use_inner_text=True)
     expect(card(ui, the_wall).get_by_role("button", name=f"Choose the Player for {the_wall.name}…")).to_have_count(1)
 
@@ -786,7 +789,7 @@ def test_a_wall_showing_art_says_so_in_its_badge(ui, services, the_wall, winter,
 
     badge = card(ui, the_wall).locator("header.wall-head .wall-badge")
     expect(badge).to_have_text(re.compile(r"Showing\s*$"), use_inner_text=True)
-    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_count(0)
+    expect(card(ui, the_wall).locator(".wall-badge[data-state='unassigned']")).to_have_count(0)
 
 
 def test_an_assigned_wall_carries_no_no_player_badge_and_an_unassigned_one_does(ui, services, the_wall, winter, two_works):
@@ -799,12 +802,49 @@ def test_an_assigned_wall_carries_no_no_player_badge_and_an_unassigned_one_does(
 
     # The study's badge first: the cards paint together, so it anchors the
     # absences on the other card.
-    expect(card(ui, study).locator(".wall-badge-unassigned")).to_have_text(re.compile(r"No Player\s*$"), use_inner_text=True)
+    expect(card(ui, study).locator(".wall-badge[data-state='unassigned']")).to_have_text(
+        re.compile(r"No Player yet\s*$"), use_inner_text=True
+    )
     expect(card(ui, study).locator(".wall-problem")).to_have_text(
         re.compile(r"^No Player shows this wall\."), use_inner_text=True
     )
-    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_count(0)
+    expect(card(ui, the_wall).locator(".wall-badge[data-state='unassigned']")).to_have_count(0)
     expect(card(ui, the_wall).locator(".wall-problem")).to_have_count(0)
+
+
+def test_a_wall_no_player_shows_is_a_step_and_not_coloured_as_a_fault(ui, services, the_wall, winter, two_works):
+    """`unassigned`'s setup flag is true (`vocabulary.json`): drawn as a step, never in a fault's colour.
+
+    Its badge carries the contract's word and the glyph for "there is none yet",
+    and the colours every badge has; a silent wall's badge, beside it, is the
+    warning's. Colour is the third carrier, so the word and glyph are asserted
+    first.
+    """
+    study = services.display.add_wall(name="Study")
+    report(services, the_wall, two_works[0].id, ago=timedelta(hours=2))
+    open_walls(ui)
+
+    setup = card(ui, study).locator(".wall-badge[data-state='unassigned']")
+    silent = card(ui, the_wall).locator(".wall-badge[data-state='silent']")
+    expect(setup).to_have_text(re.compile(r"^○\s*No Player yet\s*$"), use_inner_text=True)
+    expect(setup).to_have_class(re.compile(r"\bwall-badge-setup\b"))
+    expect(silent).to_have_text(re.compile(r"^▲\s*Not reporting\s*$"), use_inner_text=True)
+    colour = "(node) => getComputedStyle(node).color"
+    plain = ui.page.evaluate(
+        "() => { const b = document.createElement('span'); b.className = 'badge'; document.body.append(b);"
+        " const c = getComputedStyle(b).color; b.remove(); return c; }"
+    )
+    assert setup.evaluate(colour) == plain, "a setup step's badge is coloured, as a fault's is"
+    assert silent.evaluate(colour) != plain, "the fault beside it is not coloured, so this compares nothing"
+
+
+def test_a_state_with_no_word_is_said_as_not_known_in_the_badge(ui, services, the_wall, winter):
+    """A state from a later minor: the server reads it as unreachable, and the badge says its word, never blank."""
+    report_state(services, the_wall, "dimmed")
+    open_walls(ui)
+
+    badge = card(ui, the_wall).locator("header.wall-head .wall-badge")
+    expect(badge).to_have_text(re.compile(r"^\?\s*Not known\s*$"), use_inner_text=True)
 
 
 # -- the keyboard (Done-when 3 of `build-plan-ui-pass-walls.md` Chunk 03) ------------------

@@ -185,6 +185,7 @@ def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall)
     and captions it, so the Walls card and its dialog have something to say
     about it. The address and the routes keep `client`; only text is read.
     """
+    services.access.issue(hall.id)
     report(settings, hall, WITH_A_PANEL)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
@@ -267,7 +268,7 @@ def test_a_player_that_already_has_a_token_is_never_shown_one(ui, services, hall
 def test_a_player_with_no_token_says_so_and_issues_one_without_asking(ui, services, hall, server_url):
     """Issuing a first token refuses no Player, so there is nothing to confirm."""
     open_players(ui)
-    expect(cell(ui, hall, "Status")).to_have_text(starting("○ No token"), use_inner_text=True)
+    expect(cell(ui, hall, "Status")).to_have_text(starting("○ No token yet"), use_inner_text=True)
 
     dialog = edit(ui, hall)
     expect(dialog).to_contain_text("None issued yet, so it is admitted to nothing until one is.", use_inner_text=True)
@@ -340,7 +341,7 @@ def test_a_player_that_has_not_reported_says_so_in_words(ui, services, hall):
     expect(cell(ui, hall, "Status")).to_have_text(
         re.compile(
             "^"
-            + re.escape("◌ Waiting for it to report")
+            + re.escape("◌ Waiting for its first report")
             + r"\n"
             + re.escape("Once it is running with its token, it reports here within a minute or so.")
             + "$"
@@ -390,7 +391,7 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     open_players(ui)
 
     status = cell(ui, hall, "Status")
-    expect(status).to_have_text(starting("◌ Not heard from since "), use_inner_text=True)
+    expect(status).to_have_text(starting("▲ Not heard from since "), use_inner_text=True)
     expect(status).to_have_text(ending("(5 days ago)"), use_inner_text=True)
     screens = cell(ui, hall, "Screens")
     expect(screens).to_contain_text("◌ not known now (was detected)", use_inner_text=True)
@@ -478,6 +479,76 @@ def test_a_label_panel_is_listed_with_its_state_and_the_wall_it_captions(ui, ser
     expect(panel).to_have_text(ending(f"Captions {the_wall.name}"), use_inner_text=True)
     expect(panel).not_to_contain_text("epd-0", use_inner_text=True)
     expect(panel.get_by_role("link", name=the_wall.name)).to_have_attribute("href", f"#walls?wall={the_wall.id}")
+
+
+#: Two label panels and no screen: the shape the owner's ruling 8 of 2026-11-19 keeps open.
+TWO_PANELS = {
+    "outputs": [],
+    "label_outputs": [
+        {"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 480]},
+        {"name": "epd-1", "kind": "epaper", "connected": False, "size": None},
+    ],
+}
+
+
+def test_a_player_with_only_label_panels_reads_panel_by_panel(ui, services, settings, hall):
+    """Several panels and no screen read sensibly, each with its own state; one not connected is said, and is no trouble.
+
+    Each panel's state is the server's (`state.outputs`, one per output). The
+    one not connected is drawn as nothing there (○), never as a fault (▲), and
+    Status, which lists the same Player, names it in no trouble.
+    """
+    services.access.issue(hall.id)
+    report(settings, hall, TWO_PANELS)
+    open_players(ui)
+
+    expect(cell(ui, hall, "Status")).to_have_text(starting("● Reporting"), use_inner_text=True)
+    expect(cell(ui, hall, "Screens")).to_have_text("It reported no screen.", use_inner_text=True)
+    panels = cell(ui, hall, "Label panel").locator("li")
+    # Two panels: each named by its port, since then it is what tells them apart.
+    expect(panels).to_have_count(2)
+    expect(panels.nth(0)).to_have_text(starting("epd-0 · ● answering, 800 × 480"), use_inner_text=True)
+    expect(panels.nth(1)).to_have_text(starting("epd-1 · ○ not connected"), use_inner_text=True)
+    expect(cell(ui, hall, "Label panel")).not_to_contain_text("▲", use_inner_text=True)
+
+    ui.open("#health")
+    outputs = ui.page.locator(f".players-reading li[data-player='{hall.id}'] li[data-kind='label']")
+    expect(outputs).to_have_text(["Label panel epd-0 · ● answering", "Label panel epd-1 · ○ not connected"], use_inner_text=True)
+    expect(ui.page.locator("#view .troubles")).not_to_contain_text("epd-1", use_inner_text=True)
+    expect(ui.page.locator("#view .troubles")).not_to_contain_text(hall.name, use_inner_text=True)
+
+
+def test_a_player_whose_report_names_its_settings_page_links_to_it_and_one_without_does_not(ui, services, settings, hall):
+    """The address is the server's (`settings_url`, served only when it passes the contract's check), set as given.
+
+    A link with no reference back to this page (`rel`), and its words this page's.
+    A report with no address has no link at all: the page assembles none.
+    """
+    services.access.issue(hall.id)
+    report(settings, hall, TWO_OUTPUTS)
+    open_players(ui)
+    expect(cell(ui, hall, "Status")).to_have_text(starting("● Reporting"), use_inner_text=True)
+    expect(cell(ui, hall, "Player").locator("a")).to_have_count(0)
+
+    address = "http://192.0.2.10:8771/"
+    report(settings, hall, TWO_OUTPUTS | {"settings_url": address})
+    open_players(ui)
+    link = cell(ui, hall, "Player").get_by_role("link", name=f"{hall.name}'s settings page")
+    expect(link).to_have_attribute("href", address)
+    expect(link).to_have_attribute("rel", "noopener noreferrer")
+    expect(link).to_have_text("Its settings page", use_inner_text=True)
+
+
+def test_a_script_in_a_players_settings_address_never_reaches_a_link(ui, services, settings, hall):
+    """`javascript:` fails the contract's check: the server serves null, and the row carries no link (its report kept)."""
+    services.access.issue(hall.id)
+    report(settings, hall, TWO_OUTPUTS | {"settings_url": "javascript:alert(1)"})
+    open_players(ui)
+
+    # The report is kept, so the row is anchored on what it says first.
+    expect(cell(ui, hall, "Status")).to_have_text(starting("● Reporting"), use_inner_text=True)
+    expect(cell(ui, hall, "Player").locator("a")).to_have_count(0)
+    expect(ui.page.locator("#view a[href^='javascript']")).to_have_count(0)
 
 
 # -- its settings, in its Edit… -----------------------------------------------------------

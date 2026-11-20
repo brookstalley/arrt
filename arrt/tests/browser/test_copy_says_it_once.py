@@ -42,7 +42,8 @@ def test_status_has_one_name_and_the_masthead_says_a_state(ui, a_health_reading)
 
 
 def test_status_says_when_a_wall_was_last_heard_from_once(ui, a_health_reading):
-    ui.serve("**/api/health", a_health_reading())
+    reading = a_health_reading()
+    ui.serve("**/api/health", reading)
     ui.open("#health")
     panel = ui.page.locator(".wall-reading").first
     panel.wait_for()
@@ -50,18 +51,22 @@ def test_status_says_when_a_wall_was_last_heard_from_once(ui, a_health_reading):
     expect(panel.locator(".reading-sentence")).to_have_text(re.compile("^" + re.escape("Last heard from ")), use_inner_text=True)
     # After the panel's sentence, which is what shows the page is drawn.
     expect(ui.view).not_to_contain_text("display plane", use_inner_text=True)
+    # The server's summary for these walls, whatever it says: the fixture's
+    # hand-written "Every wall has reported." until audit wave 2b (chunk 31)
+    # derived it through `HealthReading.describe`.
     expect(ui.view, "with one wall the summary is its panel said twice").not_to_contain_text(
-        "Every wall has reported.", use_inner_text=True
+        reading["description"], use_inner_text=True
     )
     expect(ui.view).not_to_contain_text("Last reported", use_inner_text=True)
 
 
 def test_status_keeps_the_summary_over_more_than_one_wall(ui, a_health_reading, a_wall_reading):
     reading = a_health_reading(walls=[a_wall_reading(), a_wall_reading(wall_id="wall-2", name="The study")])
+    assert reading["description"].startswith("Every wall has reported")
     ui.serve("**/api/health", reading)
     ui.open("#health")
     ui.page.wait_for_selector(".wall-reading")
-    expect(ui.view).to_contain_text("Every wall has reported.", use_inner_text=True)
+    expect(ui.view).to_contain_text(reading["description"], use_inner_text=True)
 
 
 # -- Topic and Artist ------------------------------------------------------------------

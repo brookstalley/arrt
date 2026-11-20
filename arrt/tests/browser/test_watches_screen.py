@@ -9,7 +9,6 @@ Watch's on its Get, and an overdue Watch reaches the status indicator and Status
 import re
 from decimal import Decimal
 
-import httpx
 import pytest
 
 from arrt.library.discovery.openrouter import KeyStatus
@@ -153,12 +152,13 @@ class TestWithAModelKey:
         expect(ui.page.locator(".found-by-watch")).to_have_count(0)
 
 
-def an_overdue_reading(health: dict) -> dict:
-    return health | {"watches": {"overdue": [WORDS], "allowance_spent": False}}
-
-
-def test_an_overdue_watch_is_named_on_the_status_indicator_and_on_status(ui, server_url):
-    ui.serve("**/api/health", [an_overdue_reading(httpx.get(f"{server_url}/api/health", timeout=30).json())])
+def test_an_overdue_watch_is_named_on_the_status_indicator_and_on_status(ui, a_health_reading):
+    # Built with the Watch overdue, so the answer's `troubles` (what the
+    # indicator says) carry it as the server's would. It was the real server's
+    # answer with `watches` swapped in, whose troubles still said nothing of it.
+    reading = a_health_reading(watches={"overdue": [WORDS], "allowance_spent": False})
+    assert [trouble["about"] for trouble in reading["troubles"]] == ["watch"]
+    ui.serve("**/api/health", [reading])
     ui.open("#watches")
 
     indicator = ui.page.locator("#status")

@@ -148,7 +148,17 @@ def test_a_get_shows_the_model_s_reading_of_the_request_only_in_debug(ui):
 
 
 def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_reading, a_wall_reading):
-    """The failure rows `observability-strategy.md` gives Status a reader for are not engineering detail."""
+    """The failure rows `observability-strategy.md` gives Status a reader for are not engineering detail.
+
+    Rewritten in audit wave 2b (chunk 31). It asserted "Television: Not
+    reachable" and "Label panel: Not working", read from `television_reachable`
+    and `label_surface_working`, which the contract marks superseded (1.2.0):
+    the screen's state is now the wall's display state as the server states it
+    (a Player that names no work and says nothing of its screen is `unreachable`,
+    "Not known"), and a label panel is an output of its Player, said with the
+    Player's other outputs, where one not connected is said as one. The last
+    error is still the wall's row.
+    """
     wall = a_wall_reading(
         reported={
             "television_reachable": False,
@@ -158,18 +168,26 @@ def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_read
             "last_error": "the television refused the connection",
         }
     )
-    ui.serve("**/api/health", a_health_reading(walls=[wall]))
+    ui.serve("**/api/health", a_health_reading(walls=[wall], player={"labels": [("epd-0", False)]}))
 
     ui.open("#health")
     panel = ui.page.locator(".wall-reading")
     panel.wait_for()
-    expect(panel).to_contain_text(_raw("Television\nNot reachable"), use_inner_text=True)
-    expect(panel).to_contain_text(_raw("Label panel\nNot working"), use_inner_text=True)
+    expect(panel.locator(".wall-state")).to_have_text(re.compile(r"Not known$"), use_inner_text=True)
     expect(panel).to_contain_text(_raw("Last error\nthe television refused the connection"), use_inner_text=True)
+    expect(panel).not_to_contain_text("Television", use_inner_text=True)
+    label = ui.page.locator(".players-reading li[data-kind='label']")
+    expect(label).to_have_text("Label panel epd-0 · ○ not connected", use_inner_text=True)
     expect(ui.page.locator(".raw-details")).to_have_count(0)
 
 
 def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wall_reading):
+    """The screen's state is the display state, never the superseded `television_showing_art` beside it.
+
+    Acceptance 4 of audit wave 2b's chunk 31: a heartbeat claiming the
+    television shows art, with `display_state: dark`, reads "Screen off". It
+    asserted "Television: Showing art" from that superseded field until then.
+    """
     wall = a_wall_reading(
         reported={
             "television_reachable": True,
@@ -177,14 +195,20 @@ def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wa
             "has_label_surface": False,
             "label_surface_working": None,
             "last_error": None,
+            "schema": {"major": 1, "minor": 3},
+            "display_state": {"state": "dark", "work_id": None, "since": "2026-08-12T09:00:00+00:00"},
         }
     )
-    ui.serve("**/api/health", a_health_reading(walls=[wall]))
+    reading = a_health_reading(walls=[wall])
+    assert reading["walls"][0]["display_state"]["state"] == "dark"
+    ui.serve("**/api/health", reading)
 
     ui.open("#health")
     panel = ui.page.locator(".wall-reading")
     panel.wait_for()
-    expect(panel).to_contain_text(_raw("Television\nShowing art"), use_inner_text=True)
+    expect(panel.locator(".wall-state")).to_have_text(re.compile(r"^○\s*Screen off$"), use_inner_text=True)
+    expect(panel).not_to_contain_text("Showing art", use_inner_text=True)
+    expect(panel).not_to_contain_text("Television", use_inner_text=True)
     # No label panel, so no row about one; and no error, so no error row.
     expect(panel).not_to_contain_text("Label panel", use_inner_text=True)
     expect(panel).not_to_contain_text("Last error", use_inner_text=True)

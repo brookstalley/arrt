@@ -30,7 +30,11 @@ SLOT = 900
 
 @pytest.fixture
 def hall(services):
-    return services.clients.add_client(name="Hall Pi")
+    hall = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and the server's state for one with
+    # none is "No token yet" whatever its report says (`player_state.py`).
+    services.access.issue(hall.id)
+    return hall
 
 
 @pytest.fixture

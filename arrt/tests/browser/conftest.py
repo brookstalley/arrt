@@ -80,7 +80,7 @@ from arrt.persistence.records import (
     SourceClass,
     Wall,
 )
-from arrt.programming.client_heartbeat import ClientHeartbeatReading, ReportedOutput
+from arrt.programming.client_heartbeat import ClientHeartbeatReading, ReportedLabelOutput, ReportedOutput
 from arrt.programming.clients import PlacementSurvey, view_of
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.reports import WallHeartbeat
@@ -209,14 +209,22 @@ def a_health_reading():
     above, so a reading with a silent wall carries that wall's trouble and one
     with nothing wrong carries none. `player` overrides the Player that shows
     the walls (`_a_player`'s keys); `failed` is the queue's failed works, as
-    `AcquisitionState`s.
+    `AcquisitionState`s. `description` is the server's sentence for these
+    walls (`HealthReading.describe`) unless a test passes one, which only a
+    test about a sentence that disagrees with the readings does.
+
+    **A test changes a reading by passing it in, never by editing the answer
+    after it was built**: an edit after the fact leaves the derived fields
+    saying what the server would have said before it. A test whose point is an
+    answer the server would not send (a part missing, a shape it cannot parse)
+    says so where it edits.
     """
 
     def _reading(
         *,
         walls=None,
         backup=None,
-        description="Every wall has reported.",
+        description=None,
         sources=None,
         pictures=None,
         watches=None,
@@ -237,7 +245,7 @@ def a_health_reading():
                 WallHeartbeatOut(**_without_placement(wall), display_state=http_api._display_state(seen.state))
                 for wall, seen in zip(walls, served.walls, strict=True)
             ],
-            description=description,
+            description=served.describe() if description is None else description,
             backup=BackupOut(**backup),
             players=[
                 PlayerHealthOut(client_id=view.client.id, name=view.client.name, state=http_api._player_state(view.player))
@@ -265,9 +273,21 @@ def _without_placement(wall):
     return {key: value for key, value in wall.items() if key != _SHOWN}
 
 
-def _a_player(*, name="The living room Pi", token_issued=True, absent=False, problem=None, age_seconds=5.0):
-    """The Player that shows every wall a reading's walls say a Player shows: reporting, unless told otherwise."""
-    return {"name": name, "token_issued": token_issued, "absent": absent, "problem": problem, "age_seconds": age_seconds}
+def _a_player(*, name="The living room Pi", token_issued=True, absent=False, problem=None, age_seconds=5.0, labels=()):
+    """The Player that shows every wall a reading's walls say a Player shows: reporting, unless told otherwise.
+
+    `labels` are the label panels it reports, as `(name, connected)` pairs, any
+    number of them: a Player with labels exists even where no wall is shown, so
+    one with label panels and no screen can be built (the owner's ruling 8).
+    """
+    return {
+        "name": name,
+        "token_issued": token_issued,
+        "absent": absent,
+        "problem": problem,
+        "age_seconds": age_seconds,
+        "labels": tuple(labels),
+    }
 
 
 def _served(walls, *, backup, sources, watches, player, failed):
@@ -276,12 +296,12 @@ def _served(walls, *, backup, sources, watches, player, failed):
     Each wall a Player shows is on one of that Player's screens, so
     `PlacementSurvey` and `display_state_of` decide its state as the route does;
     a wall marked as shown by none is on no display, so it reads `unassigned`.
-    The Player exists only when some wall is shown by one.
+    The Player exists only when some wall is shown by one, or it reports a label panel.
     """
     created = datetime(2026, 8, 1, tzinfo=UTC)
     shown = [wall.get(_SHOWN, True) for wall in walls]
     client = None
-    if any(shown):
+    if any(shown) or player["labels"]:
         client = Client(
             id="player-1",
             name=player["name"],
@@ -316,6 +336,11 @@ def _served(walls, *, backup, sources, watches, player, failed):
             ),
             problem=player["problem"],
             absent=player["absent"],
+            label_outputs=(
+                ()
+                if player["absent"] or player["problem"]
+                else tuple(ReportedLabelOutput(label, "epaper", connected, (800, 480)) for label, connected in player["labels"])
+            ),
         )
     survey = PlacementSurvey(
         clients={} if client is None else {client.id: client},

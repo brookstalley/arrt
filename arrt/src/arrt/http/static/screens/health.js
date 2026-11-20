@@ -1,5 +1,15 @@
-/* Status — the observations the panel states: each wall's last report, the
- * image sources, the Watches, the kept pictures and the backup.
+/* Status — the observations the panel states: what needs attention, each
+ * wall's state and last report, each Player's state and its outputs', the
+ * failed fetches, the image sources, the Watches, the kept pictures and the
+ * backup.
+ *
+ * **One health model** (audit 2026-11-19, audit-5 F4 and audit-6 3): a wall's
+ * state is its display state and a Player's its Player state, as the server
+ * states them on `GET /api/health` and as Walls and Players draw them, in the
+ * contract's words (`core/states.js`). "Needs attention" is the server's
+ * `troubles`, the list the top bar and the System badge are made of; nothing on
+ * this page judges a reading again, and a setup step (a wall no Player shows, a
+ * Player with no token or no report yet) is drawn as a step, never a fault.
  *
  * **It holds no spend record.** `information-architecture.md` said it did, and
  * `services/health.py` deliberately leaves spend off this reading; a Get's cost
@@ -27,11 +37,15 @@
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
+import { GLYPHS } from "../core/glyphs.js";
+import { outputCell, screenName } from "../core/outputs.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
-import { wallLink } from "../core/places.js";
+import { clientLink, wallLink } from "../core/places.js";
 import { backRow, link } from "../core/router.js";
 import { DEBUG } from "../core/debug.js";
+import { displayStateGlyph, displayStateWord, isDisplaySetup, playerStateGlyph, playerStateWord } from "../core/states.js";
+import { noWallRecorded } from "../core/status.js";
 
 /* The raw fields behind a panel, closed: what an operator compares against a
  * file or a log, kept off the face of a page a curator reads. Every raw key and
@@ -68,46 +82,45 @@ function reportedFacts(reported) {
   return pairs.length ? facts(pairs) : null;
 }
 
-/* What the wall's Player says about its television, its label panel and its
- * last error, in words, outside debug. These are the failure rows
- * `observability-strategy.md` gives this page a reader for, so they are not
- * engineering detail; and they are required fields of the heartbeat's schema
- * (`contract/schemas/heartbeat.v1.schema.json`), so naming them here invents no
- * contract. Everything else the Player reported stays in debug's Details. A
- * value not reported is left out rather than guessed. */
+/* What the wall's Player says about its last error, in words, outside debug.
+ * The failure row `observability-strategy.md` gives this page a reader for, and
+ * a required field of the heartbeat's schema
+ * (`contract/schemas/heartbeat.v1.schema.json`), so naming it here invents no
+ * contract. What the screen is doing is the wall's display state, which the
+ * server reads (`display_state`), never the superseded `television_reachable`,
+ * `television_showing_art` and `has_label_surface`: those say less, and can
+ * disagree with it (audit 2026-11-19, audit-5 F4: "Showing art" over a screen
+ * that is off). A label panel is an output of its Player, said under Players
+ * below with each of the Player's outputs. Everything else the Player reported
+ * stays in debug's Details. */
 function failureFacts(reported) {
   if (!reported) return [];
-  const television =
-    reported.television_reachable === false
-      ? "Not reachable"
-      : reported.television_reachable === true
-        ? reported.television_showing_art === true
-          ? "Showing art"
-          : reported.television_showing_art === false
-            ? "Reachable, not showing art"
-            : "Reachable"
-        : null;
-  const panel = reported.has_label_surface === true ? (reported.label_surface_working === false ? "Not working" : reported.label_surface_working === true ? "Working" : null) : null;
-  return [
-    ["Television", television],
-    ["Label panel", panel],
-    ["Last error", typeof reported.last_error === "string" && reported.last_error ? reported.last_error : null],
-  ];
+  return [["Last error", typeof reported.last_error === "string" && reported.last_error ? reported.last_error : null]];
 }
 
-/* The work a wall's heartbeat names, as its title linking to its page, or why
- * it cannot be named. `showing` is `{ id, title }` from `showingTitles`. */
+/* The work a wall's display state names, as its title linking to its page, or
+ * why it cannot be named. `showing` is `{ id, title }` from `showingTitles`. */
 function showingLine(showing) {
   if (!showing) return null;
   if (showing.title) return link({ view: "work", id: showing.id }, { class: "link", text: showing.title });
   return "A work the library could not answer for.";
 }
 
-/* Each wall's current work, read once per id: the heartbeat names it by id,
- * and a curator reads it by title. A work that cannot be read is said to be one
+/* The work the wall's display state names: on screen while it shows art, and
+ * for a wall that has stopped reporting, the one its last report named. Null
+ * where it names none. */
+function shownWorkId(shown) {
+  if (!shown) return null;
+  const said = shown.state === "silent" ? shown.last : shown;
+  if (!said || said.state !== "showing_art") return null;
+  return typeof said.work_id === "string" && said.work_id ? said.work_id : null;
+}
+
+/* Each wall's work, read once per id: the display state names it by id, and a
+ * curator reads it by title. A work that cannot be read is said to be one
  * rather than shown as its id. */
 async function showingTitles(walls) {
-  const ids = [...new Set(walls.map((wall) => wall.heartbeat && wall.heartbeat.reported && wall.heartbeat.reported.current_work_id).filter((id) => typeof id === "string" && id))];
+  const ids = [...new Set(walls.map((wall) => shownWorkId(wall.display_state)).filter(Boolean))];
   const answers = await Promise.all(
     ids.map(async (id) => {
       try {
@@ -120,17 +133,45 @@ async function showingTitles(walls) {
   return new Map(answers);
 }
 
+/* The wall's display state in a glyph and a word (`core/states.js`, the
+ * contract's), as Walls' badge says it. A setup step is drawn as one, with no
+ * fault's colour or class. */
+function wallStateLine(shown) {
+  const stateName = shown ? shown.state : "unreachable";
+  return el("p", { class: `wall-state${isDisplaySetup(stateName) ? " setup" : ""}`, "data-state": stateName }, [
+    el("span", { class: "glyph", text: displayStateGlyph(stateName), "aria-hidden": true }),
+    ` ${displayStateWord(stateName)}`,
+  ]);
+}
+
+/* What the wall's state means for its report, in a sentence, where the state's
+ * word alone does not say it: a wall no Player shows has no report to read, and
+ * a wall a Player shows that has never readably reported is waiting on it. */
+function stateSentence(shown, reading) {
+  if (shown && shown.state === "unassigned") {
+    return el("p", {
+      class: "muted",
+      text: "No Player shows this wall yet, so there is no report to read. Its Player is chosen in its Edit…, on Walls.",
+    });
+  }
+  if (reading && reading.absent) return el("p", { class: "muted", text: "No Player has ever reported for this wall." });
+  return null;
+}
+
 function heartbeatPanel(wall, titles) {
   // The wall's name opens it on Walls: this panel is what its Player says, and
   // the wall itself is a page away.
   const name = wall.wall_name ? wallLink(wall.wall_id, wall.wall_name) : "An unnamed wall";
   const reading = wall.heartbeat;
-  if (!reading) {
+  const shown = wall.display_state || null;
+  if (!reading && !shown) {
     return el("div", { class: "panel wall-reading" }, [
       el("h2", {}, [name]),
       el("p", { class: "note", text: "This status reading says nothing about this wall." }),
     ]);
   }
+  const workId = shownWorkId(shown);
+  const unassigned = Boolean(shown && shown.state === "unassigned");
   // `wall-reading` as well as `panel`, and the extra class earns its place twice
   // over: `app.css` has a rule keyed on it that nothing was emitting after the
   // client split, and a test asking "is every wall named, and only walls" needs a
@@ -140,53 +181,38 @@ function heartbeatPanel(wall, titles) {
     // The wall's own name is the heading. "The display plane" was right while
     // there was one of it, and is a sentence that silently becomes wrong.
     el("h2", {}, [name]),
-    // An observation with its age, never a verdict. A green dot computed from
-    // a file that may simply be young is how a health surface starts lying.
-    // Said once, in the curator's words: the server's own sentence names the
-    // file it read and "the display plane", and is debug's (ruling 1).
-    reading.reported_at ? el("p", { class: "reading-sentence", text: `Last heard from ${dated(reading.reported_at)}.` }) : null,
-    DEBUG ? el("p", { class: "muted raw-sentence", text: reading.description }) : null,
-    facts([
-      ["Showing", showingLine(showingOf(reading, titles))],
-      ["Problem", reading.problem],
-      ...failureFacts(reading.reported),
-    ]),
-    reading.absent
-      ? el("p", {
-          class: "muted",
-          // States what absent *means*, not why it is absent. "The display
-          // plane has not been built yet" would have been true the day this
-          // was written and wrong the day that plane ships, with nothing to
-          // catch it — a page asserting a fact about the project rather than
-          // reporting one about the file in front of it.
-          // "for this wall", not "here". Both chunks in this wave reworded this
-          // sentence and the per-wall one is the survivor: with a panel per room
-          // "here" has several possible referents and names none of them, which
-          // is the exact ambiguity splitting the heartbeat per wall removed.
-          text: "No Player has ever reported for this wall. Where no Player shows it yet, that is expected rather than a fault.",
-        })
+    // The server's state for the wall, the same one Walls draws its badge from.
+    wallStateLine(shown),
+    // An observation with its age, never a verdict. Said once, in the curator's
+    // words: the server's own sentence names the file it read, and is debug's
+    // (ruling 1). A wall no Player shows says that alone.
+    !unassigned && reading && reading.reported_at ? el("p", { class: "reading-sentence", text: `Last heard from ${dated(reading.reported_at)}.` }) : null,
+    DEBUG && reading ? el("p", { class: "muted raw-sentence", text: reading.description }) : null,
+    stateSentence(shown, reading),
+    unassigned
+      ? null
+      : facts([
+          [shown && shown.state === "silent" ? "Last reported showing" : "Showing", showingLine(workId ? { id: workId, title: titles.get(workId) || null } : null)],
+          ["Problem", reading ? reading.problem : null],
+          ...failureFacts(reading ? reading.reported : null),
+        ]),
+    reading
+      ? details(
+          facts([
+            ["Heartbeat file", reading.path],
+            ["Reported at", reading.reported_at],
+            // The exact figure beside the sentence's plain-language one: what an
+            // operator compares against the 60-second interval.
+            ["Age", reading.age_seconds === null || reading.age_seconds === undefined ? null : `${reading.age_seconds.toFixed(0)} seconds`],
+          ]),
+          reading.reported ? el("h3", { text: "What it reported" }) : null,
+          reportedFacts(reading.reported),
+        )
       : null,
-    details(
-      facts([
-        ["Heartbeat file", reading.path],
-        ["Reported at", reading.reported_at],
-        // The exact figure beside the sentence's plain-language one: what an
-        // operator compares against the 60-second interval.
-        ["Age", reading.age_seconds === null || reading.age_seconds === undefined ? null : `${reading.age_seconds.toFixed(0)} seconds`],
-      ]),
-      reading.reported ? el("h3", { text: "What it reported" }) : null,
-      reportedFacts(reading.reported),
-    ),
   ]);
 }
 
-function showingOf(reading, titles) {
-  const id = reading.reported && reading.reported.current_work_id;
-  if (typeof id !== "string" || !id) return null;
-  return { id, title: titles.get(id) || null };
-}
-
-/* Every wall's heartbeat, or the fact that the reading did not carry any.
+/* Every wall's report, or the fact that the reading did not carry any.
  *
  * **The unreadable case is stated rather than thrown**, and that is the same
  * discipline the rest of this screen follows. This is the product's only
@@ -205,15 +231,131 @@ function heartbeatPanels(health, titles) {
       ]),
     ];
   }
-  if (health.walls.length === 0) {
+  const none = noWallRecorded(health);
+  if (none) {
     return [
       el("div", { class: "panel" }, [
         el("h2", { text: "Walls" }),
-        el("p", { class: "note", text: "No wall is recorded, so there is no report to read." }),
+        // The top bar's words for the same fact, from the same function.
+        el("p", { class: "muted", text: `${none}, so there is no report to read. A wall is added on Walls.` }),
       ]),
     ];
   }
   return health.walls.map((wall) => heartbeatPanel(wall, titles));
+}
+
+/* Where a trouble is mended, by what it is about (`TroubleOut.about`): the
+ * wall on Walls, the Player on Players, a display two Players claim on
+ * Players, a source on Sources, a Watch on Watches, the failed fetches on
+ * Queue. The backup has no page of its own: its panel is below. */
+function troubleTarget(trouble) {
+  if (trouble.about === "wall" && trouble.subject) return { view: "walls", params: { wall: trouble.subject } };
+  if (trouble.about === "player" && trouble.subject) return { view: "clients", params: { client: trouble.subject } };
+  if (trouble.about === "display_fault") return { view: "clients" };
+  if (trouble.about === "source") return { view: "sources" };
+  if (trouble.about === "watch") return { view: "watches" };
+  if (trouble.about === "failed_fetches") return { view: "queue" };
+  return null;
+}
+
+/* What needs attention: the server's troubles, the same list the top bar's
+ * words and the System badge's count are made of (`core/status.js`), each
+ * linking to where it is mended. Nothing here judges a reading again, so the
+ * page and the badge cannot count one fault differently. Setup steps are not
+ * here (the server lists none), and a household with no wall says so in the
+ * top bar's words. */
+function troublesPanel(health) {
+  const heading = el("h2", { text: "Needs attention" });
+  if (!Array.isArray(health.troubles)) {
+    return el("div", { class: "panel troubles" }, [
+      heading,
+      el("p", { class: "note", text: "This health reading carries no list of what is wrong. That is a fault in the reading, not in what it reads." }),
+    ]);
+  }
+  if (!health.troubles.length) {
+    const none = noWallRecorded(health);
+    return el("div", { class: "panel troubles" }, [
+      heading,
+      el("p", { class: "reading-sentence", text: none ? `Nothing is wrong, and nothing can be shown: ${none.toLowerCase()}.` : "Nothing needs attention." }),
+    ]);
+  }
+  return el("div", { class: "panel troubles" }, [
+    heading,
+    el(
+      "ul",
+      { class: "trouble-list" },
+      health.troubles.map((trouble) => {
+        const target = troubleTarget(trouble);
+        const words = trouble.words || "A fault the reading did not word";
+        return el("li", { "data-about": trouble.about }, [
+          el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
+          " ",
+          target ? link(target, { class: "link trouble-words", text: words }) : el("span", { class: "trouble-words", text: words }),
+        ]);
+      }),
+    ),
+  ]);
+}
+
+/* Every Player, its state and each of its outputs', as the server states them
+ * (`players`, `programming/player_state.py`), in the contract's words: a
+ * Player with screens, with label panels, with several of either, or with
+ * labels only, reads output by output (the owner's ruling 8 of 2026-11-19). A
+ * Player's settings and its walls are on Players, which its name opens. */
+function playersPanel(health) {
+  const heading = el("h2", { text: "Players" });
+  if (!Array.isArray(health.players)) {
+    return el("div", { class: "panel players-reading" }, [
+      heading,
+      el("p", { class: "note", text: "This health reading carries no Players. That is a fault in the reading, not in any Player." }),
+    ]);
+  }
+  if (!health.players.length) {
+    return el("div", { class: "panel players-reading" }, [heading, el("p", { class: "muted", text: "No Player is recorded. Players are added in Settings › Players." })]);
+  }
+  return el("div", { class: "panel players-reading" }, [
+    heading,
+    el(
+      "ul",
+      { class: "player-readings" },
+      health.players.map((player) => {
+        const state = player.state ? player.state.state : null;
+        const since = player.state ? player.state.since : null;
+        const outputs = player.state && Array.isArray(player.state.outputs) ? player.state.outputs : [];
+        return el("li", { "data-player": player.client_id, "data-state": state || "" }, [
+          el("p", {}, [
+            clientLink(player.client_id, player.name),
+            el("span", { class: "player-state", text: ` · ${playerStateGlyph(state)} ${playerStateWord(state, since)}` }),
+          ]),
+          outputs.length
+            ? el(
+                "ul",
+                { class: "player-outputs" },
+                outputs.map((output) =>
+                  el("li", { "data-kind": output.kind, "data-output": output.name }, [
+                    `${output.kind === "label" ? `Label panel ${output.name}` : screenName(output.name)} · ${outputCell(output, player)}`,
+                  ]),
+                ),
+              )
+            : null,
+        ]);
+      }),
+    ),
+  ]);
+}
+
+/* The works the queue could not fetch a picture for: how many, and when the
+ * newest failed, in the server's sentence (`failed_fetches.description`), with
+ * the way to Queue, where they are retried. Absent when nothing has failed:
+ * there is then no observation, and the server sends none. */
+function failedFetchesPanel(health) {
+  const failed = health.failed_fetches;
+  if (!failed) return null;
+  return el("div", { class: "panel failed-fetches" }, [
+    el("h2", { text: "Failed fetches" }),
+    el("p", { class: "reading-sentence", text: failed.description }),
+    el("p", {}, [link({ view: "queue" }, { class: "action quiet", text: "Activity › Queue", "aria-label": "Activity › Queue, where the failed fetches are retried" })]),
+  ]);
 }
 
 /* The sources table's columns, left to right. `drops` is the order they leave
@@ -395,7 +537,12 @@ export async function viewHealth(generation) {
     // Only over more than one wall: over one it is the wall's own panel said a
     // second time, a line above it.
     health.description && (health.walls || []).length > 1 ? el("p", { class: "note", text: health.description }) : null,
+    // What the top bar and the System badge say, first, each linking to where
+    // it is mended; then the readings they were found in.
+    troublesPanel(health),
     ...heartbeatPanels(health, titles),
+    playersPanel(health),
+    failedFetchesPanel(health),
     sourcesPanel(health, yields),
     watchesPanel(health),
     picturesPanel(health),

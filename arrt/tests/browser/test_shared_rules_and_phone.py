@@ -330,6 +330,7 @@ def test_on_a_phone_the_players_table_fits_and_keeps_its_names_whole(ui, service
     size never break across lines: *HDMI 1* split from its number reads as two
     things. The ports themselves are no longer shown (§ Vocabulary)."""
     hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
     reported = {
         "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "outputs": [

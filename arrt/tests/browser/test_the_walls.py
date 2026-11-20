@@ -168,6 +168,23 @@ def a_shown_wall(services, a_hung_wall):
     return a_hung_wall
 
 
+@pytest.fixture
+def a_reporting_wall(services, a_shown_wall):
+    """The shown wall, its Player reporting it shows the theme's work: the server's own `showing_art`.
+
+    Reported through the route a Player's POST takes, so `/api/walls` and
+    `/api/health` both say it, as a real server would. These tests served a
+    health answer saying the wall had reported beside a walls answer saying it
+    had not, which the card reads its state from since audit wave 2b (chunk 31).
+    """
+    feed = json.loads(services.display.published_manifest_v2(a_shown_wall.id))
+    services.display.record_heartbeat(
+        a_shown_wall.id,
+        {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "current_work_id": next(iter(feed["works"]))},
+    )
+    return a_shown_wall
+
+
 # -- reason one: no theme hung ------------------------------------------------
 
 
@@ -422,22 +439,18 @@ def test_a_dark_wall_no_player_shows_keeps_its_dark_notice(ui, services, an_all_
     expect(card).not_to_contain_text("has not reported", use_inner_text=True)
 
 
-def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
-    ui, a_hung_wall, a_health_reading, a_wall_reading
-):
+def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(ui, a_reporting_wall):
     """The paired positive: the four reasons must not be the only thing this screen can say.
 
     Without this, every reason could be widened until it always fired and the
     tests above would all still pass.
     """
-    ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
-
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     # The Skip button first: only a card that has read what is on the wall offers
     # it, so the four absences are not met by a card still on its way.
-    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
+    expect(_skip(ui, a_reporting_wall.name)).to_have_count(1)
     _expect_reasons_named(ui)
 
 
@@ -588,23 +601,15 @@ def _skip(ui, wall_name):
     return ui.page.get_by_role("button", name=f"Skip the work on {wall_name}")
 
 
-def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall, a_health_reading, a_wall_reading):
+def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_reporting_wall):
     """A Skip in the living room must not step the study.
 
     Two walls is the smallest arrangement that can tell the two behaviours apart;
     with one, a route that stepped everything would look perfect. Skip replaces
     "Move on".
     """
+    a_hung_wall = a_reporting_wall
     study = services.display.add_wall(name="Study")
-    ui.serve(
-        "**/api/health",
-        a_health_reading(
-            walls=[
-                a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name),
-                a_wall_reading(wall_id=study.id, name=study.name),
-            ]
-        ),
-    )
     before = services.display.published_manifest_v2(a_hung_wall.id)
 
     ui.open("#walls")
@@ -629,9 +634,7 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall
     expect(ui.view).not_to_contain_text("Directive sequence")
 
 
-def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
-    ui, services, an_all_excluded_theme, the_wall, a_health_reading, a_wall_reading
-):
+def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(ui, services, an_all_excluded_theme, the_wall):
     """The wall reads as hanging and has nothing on it, which is one state, not two.
 
     `considered` is entries plus exclusions, so a theme whose works were all
@@ -640,10 +643,17 @@ def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
     it must not do is offer a skip: the rotation this would advance is empty.
     """
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
-    ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=the_wall.id, name=the_wall.name)]))
+    # On a Player that reports, through the server, so the wall reads as
+    # hanging there too: a stubbed health answer beside a walls answer saying no
+    # Player shows it made this pass for the other reason, that no Player does.
+    hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    services.display.record_heartbeat(the_wall.id, {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")})
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
+    expect(ui.page.locator("section.wall .wall-badge")).not_to_have_attribute("data-state", "unassigned")
 
     # The card's foot first: it shows the card has read what the wall cannot show,
     # so the four absences are not met by a card still on its way.
@@ -658,14 +668,12 @@ def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
     expect(_skip(ui, the_wall.name)).to_have_count(0)
 
 
-def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_hung_wall, a_health_reading, a_wall_reading):
+def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_reporting_wall):
     """The paired positive: the gate must be a gate rather than an off switch."""
-    ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
-
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
+    expect(_skip(ui, a_reporting_wall.name)).to_have_count(1)
 
 
 def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui, a_shown_wall):
@@ -677,15 +685,14 @@ def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui,
     expect(_skip(ui, a_shown_wall.name)).to_have_count(0)
 
 
-def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_wall_reading):
+def test_the_card_lists_no_theme_inventory(ui, a_reporting_wall):
     """The card is about the work on the wall; the theme in full is the theme's page."""
-    ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     # The Skip button first: only a card that has read what is on the wall offers
     # it, so the absences after it are not met by a card still on its way.
-    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
+    expect(_skip(ui, a_reporting_wall.name)).to_have_count(1)
     # textContent, as it was read. The read took "Not showing (" out first, but
     # that is lower-case "showing (", which the capital-S pattern never matched.
     expect(ui.view).not_to_contain_text(re.compile(r"Showing \("))
@@ -728,6 +735,44 @@ def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, 
     expect(ui.page.locator(".wall-feed")).to_have_count(0)
     # textContent, as it was read: a hidden notice counts too.
     expect(ui.view).not_to_contain_text("can't read this server's feed")
+
+
+def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(ui, services, an_all_excluded_theme, the_wall):
+    """Audit-6 6: a card was a column of notices at one weight. Two faults here, one notice.
+
+    The wall's Player cannot read the feed, and none of its theme reaches it,
+    each a notice of its own until audit wave 2b (chunk 31), stacked. The card
+    now says the one that comes first (`cardNotice`: a Player that cannot read
+    the feed is mended before the theme's works matter), and the other is not
+    said until it is mended.
+    """
+    services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    _reads(services, the_wall, [1])
+    ui.open("#walls")
+    card = ui.page.locator(f"section.wall[data-wall='{the_wall.id}']")
+    card.locator(".wall-controls").wait_for()
+
+    notices = card.locator(".note")
+    expect(notices).to_have_count(1)
+    expect(notices).to_have_attribute("data-notice", "feed")
+    expect(notices).to_contain_text("can't read this server's feed", use_inner_text=True)
+    expect(card).not_to_contain_text("so the wall is dark", use_inner_text=True)
+    filled = card.locator("button.action:not(.quiet), a.action:not(.quiet)")
+    assert filled.count() <= 1, "more than one filled act on one card"  # one-shot: the card has painted (the notice above)
+
+
+def test_a_card_whose_only_fault_is_its_dark_theme_says_that_one(ui, services, an_all_excluded_theme, the_wall):
+    """The paired case: with the Player reading the feed, the next notice in the order is the one said."""
+    services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    _reads(services, the_wall, [2, 1])
+    ui.open("#walls")
+    card = ui.page.locator(f"section.wall[data-wall='{the_wall.id}']")
+    card.locator(".wall-controls").wait_for()
+
+    notices = card.locator(".note")
+    expect(notices).to_have_count(1)
+    expect(notices).to_have_attribute("data-notice", "dark")
+    expect(notices).to_contain_text("so the wall is dark", use_inner_text=True)
 
 
 # -- one wall is the degenerate case of many -----------------------------------
@@ -916,6 +961,7 @@ def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, ser
     report that makes it true.
     """
     hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
     _report(settings, hall)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.display.add_wall(name="Study")
@@ -943,6 +989,7 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     output — or from the client rather than the output — reads wrong for one.
     """
     hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
     _report(settings, hall)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
     study = services.display.add_wall(name="Study")
@@ -980,6 +1027,7 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
     an assignment naming an output the client does not have.
     """
     hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
     if document is not None:
         _report(settings, hall, document)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
