@@ -137,9 +137,7 @@ def every_plugin_call_ends_with_its_test() -> Iterator[None]:
     yield
     ends = time.monotonic() + SETTLE
     started = [
-        thread
-        for thread in set(threading.enumerate()) - before
-        if thread.name.startswith(("source-plugin-", "image-source-"))
+        thread for thread in set(threading.enumerate()) - before if thread.name.startswith(("source-plugin-", "image-source-"))
     ]
     for thread in started:
         thread.join(max(0.0, ends - time.monotonic()))

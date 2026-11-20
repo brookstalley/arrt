@@ -39,6 +39,7 @@ from arrt.persistence.adapter import (
     to_money,
 )
 from arrt.persistence.discovery_records import (
+    SEARCHES_COUNTED,
     Affinity,
     AffinityDerivation,
     AffinitySentiment,
@@ -51,7 +52,6 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
-    SEARCHES_COUNTED,
     SearchOutcome,
     SearchTally,
     Sighting,
