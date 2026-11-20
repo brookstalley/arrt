@@ -335,7 +335,7 @@ def test_the_dialog_has_one_filled_act_and_it_is_show_it_there(ui, services, the
         f"Set the shapes on {the_wall.name}",
         f"Set the mat on {the_wall.name}",
     ):
-        expect(dialog.get_by_role("button", name=name)).to_have_class(re.compile(r"\bquiet\b"))
+        expect(dialog.get_by_role("button", name=name)).to_have_class(re.compile(r"(^|\s)quiet(\s|$)"))
 
 
 def test_close_names_the_sections_it_would_leave_unset(ui, services, the_wall, hall, a_theme_to_hang):

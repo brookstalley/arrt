@@ -884,7 +884,7 @@ class TestTheDefaultTheme:
         line = ui.page.locator("#view p.no-default")
         expect(line).to_have_count(1)
         expect(line).to_contain_text("No theme is the default", use_inner_text=True)
-        expect(line).to_have_class(re.compile(r"\bmuted\b"))
+        expect(line).to_have_class(re.compile(r"(^|\s)muted(\s|$)"))
         # Said once: the facts line names a default only when there is one.
         expect(ui.page.locator("#view .page-facts")).not_to_contain_text("default", use_inner_text=True)
         # After the cards, not above them.
@@ -899,7 +899,7 @@ class TestTheDefaultTheme:
         line = ui.page.locator("#view p.no-default")
         expect(line).to_have_count(1)
         expect(line).to_contain_text("No theme is the default", use_inner_text=True)
-        expect(line).to_have_class(re.compile(r"\bmuted\b"))
+        expect(line).to_have_class(re.compile(r"(^|\s)muted(\s|$)"))
 
     def test_only_the_default_says_what_joins_it(self, ui, all_works, winter):
         # In the facts since ruling 9 of 2026-10-27 (a line under the name until then).
