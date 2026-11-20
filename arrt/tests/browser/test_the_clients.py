@@ -196,8 +196,7 @@ PAINTED = {
     "history": "#view .history-events li, #view .empty",
     "settings": "#view ul.settings-index li",
     "sources": "#view li.source-entry",
-    # System › Spend (chunk 36) is listed before it is merged here: an anchor for a page that is not
-    # in the sidebar yet is unused, and one missing when it is fails the check below.
+    # System › Spend (chunk 36) is in the sidebar, and a page missing here fails the check below.
     "spend": "#view .spend-month",
     "clients": "#view tr[data-player]",
     "watches": "#view .watches-standing",

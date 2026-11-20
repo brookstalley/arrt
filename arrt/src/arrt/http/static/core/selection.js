@@ -71,9 +71,8 @@ export async function hangSelection({ control, artworkIds, title, wall, leftOut 
  * with several, a dialog offers each, and the one pressed is asked about; with
  * none, the dialog says there is nowhere to hang them yet.
  *
- * The Work page asks the same of one work (`screens/work.js` `chooseWall`),
- * which a `screens/` module cannot lend: this is the selection's, in the same
- * words. `leftOut` and `then` are `hangSelection`'s. Nothing is returned: a
+ * The Work page asks it of one work by calling this (`screens/work.js`
+ * `chooseWall`), so the question has one set of words. `leftOut` and `then` are `hangSelection`'s. Nothing is returned: a
  * dialog of walls is answered by one of its buttons, not by this call.
  *
  * `wallId`: the wall the works were chosen for, when the selection was started

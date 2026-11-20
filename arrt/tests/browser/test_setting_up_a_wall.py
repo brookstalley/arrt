@@ -28,7 +28,9 @@ pytest.importorskip(
 
 from playwright.sync_api import expect
 
+from arrt.http import api as http_api
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.services.health import PicturesReading
 
 #: A running Player's report: two screens, the first with a television on it.
 TWO_SCREENS = {
@@ -414,8 +416,11 @@ def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading, 
 
 def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
     """Finding 20: "counted 226 seconds ago" and "Counted 4 minutes ago" on one panel."""
-    reading = a_health_reading()
-    reading["pictures"].update(age_seconds=226.0, description="The picture store keeps 2 files, counted 226 seconds ago.")
+    # The reading's pictures are the server's own, projected as `_some_pictures` does, never a sentence written here.
+    pictures = http_api._pictures(
+        PicturesReading(pictures_bytes=48_000, pictures_files=2, age_seconds=226.0, unreadable=0)
+    ).model_dump()
+    reading = a_health_reading(pictures=pictures)
     ui.serve("**/api/health", reading)
     ui.open("#health")
 
