@@ -73,18 +73,7 @@ SLEEP_MARK = re.compile(r"#.*\bsleep:\s*\S")
 #: The files not yet converted, each with its count of (one-shot reads, fixed
 #: sleeps) at the commit that wrote this guard. Sorted; each chunk of 13-19
 #: deletes its own rows as it converts them.
-UNCONVERTED: dict[str, tuple[int, int]] = {
-    "test_acquisition_states.py": (40, 0),
-    "test_asking.py": (50, 2),
-    "test_component_rules.py": (7, 0),
-    "test_getting.py": (46, 0),
-    "test_no_machine_dates.py": (2, 1),
-    "test_shared_rules_and_phone.py": (4, 0),
-    "test_the_confirmation.py": (9, 0),
-    "test_the_look.py": (26, 1),
-    "test_the_run_view.py": (65, 8),
-    "test_wanted.py": (33, 4),
-}
+UNCONVERTED: dict[str, tuple[int, int]] = {}
 
 
 def _is_read(call: ast.Call) -> bool:

@@ -25,6 +25,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
@@ -277,8 +279,8 @@ def test_on_a_phone_the_open_drawer_leaves_menu_to_close_it(ui):
     menu = ui.page.locator(".menu-button")
     menu.click()
     ui.page.wait_for_selector("nav.sidebar[data-open]")
-    assert menu.is_visible()
-    box = menu.bounding_box()
+    expect(menu).to_be_visible()
+    box = menu.bounding_box()  # one-shot: geometry, measured with the drawer open and the button drawn
     on_top = ui.page.evaluate(
         "([x, y]) => document.elementFromPoint(x, y).closest('.menu-button') !== null",
         [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
@@ -300,7 +302,9 @@ def test_on_a_phone_artworks_shows_a_picture_in_the_first_screen(ui, service, se
     ui.page.wait_for_selector(".rails .facet-option")
     first = ui.page.locator("ul.grid li.card .card-image").first
     first.wait_for()
-    assert first.bounding_box()["y"] < PHONE["height"] - 200, "the first picture starts below the fold"
+    expect(first).to_be_visible()
+    top = first.bounding_box()["y"]  # one-shot: geometry, measured once the picture's box is drawn
+    assert top < PHONE["height"] - 200, "the first picture starts below the fold"
 
 
 def test_on_a_phone_the_filter_rail_shows_that_it_scrolls(ui, service):
@@ -445,7 +449,7 @@ def test_a_sub_heading_after_a_list_stands_clear_of_it(ui):
 def test_ask_offers_start_over_only_once_something_has_been_said(ui):
     ui.open("#discover")
     ui.page.wait_for_selector("#ask-words")
-    assert ui.page.locator("#view button:text-is('Start over')").is_hidden()
+    expect(ui.page.locator("#view button:text-is('Start over')")).to_be_hidden()
 
 
 def test_the_sidebars_budget_line_starts_on_the_navs_glyph_line(ui):

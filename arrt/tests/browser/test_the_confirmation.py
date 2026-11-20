@@ -30,6 +30,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 #: The question the product's own rule produces: the act, and the wall it lands
 #: on. A confirmation that said only "Hang Winter?" would be unreadable in a
 #: house with two rooms, and every act that changes a wall names which.
@@ -117,8 +119,8 @@ def test_the_dialog_asks_the_question_it_was_given(ui):
     ui.open()
     _ask(ui)
 
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == TITLE
-    assert ui.page.inner_text("dialog.confirm .confirm-consequence") == CONSEQUENCE
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text(TITLE, use_inner_text=True)
+    expect(ui.page.locator("dialog.confirm .confirm-consequence")).to_have_text(CONSEQUENCE, use_inner_text=True)
 
 
 def test_the_dialog_is_named_and_described_by_its_own_words(ui):
@@ -145,10 +147,11 @@ def test_a_question_with_no_consequence_renders_no_description_at_all(ui):
     ui.open()
     _ask(ui, consequence="")
 
-    assert ui.page.locator("dialog.confirm .confirm-consequence").count() == 0
-    assert ui.page.locator("dialog.confirm[aria-describedby]").count() == 0
-    # The question itself is untouched by the absence.
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == TITLE
+    # The question itself is untouched by the absence, and is what shows the
+    # dialog drawn when its description is found not to be.
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text(TITLE, use_inner_text=True)
+    expect(ui.page.locator("dialog.confirm .confirm-consequence")).to_have_count(0)
+    expect(ui.page.locator("dialog.confirm[aria-describedby]")).to_have_count(0)
 
 
 def test_the_keyboard_starts_on_the_answer_that_changes_nothing(ui):
@@ -219,7 +222,7 @@ def test_a_click_outside_the_dialog_is_not_an_answer(ui):
     ui.page.mouse.click(5, 5)
 
     assert _answer(ui) == "unsettled"
-    assert ui.page.locator("dialog.confirm[open]").count() == 1
+    expect(ui.page.locator("dialog.confirm[open]")).to_have_count(1)
 
     ui.page.click(f"dialog.confirm .confirm-actions button:has-text('{CONFIRM_LABEL}')")
     assert _settles(ui) is True
@@ -238,7 +241,7 @@ def test_the_dialog_leaves_the_page_when_it_has_been_answered(ui):
     ui.page.click(f"dialog.confirm .confirm-actions button:has-text('{CONFIRM_LABEL}')")
     assert _settles(ui) is True
 
-    assert ui.page.locator("dialog.confirm").count() == 0
+    expect(ui.page.locator("dialog.confirm")).to_have_count(0)
 
 
 def test_asking_twice_leaves_one_dialog_carrying_the_second_question(ui):
@@ -257,7 +260,7 @@ def test_asking_twice_leaves_one_dialog_carrying_the_second_question(ui):
     second = "Archive Composition VIII?"
     _ask(ui, title=second, consequence="", confirm_label="Archive")
 
-    assert ui.page.locator("dialog.confirm").count() == 1
+    expect(ui.page.locator("dialog.confirm")).to_have_count(1)
     assert _labelled_by(ui, "aria-labelledby") == second
 
 
@@ -289,4 +292,4 @@ def test_two_questions_asked_at_once_are_each_announced_as_themselves(ui):
 
     assert _settles(ui, "__second") is False
     assert _answer(ui, "__first") == "unsettled"
-    assert ui.page.locator("dialog.confirm[open]").count() == 1
+    expect(ui.page.locator("dialog.confirm[open]")).to_have_count(1)
