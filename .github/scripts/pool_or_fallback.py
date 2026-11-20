@@ -386,9 +386,15 @@ def _header(headers: str, pattern: str) -> str | None:
 
 #: `testament run`'s progress on stderr (AGENTS.md § Running tests): the pool accepting
 #: a suite's request, the tests it collected, and each test that failed or errored.
-_ACCEPTED = re.compile(r"^request ([0-9a-f]+) accepted\b")
-_COLLECTED = re.compile(r"^collected (\d+) items?\b")
-_FAILING = re.compile(r"^(?:FAILED|ERROR)\s+(\S+)")
+#: A run of one suite prints each line bare; a run of several, which is what a pull
+#: request is, prefixes each with the suite's name in brackets (`[browser] request …`).
+#: Both are matched: read bare only, every pull request's run looked never accepted,
+#: was stopped after `ACCEPT_S`, and fell back (`tests/test_ci_fallback.py` holds the
+#: lines as they were observed).
+_SUITE = r"^(?:\[[^\]]+\]\s+)?"
+_ACCEPTED = re.compile(_SUITE + r"request ([0-9a-f]+) accepted\b")
+_COLLECTED = re.compile(_SUITE + r"collected (\d+) items?\b")
+_FAILING = re.compile(_SUITE + r"(?:FAILED|ERROR)\s+(\S+)")
 
 
 class Progress:

@@ -642,6 +642,38 @@ def _real_run(tmp_path, mode, limit_s=3.0, accept_s=1.0):
     return pool.run(limit_s), echoed
 
 
+#: `testament run`'s progress exactly as it reached GitHub's log and this machine's, copied from
+#: observed runs of 0.58.0: a run of one suite prints each line bare, and a run of several
+#: prefixes each with the suite's name in brackets. The first version of the driver matched
+#: only the bare form, so on a pull request (every suite) it saw no acceptance, stopped a
+#: healthy run after `ACCEPT_S`, and fell back every time.
+OBSERVED_PROGRESS = {
+    "one suite": (
+        "request d7eb96f74cb846cd83f04001c03237ea accepted for arrt at tree 8c4fab253715",
+        "collected 199 items",
+        "FAILED   tests/test_red.py::test_red  [runner-a]",
+    ),
+    "every suite": (
+        "[browser] request cac2b18e7eea40ef99680aef84181f7f accepted for arrt at tree 8c4fab253715",
+        "[curation] collected 6580 items",
+        "[browser] FAILED   arrt/tests/browser/test_navigation.py::test_red[chromium]  [runner-a]",
+    ),
+}
+
+
+@pytest.mark.parametrize("shape", sorted(OBSERVED_PROGRESS))
+def test_progress_is_read_in_both_shapes_the_client_prints(shape):
+    accepted, collected, failed = OBSERVED_PROGRESS[shape]
+    progress = pof.Progress(echo=lambda line: None)
+
+    progress.read(iter(line + "\n" for line in (accepted, collected, failed)))
+
+    assert progress.accepted.is_set(), f"an accepted run reads as never accepted: {accepted!r}"
+    assert progress.requests == [accepted.split("request ")[1].split()[0]]
+    assert progress.collected == int(collected.split("collected ")[1].split()[0])
+    assert progress.failures == [failed.split("FAILED")[1].split()[0]]
+
+
 def test_the_real_pool_stops_a_run_the_pool_never_accepts_and_calls_it_could_not_answer(tmp_path):
     attempt, _ = _real_run(tmp_path, "never-accepts")
 
