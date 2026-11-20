@@ -314,7 +314,7 @@ def test_an_expired_preview_is_not_live_and_the_next_feed_carries_no_scene(store
     assert feed(hall).slots == before
 
 
-def test_a_heartbeat_writes_down_that_a_preview_ran_out(store, display, staged, wall_id, caplog):
+def test_a_heartbeat_writes_down_that_a_preview_ran_out(store, display, staged, wall_id, caplog, a_player_shows_the_wall):
     scene, _ = staged
     display.apply_scene(scene.id, lifetime="preview", minutes=5)
     _expire(store, scene.id)
@@ -492,7 +492,7 @@ def test_the_writers_driven_below_are_every_function_that_publishes_a_feed():
 
 @pytest.mark.parametrize("act", [act for acts in WRITERS.values() for act in acts], ids=lambda act: act.__name__.strip("_"))
 def test_every_publish_path_carries_the_live_scene_and_the_drafts_staging(
-    display, mastered, two_walls, wall_settings, services, document, act
+    display, mastered, two_walls, wall_settings, services, document, act, a_player_shows_the_wall
 ):
     hall, study = two_walls
     live = display.draft_scene().scene
@@ -549,7 +549,7 @@ def test_a_scenes_work_with_a_new_mat_colour_is_republished_with_it(services, di
     assert document(hall)["works"][works[hall].id]["mat_color"] == "#3b2f2a"
 
 
-def test_a_wall_showing_its_scenes_work_keeps_a_showing_of_it(display, staged):
+def test_a_wall_showing_its_scenes_work_keeps_a_showing_of_it(display, staged, a_player_shows_the_wall):
     scene, works = staged
     display.apply_scene(scene.id, lifetime="hold")
     hall = next(iter(works))
@@ -735,7 +735,7 @@ def test_only_the_draft_being_assembled_stages(store, display, mastered, two_wal
 
 
 def test_a_failure_writing_a_previews_end_does_not_cost_the_wall_its_roll(
-    store, display, staged, wall_settings, monkeypatch, caplog
+    store, display, staged, wall_settings, monkeypatch, caplog, a_player_shows_the_wall
 ):
     scene, works = staged
     hall = next(iter(works))
@@ -786,7 +786,7 @@ def test_history_says_a_scene_was_applied_on_each_wall_with_its_work(store, disp
 
 
 @pytest.mark.parametrize("how", ["released", "replaced", "ran_out"])
-def test_history_says_how_a_scene_ended_on_each_wall(store, display, staged, mastered, wall_id, how):
+def test_history_says_how_a_scene_ended_on_each_wall(store, display, staged, mastered, wall_id, how, a_player_shows_the_wall):
     scene, works = staged
     display.apply_scene(scene.id, lifetime="preview", minutes=5)
     if how == "released":
@@ -848,7 +848,7 @@ def test_a_wall_has_reached_a_scene_when_its_heartbeat_names_it(services, displa
     assert (reach[hall].screen, reach[study].screen) == (ScreenState.SHOWING_ART, ScreenState.IN_USE)
 
 
-def test_a_wall_whose_heartbeat_names_another_scene_has_not_reached_this_one(display, staged):
+def test_a_wall_whose_heartbeat_names_another_scene_has_not_reached_this_one(display, staged, a_player_shows_the_wall):
     scene, works = staged
     hall = next(iter(works))
     applied = display.apply_scene(scene.id, lifetime="hold")
@@ -881,7 +881,7 @@ def test_a_refused_release_leaves_no_line_claiming_a_preview_ran_out(store, disp
     assert store.get_scene(scene.id).status is SceneStatus.LIVE
 
 
-def test_history_says_when_a_preview_ran_out_not_when_it_was_noticed(store, display, staged, wall_id):
+def test_history_says_when_a_preview_ran_out_not_when_it_was_noticed(store, display, staged, wall_id, a_player_shows_the_wall):
     scene, _ = staged
     display.apply_scene(scene.id, lifetime="preview", minutes=5)
     _expire(store, scene.id)

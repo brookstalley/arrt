@@ -129,6 +129,10 @@ def test_a_lifetime_that_is_not_one_is_refused_in_words(http, ready_work, walls)
 
 def test_a_wall_reports_reaching_the_scene_through_its_heartbeat(http, services, ready_work, walls):
     hall, _ = walls
+    # The wall reports only as a Player shows it, with a token (`player_state.py`): the hall's Player is set up.
+    player = services.clients.add_client(name="Hall Pi")
+    services.access.issue(player.id)
+    services.clients.assign_wall(hall["wall_id"], client_id=player.id, output="hdmi-a-1")
     dali = ready_work("Dalí")
     draft = http.post("/api/scenes").json()
     http.put(f"/api/scenes/{draft['scene_id']}/pins/{hall['wall_id']}", json={"work_id": dali.id})

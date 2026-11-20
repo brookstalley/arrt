@@ -281,7 +281,9 @@ def test_every_module_s_lines_are_said_under_the_display_logger(module):
     assert log is None or log.name == "arrt.programming.display", f"{module.__name__} logs under {log.name}"
 
 
-def test_a_line_from_each_collaborator_reaches_the_journal_under_the_display_logger(display, ready_work, wall_id, caplog):
+def test_a_line_from_each_collaborator_reaches_the_journal_under_the_display_logger(
+    display, ready_work, wall_id, caplog, a_player_shows_the_wall
+):
     """One line said by each of themes, walls, scenes and reports, read back by its record's logger name."""
     shown, stranger = ready_work("Dalí"), ready_work("Ernst")
     theme = display.add_theme(name="Surrealism")

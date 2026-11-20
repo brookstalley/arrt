@@ -79,7 +79,7 @@ def _report(at, state, work_id=None, since=None):
     }
 
 
-async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, services, hung, wall_id):
+async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, services, hung, wall_id, a_player_shows_the_wall):
     first, second, _ = hung
     now = datetime.now(UTC)
     services.display.record_heartbeat(wall_id, _report(now - 3 * MINUTE, "showing_art", first.id))
@@ -95,7 +95,9 @@ async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, s
     }
 
 
-async def test_a_wall_showing_a_work_now_says_it_until_its_last_report(server_url, services, hung, wall_id):
+async def test_a_wall_showing_a_work_now_says_it_until_its_last_report(
+    server_url, services, hung, wall_id, a_player_shows_the_wall
+):
     first, _, _ = hung
     now = datetime.now(UTC)
     services.display.record_heartbeat(wall_id, _report(now - MINUTE, "showing_art", first.id))
@@ -143,7 +145,9 @@ async def test_a_wall_with_no_feed_published_has_nothing_coming(server_url, wall
     assert await _both(server_url, wall_id, "upcoming") == []
 
 
-def test_a_change_to_the_wall_reads_back_the_same_last_shown_and_next_three(server_url, services, hung, wall_id):
+def test_a_change_to_the_wall_reads_back_the_same_last_shown_and_next_three(
+    server_url, services, hung, wall_id, a_player_shows_the_wall
+):
     """A write answers with the wall read alone (`get_wall_view`), which the listing does not go through."""
     first, _, _ = hung
     now = datetime.now(UTC)

@@ -268,7 +268,7 @@ def _minor_1(at, work_id):
     return {"schema": {"major": 1, "minor": 1}, "reported_at": at.isoformat(), "current_work_id": work_id}
 
 
-def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wall_id):
+def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wall_id, a_player_shows_the_wall):
     first, second = hung
     now = datetime.now(UTC)
 
@@ -283,7 +283,7 @@ def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wal
     assert display.last_shown_by_work() == {first.id: now - 2 * MINUTE, second.id: now - MINUTE}
 
 
-def test_a_player_before_minor_3_is_kept_from_its_current_work(display, hung, wall_id):
+def test_a_player_before_minor_3_is_kept_from_its_current_work(display, hung, wall_id, a_player_shows_the_wall):
     first, _ = hung
     now = datetime.now(UTC)
 
@@ -293,7 +293,9 @@ def test_a_player_before_minor_3_is_kept_from_its_current_work(display, hung, wa
     assert display.last_showing(wall_id) == Showing(wall_id=wall_id, work_id=first.id, started_at=now - MINUTE, last_seen_at=now)
 
 
-def test_a_work_the_walls_feed_does_not_carry_is_not_recorded_and_is_logged(display, hung, ready_work, wall_id, caplog):
+def test_a_work_the_walls_feed_does_not_carry_is_not_recorded_and_is_logged(
+    display, hung, ready_work, wall_id, caplog, a_player_shows_the_wall
+):
     stranger = ready_work("Ernst")
     now = datetime.now(UTC)
 
@@ -310,7 +312,9 @@ def _not_in_feed(caplog):
     return [record for record in caplog.records if getattr(record, "event", None) == "showings.not_in_feed"]
 
 
-def test_a_wall_with_nothing_published_records_nothing_and_blames_no_feed(display, ready_work, wall_id, caplog):
+def test_a_wall_with_nothing_published_records_nothing_and_blames_no_feed(
+    display, ready_work, wall_id, caplog, a_player_shows_the_wall
+):
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
         display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=ready_work().id))
 
@@ -318,7 +322,7 @@ def test_a_wall_with_nothing_published_records_nothing_and_blames_no_feed(displa
     assert _not_in_feed(caplog) == []
 
 
-def test_a_work_the_feed_carries_is_not_logged_as_a_stranger(display, hung, wall_id, caplog):
+def test_a_work_the_feed_carries_is_not_logged_as_a_stranger(display, hung, wall_id, caplog, a_player_shows_the_wall):
     first, _ = hung
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
@@ -327,7 +331,7 @@ def test_a_work_the_feed_carries_is_not_logged_as_a_stranger(display, hung, wall
     assert _not_in_feed(caplog) == []
 
 
-def test_a_superseded_report_of_a_stranger_is_not_logged(display, hung, ready_work, wall_id, caplog):
+def test_a_superseded_report_of_a_stranger_is_not_logged(display, hung, ready_work, wall_id, caplog, a_player_shows_the_wall):
     first, _ = hung
     stranger = ready_work("Ernst")
     now = datetime.now(UTC)
@@ -347,7 +351,7 @@ def test_a_showing_on_a_wall_since_removed_still_counts_as_shown(display, store,
 
 
 def test_a_record_that_cannot_be_written_is_logged_and_the_heartbeat_still_kept(
-    display, hung, store, wall_id, wall_settings, monkeypatch, caplog
+    display, hung, store, wall_id, wall_settings, monkeypatch, caplog, a_player_shows_the_wall
 ):
     first, _ = hung
 
@@ -368,7 +372,9 @@ def test_last_showing_refuses_a_wall_that_does_not_exist(display):
         display.last_showing("no-such-wall")
 
 
-def test_a_record_that_cannot_be_written_still_lets_the_horizon_roll(display, hung, store, wall_id, wall_settings, monkeypatch):
+def test_a_record_that_cannot_be_written_still_lets_the_horizon_roll(
+    display, hung, store, wall_id, wall_settings, monkeypatch, a_player_shows_the_wall
+):
     """The roll runs after the record on the same heartbeat, and a wall whose horizon stopped rolling runs out of schedule."""
     first, _ = hung
     path = wall_settings.manifest_v2_path(wall_id)
