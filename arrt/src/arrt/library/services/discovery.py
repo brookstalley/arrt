@@ -1493,6 +1493,14 @@ class DiscoveryService:
         since, until = utc_month(year, month)
         return SpendTotal.of(self._store.list_spend_records(since=since, until=until))
 
+    def spend_ledger(self) -> Sequence[SpendRecord]:
+        """Every spend row, newest first: what `spend_history.read` groups by month.
+
+        Not windowed, because the store's contract is equality filters and a
+        household's ledger holds a few hundred rows a year (`list_spend_records`).
+        """
+        return self._store.list_spend_records()
+
     # -- internals ------------------------------------------------------------
 
     def _accept(self, work: CandidateWork) -> VerdictOutcome:

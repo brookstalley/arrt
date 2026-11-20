@@ -159,6 +159,10 @@ from arrt.http.models import (
     SourcesOut,
     SourceYieldOut,
     SourceYieldsOut,
+    SpendByCategoryOut,
+    SpendHistoryOut,
+    SpendMonthOut,
+    SpendOnGetOut,
     SpendOut,
     StartGet,
     StartResolve,
@@ -182,6 +186,7 @@ from arrt.http.models import (
     TopicWorksOut,
     TroubleOut,
     UnattendedOut,
+    UnknownCostCallOut,
     UnlinkedArtistOut,
     UpcomingOut,
     UpdateWatch,
@@ -211,6 +216,7 @@ from arrt.http.models import (
 )
 from arrt.library.acquisition.mat import MAT_PRESETS
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
+from arrt.library.services import spend_history
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.discovery import VerdictOutcome
@@ -1796,6 +1802,12 @@ def cancel_run(request: Request, run_id: str) -> RunViewOut:
     return _run_view(_services(request).runner.cancel(run_id))
 
 
+@router.get("/spend")
+def get_spend_history(request: Request) -> SpendHistoryOut:
+    """Months of spending, newest first: where it went, which Gets spent it, and the calls whose cost is unknown."""
+    return _spend_history(spend_history.read(_services(request).discovery))
+
+
 @router.get("/runs/{run_id}/spend")
 def get_run_spend(request: Request, run_id: str) -> SpendOut:
     """What a run has actually cost, including every re-search descended from it."""
@@ -2793,6 +2805,56 @@ def _spend(report: SpendReport) -> SpendOut:
         month=report.month,
         unknown_cost_calls=report.unknown_cost_calls,
         summary=report.summary,
+    )
+
+
+def _spend_history(history: spend_history.SpendHistory) -> SpendHistoryOut:
+    return SpendHistoryOut(
+        months=[
+            SpendMonthOut(
+                year=month.year,
+                month=month.month,
+                cost_usd=str(month.total.cost_usd),
+                unknown_cost_calls=month.total.unknown_calls,
+                summary=month.total.words,
+                categories=[
+                    SpendByCategoryOut(
+                        category=str(each.category),
+                        calls=each.calls,
+                        cost_usd=str(each.total.cost_usd),
+                        unknown_cost_calls=each.total.unknown_calls,
+                        summary=each.total.words,
+                    )
+                    for each in month.categories
+                ],
+                gets=[
+                    SpendOnGetOut(
+                        run_id=each.run.id,
+                        kind=str(each.run.kind),
+                        intent=each.run.intent_text,
+                        watch_id=each.run.watch_id,
+                        started_at=each.run.started_at.isoformat(),
+                        calls=each.calls,
+                        cost_usd=str(each.total.cost_usd),
+                        unknown_cost_calls=each.total.unknown_calls,
+                        summary=each.total.words,
+                    )
+                    for each in month.gets
+                ],
+                unknown_calls=[
+                    UnknownCostCallOut(
+                        spend_id=call.spend_id,
+                        category=str(call.category),
+                        occurred_at=call.occurred_at.isoformat(),
+                        model_id=call.model_id,
+                        run_id=call.run_id,
+                    )
+                    for call in month.unknown_calls
+                ],
+            )
+            for month in history.months
+        ],
+        older_months=history.older_months,
     )
 
 
