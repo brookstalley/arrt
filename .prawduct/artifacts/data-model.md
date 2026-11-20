@@ -1162,7 +1162,8 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > designed rather than defaulted.
 >
 > **A wall is emptied by `clear_wall`**, reached as `DELETE /api/walls/{wall_id}/theme`
-> and `art_theme(action='unhang')`. It exists because generalising the delete refusal
+> and `art_display(action='unhang')` (on `art_theme` until wave 2b's one MCP break,
+> 2026-11-20). It exists because generalising the delete refusal
 > to "hanging on any wall" would otherwise have made a hung theme undeletable with no
 > way out — the deadlock the 2026-08-11 last-theme ruling was written to avoid. Taking
 > a theme down does **not** advance the wall's directive sequence, for the reason
