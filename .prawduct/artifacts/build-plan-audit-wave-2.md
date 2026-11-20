@@ -1407,6 +1407,9 @@ new fields in the one break the owner allowed; **last** 46. 2b's own decisions:
   arrt/tests/integration/test_theme_and_display_tools.py arrt/tests/integration/test_mcp_preview_and_sync.py
   arrt/tests/unit/test_surface_parity.py arrt/tests/unit/test_ask_agent.py`.
 - **Model:** Opus-class, high.
+- **Note, 2026-11-19 (Chunk 22, from 2a's Chunk 11):** the type override list is already
+  empty, so "`arrt.mcp.*` leaving the type override list" is done: this chunk keeps
+  `uv run mypy` clean while it rewrites `arrt/src/arrt/mcp/`, and puts no override back.
 
 ### Chunk 46: Dated history out of the docstrings (2b)
 

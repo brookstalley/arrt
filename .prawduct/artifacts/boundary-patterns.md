@@ -277,6 +277,11 @@
 - **Producer:** the persistence layer. **Currently stdlib `sqlite3` behind a
   Protocol**, not 3tears collections — see the build plan's deferral note. The
   Protocol is what keeps that swap a one-module change.
+  **Since 2026-11-19 the Protocols are checked, not only written:** the type
+  checker is part of lint, and `arrt/src/arrt/services/conformance.py` states in
+  types that the SQLite adapters satisfy `CatalogueStore`, `ProgrammingStore`,
+  `OneCatalogueFile` and `DiscoveryStore`, so an adapter that drifts from its
+  Protocol fails `uv run mypy` (`project-preferences.md`, the type-check row).
 - **Consumer:** services, and through them both external surfaces.
 - **Contract:** entity fields, enums, and the Constraints list in `data-model.md`.
 - **A persisted format is a lock-in decision.** The questions the data must answer
