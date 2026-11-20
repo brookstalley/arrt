@@ -4,6 +4,24 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-20: a hang can be started from Walls; hanging for a duration waits
+
+Asked while part 2b was being built (question 2 of the wave's decisions: hanging for a
+duration, and a wall-side way to hang chosen works). The advisor recommended yes to starting
+a hang from the Walls screen, "it's where you look when deciding what a wall shows", and
+deferring durations "until you've used the rest". The owner: "Yes to your recommendations".
+As ruled:
+
+1. **Walls gains a way to hang chosen works on a wall.** A wall's *Hanging* picker, which
+   today offers only themes, also offers choosing works: it opens Artworks selecting for
+   that wall, and the selection's *Hang…* (built in `build-plan-audit-wave-2b.md`'s Chunk
+   34) hangs them there. Built in this plan as Chunk 57.
+2. **Hanging for a duration is not built now.** A hang still lasts until it is changed. It
+   is a persisted format (what "before" is when two hangs overlap, what a delete does to
+   it), so when it is built it is designed from its consumers' questions in a plan of its
+   own. `user-scenarios.md`'s scenario of a day or two outside the household's taste stays
+   unmet until then, and the records say so.
+
 ## 2026-11-20: CI is kept small, tests run on the pool first, and CI makes no paid call
 
 Asked while part 2b was being built (which pool runners may run this repository, and what

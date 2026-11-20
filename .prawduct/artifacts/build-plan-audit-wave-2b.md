@@ -376,6 +376,11 @@ left as planned and this section is the later word.
   when it adds them; and the status observation's test assigns its wall to a Player, with a new
   case for a wall that has none. No tool name, argument or result key changes in Chunk 30.
 
+- **2026-11-20, by the owner's ruling of the same day** (`.prawduct/owner-rulings.md`: a hang
+  can be started from Walls; hanging for a duration waits): Chunk 57 is added, the wall-side
+  way to hang chosen works that Chunk 34 left out as the owner's to decide. Hanging for a
+  duration stays out of this plan.
+
 ## The items 2a carried forward, and where each went
 
 Collected from `landing-log.md` § Wave 2 (the `arrt W2` entries, the integration passes, the
@@ -1541,6 +1546,43 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
 - **Verification ceiling:** the root tests that read the workflows, the governance suite
   whole, `actionlint` if installed; the pool suite itself if one is added. No image is
   built on this machine.
+
+### Chunk 57: Walls — hang chosen works on a wall
+
+- **Type:** code
+- **Closes:** audit-5 F9's wall-side half, by the owner's ruling of 2026-11-20.
+- **Model:** Opus-class, medium: a small flow across two screens, with a selection that must
+  remember which wall it is for and say so.
+- **Waits for:** 34 (the selection's *Hang…*, `hangOnAWall`, `canHang`), 31 (the Walls
+  screen's health states) and 41 (the Walls screen's small items): one chunk at a time
+  edits `arrt/src/arrt/http/static/screens/walls.js`.
+- **Owns:** `arrt/src/arrt/http/static/screens/walls.js` (the *Hanging* picker only),
+  `arrt/src/arrt/http/static/screens/collection.js` and
+  `arrt/src/arrt/http/static/core/selecting.js` (only what selecting *for a wall* needs),
+  new `arrt/tests/browser/test_hanging_works_from_a_wall.py`,
+  `.prawduct/artifacts/information-architecture.md` (the Walls and Artworks rows).
+- **Deliverables:**
+  - A wall's *Hanging* picker offers choosing works, beside its themes. Choosing it opens
+    Artworks in selection, for that wall: the page says which wall the selection is for,
+    in words, for as long as it is, and offers a way out that leaves the wall as it was.
+  - The selection's *Hang…* then hangs on that wall without asking which (the question
+    still says what will happen and what is left out, as Chunk 34 built it); for any other
+    selection *Hang…* asks as before.
+  - Afterwards the person is back on Walls, at that wall, which shows what it now hangs.
+  - Nothing new on the server: the act is the one Chunk 34 sends. If the flow needs a
+    server change, that is a finding to return, not to build.
+  - Keyboard and phone: the flow works by keyboard alone, focus returns to the wall's
+    picker on the way out and to the wall's card after a hang, and the "for this wall"
+    words do not push *Select* off its place (ruling 6: *Select* last on the right).
+- **Acceptance:** from Walls, choosing works for one wall and hanging two of them sends one
+  `hang_selection` naming that wall and those two works (asserted on the request body) and
+  returns to Walls with that wall showing them; leaving without hanging sends nothing and
+  the wall is unchanged; a selection not started from a wall still asks which wall; the
+  words naming the wall are read by a screen reader when selection starts. Each shown red
+  first, by a client break of the behaviour it names.
+- **Verification ceiling:** the new browser file and the browser files of Walls, Artworks
+  and the selection model, on the pool; the guard `arrt/tests/unit/test_browser_reads_retry.py`;
+  ruff and black in `arrt/`.
 
 ### Chunk 54: Records, and the change record
 
