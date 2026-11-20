@@ -72,13 +72,16 @@ class _Held:
 class _Beside:
     """A wall rebuilt in a household pass beside the wall republished (`schedule.run_household_pass`).
 
-    `view` is what it is built against. Its feed is not written there: what
+    `view` is what it is built against, and `now` the instant the wall
+    republished is built from, so every wall of one pass is scheduled for one
+    moment, however long the pass takes. Its feed is not written there: what
     would be written goes into `held`, and the pass writes it once the wall
     republished has been, so no wall is left scheduled round a first slot that
     was never published.
     """
 
     view: PassView
+    now: datetime
     held: list[_Held] = field(default_factory=list)
 
 
@@ -657,7 +660,7 @@ class FeedPublisher:
         is one step of that pass: it is built against the pass's view, handed
         back unwritten, and rebuilds no neighbours of its own.
         """
-        now = datetime.now(UTC)
+        now = beside.now if beside is not None else datetime.now(UTC)
         cycle = [work_id for work_id in order if work_id in works]
 
         def scheduled(view: PassView, start: Start, also: Collection[str]) -> Schedule:
@@ -689,7 +692,7 @@ class FeedPublisher:
         rebuilt: dict[str, _Held] = {}
 
         def build_neighbour(neighbour: str, view: PassView) -> Schedule | None:
-            beside = _Beside(view)
+            beside = _Beside(view, now)
             try:
                 self._rebuild_beside(neighbour, beside)
             except ServiceError as error:

@@ -956,6 +956,44 @@ def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_eac
     assert sorted(writes) == sorted([wall_id, study])
 
 
+def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered, theme_of, wall_id, monkeypatch):
+    """The study, rebuilt beside the hall, is built from the hall's *now*, however slowly the pass runs.
+
+    Read again for the study, *now* could fall past one of its slot boundaries
+    that the hall's first slot was built against, and the two walls would be
+    scheduled for different moments in one act. The clock here moves a second
+    at every reading, as a slow machine's may between two of them.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    readings = []
+
+    class Slow(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            readings.append(None)
+            return datetime.now(tz) + timedelta(seconds=len(readings))
+
+    builds = []
+    build = feeds_module.build_schedule
+
+    def recording_build(**arguments):
+        builds.append((arguments["wall_id"], arguments["now"]))
+        return build(**arguments)
+
+    monkeypatch.setattr(feeds_module, "datetime", Slow)
+    monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
+
+    display.show_work_now(wall_id, a.id)
+
+    assert [wall for wall, _ in builds] == [wall_id, study, wall_id]
+    assert len({now for _, now in builds}) == 1, builds
+
+
 @pytest.mark.parametrize("first_by_id", ["the wall with three works", "the wall with two"])
 def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour_without(
     display, mastered, theme_of, wall_id, feed, first_by_id
