@@ -1322,7 +1322,15 @@ class SqliteCatalogue(TableAdapter):
     def add_event(self, event: HistoryEvent) -> None:
         self._add("history_events", _event_row(event), subject=f"the {event.kind} event {event.id!r}")
 
-    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind] = (),
+        wall_id: str | None = None,
+        work_id: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> EventPage:
         clauses: list[str] = []
         values: list[Any] = []
         if kinds:
@@ -1331,6 +1339,9 @@ class SqliteCatalogue(TableAdapter):
         if wall_id is not None:
             clauses.append("wall_id = ?")
             values.append(wall_id)
+        if work_id is not None:
+            clauses.append("work_id = ?")
+            values.append(work_id)
         where = " AND ".join(clauses) if clauses else "1"
         # Counted from the same clause as the page, so the total describes the
         # rows beside it. `rowid` breaks a tie between two acts in one clock tick

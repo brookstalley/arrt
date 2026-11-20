@@ -57,6 +57,28 @@ class TestReadingTheHistory:
 
         assert [event.work_id for event in service.list_events().events][:2] == ["tied-b", "tied-a"]
 
+    def test_a_works_history_is_counted_from_the_same_clause_as_its_page(self, service):
+        """The total beside one work's page counts that work's events, not every event."""
+        for kind in (EventKind.ARCHIVED, EventKind.RESTORED, EventKind.ARCHIVED):
+            service.record_event(kind, work_id="nighthawks")
+        service.record_event(EventKind.ARCHIVED, work_id="automat")
+
+        page = service.list_events(work_id="nighthawks", limit=2)
+
+        assert ([event.kind for event in page.events], page.total) == ([EventKind.ARCHIVED, EventKind.RESTORED], 3)
+        assert service.list_events(work_id="nighthawks", kinds=[EventKind.RESTORED]).total == 1
+
+    def test_the_get_that_brought_a_work_is_its_acceptance(self, service):
+        service.record_event(EventKind.ACCEPTED, work_id="elephants", run_id="run-1", detail={"title": "The Elephants"})
+        service.record_event(EventKind.ACCEPTED, work_id="swans", run_id="run-2")
+        service.record_event(EventKind.ARCHIVED, work_id="elephants", run_id="not-a-get")
+
+        brought = service.get_that_brought("elephants")
+
+        assert brought is not None
+        assert (brought.kind, brought.run_id) == (EventKind.ACCEPTED, "run-1")
+        assert service.get_that_brought("added-by-hand") is None
+
     def test_limits_outside_the_range_are_refused(self, service):
         with pytest.raises(ServiceError, match="limit"):
             service.list_events(limit=0)

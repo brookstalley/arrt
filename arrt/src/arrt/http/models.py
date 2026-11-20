@@ -815,6 +815,15 @@ class RetryCauseOut(BaseModel):
     refused: list[RefusedRetryOut]
 
 
+class WorkGetOut(BaseModel):
+    """The Get a work came from: its run, and when the work was accepted from it."""
+
+    #: The Get's run (`/api/runs/{run_id}`), which its review is reached by.
+    run_id: str
+    #: When the candidate was accepted and became this work.
+    accepted_at: str
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -830,6 +839,12 @@ class WorkDetailOut(BaseModel):
     #: Where the work stands in the acquisition queue; null when the queue owes
     #: it nothing (its image is held and prepared, or it is archived).
     acquisition: AcquisitionStateOut | None = None
+    #: The Get that brought the work into the Library, from its acceptance in
+    #: the history; null for a work that came another way, or that was accepted
+    #: before the history was kept. On the detail rather than on `WorkOut`,
+    #: which every grid card carries: one history read per card for a fact
+    #: only the Work page shows.
+    get: WorkGetOut | None
 
 
 class ThemeOut(BaseModel):

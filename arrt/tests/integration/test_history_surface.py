@@ -172,6 +172,31 @@ class TestReadingTheHistory:
         assert [event["kind"] for event in history(http, wall_id=three_acts["wall_id"])] == ["wall.hung"]
         assert history(http, wall_id=the_wall["wall_id"]) == []
 
+    def test_a_work_has_its_own_history(self, http, three_acts, ready_work):
+        """Audit-5 F18: "when was this hung, and where did it come from" asked of one work, not of every work."""
+        automat = next(event["artwork_id"] for event in history(http, kind="work.archived"))
+        other = ready_work("Nighthawks")
+        http.post(f"/api/works/{other.id}/archive")
+
+        assert [event["kind"] for event in history(http, artwork_id=automat)] == ["work.restored", "work.archived"]
+        assert [event["kind"] for event in history(http, artwork_id=other.id)] == ["work.archived"]
+        assert history(http, artwork_id="no-such-work") == []
+        # With a wall too, what both name: no hang names a work.
+        assert history(http, artwork_id=automat, wall_id=three_acts["wall_id"]) == []
+
+    def test_a_works_record_names_the_get_that_brought_it(self, http, resolved_work, ready_work):
+        """The Work page's way to its Get: the run it was accepted from, and when; none for a work that came another way."""
+        candidate = resolved_work("The Elephants")
+        accepted = http.post(f"/api/candidates/{candidate.id}/verdict", json={"verdict": "accepted"}).json()
+        artwork_id = accepted["work"]["artwork_id"]
+        [event] = history(http, artwork_id=artwork_id, kind="work.accepted")
+
+        brought = http.get(f"/api/works/{artwork_id}").json()["get"]
+        by_hand = http.get(f"/api/works/{ready_work('Automat').id}").json()["get"]
+
+        assert brought == {"run_id": candidate.discovery_run_id, "accepted_at": event["occurred_at"]}
+        assert by_hand is None
+
     def test_a_page_says_where_it_sits(self, http, three_acts):
         page = http.get("/api/history", params={"limit": 1, "offset": 1}).json()
 

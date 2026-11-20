@@ -201,6 +201,7 @@ from arrt.http.models import (
     WatchOut,
     WorkDetailOut,
     WorkFacetOut,
+    WorkGetOut,
     WorkMatchesOut,
     WorkMatchOut,
     WorkMatOut,
@@ -465,8 +466,9 @@ def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
 
 @router.get("/works/{artwork_id}")
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
-    """One work in full — metadata, artist, sources, renditions and mats."""
-    return _dossier(_services(request).survey.get_work(artwork_id))
+    """One work in full — metadata, artist, sources, renditions and mats, and the Get it came from."""
+    services = _services(request)
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/acquisition/retry")
@@ -565,7 +567,7 @@ def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> W
     """
     services = _services(request)
     services.identity.set_work_identity(artwork_id, body.qid)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.get("/artists")
@@ -1018,7 +1020,7 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.archive_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/restore")
@@ -1031,7 +1033,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.restore_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 # -- themes -------------------------------------------------------------------
@@ -1440,6 +1442,7 @@ def list_history(
     request: Request,
     kind: Annotated[list[str] | None, Query()] = None,
     wall_id: Annotated[str | None, Query()] = None,
+    artwork_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
 ) -> HistoryPageOut:
@@ -1447,10 +1450,14 @@ def list_history(
 
     `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
     work.rejected`); none named is every kind. `wall_id` narrows to one wall's
-    history: what was hung there, and what was kept off from there. Events are
+    history: what was hung there, and what was kept off from there. `artwork_id`
+    narrows to one work's: the Get it was accepted from, its archive and restore,
+    and what kept it off walls; both together are what both name. Events are
     recorded from the day the history arrived, and nothing earlier is recovered.
     """
-    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    page = _services(request).catalogue.list_events(
+        kinds=kind or (), wall_id=wall_id, work_id=artwork_id, limit=limit, offset=offset
+    )
     return HistoryPageOut(
         events=[_history_event(event) for event in page.events],
         total=page.total,
@@ -2156,7 +2163,12 @@ def _work(survey: WorkSurvey) -> WorkOut:
     )
 
 
-def _dossier(dossier: WorkDossier) -> WorkDetailOut:
+def _work_detail(services: Services, artwork_id: str) -> WorkDetailOut:
+    """The work in full, as every route answering with one answers: its dossier and the Get it came from."""
+    return _dossier(services.survey.get_work(artwork_id), services.catalogue.get_that_brought(artwork_id))
+
+
+def _dossier(dossier: WorkDossier, brought: HistoryEvent | None) -> WorkDetailOut:
     return WorkDetailOut(
         work=_work(dossier.survey),
         original=None if dossier.original is None else _original(dossier.original),
@@ -2165,6 +2177,11 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
         acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+        get=(
+            None
+            if brought is None or brought.run_id is None
+            else WorkGetOut(run_id=brought.run_id, accepted_at=brought.occurred_at.isoformat())
+        ),
     )
 
 
