@@ -395,8 +395,8 @@ def test_the_refusals_are_the_lookups_sentences_word_for_word(services, display,
     assert type(wall.value) is NotFound
     assert type(theme.value) is NotFound
     assert type(hanging.value) is ServiceError
-    assert str(wall.value) == "No wall with id 'nowhere' is in the catalogue."
-    assert str(theme.value) == "No theme with id 'nothing' is in the catalogue."
+    assert str(wall.value) == "No wall with id 'nowhere' is recorded."
+    assert str(theme.value) == "No theme with id 'nothing' is recorded."
     name = display.get_wall(wall_id).name
     assert str(hanging.value) == (f"Nothing is hanging on {name!r}, so there is nothing to put on it. Hang a theme there first.")
 

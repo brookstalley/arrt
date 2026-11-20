@@ -32,12 +32,12 @@ from arrt.services.errors import NotFound, ServiceError
 
 def no_wall(wall_id: str) -> str:
     """What a person or an agent reads when no wall has this id."""
-    return f"No wall with id {wall_id!r} is in the catalogue."
+    return f"No wall with id {wall_id!r} is recorded."
 
 
 def no_theme(theme_id: str) -> str:
     """What a person or an agent reads when no theme has this id."""
-    return f"No theme with id {theme_id!r} is in the catalogue."
+    return f"No theme with id {theme_id!r} is recorded."
 
 
 class Lookups:

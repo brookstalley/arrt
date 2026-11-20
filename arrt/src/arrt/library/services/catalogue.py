@@ -712,7 +712,7 @@ class CatalogueService:
         """
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         named = replace(
             artist,
             family_name=family_name,
@@ -751,7 +751,7 @@ class CatalogueService:
         reads this service's clock.
         """
         if artist_id is not None and self._store.get_artist(artist_id) is None:
-            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         now = self._now() if at is None else at
         artwork = Artwork(
             id=self._mint_id(),
@@ -1071,7 +1071,7 @@ class CatalogueService:
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
         promoted = replace(source, is_primary=True)
         with self._store.transaction():
             self._demote_primary_sources(source.artwork_id)
@@ -1091,7 +1091,7 @@ class CatalogueService:
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
         status = require_member(status, enum=FetchStatus, field="status")
         if outcome is not None and FetchOutcome(outcome).fetch_status is not status:
             raise ValueError(f"A fetch whose outcome is {outcome} has status {FetchOutcome(outcome).fetch_status}, not {status}.")
@@ -1144,7 +1144,7 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         source = self._store.get_source(source_id)
         if source is None:
-            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
         if source.artwork_id != artwork_id:
             raise ServiceError(f"Source {source_id!r} belongs to a different artwork than {artwork_id!r}.")
         if byte_size <= 0:
@@ -1425,7 +1425,7 @@ class CatalogueService:
     def _require_artwork(self, artwork_id: str) -> Artwork:
         artwork = self._store.get_artwork(artwork_id)
         if artwork is None:
-            raise NotFound(f"No artwork with id {artwork_id!r} is in the catalogue.")
+            raise NotFound(f"No artwork with id {artwork_id!r} is in the Library.")
         return artwork
 
     def _resolve_artist(self, artist_id: str | None, seen: dict[str, Artist | None]) -> Artist | None:

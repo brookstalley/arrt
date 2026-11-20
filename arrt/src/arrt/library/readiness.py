@@ -173,7 +173,7 @@ def not_in_catalogue(work_id: str) -> Unplayable:
         work_id=work_id,
         title=None,
         reason=UnplayableReason.NOT_IN_CATALOGUE,
-        detail=f"No artwork with id {work_id!r} is in the catalogue.",
+        detail=f"No artwork with id {work_id!r} is in the Library.",
     )
 
 

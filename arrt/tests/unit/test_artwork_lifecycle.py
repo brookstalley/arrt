@@ -134,7 +134,7 @@ def test_showing_an_unknown_work_now_is_refused(display, wall_id):
     with pytest.raises(ServiceError) as refused:
         display.show_work_now(wall_id, "nope")
 
-    assert str(refused.value) == "No artwork with id 'nope' is in the catalogue."
+    assert str(refused.value) == "No artwork with id 'nope' is in the Library."
 
 
 def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(display):
@@ -148,7 +148,7 @@ def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(di
     with pytest.raises(ServiceError) as refused:
         display.add_to_theme(theme_id=theme.id, artwork_id="nope")
 
-    assert str(refused.value) == "No artwork with id 'nope' is in the catalogue."
+    assert str(refused.value) == "No artwork with id 'nope' is in the Library."
     assert display.theme_work_ids(theme.id) == []
 
 

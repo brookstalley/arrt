@@ -90,7 +90,7 @@ class IdentityService:
         """
         artwork = self._store.get_artwork(artwork_id)
         if artwork is None:
-            raise NotFound(f"No artwork with id {artwork_id!r} is in the catalogue.")
+            raise NotFound(f"No artwork with id {artwork_id!r} is in the Library.")
         checked = self._existing(_require_qid(qid))
         updated = replace(artwork, wikidata_qid=checked, wikidata_qid_set_by=IdentitySetBy.CURATOR)
         store_write(self._store.update_artwork, updated)
@@ -106,7 +106,7 @@ class IdentityService:
         """
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         wanted = _require_qid(qid)
         if wanted is not None:
             other = next((a for a in self._store.list_artists() if a.wikidata_qid == wanted and a.id != artist_id), None)

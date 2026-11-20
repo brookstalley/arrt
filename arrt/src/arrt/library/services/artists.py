@@ -200,7 +200,7 @@ class ArtistService:
         """One artist, and how many of their works are in circulation (which may be none)."""
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         held, pictured = next(
             ((count, first) for found, count, first in self._store.held_artists() if found.id == artist_id), (0, None)
         )
