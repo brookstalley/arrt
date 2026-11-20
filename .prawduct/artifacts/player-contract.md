@@ -120,6 +120,16 @@ field asks for it as a change to the package.
   mechanical form of "a minor is additive". The releases before 1.2.0 were
   copied from their tags when 1.2.0 was built, and 1.2.0's table and
   vocabulary were added to its copy, from the tag, before 1.3.0 was cut.
+- **How a copy is made:** `python3 contract/tools/freeze_release.py <version>`,
+  in a checkout that has fetched the tag (`git fetch origin --tags`). It reads the
+  tag through `git archive`, never the working tree, writes `contract/released/<version>/`
+  and its `sha256.json` (the tag, the commit it names, each file's hash sorted by
+  path), and refuses a directory that already exists, so a copy is written once.
+  `contract/tests/test_freeze_release.py` runs it on a repository made for the test,
+  and again on each committed copy's real tag, comparing every byte, `sha256.json`
+  included; where the tag is not fetched that comparison is skipped by name, not passed.
+- **The package ships `py.typed`** (PEP 561), so a consumer's type checker reads its
+  annotations (`contract/tests/test_typed.py`); a consumer needs no allowance to import it.
 - **Read the data through the package:** `root()` is the directory holding
   `schemas/`, `fixtures/`, `vectors/` and `routes.json`, and it refuses by name
   a build without them. `validator(path)` registers every schema, so a
