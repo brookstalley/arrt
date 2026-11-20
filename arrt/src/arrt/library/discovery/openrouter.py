@@ -111,6 +111,47 @@ class RequestUnaffordable(OpenRouterError):
     """
 
 
+class CostUnknown(OpenRouterError):
+    """The call was sent and no answer saying what it cost came back.
+
+    **The one failure that may have been billed.** A read timeout, a dropped
+    connection or a reset after the request was written, a gateway's 5xx or a
+    408, and a 2xx whose body could not be read: in each the provider had the
+    whole request and may have generated and billed it, and nothing here was
+    told what it cost. A failure before sending (no connection, a pool
+    timeout) and an answered refusal (402, 403, any other 4xx) cost nothing and
+    are plain `OpenRouterError`s, as before.
+
+    A subclass, so every caller that catches `OpenRouterError` still catches
+    this; a caller that records spend catches it first and writes a row whose
+    cost is unknown (`CostStatus.UNKNOWN`) under `model_id`, the model asked.
+    """
+
+    def __init__(self, message: str, *, model_id: str) -> None:
+        super().__init__(message)
+        self.model_id = model_id
+
+
+#: The transport failures that happen before a request is written, so the
+#: provider never had it: nothing can have been billed. Every other
+#: `httpx.HTTPError` from a post (a read or write failure, a protocol error, a
+#: read timeout) happens on a connection the request went out on.
+_NOT_SENT: Final[tuple[type[httpx.HTTPError], ...]] = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.PoolTimeout,
+    httpx.UnsupportedProtocol,
+    httpx.LocalProtocolError,
+    httpx.ProxyError,
+)
+
+#: The answered statuses that say nothing about whether the call ran: a
+#: gateway or the provider gave up on it, and the model behind may have
+#: finished and billed it. A 408 is a timeout too.
+_ANSWER_UNSETTLED_FROM: Final[int] = 500
+_REQUEST_TIMEOUT: Final[int] = 408
+
+
 @dataclass(frozen=True, slots=True)
 class Citation:
     """One page a search returned, and the excerpt the model was given.
@@ -423,7 +464,7 @@ class OpenRouterClient:
         if reasoning is not None:
             body["reasoning"] = dict(reasoning)
 
-        payload = self._post("/chat/completions", body)
+        payload = self._post("/chat/completions", body, model_id=body["model"])
         return _read_completion(payload, fallback_model=body["model"])
 
     def key_status(self) -> KeyStatus:
@@ -446,14 +487,30 @@ class OpenRouterClient:
 
     # -- transport ------------------------------------------------------------
 
-    def _post(self, path: str, body: Mapping[str, Any]) -> Mapping[str, Any]:
+    def _post(self, path: str, body: Mapping[str, Any], *, model_id: str) -> Mapping[str, Any]:
+        """Send one paid call; a failure after it was sent is `CostUnknown`, naming `model_id`."""
         try:
             response = self._http.post(
                 f"{BASE_URL}{path}", headers=self._headers, json=dict(body), timeout=_timeout(COMPLETION_TIMEOUT_SECONDS)
             )
-        except httpx.HTTPError as exc:
+        except _NOT_SENT as exc:
             raise OpenRouterError(f"Could not reach OpenRouter: {exc}") from exc
-        return _read_body(response)
+        except httpx.HTTPError as exc:
+            raise CostUnknown(
+                f"OpenRouter was sent the call and no answer came back ({type(exc).__name__}: {exc}), "
+                "so what it cost is unknown.",
+                model_id=model_id,
+            ) from exc
+        unsettled = response.status_code >= _ANSWER_UNSETTLED_FROM or response.status_code == _REQUEST_TIMEOUT
+        try:
+            return _read_body(response)
+        except OpenRouterError as exc:
+            if response.is_success or unsettled:
+                # A 2xx was billed and its body says nothing readable about
+                # what; a 5xx or 408 is a gateway giving up on a call the
+                # model may have finished.
+                raise CostUnknown(f"{exc} What the call cost is unknown.", model_id=model_id) from exc
+            raise
 
     def _get(self, path: str) -> Mapping[str, Any]:
         try:
