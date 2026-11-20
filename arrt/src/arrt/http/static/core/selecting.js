@@ -29,7 +29,7 @@ import { attempt } from "./acting.js";
 import { api, fetchAllWorks } from "./api.js";
 import { workName } from "./badges.js";
 import { confirmAct } from "./confirm.js";
-import { counted } from "./counting.js";
+import { counted, number } from "./counting.js";
 import { openPanel } from "./editing.js";
 import { getSelection } from "./getting.js";
 import { addedSentence, addWorksToTheme, stoppedSentence, themeChoice } from "./membership.js";
@@ -58,7 +58,7 @@ async function worksOfFilter(filter) {
     notOnWall: Boolean(filter.not_on_wall),
     shown: filter.shown || null,
   });
-  if (read.works.length < read.total) throw new Error(`Only ${read.works.length} of the ${read.total} matching works could be read.`);
+  if (read.works.length < read.total) throw new Error(`Only ${number(read.works.length)} of the ${number(read.total)} matching works could be read.`);
   return read.works;
 }
 
@@ -182,7 +182,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     const reachable = (held ? (held.filter ? total : heldBoxes.size) : 0) + [...registryBoxes].filter((box) => box.isConnected).length;
     selectAll.textContent = allTicked() ? "Select none" : `Select all ${counted(reachable, "work")}`;
     selectAll.disabled = reachable === 0;
-    say(count === 0 ? "No works selected." : `${count} selected.`);
+    say(count === 0 ? "No works selected." : `${number(count)} selected.`);
   }
 
   /* -- ticking -------------------------------------------------------------- */

@@ -23,7 +23,7 @@ import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
 import { wallLink } from "../core/places.js";
 import { table } from "../core/badges.js";
-import { counted } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { hold, heldFor, showHold } from "../core/holding.js";
@@ -72,7 +72,7 @@ function truncation(runs, which) {
   return el("p", {
     class: "note",
     text:
-      `${which} among the ${runs.count} most recent of ${runs.total} Gets. ` +
+      `${which} among the ${number(runs.count)} most recent of ${number(runs.total)} Gets. ` +
       "Older ones are still here and still open at their own address; this list does not page.",
   });
 }
@@ -130,7 +130,7 @@ export async function viewToReview(generation) {
 function acquisitionPanel(listing, causes, opened, generation) {
   const owed = listing.total + listing.failing;
   return el("div", { class: "panel acquisitions" }, [
-    el("h2", { text: `Fetching images (${owed})` }),
+    el("h2", { text: `Fetching images (${number(owed)})` }),
     retryAllSaid ? el("p", { class: "note retry-all-said", role: "status", text: takeRetryAllSaid() }) : null,
     listing.pause
       ? el("p", { class: "note acquisition-pause" }, [
@@ -185,7 +185,7 @@ function failurePanel(listing, causes, opened, generation) {
       const agreed = await confirmAct({
         title: `Retry ${counted(group.works, "work")}?`,
         consequence: `They go back in line and are fetched again, one at a time, each asking its museum for the image. They failed because: ${group.cause}`,
-        confirmLabel: `Retry ${group.works}`,
+        confirmLabel: `Retry ${number(group.works)}`,
       });
       if (!agreed) return;
     }
@@ -228,7 +228,7 @@ function failurePanel(listing, causes, opened, generation) {
           el("button", {
             class: only ? "action" : "action quiet",
             type: "button",
-            text: group.works === 1 ? "Retry" : `Retry ${group.works}`,
+            text: group.works === 1 ? "Retry" : `Retry ${number(group.works)}`,
             "aria-label": `Retry the ${counted(group.works, "work")} that failed: ${group.cause}`,
             onclick: (event) => retryGroup(event.currentTarget, group),
           }),
@@ -278,7 +278,7 @@ function inLinePanel(listing, generation) {
     ]),
   ]);
   return el("section", { class: "in-line", "aria-label": "In line" }, [
-    el("h3", { text: `In line (${listing.total})` }),
+    el("h3", { text: `In line (${number(listing.total)})` }),
     table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows, { stacked: true }),
     pager(listing, "offset", listing.works.length, "works"),
   ]);
@@ -294,7 +294,7 @@ function pager(page, key, shown, things) {
   return el("div", { class: "row queue-paging" }, [
     earlier ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Previous", "aria-label": `Previous ${things}` }) : null,
     later ? link(at(page.offset + page.limit), { class: "action quiet", text: "Next", "aria-label": `Next ${things}` }) : null,
-    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + shown} of ${page.total}` }),
+    el("span", { class: "muted", text: `${number(page.offset + 1)}–${number(page.offset + shown)} of ${number(page.total)}` }),
   ]);
 }
 
@@ -328,7 +328,7 @@ export async function viewQueue(generation) {
     // rather than that nothing is in flight. "No Get", not "nothing": the
     // fetches below may be.
     const nothing = runs.truncated
-      ? `No Get is in flight among the ${runs.count} most recent Gets.`
+      ? `No Get is in flight among the ${number(runs.count)} most recent Gets.`
       : "No Get is in flight.";
     panels.push(
       emptyState(nothing, "A Get you start in Ask, or on works you chose, shows here while it works.", [
@@ -340,7 +340,7 @@ export async function viewQueue(generation) {
   } else {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h2", { text: `In flight (${active.length})` }),
+        el("h2", { text: `In flight (${number(active.length)})` }),
         runTable("Every Get not yet ended, newest first.", active, themes),
       ]),
     );
@@ -452,7 +452,7 @@ function paging(page, params) {
   return el("div", { class: "row history-paging" }, [
     newer ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Newer" }) : null,
     older ? link(at(page.offset + page.limit), { class: "action quiet", text: "Older" }) : null,
-    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + page.events.length} of ${page.total}` }),
+    el("span", { class: "muted", text: `${number(page.offset + 1)}–${number(page.offset + page.events.length)} of ${number(page.total)}` }),
   ]);
 }
 

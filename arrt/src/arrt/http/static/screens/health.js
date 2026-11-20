@@ -34,6 +34,7 @@
  * replace.
  */
 
+import { number } from "../core/counting.js";
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
@@ -423,7 +424,7 @@ function faultWords(source) {
 }
 
 function count(value) {
-  return typeof value === "number" ? value.toLocaleString() : "—";
+  return typeof value === "number" ? number(value) : "—";
 }
 
 function sourceRow(source, yielded) {
@@ -444,7 +445,7 @@ function sourceRow(source, yielded) {
     offered: count(yielded && yielded.offered),
     chosen: count(yielded && yielded.chosen),
     "only-here": count(yielded && yielded.only_here),
-    median: yielded && typeof yielded.median_long_edge === "number" ? `${yielded.median_long_edge.toLocaleString()} px` : "—",
+    median: yielded && typeof yielded.median_long_edge === "number" ? `${number(yielded.median_long_edge)} px` : "—",
     faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
     "last-fault":
       source.last_fault && typeof source.last_fault_age_seconds === "number"
@@ -525,11 +526,11 @@ function picturesPanel(health) {
     // carries what an unreadable store means; its wording is the server's.
     el("p", { class: "reading-sentence", text: pictures.description }),
     facts([
-      ["Files", pictures.pictures_files.toLocaleString()],
-      ["Bytes", pictures.pictures_bytes.toLocaleString()],
+      ["Files", number(pictures.pictures_files)],
+      ["Bytes", number(pictures.pictures_bytes)],
       // Only when the disk refused part of the walk: the count is then short,
       // and saying so is what keeps an unreadable store from reading as an empty one.
-      ["Could not be read", pictures.unreadable ? `${pictures.unreadable.toLocaleString()} entries` : null],
+      ["Could not be read", pictures.unreadable ? `${number(pictures.unreadable)} entries` : null],
     ]),
   ]);
 }

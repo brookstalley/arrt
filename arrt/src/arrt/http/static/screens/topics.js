@@ -25,7 +25,7 @@
 
 import { api, apiLines } from "../core/api.js";
 import { facts, noPicture, workName } from "../core/badges.js";
-import { counted } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { offeredThemes } from "../core/membership.js";
 import { selectionMode } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
@@ -322,7 +322,7 @@ function asking(id, title) {
 function heldSection(works, grid) {
   fill(grid, ...works.map(heldCard));
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
-    el("h2", { id: "in-your-library", text: `In your library (${works.length})` }),
+    el("h2", { id: "in-your-library", text: `In your library (${number(works.length)})` }),
     works.length ? grid : el("p", { class: "muted", text: "None of your works in circulation is in this topic." }),
   ]);
 }

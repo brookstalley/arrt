@@ -1084,3 +1084,29 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
     ui.page.wait_for_selector("ul.grid")
 
     assert ui.focused() != "view"
+
+
+def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in_artworks(ui):
+    """"2,000 works" beside "Select all 2000 works" and "Starry (2000)" was audit-6 16: four ways of writing one number.
+
+    One page of the 2,000 is stubbed (the client reads `total` and each option's
+    `count`), with a facet that holds all of them. Every place Artworks prints
+    that number says it through `number`/`counted` in `core/counting.js`: the
+    facts line, the rail's option, *Select all*, and the showing note.
+    """
+    works = [a_catalogue_work(artwork_id=f"w{n}", title=f"Work {n}") for n in range(25)]
+    ui.serve(
+        "**/api/works?*",
+        a_listing(works, total=2000, truncated=True, facets=[a_facet_group("movement", [a_facet_option("Baroque", 2000)])]),
+    )
+
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid")
+
+    expect(ui.page.locator("#view .page-facts")).to_contain_text("2,000 works", use_inner_text=True)
+    expect(ui.page.locator("button.facet-option")).to_have_text("Baroque (2,000)", use_inner_text=True)
+    ui.page.click("#view button.select-toggle")
+    expect(ui.page.locator("#view .selection .select-all, #view button:has-text('Select all')").first).to_have_text(
+        "Select all 2,000 works", use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text(re.compile(r"\b2000\b"))

@@ -35,7 +35,7 @@
 import { attempt } from "../core/acting.js";
 import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
 import { absentImage, fitBadge, noPicture, shortfallNote, statusBadge, workName } from "../core/badges.js";
-import { noun } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
@@ -438,7 +438,7 @@ function facetRail(groups, chosen, narrowed) {
         group.truncated
           ? el("p", {
               class: "rail-note",
-              text: `Showing ${group.options.length} of ${group.total_values}. Search for a value the list does not reach.`,
+              text: `Showing ${number(group.options.length)} of ${number(group.total_values)}. Search for a value the list does not reach.`,
             })
           : null,
       ]),
@@ -474,7 +474,7 @@ function facetOption(kind, option, chosen, label = option.value) {
     // would read as the collection having lost values rather than as an empty
     // intersection.
     disabled: option.disabled,
-    text: `${label} (${option.count})`,
+    text: `${label} (${number(option.count)})`,
     // What finds this option again after the repaint its click causes, so the
     // keyboard stays on it (`core/router.js`).
     "data-focus-key": `facet:${kind}:${option.value}`,
@@ -519,7 +519,7 @@ function wallRail(option, total, narrowed) {
           type: "button",
           "aria-pressed": option.selected ? "true" : "false",
           disabled: option.disabled,
-          text: `Not on any wall (${option.count})`,
+          text: `Not on any wall (${number(option.count)})`,
           "data-focus-key": "wall:none",
           onclick: () => goWithParams({ wall: option.selected ? "" : "none" }),
         }),
@@ -547,7 +547,7 @@ function shownRail(options, total, narrowed) {
             type: "button",
             "aria-pressed": option.selected ? "true" : "false",
             disabled: option.disabled,
-            text: `${SHOWN_LABELS[option.value] || option.value} (${option.count})`,
+            text: `${SHOWN_LABELS[option.value] || option.value} (${number(option.count)})`,
             "data-focus-key": `shown:${option.value}`,
             onclick: () => goWithParams({ shown: option.selected ? "" : option.value }),
           }),
@@ -580,7 +580,7 @@ function themeOption(option) {
     "data-focus-key": `theme:${option.theme_id}`,
     "aria-pressed": option.selected ? "true" : "false",
     disabled: option.disabled,
-    text: `${option.name} (${option.count})`,
+    text: `${option.name} (${number(option.count)})`,
     // One theme at a time: choosing another replaces it, and choosing the
     // chosen one clears it.
     onclick: () => goWithParams({ theme: option.selected ? "" : option.theme_id }),
@@ -600,7 +600,7 @@ function moveThemeCount(option, by) {
   if (!button || !by) return;
   const count = Number(button.dataset.count) + by;
   button.dataset.count = String(count);
-  button.textContent = `${option.name} (${count})`;
+  button.textContent = `${option.name} (${number(count)})`;
   button.disabled = count === 0 && button.getAttribute("aria-pressed") !== "true";
 }
 
@@ -751,7 +751,7 @@ function heading() {
  * as the curator scrolls, so "25 of 2,003" here would read as a shortfall when
  * it is only the first page. */
 function factsText(total, query, chosen, shownTheme) {
-  const count = `${total.toLocaleString("en-US")} ${noun(total, "work")}`;
+  const count = counted(total, "work");
   const narrowing = filterPhrase(query, chosen, shownTheme);
   return narrowing ? `${count} · filtered by ${narrowing}` : count;
 }
@@ -966,7 +966,7 @@ export async function viewCollection(generation) {
       fill(more, onScreen < total ? shortfallNote({ works: { length: onScreen }, total }) : null);
       return;
     }
-    showing.textContent = `Showing ${onScreen.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.`;
+    showing.textContent = `Showing ${number(onScreen)} of ${number(total)}.`;
   }
 
   // The page being fetched, if one is: one at a time, and *Show more* pressed

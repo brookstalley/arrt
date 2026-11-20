@@ -9,7 +9,7 @@
  * `accessibility-spec.md`'s rule that colour is never the sole carrier.
  */
 
-import { agree } from "./counting.js";
+import { agree, number } from "./counting.js";
 import { DEBUG } from "./debug.js";
 import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
@@ -31,11 +31,10 @@ const FIT_WORDS = {
  * the mat — read as a fact about the picture to somebody who did not know that.
  * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
  * `null` when either dimension is unknown. */
-const PIXELS = new Intl.NumberFormat("en-US");
 
 export function pixelSize(width, height) {
   if (width === null || width === undefined || height === null || height === undefined) return null;
-  return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
+  return `${number(width)} × ${number(height)} px`;
 }
 
 /* Whether a picture falls short of the quality minimum, or why that cannot be said — and nothing
@@ -193,7 +192,7 @@ export function shortfallNote(page) {
   const withheld = page.total - page.works.length;
   return el("p", {
     class: "note",
-    text: `Showing ${page.works.length} of ${page.total}; ${withheld} more ${agree(withheld, "is", "are")} held and ${agree(withheld, "is", "are")} not on this page.`,
+    text: `Showing ${number(page.works.length)} of ${number(page.total)}; ${number(withheld)} more ${agree(withheld, "is", "are")} held and ${agree(withheld, "is", "are")} not on this page.`,
   });
 }
 

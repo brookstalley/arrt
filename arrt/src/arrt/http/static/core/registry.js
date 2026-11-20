@@ -11,7 +11,7 @@
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
 import { GLYPHS } from "./glyphs.js";
-import { listed } from "./counting.js";
+import { listed, number } from "./counting.js";
 import { el } from "./render.js";
 import { link } from "./router.js";
 
@@ -131,7 +131,7 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
     // not a mark that quietly picks one; it opens the first.
-    const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
+    const words = held.length === 1 ? "Held" : `Held ×${number(held.length)}`;
     const parts = [
       picture ? heldRowPicture(work) : null,
       el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
