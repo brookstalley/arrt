@@ -82,6 +82,41 @@ def test_there_are_dumps_of_at_least_two_releases_and_each_is_on_disk(catalogue_
     assert on_disk == {path.name for path in catalogue_dumps.values()}, "a dump is on disk that releases.json does not name"
 
 
+def test_every_release_old_catalogue_names_has_a_row_and_a_shared_one_names_an_earlier_dump(catalogue_dumps):
+    """`releases.json` holds every release in `RELEASES`, in order, so the chain opens the catalogue each one left.
+
+    A release whose schema is the one before it's shares that release's dump
+    (`old_catalogue.rows`); before 2026-11-19 it had no row at all, and the
+    chain held six of twelve releases. The change log's releases are held to
+    `RELEASES` by `tests/preferences/test_catalogue_release_dumps.py`.
+    """
+    import old_catalogue
+
+    assert list(catalogue_dumps) == list(old_catalogue.RELEASES)
+    order = list(catalogue_dumps)
+    own = [tag for tag, path in catalogue_dumps.items() if path.name == f"{tag}.sql"]
+    wrong = [
+        f"{tag}: {path.name}"
+        for tag, path in catalogue_dumps.items()
+        if (shared := path.name.removesuffix(".sql")) not in own or order.index(shared) > order.index(tag)
+    ]
+    assert wrong == [], f"rows naming no earlier release's own dump: {wrong}"
+
+
+def test_a_release_shares_a_dump_only_with_the_release_before_it_of_the_same_schema():
+    """`rows` against schemas that return to an earlier shape: a shape seen again is dumped again, never shared back."""
+    import old_catalogue
+
+    schemas = {"v1": ["a"], "v2": ["a"], "v3": ["b"], "v4": ["a"], "v5": ["a"]}
+    assert old_catalogue.rows(schemas) == {
+        "v1": "v1.sql",
+        "v2": "v1.sql",
+        "v3": "v3.sql",
+        "v4": "v4.sql",
+        "v5": "v4.sql",
+    }
+
+
 def test_the_dumps_hold_everything_the_chain_takes_away(catalogue_dumps):
     """So each retired column and table is exercised by some dump; a seed that lost one would pass the rest unread."""
     seen: set[str] = set()
