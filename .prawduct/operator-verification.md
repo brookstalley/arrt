@@ -32,7 +32,10 @@ view, 390 px). Each item says what to look at and what to report; none is a gate
   What you should see, as the integration saw it on a real server: the top bar ○ with
   no count, saying the one step ("The living room Pi has no token yet, so The hall and
   The study wait for it", with your names), and the System badge "1 step to finish";
-  Status's *Needs attention* empty and *Still to set up* that one step; each wall's
+  Status's *Needs attention* empty and *Still to set up* that one step. That holds once a
+  backup has run: a server that has never backed up also shows the trouble "The Library
+  has never been backed up" (`services/health.py`), so the top bar shows ▲ with 1 and the
+  System link reads "1 problem, and 1 step to finish". Each wall's
   panel on Status "○ The hall waits for The living room Pi, which has no token yet",
   never "Not reporting"; each Walls card's badge "○ No token yet" in the setup style.
   Then start the Player with its token: within a report the step and the waits go and

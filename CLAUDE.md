@@ -29,7 +29,8 @@ Rules for working here:
 
 ## Dev commands
 
-Three independent projects, three suites.
+Three independent projects, each with its own commands below (the table's columns);
+on the pool their tests run as six suites (next paragraph).
 
 | | governance (repo root) | curation plane | contract package |
 |---|---|---|---|
