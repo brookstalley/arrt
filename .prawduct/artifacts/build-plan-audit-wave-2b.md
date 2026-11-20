@@ -356,7 +356,7 @@ left as planned and this section is the later word.
   tag fails by name. Between releases the version is still the last release's, so an ordinary pull
   request is green. Every release now has a row in `arrt/tests/fixtures/catalogues/releases.json`
   (a release that changed nothing in the catalogue reuses an earlier dump), which the norm row in
-  `project-preferences.md` now says.
+  `.prawduct/artifacts/project-preferences.md` now says.
 - **2026-11-20 (Chunks 30, 32 and 40), a value three chunks share:** the acquisition queue kept no
   instant of a work's last failure, so the health model could count the works the queue gave up
   on and could not say how old the newest failure is. Chunk 32 adds a nullable `failed_at` to the
@@ -368,7 +368,7 @@ left as planned and this section is the later word.
 - **2026-11-20 (Chunk 35), two edits outside its files, allowed by the coordinator:** one
   defaulted field `cost_status` on `EngineSpend` (`arrt/src/arrt/library/discovery/engine.py`,
   which no chunk of this plan owns) and one keyword in `_record_spend`'s call in
-  `arrt/src/arrt/library/discovery/runner.py`, so that "cost not known" travels from the engine to
+  `arrt/src/arrt/library/services/runner.py`, so that "cost not known" travels from the engine to
   the ledger.
 - **2026-11-20 (Chunk 30), two assertions rewritten in test files Chunk 45 owns later, allowed by
   the coordinator:** the parity of the MCP `clients` tool with the browser's route holds except
