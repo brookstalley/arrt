@@ -8,6 +8,7 @@ all.
 """
 
 import re
+from pathlib import Path
 
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate, an_instance
@@ -27,10 +28,27 @@ from playwright.sync_api import expect
 
 RUN_ID = "run-under-test"
 
-#: The client polls every two seconds. Windows below are expressed in whole
-#: polls so they survive a change to that interval being read here rather than
-#: recomputed by hand at each call site.
-POLL_MS = 2000
+#: The client's poll interval, read from `screens/run.js`, which owns it: the
+#: windows below are expressed in whole polls, so they follow a change to it.
+POLL_MS = int(
+    re.search(
+        r"^export const RUN_POLL_MS = (\d+);$",
+        (Path(__file__).resolve().parents[2] / "src/arrt/http/static/screens/run.js").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ).group(1)
+)
+
+#: Counts the timers the page sets at the run poll's interval, over whatever
+#: `setTimeout` is installed when the document starts (the clock's, in the one
+#: test that installs it).
+COUNT_POLL_TIMERS = f"""
+window.__pollTimers = 0;
+const scheduled = window.setTimeout;
+window.setTimeout = function (callback, ms, ...rest) {{
+  if (ms === {POLL_MS}) window.__pollTimers += 1;
+  return scheduled.call(this, callback, ms, ...rest);
+}};
+"""
 
 
 def _text_is(text: str, *, trimmed: bool = False):
@@ -145,22 +163,37 @@ def test_two_concurrent_paints_leave_only_one_poll_chain(at_the_gate):
     is what pins it.
     """
     ui = at_the_gate
+    # The window is the page's clock, not the runner's: installed before the
+    # page loads, every timer the client sets is the clock's, and the test moves
+    # it one poll at a time. Each paint of the run sets one timer for its next
+    # look (`schedulePollUnlessDone`), so the timers set at `POLL_MS` are counted
+    # by a wrapper put over the clock's `setTimeout` (added after the clock, so
+    # it wraps the clock's and not the other way round).
+    ui.page.clock.install()
+    ui.page.add_init_script(COUNT_POLL_TIMERS)
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
+    ui.page.wait_for_function("() => window.__pollTimers === 1")
 
-    before = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
     # A second paint started while the first is still the one on screen — the
     # same collision as pressing Approve during a poll, without the timing
-    # dependence of actually racing a click against one.
+    # dependence of actually racing a click against one. Both land, and each
+    # sets its timer: the superseded one's is the one that must do nothing.
     ui.page.evaluate("() => { refresh(); refresh(); }")
+    ui.page.wait_for_function("() => window.__pollTimers === 3")
 
-    ui.page.wait_for_timeout(POLL_MS * 3 + 500)  # sleep: a rate is a count over a window, and the window is the measure
-    polls = len(ui.requests_matching(f"/api/runs/{RUN_ID}")) - before
+    per_tick = []
+    for tick in range(1, 4):
+        before = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))  # one-shot: the count this tick adds to
+        ui.page.clock.run_for(POLL_MS)
+        # The tick's paint has landed when it has set the next timer, and every
+        # request the tick's timers sent went out before that answer came back.
+        ui.page.wait_for_function("(n) => window.__pollTimers >= n", arg=3 + tick)
+        per_tick.append(len(ui.requests_matching(f"/api/runs/{RUN_ID}")) - before)
 
-    # Two immediate paints, then one chain ticking three times. A second chain
-    # would add three more, so this sits either side of the two outcomes.
-    assert polls <= 6, f"{polls} requests in three polls — a second chain is running"
-    assert polls >= 3, f"only {polls} requests — the poll chain stopped altogether"
+    # One chain asks once a tick; a second would ask twice, and a stopped one
+    # never, so the wait above would have timed out.
+    assert per_tick == [1, 1, 1], f"requests per poll {per_tick}: a second chain is running"
 
 
 def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
