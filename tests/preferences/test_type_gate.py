@@ -1,15 +1,19 @@
 """The type gate: mypy over the curation plane, its ratchet, its strict seam, and where it runs.
 
 `arrt/pyproject.toml`'s `[tool.mypy]` checks the tree at mypy's defaults plus five
-flags, checks the seam between the Library and Programming strictly, and lists by
-name the modules that do not yet check clean (`ignore_errors`). The plan that
-built it is `build-plan-audit-wave-2.md` (Chunk 09, and its DECISION lines).
+flags and checks the seam between the Library and Programming strictly. The plan
+that built it is `build-plan-audit-wave-2.md` (Chunks 09 to 11, and its DECISION
+lines). The ratchet, an `ignore_errors` override naming the modules that did not
+yet check clean, was emptied by Chunk 11 and its block removed: every module is
+checked.
 
-mypy alone holds half of the ratchet: a module outside the list with an error
-fails `uv run mypy`. The other half is here: **a module on the list that checks
-clean fails this test**, so the list only shrinks. It runs mypy once with the
-list taken out of the configuration and compares the modules that report errors
-with the modules listed; a difference in either direction fails by name.
+**What the ratchet test does now.** It runs mypy once with any `ignore_errors`
+override taken out of the configuration and compares the modules that report
+errors with the modules such an override lists. With none listed, **any module
+with an error fails it by name**, as it fails `uv run mypy`. A listed module that
+checks clean fails it too. What it does not refuse: an override put back that
+lists exactly the modules that fail. That would pass here and silence mypy, so it
+is a change to argue in review, not one this test catches.
 
 Reads `arrt/pyproject.toml`, `arrt/uv.lock`, `.github/workflows/tests.yml` and
 `CLAUDE.md`, and runs mypy in `arrt/`'s own environment (`uv run --no-sync`, so a
