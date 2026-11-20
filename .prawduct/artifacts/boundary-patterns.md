@@ -278,7 +278,9 @@
   Protocol**, not 3tears collections — see the build plan's deferral note. The
   Protocol is what keeps that swap a one-module change.
   **Since 2026-11-19 the Protocols are checked, not only written:** the type
-  checker is part of lint, and `arrt/src/arrt/services/conformance.py` states in
+  checker runs on every change (in the governance suite's type gate,
+  `tests/preferences/test_type_gate.py`, not in CI's lint step:
+  `CLAUDE.md` § Dev commands), and `arrt/src/arrt/services/conformance.py` states in
   types that the SQLite adapters satisfy `CatalogueStore`, `ProgrammingStore`,
   `OneCatalogueFile` and `DiscoveryStore`, so an adapter that drifts from its
   Protocol fails `uv run mypy` (`project-preferences.md`, the type-check row).
@@ -490,6 +492,13 @@
   styled runs rather than a string. **A change to this callable's signature must
   enumerate every implementation in `src`, `tools` and `tests` in the same
   commit** — grep the seam, do not rely on the type checker or on red tests.
+  *(Kept 2026-11-20, against Arrt's type gate (audit wave 2b, C32): that gate is
+  `cd arrt && uv run mypy` over `arrt/pyproject.toml`'s `[tool.mypy] files`, which
+  reads this repository and never Arrt Player's `panel/`; and the failure below
+  need not fail a checker at all: a double whose parameter is unannotated, or
+  annotated with the new type, may still call `len()` on it, which is as well-typed
+  for a tuple of runs as for a string. A checker catches a changed arity or a
+  mismatched annotation, not a double that reads the new argument the old way.)*
 - **The enumeration rule is written from the failure, not from caution.** When
   `Measure` was retyped from text to runs on 2026-08-13, one double was missed:
   `FakeSurface._measure` kept calling `len()` on the argument, which now counts a
