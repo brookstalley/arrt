@@ -170,7 +170,7 @@ def journal():
 
 
 async def test_beside_eight_held_status_calls_an_mcp_call_and_an_ask_reply_each_answer_at_once(server_url, services, engine):
-    """The audit's case: as many holds as a four-core machine's default executor had threads."""
+    """As many holds as a four-core machine's default executor had threads, which left both waiting."""
     holds = Holds(server_url, services, engine)
     await holds.start()
     try:
