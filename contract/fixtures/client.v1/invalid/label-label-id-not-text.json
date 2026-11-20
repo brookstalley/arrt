@@ -1,0 +1,12 @@
+{
+  "client_id": "c-mac-study",
+  "name": "The Mac in the study",
+  "walls": [],
+  "labels": [
+    {
+      "label_id": 12345,
+      "output": "epd-0",
+      "wall_id": "w-living"
+    }
+  ]
+}
