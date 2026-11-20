@@ -1514,7 +1514,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
         return None
     names = ", ".join(repr(artist.name) for artist in outcome.duplicate_candidates)
     return (
-        f"A new artist {minted.name!r} was recorded, and the catalogue already holds {names}. They may be "
+        f"A new artist {minted.name!r} was recorded, and the Library already holds {names}. They may be "
         "the same painter under different spellings; matching is exact, because a wrong merge puts another "
         "painter's name on a label and leaves no trace. Both rows stand until someone decides."
     )

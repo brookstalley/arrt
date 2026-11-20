@@ -297,7 +297,7 @@ def test_a_newly_minted_artist_notice_survives_the_repaint(grid):
             minted_artist=an_artist(name="Jacob van Ruisdael"),
             possible_duplicate_artists=[an_artist(artist_id="artist-2", name="Jacob Isaacksz van Ruisdael")],
             notice=(
-                "A new artist 'Jacob van Ruisdael' was recorded, and the catalogue already holds "
+                "A new artist 'Jacob van Ruisdael' was recorded, and the Library already holds "
                 "'Jacob Isaacksz van Ruisdael'. They may be the same painter."
             ),
         ),

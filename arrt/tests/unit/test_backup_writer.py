@@ -92,7 +92,7 @@ def test_a_generation_holds_the_catalogue_and_the_receipt_says_when(job, catalog
     reading = backup.read(catalogue.parent / BACKUP_RECEIPT_FILENAME, now=done + timedelta(hours=1))
     assert reading.problem is None
     assert reading.completed_at == done
-    assert reading.describe().startswith("The catalogue was last backed up")
+    assert reading.describe().startswith("The Library was last backed up")
 
 
 def test_a_failed_pass_leaves_the_last_receipt_and_no_half_copy(job, catalogue, clock, monkeypatch):

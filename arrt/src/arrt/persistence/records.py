@@ -1042,4 +1042,4 @@ class BackupReading:
             return f"The backup record at {self.path} could not be read: {self.problem}"
         if self.age_seconds is None:
             return f"No backup has been recorded at {self.path}; nothing has written one yet."
-        return f"The catalogue was last backed up {observations.ago(self.age_seconds)}."
+        return f"The Library was last backed up {observations.ago(self.age_seconds)}."

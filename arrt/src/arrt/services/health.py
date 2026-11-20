@@ -584,7 +584,7 @@ def _backup_troubles(reading: BackupReading) -> list[Trouble]:
     if reading.problem is not None:
         return [Trouble(TroubleKind.BACKUP, None, None, "The backup record cannot be read")]
     if reading.absent:
-        return [Trouble(TroubleKind.BACKUP, None, None, "The catalogue has never been backed up")]
+        return [Trouble(TroubleKind.BACKUP, None, None, "The Library has never been backed up")]
     return []
 
 

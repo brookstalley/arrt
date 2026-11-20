@@ -494,7 +494,7 @@ async def test_the_status_carries_the_health_models_readings_value_for_value(
         hall: "not_heard_from",
         untokened: "no_token",
     }
-    # A fresh catalogue has never been backed up, which is a trouble too; the rest are this case's.
+    # A fresh Library has never been backed up, which is a trouble too; the rest are this case's.
     assert [(t["about"], t["subject"]) for t in tool["troubles"]] == [
         ("player", hall),
         ("backup", None),
