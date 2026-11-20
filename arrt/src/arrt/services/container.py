@@ -474,7 +474,7 @@ class Services:
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
             registry_search=RegistrySearchService(
-                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service
+                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service, pictures=catalogue_service
             ),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             look=LookService(

@@ -442,9 +442,7 @@ class HealthReading:
                 elif seen.state.state in display_state.TROUBLES and (view := waiting.get(seen.wall.id)) is not None:
                     # Its Player's setup state, not the wall's `silent`: the step
                     # is the Player's, and a setup step carries a setup state.
-                    found.append(
-                        SetupStep(SetupKind.WALL, seen.wall.id, str(view.player.state), _waiting_words(seen.wall, view))
-                    )
+                    found.append(SetupStep(SetupKind.WALL, seen.wall.id, str(view.player.state), _waiting_words(seen.wall, view)))
         for view in self.players:
             if view.player.state in player_state.SETUP:
                 found.append(SetupStep(SetupKind.PLAYER, view.client.id, str(view.player.state), _setup_words(view)))
