@@ -534,7 +534,7 @@ async def test_status_says_plainly_that_a_walls_player_has_never_reported(server
     assert reading["has_reported"] is False
     assert "display_plane_has_reported" not in reading, "the name wave 2b retired came back"
     assert reading["age_seconds"] is None
-    assert "has not reported yet" in reading["observation"]
+    assert "no Player has reported for this wall yet" in reading["observation"]
     assert payload["observation"] == (
         f"{reading['wall_name']!r} has not reported. Each wall's own reading says whether nothing was ever "
         "written, what could not be read, or when it last reported."

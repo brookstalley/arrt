@@ -240,7 +240,9 @@ class TestTheTwoReadings:
         path.write_text(json.dumps({"reported_at": (NOW - timedelta(minutes=3)).isoformat()}), encoding="utf-8")
         present = heartbeat.read(path, now=NOW).describe()
 
-        assert absent == f"No heartbeat file exists at {path}; this wall's Player has not reported yet."
+        # Absent, it names no Player as "this wall's": the file cannot say the
+        # wall has one, and a wall no Player shows has none to have not reported.
+        assert absent == f"No heartbeat file exists at {path}; no Player has reported for this wall yet."
         assert present == "This wall's Player last reported 3 minutes ago."
         assert not any("plane" in sentence for sentence in (absent, present))
 

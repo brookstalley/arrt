@@ -15,7 +15,7 @@ import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS, Admission, PlayerAccess
-from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.programming.client_heartbeat import MAX_OUTPUTS, client_heartbeat_path_in
 from arrt.programming.display_state import ScreenState
 from arrt.programming.player_state import PlayerState
 from arrt.services.errors import ServiceError
@@ -216,6 +216,29 @@ def test_refusals_are_logged_once_per_subject_per_interval(store, clients, pi, w
     assert not any("stale" in message or other_token in message for message in messages)
 
 
+def test_a_refusal_and_a_token_issued_each_carry_an_event_and_never_the_token(store, clients, pi, wall_id, caplog):
+    """Every line a dashboard reads carries an event field (`observability-strategy.md`); the token is in no field."""
+    access = PlayerAccess(store, clients.placements, clock=lambda: 0.0)
+    clients.assign_wall(wall_id, client_id=pi.id, output="frame")
+    other = clients.add_client(name="The Pi in the study")
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.access"):
+        token = access.issue(other.id).token
+        access.admit(wall_id, "stale")
+        access.admit(wall_id, token)
+
+    lines = [record for record in caplog.records if record.name == "arrt.programming.access"]
+    assert [getattr(record, "event", None) for record in lines] == [
+        "client.token_issued",
+        "client.request_refused",
+        "client.request_refused",
+    ]
+    assert lines[0].client_id == other.id
+    assert [record.subject for record in lines[1:]] == ["an unknown client", "client 'The Pi in the study'"]
+    for record in lines:
+        assert token not in repr(record.__dict__), "the token reached a log record"
+
+
 # -- assignment -------------------------------------------------------------------------
 
 
@@ -388,6 +411,35 @@ def test_a_report_this_server_cannot_read_is_refused_and_not_written(clients, pi
     assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
 
 
+def _screens(count):
+    return [{"name": f"hdmi-a-{n}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for n in range(count)]
+
+
+def _panels(count):
+    return [{"name": f"panel-{n}", "kind": "epaper", "connected": True, "size": [800, 480]} for n in range(count)]
+
+
+@pytest.mark.parametrize(
+    ("key", "many", "word"),
+    [("outputs", _screens, "outputs"), ("label_outputs", _panels, "label outputs")],
+    ids=["outputs", "labels"],
+)
+def test_a_report_of_more_outputs_than_the_cap_is_refused_by_name_and_keeps_nothing(
+    clients, pi, wall_settings, services, key, many, word
+):
+    """Audit-8 F10: every output a report names can become a row the server keeps; one report may name at most the cap."""
+    displays_before = len(services.clients.placements.survey().displays)
+
+    with pytest.raises(ServiceError, match=rf"at most {MAX_OUTPUTS} {word}, and this report carries {MAX_OUTPUTS + 1}\."):
+        clients.record_heartbeat(pi.id, {**_REPORT, key: many(MAX_OUTPUTS + 1)})
+
+    assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
+    assert len(services.clients.placements.survey().displays) == displays_before
+    # The cap itself is a report a Player may send.
+    clients.record_heartbeat(pi.id, {**_REPORT, key: many(MAX_OUTPUTS)})
+    assert client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
+
+
 def test_a_report_from_an_unknown_client_is_refused(clients):
     with pytest.raises(ServiceError, match="No client with id 'nobody'"):
         clients.record_heartbeat("nobody", _REPORT)
@@ -412,6 +464,8 @@ def test_a_display_two_players_report_is_a_trouble_though_its_wall_reads_unassig
     assert [(t.about, t.subject, t.words) for t in reading.troubles() if t.about in {"wall", "display_fault"}] == [
         ("display_fault", "uuid:the-one-frame", "The Pi in the hall and The Pi in the study both report one display")
     ]
+    # Nor is the wall a setup step: "has no Player yet" would be false of it.
+    assert wall_id not in {step.subject for step in reading.setup_steps()}
 
 
 def test_players_being_set_up_are_on_the_health_reading_and_not_among_its_troubles(services, clients, pi, access):

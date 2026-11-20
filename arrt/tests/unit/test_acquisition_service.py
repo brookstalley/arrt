@@ -7,6 +7,7 @@ rather than a fault, and what the catalogue holds afterwards.
 
 import errno
 import logging
+import re
 import sqlite3
 import stat
 from contextlib import contextmanager
@@ -16,7 +17,9 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.acquisition.service import (
+    DEPLOYMENT_REMEDIES,
     AcquisitionOutcome,
     AcquisitionService,
     AcquisitionSettings,
@@ -570,6 +573,49 @@ class TestTiledAcquisition:
         assert service.get_original(work.id) is not None
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is FetchStatus.PARTIAL_TILES
+
+    def test_a_tile_fetch_onto_a_full_disk_pauses_the_queue_saying_the_disk_is_full(self, service, store, acq_settings, tmp_path):
+        """Through the queue, as a household meets it: a pause whose detail says the disk is full, no failure counted.
+
+        The stand-in writes the truncated file and the two last lines
+        `dezoomify-rs 2.18.1` wrote on a full disk, copied from an observed run
+        (`test_acquisition_dezoomify.py`'s `FULL_DISK_LINES`). Until this, the
+        file alone decided, and a truncated image was recorded as partial.
+        """
+        from dataclasses import replace
+
+        from arrt.library.acquisition.queue import AcquisitionQueue, QueuePause
+
+        (tmp_path / "seed.jpg").write_bytes(_jpeg_bytes(200, 150))
+        lines = (
+            "[WARN ] Error when finalizing image: No space left on device (os error 28)",
+            "[ERROR] Input/Output error: No space left on device (os error 28)",
+        )
+        binary = self._binary(
+            tmp_path,
+            f'head -c 600 "{tmp_path / "seed.jpg"}" > "$(eval echo \\${{$#}})"\n'
+            + "".join(f"printf '%s\\n' '{line}' >&2\n" for line in lines)
+            + "exit 1\n",
+        )
+        work, source = self._tiled_work(service)
+        acquisition = _acquisition(service, replace(acq_settings, tile_binary=binary), _serves(b""))
+
+        class _NeverPrepared:
+            def prepare(self, artwork_id, *, force=False):
+                raise AssertionError("nothing was fetched, so nothing is prepared")
+
+        queue = AcquisitionQueue(store, service, acquisition, _NeverPrepared())
+        passed = queue.run()
+
+        assert isinstance(passed.paused, QueuePause)
+        assert passed.paused.condition == "ENOSPC"
+        assert "the disk is full" in passed.paused.detail
+        assert passed.paused.remedy is not None
+        assert "is full" in passed.paused.remedy
+        assert (passed.failed, passed.gave_up) == (0, 0), "the disk's fault was counted against the work"
+        assert service.get_original(work.id) is None
+        refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
+        assert refreshed.last_fetch_status is None
 
     def test_a_completed_fetch_reclaims_its_tile_cache(self, service, acq_settings, tmp_path):
         from dataclasses import replace
@@ -1319,3 +1365,22 @@ class TestReadingAnOutcomeBack:
         source = sqlite_store._source(self._row(last_fetch_status="failed"))
 
         assert source.last_fetch_outcome is None
+
+
+# -- the remedies a household page shows --------------------------------------
+
+
+@pytest.mark.parametrize("condition", sorted(DEPLOYMENT_REMEDIES))
+def test_no_remedy_a_household_page_shows_names_a_setting(condition):
+    """The Work page, Activity › Queue and MCP show a paused work's remedy; none of them names a setting.
+
+    Read as those surfaces read it, through a paused work's state, and driven
+    from `DEPLOYMENT_REMEDIES` itself so a remedy added later is held too. A
+    setting is an upper-case word with an underscore, or the `.env` file: the
+    setup notes' and the journal's, not the household's (audit-6 finding 8, the
+    owner's ruling of 2026-10-11).
+    """
+    remedy = AcquisitionState("w-1", AcquisitionPhase.PAUSED, condition=condition).remedy
+
+    assert remedy is not None
+    assert not re.search(r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\.env\b", remedy), remedy

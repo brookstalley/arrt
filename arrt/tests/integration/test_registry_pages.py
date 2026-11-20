@@ -32,6 +32,7 @@ from arrt.library.services.registry_search import RegistrySearchService, Registr
 from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
 from arrt.persistence.discovery_records import ResolutionStatus, Verdict
 from arrt.persistence.kept import KeptAnswers
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 ROTHKO = "Q160149"
 BRUEGEL = "Q43270"
@@ -100,6 +101,29 @@ def held(services, service):
     services.identity.set_work_identity(kept.id, HELD_ROTHKO)
     services.identity.set_artist_identity(rothko.id, ROTHKO)
     return rothko, kept
+
+
+def _hold_a_master(service, artwork_id):
+    """Record a master image for the work, as an acquisition would leave it."""
+    source = service.add_source(
+        artwork_id=artwork_id,
+        url=f"https://museum.example/{artwork_id}.jpg",
+        provider="gallery_site",
+        source_class=SourceClass.CONTEMPORARY_WEB,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=artwork_id,
+        source_id=source.id,
+        path=f"raw/{artwork_id}.jpg",
+        width=4000,
+        height=3000,
+        byte_size=1_000,
+        content_hash=f"hash-{artwork_id}",
+        fetch_status=FetchStatus.OK,
+    )
 
 
 @pytest.fixture
@@ -243,6 +267,19 @@ class TestAnArtistByQid:
         assert (page["state"], page["artist_id"]) == ("known", None)
         assert (page["name"], page["born"], page["died"]) == ("Pieter Brueghel the Elder", 1525, 1569)
         assert [(work["qid"], work["held_artwork_ids"]) for work in page["works"]] == [(HUNTERS, [])]
+
+    def test_a_held_row_pictures_itself_by_the_held_work_that_holds_a_master(self, http, service):
+        """`pictured_artwork_id`: never a held work with no master, whose thumbnail the server would refuse."""
+        without = service.add_artwork(title="The Hunters in the Snow", wikidata_qid=HUNTERS)
+        pictured = service.add_artwork(title="The Hunters in the Snow (again)", wikidata_qid=HUNTERS)
+
+        def row():
+            [found] = http.get(f"/api/registry/artists/{BRUEGEL}").raise_for_status().json()["works"]
+            return found["held_artwork_ids"], found["pictured_artwork_id"]
+
+        assert row() == ([without.id, pictured.id], None)
+        _hold_a_master(service, pictured.id)
+        assert row() == ([without.id, pictured.id], pictured.id)
 
     def test_a_held_artist_names_their_library_page(self, http, held):
         rothko, _kept = held

@@ -548,6 +548,18 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         return self._store.get_original(artwork_id)
 
+    def pictured(self, artwork_ids: Sequence[str]) -> str | None:
+        """The first of these works that holds a master image, whose thumbnail can be made; None when none does.
+
+        What a registry row that is held pictures itself by, so a page asks for
+        no thumbnail the server would refuse and says *No picture* instead. An
+        id the catalogue does not hold pictures nothing rather than refusing:
+        the rows were matched a moment before, and a work archived since is no
+        reason to fail the page.
+        """
+        with self._store.reading():
+            return next((artwork_id for artwork_id in artwork_ids if self._store.get_original(artwork_id) is not None), None)
+
     def fit(self, artwork_id: str, *, profile: QualityProfile) -> Fit:
         """Judge the work's held original against the quality profile."""
         original = self.get_original(artwork_id)
@@ -807,15 +819,21 @@ class CatalogueService:
         *,
         kinds: Sequence[EventKind | str] = (),
         wall_id: str | None = None,
+        work_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> EventPage:
-        """What happened, newest first: every kind named (all of them when none is), on one wall if one is named.
+        """What happened, newest first: every kind named (all of them when none is), on one wall and of one work if named.
 
         A wall's history is every event naming it, which today is what was hung
         there and what was kept off it from there. The wall is not checked: an
         id no wall carries has no history, which is an answer rather than a
         fault, and the Library cannot see Programming's walls to say otherwise.
+
+        A work's history is every event naming it: its acceptance from a Get,
+        its archive and restore, and what kept it off walls. Not checked
+        either, for the history's own reason: it outlives what it names, so a
+        work since deleted still has the history it had.
         """
         resolved = tuple(dict.fromkeys(require_member(kind, enum=EventKind, field="kind") for kind in kinds))
         resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
@@ -823,7 +841,19 @@ class CatalogueService:
             raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")
         if offset < 0:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
-        return self._store.list_events(kinds=resolved, wall_id=wall_id, limit=resolved_limit, offset=offset)
+        return self._store.list_events(kinds=resolved, wall_id=wall_id, work_id=work_id, limit=resolved_limit, offset=offset)
+
+    def get_that_brought(self, artwork_id: str) -> HistoryEvent | None:
+        """The acceptance that made this work one of the Library's, naming the Get it came from; None when none is recorded.
+
+        Read from the history (`EventKind.ACCEPTED`, whose `run_id` is the
+        Get's), so it is known for every work accepted since the history
+        arrived and for none before it, and for no work that came some other
+        way (added by hand, or seeded). The newest, should one ever be
+        recorded twice.
+        """
+        page = self._store.list_events(kinds=(EventKind.ACCEPTED,), work_id=artwork_id, limit=1, offset=0)
+        return page.events[0] if page.events else None
 
     # -- what a work is -------------------------------------------------------
 

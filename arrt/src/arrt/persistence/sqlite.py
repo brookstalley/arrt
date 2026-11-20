@@ -1011,7 +1011,7 @@ class SqliteCatalogue(TableAdapter):
         # which then fall back to when the work was catalogued; `rowid` breaks a
         # tie within one clock tick.
         rows = self._store.select_rows(
-            'SELECT a."id" AS work_id, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
+            'SELECT a."id" AS work_id, a."wikidata_qid" AS work_qid, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
             'q."failures", q."next_try_at", q."detail", q."source_id", '
             'q."outcome", q."plugin", q."settled_qid", q."failed_at" '
             "FROM artworks a "
@@ -1026,6 +1026,7 @@ class SqliteCatalogue(TableAdapter):
                 artwork_id=row["work_id"],
                 holds_original=bool(row["held"]),
                 queued=None if row["queued_id"] is None else _queued({**row, "artwork_id": row["queued_id"]}),
+                wikidata_qid=row["work_qid"],
             )
             for row in rows
         ]
@@ -1321,7 +1322,15 @@ class SqliteCatalogue(TableAdapter):
     def add_event(self, event: HistoryEvent) -> None:
         self._add("history_events", _event_row(event), subject=f"the {event.kind} event {event.id!r}")
 
-    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind] = (),
+        wall_id: str | None = None,
+        work_id: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> EventPage:
         clauses: list[str] = []
         values: list[Any] = []
         if kinds:
@@ -1330,6 +1339,9 @@ class SqliteCatalogue(TableAdapter):
         if wall_id is not None:
             clauses.append("wall_id = ?")
             values.append(wall_id)
+        if work_id is not None:
+            clauses.append("work_id = ?")
+            values.append(work_id)
         where = " AND ".join(clauses) if clauses else "1"
         # Counted from the same clause as the page, so the total describes the
         # rows beside it. `rowid` breaks a tie between two acts in one clock tick

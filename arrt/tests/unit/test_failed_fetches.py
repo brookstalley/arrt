@@ -1,20 +1,23 @@
 """The failed fetches the health reading counts, from the real queue, with the newest failure's age.
 
 Driven through a real `AcquisitionQueue` over the catalogue, with a fetcher that
-fails and a clock the test moves, because the newest failure's instant is read
-back from the queue's retry schedule (`services/health.py`'s `failure_instant`):
-a change to that schedule must turn this red while the derivation lives.
+fails and a clock the test moves. The newest failure's instant is the queue's
+own `failed_at`, written at every failure whatever its outcome; only a row
+written before that column existed has its instant read back from the retry
+schedule (`services/health.py`'s `failure_instant`), so those rows are seeded
+here as such a release left them.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 
 from arrt.library.acquisition.queue import GIVE_UP_AFTER, AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
-from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from arrt.services.health import HealthService, failed_fetches, failed_states
+from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.services.health import HealthService, failed_fetches
 
 START = datetime(2026, 11, 19, 9, 0, tzinfo=UTC)
 
@@ -55,8 +58,8 @@ def queue(store, service, clock):
 
 @pytest.fixture
 def work(service):
-    def _work(title):
-        artwork = service.add_artwork(title=title)
+    def _work(title, qid=None):
+        artwork = service.add_artwork(title=title, wikidata_qid=qid)
         service.add_source(
             artwork_id=artwork.id,
             url=f"https://gallery.example.com/{artwork.id}.jpg",
@@ -81,10 +84,10 @@ def _fail_until_due_again(queue, clock, *, passes: int) -> None:
 
 
 def test_no_failed_work_is_no_observation(queue, clock):
-    assert failed_fetches(failed_states(queue.listing()), now=clock.now) is None
+    assert failed_fetches(queue.failed_states(), now=clock.now) is None
 
 
-def test_the_newest_failures_age_is_read_from_the_real_queues_schedule(queue, clock, work):
+def test_the_newest_failures_age_is_the_real_queues_record_of_it(queue, clock, work):
     """Two works fail at different instants: the count is both, the age the later one's."""
     work("Nighthawks")
     queue.run()
@@ -93,7 +96,7 @@ def test_the_newest_failures_age_is_read_from_the_real_queues_schedule(queue, cl
     queue.run()
     clock.now = START + timedelta(minutes=50)
 
-    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
+    found = failed_fetches(queue.failed_states(), now=clock.now)
 
     assert found is not None
     assert (found.count, found.will_retry, found.given_up, found.age_unknown) == (2, 2, 0, 0)
@@ -110,7 +113,7 @@ def test_a_work_failed_twice_is_aged_from_its_second_failure(queue, clock, work)
     clock.now = second + timedelta(hours=2)
 
     [state] = [entry.state for entry in queue.listing().entries]
-    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
+    found = failed_fetches(queue.failed_states(), now=clock.now)
 
     assert state.failures == 2
     assert found is not None
@@ -118,13 +121,36 @@ def test_a_work_failed_twice_is_aged_from_its_second_failure(queue, clock, work)
     assert found.newest_age_seconds == 2 * 3600
 
 
-def test_every_failed_work_given_up_on_is_counted_with_its_age_not_known(queue, clock, work):
-    """'2 failed, when is not recorded' reads apart from '2 failed, newest an hour ago'."""
+def _as_before_the_column(store, artwork_id) -> None:
+    """The work's queue row as a release that recorded no `failed_at` left it."""
+    queued = store.get_queued_acquisition(artwork_id)
+    store.set_queued_acquisition(replace(queued, failed_at=None))
+
+
+def test_every_failed_work_given_up_on_is_aged_from_its_recorded_failure(queue, clock, work):
+    """Given up on, so no next try to read an instant from: the queue's `failed_at` is what ages it."""
     work("Nighthawks")
     work("Automat")
     _fail_until_due_again(queue, clock, passes=GIVE_UP_AFTER)
+    last = clock.now
+    clock.now += timedelta(hours=3)
 
-    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
+    found = failed_fetches(queue.failed_states(), now=clock.now)
+
+    assert found is not None
+    assert (found.count, found.will_retry, found.given_up) == (2, 0, 2)
+    assert (found.newest_failed_at, found.newest_age_seconds, found.age_unknown) == (last, 3 * 3600, 0)
+    assert found.describe() == "The queue holds 2 works whose picture could not be fetched; the newest failed 3 hours ago."
+
+
+def test_works_given_up_on_before_the_queue_recorded_when_are_counted_with_their_age_not_known(queue, clock, work, store):
+    """'2 failed, when is not recorded' reads apart from '2 failed, newest an hour ago': no instant is guessed."""
+    ids = [work("Nighthawks"), work("Automat")]
+    _fail_until_due_again(queue, clock, passes=GIVE_UP_AFTER)
+    for artwork_id in ids:
+        _as_before_the_column(store, artwork_id)
+
+    found = failed_fetches(queue.failed_states(), now=clock.now)
 
     assert found is not None
     assert (found.count, found.will_retry, found.given_up) == (2, 0, 2)
@@ -134,20 +160,143 @@ def test_every_failed_work_given_up_on_is_counted_with_its_age_not_known(queue, 
     )
 
 
-def test_a_mix_says_how_many_failed_at_a_time_not_recorded(queue, clock, work):
-    work("Nighthawks")
+def test_a_row_from_before_the_column_still_being_retried_is_aged_from_its_schedule(queue, clock, work, store):
+    """The derivation kept for old rows: `next_try_at` less the schedule's step."""
+    failed = work("Nighthawks")
+    queue.run()
+    _as_before_the_column(store, failed)
+    clock.now += timedelta(minutes=10)
+
+    found = failed_fetches(queue.failed_states(), now=clock.now)
+
+    assert found is not None
+    assert (found.newest_failed_at, found.newest_age_seconds, found.age_unknown) == (START, 600, 0)
+
+
+def test_a_mix_says_how_many_failed_at_a_time_not_recorded(queue, clock, work, store):
+    old = work("Nighthawks")
     _fail_until_due_again(queue, clock, passes=GIVE_UP_AFTER)
+    _as_before_the_column(store, old)
     work("Automat")
     queue.run()
     clock.now += timedelta(minutes=5)
 
-    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
+    found = failed_fetches(queue.failed_states(), now=clock.now)
 
     assert found is not None
     assert (found.count, found.age_unknown, found.newest_age_seconds) == (2, 1, 300)
     assert found.describe().endswith(
         "the newest whose time is recorded failed 5 minutes ago, and 1 failed at a time not recorded."
     )
+
+
+@dataclass
+class Saying:
+    """Stands where `AcquisitionService.acquire` does: each work's fetch fails saying its own outcome, at one plugin.
+
+    A work the test did not name (the served deployment seeds some) fails saying
+    `otherwise`, and is kept in `others` so a count can include it.
+    """
+
+    outcomes: dict = field(default_factory=dict)
+    otherwise: FetchOutcome = FetchOutcome.FAILED
+    others: list = field(default_factory=list)
+
+    def acquire(self, artwork_id, *, source_id=None):
+        if artwork_id not in self.outcomes:
+            self.others.append(artwork_id)
+            self.outcomes[artwork_id] = self.otherwise
+        return AcquisitionResult(
+            artwork_id=artwork_id,
+            source_id=None,
+            outcome=AcquisitionOutcome.FAILED,
+            detail="it said so",
+            fetch_outcome=self.outcomes[artwork_id],
+            plugin="tate",
+        )
+
+
+#: Every outcome a failure can say (`FetchOutcome` less the two that hold an image).
+FAILURES = tuple(outcome for outcome in FetchOutcome if outcome not in {FetchOutcome.OK, FetchOutcome.PARTIAL_TILES})
+
+
+def test_the_queues_failed_states_are_its_listings_failed_and_given_up_entries(store, service, clock, work):
+    """The cheap read and the Queue page's, alike: one work per outcome, settled ones with and without an item, one in line.
+
+    A settled work with a Wikidata item is compared against the item its row
+    was settled on, which the cheap read takes from `works_to_acquire`'s row.
+    """
+    fetcher = Saying()
+    queue = AcquisitionQueue(store, service, fetcher, NeverPrepared(), clock=clock)
+    for outcome in FAILURES:
+        fetcher.outcomes[work(f"Said {outcome}")] = outcome
+    for index, outcome in enumerate((FetchOutcome.NONE_HELD, FetchOutcome.LINK_GONE)):
+        fetcher.outcomes[work(f"Settled on an item, {outcome}", qid=f"Q{index + 1}")] = outcome
+    queue.run()
+    in_line = work("Not tried yet")
+    fetcher.outcomes[in_line] = FetchOutcome.FAILED
+
+    listed = {
+        entry.state.artwork_id: replace(entry.state, detail=None) for cause in queue.listing().causes for entry in cause.entries
+    }
+    states = {state.artwork_id: replace(state, detail=None) for state in queue.failed_states()}
+
+    assert set(listed) == set(fetcher.outcomes) - {in_line}, "the listing itself changed: rebuild the case"
+    assert states == listed
+
+
+def test_the_queues_failed_states_read_no_title(store, service, clock, work, monkeypatch):
+    """What makes it cheap: not one `get_artwork` per work, which the listing needs for each title."""
+    fetcher = Saying()
+    queue = AcquisitionQueue(store, service, fetcher, NeverPrepared(), clock=clock)
+    for outcome in FAILURES:
+        fetcher.outcomes[work(f"Said {outcome}")] = outcome
+    queue.run()
+    reads = []
+    original = store.get_artwork
+    monkeypatch.setattr(store, "get_artwork", lambda artwork_id: reads.append(artwork_id) or original(artwork_id))
+
+    assert len(queue.failed_states()) == len(FAILURES)
+    assert reads == []
+
+
+@pytest.mark.parametrize("outcome", FAILURES, ids=str)
+def test_through_the_route_every_recorded_failure_is_aged_whatever_it_said(outcome, server_url, store, service, work):
+    """`GET /api/health`, one work failing with `outcome` and one given up on before `failed_at` was recorded.
+
+    Under the retry rules an `unasked` or `faulted` failure has no next try and
+    a `none_held` or `link_gone` one is settled, so none of them can be aged
+    from the schedule: only the queue's `failed_at` ages them. The old row is
+    the one whose age truly is not recorded.
+    """
+    old = work("Before the column")
+    store.set_queued_acquisition(QueuedAcquisition(artwork_id=old, failures=GIVE_UP_AFTER, detail="a 404.", failed_at=None))
+    # After the server's queue was made, so a fault recorded now is under this load.
+    at = datetime.now(UTC)
+    fetcher = Saying({work(f"Said {outcome}"): outcome}, otherwise=outcome)
+    AcquisitionQueue(store, service, fetcher, NeverPrepared(), clock=lambda: at).run()
+
+    found = httpx.get(f"{server_url}/api/health", timeout=30.0).json()["failed_fetches"]
+
+    assert (found["count"], found["age_unknown"]) == (2 + len(fetcher.others), 1)
+    assert datetime.fromisoformat(found["newest_failed_at"]) == at
+    assert found["newest_age_seconds"] == pytest.approx((datetime.now(UTC) - at).total_seconds(), abs=30)
+
+
+def test_through_the_route_only_the_row_from_before_the_column_is_unaged(server_url, store, service, work):
+    """Every outcome at once: six failed works, and one counted as not recorded."""
+    old = work("Before the column")
+    store.set_queued_acquisition(QueuedAcquisition(artwork_id=old, failures=GIVE_UP_AFTER, detail="a 404.", failed_at=None))
+    fetcher = Saying()
+    for outcome in FAILURES:
+        fetcher.outcomes[work(f"Said {outcome}")] = outcome
+    AcquisitionQueue(store, service, fetcher, NeverPrepared()).run()
+
+    found = httpx.get(f"{server_url}/api/health", timeout=30.0).json()["failed_fetches"]
+    queued = httpx.get(f"{server_url}/api/acquisitions", timeout=30.0).json()
+
+    assert (found["count"], found["age_unknown"]) == (len(FAILURES) + 1 + len(fetcher.others), 1)
+    assert found["count"] == queued["failing"]
 
 
 def test_the_count_is_the_queue_pages_own(queue, clock, work):
@@ -157,7 +306,7 @@ def test_the_count_is_the_queue_pages_own(queue, clock, work):
     queue.run()
 
     listing = queue.listing()
-    found = failed_fetches(failed_states(listing), now=clock.now)
+    found = failed_fetches(queue.failed_states(), now=clock.now)
 
     assert found is not None
     assert found.count == sum(cause.failed + cause.gave_up for cause in listing.causes) == 3
@@ -175,7 +324,7 @@ def test_the_health_service_observes_the_queue_it_is_given(queue, clock, work, s
         yields=dict,
         pictures=services.health._pictures,
         watches=services.health._watches,
-        queue=queue.listing,
+        queue=queue.failed_states,
         now=clock,
     )
 

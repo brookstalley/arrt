@@ -502,6 +502,13 @@ HEALTH_READINGS_MCP_STATUS_DOES_NOT_PLACE_YET = frozenset({"players", "failed_fe
 #: `test_client_tools.py` holds the two listings to it with `check_not_yet_on_mcp`.
 CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"state", "settings_url"})
 
+#: Fields each registry row of an artist's works and a topic's works answers
+#: over HTTP that `art_discovery`'s `artist` and `topic` rows do not yet: the
+#: held work the row pictures itself by (wave 2b, Chunk 40). Chunk 53 gives the
+#: MCP rows their twin and removes this; `test_registry_tools.py` holds the two
+#: payloads to it with `check_not_yet_on_mcp`, row by row.
+REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"pictured_artwork_id"})
+
 
 def check_not_yet_on_mcp(record: str, mcp: set[str], http: set[str], not_yet: frozenset[str]) -> None:
     """Raise unless the two surfaces agree but for `not_yet`, each of which HTTP answers and MCP does not.

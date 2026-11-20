@@ -456,8 +456,8 @@ async def test_a_missing_tile_binary_pauses_the_queue_and_names_its_remedy(serve
 
     assert state["phase"] == "paused"
     assert state["condition"] == "DezoomifyUnavailable"
-    assert "deployment problem" in state["remedy"]
-    assert "DEZOOMIFY_PATH" in state["remedy"]
+    assert "This server is not set up to fetch pictures a museum serves in tiles" in state["remedy"]
+    assert "no source is at fault" in state["remedy"]
     assert state["failures"] == 0, "a deployment fault was counted against the work"
 
 
@@ -476,7 +476,7 @@ async def test_an_unresolvable_provider_pauses_the_queue_and_names_its_remedy(se
     state = await _paused_on(server_url, services, work, primary)
 
     assert state["phase"] == "paused"
-    assert "ARTIC_USER_AGENT" in state["remedy"]
+    assert "System › Status lists the plugin and what it is missing" in state["remedy"]
     # The remedy has to say the sources are fine, or its reader goes to the museum.
     assert "no source is at fault" in state["remedy"]
 

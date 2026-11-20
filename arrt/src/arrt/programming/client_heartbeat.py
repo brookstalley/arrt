@@ -30,6 +30,14 @@ CLIENT_HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "client-heartbeat-{client_id}.j
 #: The key carrying the instant, spelled as the wall heartbeat spells it.
 REPORTED_AT_KEY: Final[str] = "reported_at"
 
+#: How many outputs, and how many label outputs, one report may carry. Each one
+#: a report names can become a row the server keeps (`clients.py`), so a token
+#: holder could otherwise have it keep as many as a 256 KiB body holds
+#: (audit-8 F10). Far above any Player: a Pi drives two screens and a handful of
+#: panels. The contract's schema states no ceiling, so a report over this one
+#: is refused whole, by name, rather than read in part.
+MAX_OUTPUTS: Final[int] = 32
+
 #: The output kinds `player-contract.md` names: a Samsung Frame's own art store,
 #: and a screen the client draws to itself.
 OUTPUT_KINDS: Final[frozenset[str]] = frozenset({"frame", "framebuffer"})
@@ -160,9 +168,14 @@ def problem_with(document: object) -> str | None:
     instant = document.get(REPORTED_AT_KEY)
     if not isinstance(instant, str) or _INSTANT.fullmatch(instant) is None:
         return f"it carries {REPORTED_AT_KEY!r} as an RFC 3339 timestamp with an offset."
-    outputs = document.get("outputs")
+    return _problem_with_outputs(document.get("outputs")) or _problem_with_label_outputs(document)
+
+
+def _problem_with_outputs(outputs: object) -> str | None:
     if not isinstance(outputs, list):
         return "it carries 'outputs', a list of the Player's outputs (which may be empty)."
+    if len(outputs) > MAX_OUTPUTS:
+        return f"a Player may report at most {MAX_OUTPUTS} outputs, and this report carries {len(outputs)}."
     seen: set[str] = set()
     for index, output in enumerate(outputs):
         problem = _problem_with_output(output)
@@ -171,7 +184,7 @@ def problem_with(document: object) -> str | None:
         if output["name"] in seen:
             return f"two outputs are both called {output['name']!r}; an output's name is how a wall is placed on it."
         seen.add(output["name"])
-    return _problem_with_label_outputs(document)
+    return None
 
 
 def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
@@ -180,6 +193,8 @@ def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
     label_outputs = document["label_outputs"]
     if not isinstance(label_outputs, list):
         return "'label_outputs' is a list of the Player's label outputs, when it carries one."
+    if len(label_outputs) > MAX_OUTPUTS:
+        return f"a Player may report at most {MAX_OUTPUTS} label outputs, and this report carries {len(label_outputs)}."
     seen: set[str] = set()
     for index, label_output in enumerate(label_outputs):
         problem = _problem_with_label_output(label_output)

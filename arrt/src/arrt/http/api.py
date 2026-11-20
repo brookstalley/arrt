@@ -22,7 +22,7 @@ that safe.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -147,6 +147,7 @@ from arrt.http.models import (
     SetSetting,
     SettingListOut,
     SettingOut,
+    SetupStepOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -200,6 +201,7 @@ from arrt.http.models import (
     WatchOut,
     WorkDetailOut,
     WorkFacetOut,
+    WorkGetOut,
     WorkMatchesOut,
     WorkMatchOut,
     WorkMatOut,
@@ -464,8 +466,9 @@ def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
 
 @router.get("/works/{artwork_id}")
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
-    """One work in full — metadata, artist, sources, renditions and mats."""
-    return _dossier(_services(request).survey.get_work(artwork_id))
+    """One work in full — metadata, artist, sources, renditions and mats, and the Get it came from."""
+    services = _services(request)
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/acquisition/retry")
@@ -564,7 +567,7 @@ def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> W
     """
     services = _services(request)
     services.identity.set_work_identity(artwork_id, body.qid)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.get("/artists")
@@ -597,7 +600,8 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
     configured, cannot be asked, or has nothing for this artist is a state the
     page shows, named in `state` and said in `note`.
     """
-    return _artist_registry(_services(request).artists.registry_view(artist_id))
+    services = _services(request)
+    return _artist_registry(services.artists.registry_view(artist_id), pictured=services.catalogue.pictured)
 
 
 @router.get("/registry/artists/{qid}")
@@ -610,7 +614,7 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
     asked. A malformed QID is a 400.
     """
     held, view = _services(request).artists.registry_view_by_qid(qid)
-    return _artist_registry(view, artist_id=held)
+    return _artist_registry(view, artist_id=held, pictured=_services(request).catalogue.pictured)
 
 
 @router.get("/registry/search")
@@ -850,17 +854,18 @@ def get_topic_works(request: Request, qid: str) -> Response:
     at once. Anything else asking gets the last line alone, as JSON.
     """
     stages = _services(request).topics.works_in_stages(qid)
+    pictured = _services(request).catalogue.pictured
     if NDJSON not in request.headers.get("accept", ""):
         last = next(stages)
         for view in stages:
             last = view
-        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+        return JSONResponse(_topic_works(last, pictured).model_dump(mode="json"))
     # A sync generator, so Starlette runs each step in its thread pool: the
     # registry's questions block, and the event loop must not wait on them.
-    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+    return StreamingResponse((_topic_works(view, pictured).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
 
 
-def _topic_works(view: TopicWorksView) -> TopicWorksOut:
+def _topic_works(view: TopicWorksView, pictured: Callable[[Sequence[str]], str | None]) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
@@ -879,6 +884,7 @@ def _topic_works(view: TopicWorksView) -> TopicWorksOut:
                 creator_unknown=entry.work.creator_unknown,
                 state=str(entry.state),
                 held_artwork_ids=list(entry.held),
+                pictured_artwork_id=pictured(entry.held),
                 wanted=entry.wanted,
             )
             for entry in view.works
@@ -934,7 +940,9 @@ def _in_review(waiting: InReview | None) -> InReviewOut | None:
     return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
 
 
-def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
+def _artist_registry(
+    view: RegistryView, *, pictured: Callable[[Sequence[str]], str | None], artist_id: str | None = None
+) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
         state=str(view.state),
@@ -957,6 +965,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     sitelinks=entry.sitelinks,
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    pictured_artwork_id=pictured(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
                     in_review=_in_review(view.waiting.get(entry.qid)),
                 )
@@ -1011,7 +1020,7 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.archive_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/restore")
@@ -1024,7 +1033,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.restore_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 # -- themes -------------------------------------------------------------------
@@ -1433,6 +1442,7 @@ def list_history(
     request: Request,
     kind: Annotated[list[str] | None, Query()] = None,
     wall_id: Annotated[str | None, Query()] = None,
+    artwork_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
 ) -> HistoryPageOut:
@@ -1440,10 +1450,14 @@ def list_history(
 
     `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
     work.rejected`); none named is every kind. `wall_id` narrows to one wall's
-    history: what was hung there, and what was kept off from there. Events are
+    history: what was hung there, and what was kept off from there. `artwork_id`
+    narrows to one work's: the Get it was accepted from, its archive and restore,
+    and what kept it off walls; both together are what both name. Events are
     recorded from the day the history arrived, and nothing earlier is recovered.
     """
-    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    page = _services(request).catalogue.list_events(
+        kinds=kind or (), wall_id=wall_id, work_id=artwork_id, limit=limit, offset=offset
+    )
     return HistoryPageOut(
         events=[_history_event(event) for event in page.events],
         total=page.total,
@@ -2149,7 +2163,12 @@ def _work(survey: WorkSurvey) -> WorkOut:
     )
 
 
-def _dossier(dossier: WorkDossier) -> WorkDetailOut:
+def _work_detail(services: Services, artwork_id: str) -> WorkDetailOut:
+    """The work in full, as every route answering with one answers: its dossier and the Get it came from."""
+    return _dossier(services.survey.get_work(artwork_id), services.catalogue.get_that_brought(artwork_id))
+
+
+def _dossier(dossier: WorkDossier, brought: HistoryEvent | None) -> WorkDetailOut:
     return WorkDetailOut(
         work=_work(dossier.survey),
         original=None if dossier.original is None else _original(dossier.original),
@@ -2158,6 +2177,11 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
         acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+        get=(
+            None
+            if brought is None or brought.run_id is None
+            else WorkGetOut(run_id=brought.run_id, accepted_at=brought.occurred_at.isoformat())
+        ),
     )
 
 
@@ -2820,6 +2844,10 @@ def _health(reading: HealthReading) -> HealthOut:
         troubles=[
             TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
             for trouble in reading.troubles()
+        ],
+        setup_steps=[
+            SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
+            for step in reading.setup_steps()
         ],
     )
 

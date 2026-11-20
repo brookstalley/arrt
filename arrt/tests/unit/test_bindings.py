@@ -379,16 +379,17 @@ def test_a_retry_into_a_queue_paused_by_a_surprise_points_at_the_journal():
 # (`test_acquisition_service.py`) by driving `acquire()` with no surface in the
 # picture.
 
-#: What each condition's remedy must say is changed, keyed by the condition: the
-#: setting to set where only the operator can act, and the household's words for
-#: freeing the disk. A table rather than three literals in the parametrisation, so the
+#: What each condition's remedy must say is changed, keyed by the condition, in
+#: the household's words: freeing the disk, or who sets the server up and where
+#: to look. No remedy names a setting (`test_acquisition_service.py` holds that
+#: for every one). A table rather than three literals in the parametrisation, so the
 #: test below can be driven from `DEPLOYMENT_FAULTS` itself while still
 #: asserting the one thing that differs per condition — what an operator changes.
 _REMEDY_FOR = {
     # Not a variable: the disk is freed by whoever reads the Work page, in their words.
     NotEnoughSpace: "Free some space on it",
-    DezoomifyUnavailable: "DEZOOMIFY_PATH",
-    SourcePluginUnavailable: "ARTIC_USER_AGENT",
+    DezoomifyUnavailable: "Whoever looks after the server installs it",
+    SourcePluginUnavailable: "System › Status lists the plugin and what it is missing",
 }
 
 #: The names the queue's pauses on a fault of the host carry, derived from the

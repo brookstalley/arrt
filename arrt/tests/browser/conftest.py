@@ -63,6 +63,7 @@ from arrt.http.models import (
     HealthOut,
     PicturesOut,
     PlayerHealthOut,
+    SetupStepOut,
     SourcePluginOut,
     TroubleOut,
     WallHeartbeatOut,
@@ -256,6 +257,10 @@ def a_health_reading():
                 TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
                 for trouble in served.troubles()
             ],
+            setup_steps=[
+                SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
+                for step in served.setup_steps()
+            ],
         ).model_dump()
 
     return _reading
@@ -413,11 +418,14 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
             "age_seconds": None if absent else age_seconds,
             "absent": absent,
             "problem": problem,
-            "description": (
-                f"No heartbeat file exists for {name}; this wall's Player has not reported yet."
-                if absent
-                else f"This wall's Player last reported {age_seconds:.0f} seconds ago."
-            ),
+            # The server's own sentence for this reading (`HeartbeatReading.describe`).
+            "description": HeartbeatReading(
+                path=pathlib.Path(f"/art/display-heartbeat-{wall_id}.json"),
+                reported_at=None if absent else datetime.fromisoformat("2026-08-12T09:14:02+00:00"),
+                age_seconds=None if absent else age_seconds,
+                contents=None if absent or problem is not None else {},
+                problem=problem,
+            ).describe(),
             "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },
     }

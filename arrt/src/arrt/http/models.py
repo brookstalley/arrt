@@ -116,6 +116,11 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
@@ -442,6 +447,11 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
@@ -805,6 +815,15 @@ class RetryCauseOut(BaseModel):
     refused: list[RefusedRetryOut]
 
 
+class WorkGetOut(BaseModel):
+    """The Get a work came from: its run, and when the work was accepted from it."""
+
+    #: The Get's run (`/api/runs/{run_id}`), which its review is reached by.
+    run_id: str
+    #: When the candidate was accepted and became this work.
+    accepted_at: str
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -820,6 +839,12 @@ class WorkDetailOut(BaseModel):
     #: Where the work stands in the acquisition queue; null when the queue owes
     #: it nothing (its image is held and prepared, or it is archived).
     acquisition: AcquisitionStateOut | None = None
+    #: The Get that brought the work into the Library, from its acceptance in
+    #: the history; null for a work that came another way, or that was accepted
+    #: before the history was kept. On the detail rather than on `WorkOut`,
+    #: which every grid card carries: one history read per card for a fact
+    #: only the Work page shows.
+    get: WorkGetOut | None
 
 
 class ThemeOut(BaseModel):
@@ -1457,8 +1482,9 @@ class FailedFetchesOut(BaseModel):
 
     `newest_age_seconds` is the age of the newest failure among the works whose
     failure instant is recorded; `age_unknown` counts those whose instant is
-    not (today every work the queue gave up on), so "2,000 failed, newest an
-    hour ago" and "2,000 failed, when is not recorded" read apart.
+    not (only works that failed before the queue recorded when, and that give
+    no next try to read it back from), so "2,000 failed, newest an hour ago" and
+    "2,000 failed, when is not recorded" read apart.
     """
 
     #: Every work the Queue lists as failed: `will_retry` plus `given_up`.
@@ -1483,6 +1509,22 @@ class TroubleOut(BaseModel):
     #: null for the backup, a Watch and the failed fetches.
     subject: str | None
     #: The wall's display state or the Player's state, for those two; null otherwise.
+    state: str | None
+    #: A short phrase in the household's words.
+    words: str
+
+
+class SetupStepOut(BaseModel):
+    """One step of setting up not yet taken: never a fault, and never all well (`HealthReading.setup_steps`)."""
+
+    #: `no_wall` (the catalogue holds no wall), `wall` (no Player shows it) or
+    #: `player` (no token yet, or no report yet): what it is about, so a screen
+    #: links it to where the step is taken.
+    about: str
+    #: The wall's or Player's id; null for `no_wall`.
+    subject: str | None
+    #: The wall's display state (`unassigned`) or the Player's state (`no_token`,
+    #: `awaiting_report`); null for `no_wall`.
     state: str | None
     #: A short phrase in the household's words.
     words: str
@@ -1533,6 +1575,11 @@ class HealthOut(BaseModel):
     #: Every fault this reading holds, in one list: what the top bar and the
     #: System badge count. Derived only from states whose setup flag is false.
     troubles: list[TroubleOut]
+    #: Every step of setting up not yet taken, which the top bar states beside
+    #: the troubles and never counts as one: no wall recorded, a wall no Player
+    #: shows, a Player with no token or no report yet. A household with no wall
+    #: carries `no_wall` here, so it is never read as all well.
+    setup_steps: list[SetupStepOut]
 
 
 class SourceYieldOut(BaseModel):
