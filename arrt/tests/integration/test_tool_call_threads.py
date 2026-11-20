@@ -18,11 +18,12 @@ import json
 import logging
 import os
 import threading
-import time
+from collections.abc import Awaitable
 from typing import Any
 
 import httpx
 import pytest
+from fakes import GATE_SECONDS
 from scripted_model import ScriptedModel, calls, says
 
 from arrt.ask.agent import Ask, ReplyCost
@@ -41,8 +42,11 @@ from arrt.services.threads import (
 #: The threads asyncio's default executor has on a four-core machine: min(32, 4 + 4).
 FOUR_CORE_DEFAULT_THREADS = 8
 
-#: How long a call made beside the holds may take and still have been answered at once.
-ANSWERED_AT_ONCE_SECONDS = 1.0
+#: How long a call made beside the holds is given. A call that waits for a hold
+#: waits for the fake engine's gate to give out (`GATE_SECONDS`), so half of that
+#: tells the two apart without timing a call to the second on a busy machine;
+#: measured unhindered, each answers in 0.05 to 0.2 s.
+BESIDE_THE_HOLDS_SECONDS = GATE_SECONDS / 2
 
 #: The bound on any one wait for an event a call sets; reached only by a defect.
 EVENT_SECONDS = 20.0
@@ -78,12 +82,6 @@ async def reply(server_url: str, words: str) -> list[dict]:
         async with client.stream("POST", f"/api/ask/threads/{thread_id}/replies", json={"words": words}) as response:
             assert response.status_code == 200
             return [json.loads(line) async for line in response.aiter_lines() if line.strip()]
-
-
-async def timed(awaitable) -> tuple[float, Any]:
-    began = time.monotonic()
-    answer = await awaitable
-    return time.monotonic() - began, answer
 
 
 async def waited_for(event: threading.Event) -> bool:
@@ -130,6 +128,16 @@ class Holds:
 
         assert await asyncio.to_thread(reached), f"only {len(self.threads)} of {target} status calls were held"
 
+    async def beside(self, awaitable: Awaitable[Any], what: str) -> Any:
+        """What `awaitable` answers while every hold is still held; a failure if it waited for one to end."""
+        try:
+            answer = await asyncio.wait_for(awaitable, BESIDE_THE_HOLDS_SECONDS)
+        except TimeoutError:
+            pytest.fail(f"{what} waited for a hold to end")
+        assert not self._engine.gate.is_set()
+        assert not any(task.done() for task in self.tasks), f"a hold ended before {what} answered"
+        return answer
+
     async def release(self) -> None:
         self._engine.gate.set()
         answers = await asyncio.gather(*self.tasks)
@@ -169,15 +177,17 @@ def journal():
 # -- through the real server ------------------------------------------------------
 
 
-async def test_beside_eight_held_status_calls_an_mcp_call_and_an_ask_reply_each_answer_at_once(server_url, services, engine):
+async def test_beside_eight_held_status_calls_an_mcp_call_and_an_ask_reply_each_answer_before_a_hold_ends(
+    server_url, services, engine
+):
     """As many holds as a four-core machine's default executor had threads, which left both waiting."""
     holds = Holds(server_url, services, engine)
     await holds.start()
     try:
         await holds.hold(FOUR_CORE_DEFAULT_THREADS)
-        (mcp_waited, (listed, listed_errored)), (ask_waited, events) = await asyncio.gather(
-            timed(call(server_url, "art_catalogue", action="list")),
-            timed(reply(server_url, "What is in the Library?")),
+        (listed, listed_errored), events = await asyncio.gather(
+            holds.beside(call(server_url, "art_catalogue", action="list"), "the ninth MCP call"),
+            holds.beside(reply(server_url, "What is in the Library?"), "Ask's reply"),
         )
     finally:
         await holds.release()
@@ -186,8 +196,6 @@ async def test_beside_eight_held_status_calls_an_mcp_call_and_an_ask_reply_each_
     assert listed["total"] == 3, "the ninth call should have read the seeded works"
     assert events[-1]["type"] == "stream_end", events[-1]
     assert next(event for event in events if event["type"] == "tool_call_end")["success"] is True
-    assert mcp_waited < ANSWERED_AT_ONCE_SECONDS, f"the ninth MCP call waited {mcp_waited:.2f}s for a hold"
-    assert ask_waited < ANSWERED_AT_ONCE_SECONDS, f"Ask's reply waited {ask_waited:.2f}s for a hold"
     # Held on MCP's own threads, not the default executor's.
     assert all(name.startswith(f"arrt-{MCP_POOL}-call") for name in holds.threads), holds.threads
 
@@ -200,16 +208,14 @@ async def test_mcp_holds_queue_a_short_mcp_call_only_once_all_its_threads_hold_a
     await holds.start()
     try:
         await holds.hold(MCP_CALL_THREADS - 1)
-        waited, (_, errored) = await timed(call(server_url, "art_catalogue", action="list"))
+        _, errored = await holds.beside(call(server_url, "art_catalogue", action="list"), "a call with one thread free")
         assert errored is False
-        assert waited < ANSWERED_AT_ONCE_SECONDS, f"a call with one thread free waited {waited:.2f}s"
         assert journal.of(MCP_POOL) == []
 
         await holds.hold(1)
         # Ask's threads are its own: a full MCP pool leaves its reply unhindered.
-        ask_waited, events = await timed(reply(server_url, "What is in the Library?"))
+        events = await holds.beside(reply(server_url, "What is in the Library?"), "Ask's reply beside a full MCP pool")
         assert events[-1]["type"] == "stream_end", events[-1]
-        assert ask_waited < ANSWERED_AT_ONCE_SECONDS, f"Ask's reply waited {ask_waited:.2f}s behind MCP's holds"
 
         short = asyncio.create_task(call(server_url, "art_catalogue", action="list"))
         assert await waited_for(journal.arrived[MCP_POOL]), "the call past the pool's size wrote no journal line"
