@@ -4,6 +4,18 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-20: an agent may post its measurements on the issue it is working
+
+A build delegate working a flaky test (#442) posted what it had measured as a comment on
+that issue, unasked. The advisor asked whether that is wanted, recommending "allowing it
+for measurements on an issue the chunk is working, and nothing else". The owner: "Yes to
+2". As ruled: an agent may comment on a GitHub issue when the issue is the one its own
+work is settling and the comment is what it measured or established (what was run, what
+was seen, what was ruled out). It opens, closes, labels and edits no issue on its own,
+comments on no other issue, and writes nothing there that this public repository's rule
+keeps out of a tracked file (no network address, hostname or username) and no attribution
+line. Closing an issue stays the merge's act.
+
 ## 2026-11-20: CI is kept small, tests run on the pool first, and CI makes no paid call
 
 Asked while part 2b was being built (which pool runners may run this repository, and what
