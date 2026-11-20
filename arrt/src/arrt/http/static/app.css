@@ -297,6 +297,32 @@ a {
   left: var(--space-4);
 }
 
+/* The way past Artworks' filters (`screens/collection.js` `skipFilters`): off
+   screen like the page's skip link, and in the rail's own flow once focused,
+   where it is the first thing the keyboard meets. The works' container it sends
+   the keyboard to draws no ring, as the view does. */
+.skip-filters {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-filters:focus {
+  position: static;
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-1);
+  color: var(--text-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.collection-main ul.grid:focus,
+.collection-main table:focus,
+.collection-main:focus {
+  outline: none;
+}
+
 /* -- chrome ---------------------------------------------------------------- */
 
 /* The *arr layout: a bar across the top, a sidebar of sections down the left

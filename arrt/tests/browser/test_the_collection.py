@@ -1110,3 +1110,45 @@ def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in
         "Select all 2,000 works", use_inner_text=True
     )
     expect(ui.view).not_to_contain_text(re.compile(r"\b2000\b"))
+
+
+# -- the way past the filters (audit-6 22) -----------------------------------------
+
+
+def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_facet(ui, seeded_service):
+    """About eighty facet buttons stood between the keyboard and the first work; one link steps over them.
+
+    The link is the rail's first stop, so a keyboard reaches it before the facets;
+    activated, it leaves the address alone and puts focus on the works, so the
+    next Tab is the first tile and not a facet.
+    """
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li[data-artwork]")
+    skip = ui.page.locator("aside.rails a.skip-filters")
+    expect(skip).to_have_count(1)
+    # Reached before any facet: the first thing in the rail the keyboard can stop on.
+    first_stop = ui.page.evaluate(
+        "() => document.querySelector('aside.rails').querySelector('a[href], button:not([disabled])').className"
+    )
+    assert first_stop == "skip-filters", f"the rail's first stop is {first_stop!r}, not the skip link"
+    before = ui.page.evaluate("() => window.location.hash")
+
+    skip.focus()
+    expect(skip).to_be_visible()
+    ui.page.keyboard.press("Enter")
+    ui.page.keyboard.press("Tab")
+
+    landed = ui.page.evaluate(
+        "() => ({ inTile: Boolean(document.activeElement.closest('ul.grid li[data-artwork]')),"
+        " inRail: Boolean(document.activeElement.closest('aside.rails')) })"
+    )
+    assert landed == {"inTile": True, "inRail": False}, f"Tab after the skip landed on {landed}"
+    assert ui.page.evaluate("() => window.location.hash") == before
+
+
+def test_with_the_filters_put_away_there_is_nothing_to_skip(ui, seeded_service):
+    """The paired negative: no rail, no link to step over it."""
+    ui.open("#collection?filters=hidden")
+    ui.page.wait_for_selector("ul.grid li[data-artwork]")
+
+    expect(ui.page.locator("a.skip-filters")).to_have_count(0)

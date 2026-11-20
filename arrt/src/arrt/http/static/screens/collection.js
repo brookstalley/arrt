@@ -861,7 +861,7 @@ export async function viewCollection(generation) {
     const rail = document.querySelector("aside.rails");
     if (!rail) return;
     const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall(), shown: shownPeriod() });
-    fill(rail, ...railContents(counts, chosen));
+    fill(rail, skipFilters(), ...railContents(counts, chosen));
   };
   const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
   const shownWorks = new Map(page.works.map((work) => [work.artwork_id, work]));
@@ -1086,6 +1086,33 @@ function railContents(page, chosen) {
     : [el("p", { class: "rail-note", text: "Nothing to filter by yet. Themes and facets appear here as works gain them." })];
 }
 
+/* The way past the filters, for a keyboard: the rail is about eighty buttons
+ * on a library of any size, and the first work comes after all of them
+ * (audit-6 22). It is the rail's first stop, drawn only while it has focus
+ * (`.skip-filters`), and it puts the keyboard on the works themselves, so the
+ * next Tab is the first tile. Like the page's own skip link it leaves the
+ * address alone: the router would read its `href` as a page.
+ *
+ * The works' container takes the focus and draws no ring, as `#view` does: it is
+ * where the keyboard starts and not a control. Where nothing is listed (an empty
+ * state, which has no filters worth skipping to) it lands on the main column. */
+function skipFilters() {
+  return el("a", {
+    class: "skip-filters",
+    href: "#collection-works",
+    text: "Skip the filters",
+    onclick: (event) => {
+      event.preventDefault();
+      const main = document.querySelector("#view .collection-main");
+      if (!main) return;
+      const first = main.querySelector("[data-artwork]");
+      const target = (first && (first.closest("ul.grid") || first.closest("table"))) || main;
+      target.setAttribute("tabindex", "-1");
+      target.focus();
+    },
+  });
+}
+
 /* The rails beside the works, and the toolbar above them. One function so the
  * populated screen and each empty one cannot come to disagree about where the
  * controls live — an empty grid that also loses its filters is an empty state a
@@ -1110,7 +1137,7 @@ function collectionLayout(page, chosen, shownTheme, density, selection, main) {
       : null;
   const classes = ["collection", shown ? null : "rails-hidden", selection && selection.selecting() ? "selecting" : null];
   return el("div", { class: classes.filter(Boolean).join(" ") }, [
-    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
+    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, [skipFilters(), ...rails]) : null,
     el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),
   ]);
 }
