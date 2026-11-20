@@ -24,6 +24,7 @@ from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
+from player_e2e_header import header as player_e2e_header
 from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
@@ -107,6 +108,15 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     bound_the_suites_requests()
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
+
+
+def pytest_report_header(config: pytest.Config) -> str:
+    """Say on every run whether its marker expression leaves out the real-Player test (`player_e2e_header.py`).
+
+    Under `-n auto` pytest prints no deselected count, so without this line the
+    default suite's leaving it out would be silent.
+    """
+    return player_e2e_header(config.option.markexpr)
 
 
 @pytest.fixture(autouse=True)
