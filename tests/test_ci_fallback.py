@@ -848,15 +848,22 @@ def test_the_subcommand_runs_the_setup_then_the_suite_from_the_root_and_stops_at
     assert len(ran) == 1, "a setup that failed was followed by the suite"
 
 
-@pytest.mark.parametrize("suite", ["browser", "player", "nosuch"])
-def test_the_subcommand_refuses_a_suite_left_out_and_runs_nothing(suite, tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "suite,why",
+    [
+        ("browser", "the browser suite is not run here: it needs a runner labelled chrome, which only the pool has"),
+        ("player", f"the player suite is not run here: it {pof.POOL_ONLY['player']}"),
+        ("nosuch", ".testament.toml declares no suite 'nosuch'"),
+    ],
+)
+def test_the_subcommand_refuses_a_suite_left_out_and_runs_nothing(suite, why, tmp_path, monkeypatch, capsys):
     ran = []
     monkeypatch.chdir(REPO)
     monkeypatch.setattr(pof, "run_here", ran.append)
 
     assert pof.main(["fallback", "--out", str(tmp_path), "--suite", suite]) == 2
     assert ran == []
-    assert capsys.readouterr().out.startswith("::error::")
+    assert capsys.readouterr().out == f"::error::{why}\n"
 
 
 def test_the_subcommand_runs_a_manifest_of_its_own_and_writes_the_suites_report(tmp_path):
