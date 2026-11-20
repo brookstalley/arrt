@@ -861,7 +861,7 @@ export async function viewCollection(generation) {
     const rail = document.querySelector("aside.rails");
     if (!rail) return;
     const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall(), shown: shownPeriod() });
-    fill(rail, skipFilters(), ...railContents(counts, chosen));
+    fill(rail, ...withSkip(railContents(counts, chosen)));
   };
   const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
   const shownWorks = new Map(page.works.map((work) => [work.artwork_id, work]));
@@ -1096,6 +1096,12 @@ function railContents(page, chosen) {
  * The works' container takes the focus and draws no ring, as `#view` does: it is
  * where the keyboard starts and not a control. Where nothing is listed (an empty
  * state, which has no filters worth skipping to) it lands on the main column. */
+function withSkip(rails) {
+  // A rail that is only its note, "Nothing to filter by yet", has nothing to step over.
+  const onlyANote = rails.length === 1 && rails[0].classList.contains("rail-note");
+  return onlyANote ? rails : [skipFilters(), ...rails];
+}
+
 function skipFilters() {
   return el("a", {
     class: "skip-filters",
@@ -1137,7 +1143,7 @@ function collectionLayout(page, chosen, shownTheme, density, selection, main) {
       : null;
   const classes = ["collection", shown ? null : "rails-hidden", selection && selection.selecting() ? "selecting" : null];
   return el("div", { class: classes.filter(Boolean).join(" ") }, [
-    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, [skipFilters(), ...rails]) : null,
+    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, withSkip(rails)) : null,
     el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),
   ]);
 }

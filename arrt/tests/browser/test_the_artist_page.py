@@ -253,7 +253,7 @@ class TestTheArtistPage:
         # rather than a dash (the owner's ruling on #172).
         expect(_their_row(ui, "No 1").locator("td").nth(3)).to_have_text("○ Not held", use_inner_text=True)
         expect(_their_row(ui, "No English title (Q16682090)")).to_have_count(1)
-        expect(ui.page.locator("section[aria-labelledby='their-work'] caption")).to_contain_text("1276", use_inner_text=True)
+        expect(ui.page.locator("section[aria-labelledby='their-work'] caption")).to_contain_text("1,276", use_inner_text=True)
 
         ui.page.click("section[aria-labelledby='their-work'] .badge-held")
         ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
@@ -330,7 +330,7 @@ class TestTheArtistPage:
         _page(ui, artist)
         _registry_answered(ui)
 
-        expect(ui.page.get_by_text("National Gallery of Art: 1128")).to_have_count(1)
+        expect(ui.page.get_by_text("National Gallery of Art: 1,128")).to_have_count(1)
         expect(ui.page.get_by_text("abstract expressionism")).to_have_count(1)
 
     def test_a_registry_outage_leaves_the_library_half_working(self, ui, rothko, registry):

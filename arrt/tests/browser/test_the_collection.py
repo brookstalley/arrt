@@ -1115,13 +1115,22 @@ def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in
 # -- the way past the filters (audit-6 22) -----------------------------------------
 
 
-def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_facet(ui, seeded_service):
+def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_facet(ui):
     """About eighty facet buttons stood between the keyboard and the first work; one link steps over them.
 
     The link is the rail's first stop, so a keyboard reaches it before the facets;
     activated, it leaves the address alone and puts focus on the works, so the
     next Tab is the first tile and not a facet.
     """
+    # Stubbed: the seeded works carry no facet, and a rail that is only its note has nothing to step over.
+    options = [a_facet_option(f"Movement {n}", 5) for n in range(20)]
+    ui.serve(
+        "**/api/works?*",
+        a_listing(
+            [a_catalogue_work(artwork_id=f"w{n}", title=f"Work {n}") for n in range(3)],
+            facets=[a_facet_group("movement", options)],
+        ),
+    )
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li[data-artwork]")
     skip = ui.page.locator("aside.rails a.skip-filters")
@@ -1144,6 +1153,14 @@ def test_a_tab_from_the_skip_filters_link_reaches_the_first_tile_past_every_face
     )
     assert landed == {"inTile": True, "inRail": False}, f"Tab after the skip landed on {landed}"
     assert ui.page.evaluate("() => window.location.hash") == before
+
+
+def test_a_rail_with_nothing_to_filter_by_has_nothing_to_skip(ui, seeded_service):
+    """The paired negative: the seeded works carry no facet, so the rail is its note alone and offers no link."""
+    ui.open("#collection")
+    ui.page.wait_for_selector("aside.rails .rail-note")
+
+    expect(ui.page.locator("a.skip-filters")).to_have_count(0)
 
 
 def test_with_the_filters_put_away_there_is_nothing_to_skip(ui, seeded_service):
