@@ -45,6 +45,7 @@ from arrt.library.services.discovery import SpendTotal
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.server import tool_definitions
+from arrt.services.threads import CallPool, ask_pool
 
 log = logging.getLogger("arrt.ask")
 
@@ -175,6 +176,7 @@ class Ask:
         local_tools: Sequence[BaseTool] = (),
         threads: Threads | None = None,
         taste: Callable[[], str] = lambda: "",
+        pool: CallPool | None = None,
     ) -> None:
         self._dispatch = dispatch
         self._record_cost = record_cost
@@ -183,7 +185,9 @@ class Ask:
         self._taste = taste
         self._model = model
         self._step_limit = step_limit
-        self._tools = [*surface_tools(dispatch), *local_tools]
+        #: Ask's own threads, for its tool calls and its taste read (`services/threads.py`).
+        self._pool = pool or ask_pool()
+        self._tools = [*surface_tools(dispatch, pool=self._pool), *local_tools]
         self.threads = threads or Threads()
 
     @property
@@ -237,8 +241,8 @@ class Ask:
         stopped_by: BaseException | None = None
         try:
             await stream.start()
-            # On a worker thread, as every tool call is: the service layer is synchronous.
-            system = ask_system(await asyncio.to_thread(self._taste))
+            # On one of Ask's threads, as every tool call is: the service layer is synchronous.
+            system = ask_system(await self._pool.run(self._taste))
             assert self._model is not None  # noqa: S101 -- `reply`'s caller checked `available`, which is this
             agent = create_agent(
                 self._model,
@@ -528,30 +532,35 @@ def _records_taste(tool: str, arguments: object) -> bool:
     return tool == _TASTE_TOOL and isinstance(arguments, Mapping) and arguments.get("action") == "set"
 
 
-def surface_tools(dispatch: Dispatch, scope: Mapping[str, frozenset[str]] = ASK_SCOPE) -> list[BaseTool]:
-    """The MCP surface's tools in `scope`, as LangChain tools calling `dispatch` on a worker thread.
+def surface_tools(
+    dispatch: Dispatch, scope: Mapping[str, frozenset[str]] = ASK_SCOPE, *, pool: CallPool | None = None
+) -> list[BaseTool]:
+    """The MCP surface's tools in `scope`, as LangChain tools calling `dispatch` on a thread of `pool`.
 
     The definitions are the surface's own, whole: the agent reads every action a
-    tool has. The worker thread is there because the service layer is
-    synchronous and one of its calls holds for up to 45 seconds; on the event
-    loop that would stop every other request in the process.
+    tool has. The thread is there because the service layer is synchronous and
+    one of its calls holds for up to 45 seconds; on the event loop that would
+    stop every other request in the process. The pool is Ask's own, never
+    MCP's, so MCP's held calls never leave Ask's calls waiting; None is a pool
+    of `ASK_CALL_THREADS` for these tools alone.
     """
+    threads = pool or ask_pool()
     return [
         StructuredTool(
             name=definition.name,
             description=definition.description or "",
             args_schema=definition.inputSchema,
-            coroutine=_caller(dispatch, definition.name, scope),
+            coroutine=_caller(dispatch, definition.name, scope, threads),
         )
         for definition in tool_definitions()
         if definition.name in scope
     ]
 
 
-def _caller(dispatch: Dispatch, name: str, scope: Mapping[str, frozenset[str]]) -> Callable[..., Any]:
+def _caller(dispatch: Dispatch, name: str, scope: Mapping[str, frozenset[str]], threads: CallPool) -> Callable[..., Any]:
     async def call(**arguments: object) -> str:
         refused = outside(scope, name, arguments.get("action"))
-        payload = refused if refused is not None else await asyncio.to_thread(dispatch, name, arguments)
+        payload = refused if refused is not None else await threads.run(dispatch, name, arguments)
         # Pictures travel as image blocks on the MCP wire and are not relayed to the model here.
         return json.dumps({key: value for key, value in payload.items() if key != IMAGE_BLOCKS}, default=str)
 
