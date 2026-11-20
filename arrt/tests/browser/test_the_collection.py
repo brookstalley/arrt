@@ -315,7 +315,7 @@ def test_the_loading_state_does_not_guess_a_geometry_it_cannot_know(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")
 
-    expect(ui.view).to_contain_text("Loading the collection", use_inner_text=True)
+    expect(ui.view).to_contain_text("Loading Artworks", use_inner_text=True)
     expect(ui.page.locator("ul.grid-skeleton"), "the placeholder guessed a geometry it could not know").to_have_count(0)
     expect(ui.page.locator("ul.grid")).to_have_count(0)
 
@@ -677,7 +677,7 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
     expect(ui.page.locator(".page-toolbar button", has_text="Sort")).to_have_count(1)
 
 
-STALE_THEME = "The theme this address names is not in the catalogue"
+STALE_THEME = "The theme this address names is not in the Library"
 
 
 def test_an_address_naming_a_deleted_theme_shows_the_works_and_says_so(ui, a_theme_holding_one_work):

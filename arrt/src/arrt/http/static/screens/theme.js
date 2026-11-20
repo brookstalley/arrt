@@ -223,7 +223,7 @@ async function oneTheme(themeId, generation) {
   const [themes, walls] = await Promise.all([api("/api/themes"), api("/api/walls")]);
   const placement = themes.themes.find((entry) => entry.theme.theme_id === themeId);
   if (!placement) {
-    render(generation, ...notFound(null, "Nothing in the collection has this address. It was most likely deleted."));
+    render(generation, ...notFound(null, "Nothing in the Library has this address. It was most likely deleted."));
     return;
   }
   const theme = placement.theme;
@@ -326,7 +326,7 @@ function hangOpener(placement, walls) {
         closeLabel: "Cancel",
         body: walls.length
           ? [el("fieldset", { class: "hang-walls" }, [el("legend", { class: "visually-hidden", text: "Walls" }), ...boxes.map(({ row }) => row)])]
-          : [el("p", { class: "muted", text: "There are no walls, so nothing can be hung. A wall is created when the plane first opens the catalogue." })],
+          : [el("p", { class: "muted", text: "There are no walls, so nothing can be hung. A wall is added on Walls." })],
         actions: walls.length ? [act] : [],
       });
     },
@@ -464,7 +464,7 @@ async function remove(control, themeId, themeName) {
   const confirmed = await confirmAct({
     title: `Delete ${themeName}?`,
     consequence: held
-      ? `The ${held} ${held === 1 ? "work it holds stays" : "works it holds stay"} in the collection. Only the grouping goes, and it cannot be brought back.`
+      ? `The ${held} ${held === 1 ? "work it holds stays" : "works it holds stay"} in the Library. Only the grouping goes, and it cannot be brought back.`
       : "It holds no works. The grouping cannot be brought back.",
     confirmLabel: "Delete",
   });

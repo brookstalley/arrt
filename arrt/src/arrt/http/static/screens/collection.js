@@ -400,7 +400,7 @@ function skeletonGrid(density) {
 function skeletonScreen(density) {
   const railsShown = !railsHidden();
   return [
-    el("h1", { text: "Loading the collection…" }),
+    el("h1", { text: "Loading Artworks…" }),
     el("div", { class: railsShown ? "collection" : "collection rails-hidden" }, [
       railsShown ? el("aside", { class: "rails", "aria-hidden": true }) : null,
       el("div", { class: "collection-main" }, [
@@ -686,7 +686,7 @@ function nothingShown(query, chosen, shownTheme) {
   if (onlyAnArtist) {
     return emptyState(
       `Nothing by ${artists[0]} yet.`,
-      "That is the normal answer, not a failed search: the collection holds what has been acquired, " +
+      "That is the normal answer, not a failed search: the Library holds what has been acquired, " +
         "not everything that exists. Ask, or Get from a search, is where more comes from.",
       [
         link({ view: "discover" }, { class: "action", text: "Ask for some" }),
@@ -792,7 +792,7 @@ export async function viewCollection(generation) {
   // paint draws the same heading, so nothing above the works moves. The facts
   // line waits for the count; a test waiting on `.page-facts` waits for the
   // works, where one waiting on the heading would be met here.
-  render(generation, heading(), el("p", { class: "muted", text: "Loading the collection…" }));
+  render(generation, heading(), el("p", { class: "muted", text: "Loading Artworks…" }));
 
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the line of facts a statement about the catalogue rather than about
@@ -1065,7 +1065,7 @@ export async function viewCollection(generation) {
 function staleThemeNote() {
   return el("p", {
     class: "note stale-theme-note",
-    text: "The theme this address names is not in the catalogue — it may have been deleted — so these are the works the other filters select.",
+    text: "The theme this address names is not in the Library — it may have been deleted — so these are the works the other filters select.",
   });
 }
 

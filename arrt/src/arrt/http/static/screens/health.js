@@ -609,7 +609,7 @@ export async function viewHealth(generation) {
             // yet" would be a claim about the project rather than about the file
             // in front of it, and would be wrong the day that job ships with
             // nothing to catch it — the same trap the heartbeat's note avoids.
-            text: "No backup has recorded itself here. The catalogue is the irreplaceable asset — the images can all be fetched again — so this is the reading to watch.",
+            text: "No backup has recorded itself here. The Library is the irreplaceable asset — the images can all be fetched again — so this is the reading to watch.",
           })
         : null,
       details(
