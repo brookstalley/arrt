@@ -255,8 +255,9 @@ class Themes:
         these through the Library, which is the composition the bindings are
         allowed to do and this service is not.
         """
-        self._lookups.get_theme(theme_id)
-        return [membership.artwork_id for membership in self._store.list_memberships(theme_id)]
+        with self._store.reading():
+            self._lookups.get_theme(theme_id)
+            return [membership.artwork_id for membership in self._store.list_memberships(theme_id)]
 
     # -- writes: themes and membership ----------------------------------------
 
@@ -286,9 +287,13 @@ class Themes:
         then, and marking a theme is not a request to fill it with everything
         accepted before; a curator who wants that adds them from Library › Works.
         """
-        self.get_listed_theme(theme_id)
-        store_write(self._store.mark_default_theme, theme_id)
-        return self._lookups.get_theme(theme_id)
+        # The check, the mark and the theme returned in one transaction: a theme
+        # deleted between a check and its mark was refused in the store's words,
+        # with nothing a curator could act on.
+        with self._store.transaction():
+            self.get_listed_theme(theme_id)
+            store_write(self._store.mark_default_theme, theme_id)
+            return self._lookups.get_theme(theme_id)
 
     def offer_destinations(self, work_ids: Iterable[str]) -> Sequence[str]:
         """Offer each work the theme it was accepted into, once, and return the ones that joined.
@@ -400,16 +405,17 @@ class Themes:
         how much of itself reached the wall — and a switch that silently put up
         four of a theme's twelve works is the failure this report exists for.
         """
-        self._lookups.get_theme(theme_id)
         # One act around the hang, the publish and the retirement, and it holds
         # both ways (`FeedPublisher.publishing`). A feed that cannot be written takes the hang
         # back: recording the hang and then failing to publish left the
         # catalogue naming a theme the wall was not showing, with nothing to say
         # the two disagreed. And a step after the publish that raises (the
         # selection replaced cannot be retired) writes no feed, so the walls do
-        # not show a hang the catalogue rolled back. What it replaces is read
-        # inside, so a hang made meanwhile is the one retired.
+        # not show a hang the catalogue rolled back. The theme, the wall and what
+        # it replaces are read inside, so a theme deleted meanwhile is refused in
+        # this service's words and a hang made meanwhile is the one retired.
         with self._feeds.publishing():
+            self._lookups.get_theme(theme_id)
             self._lookups.get_wall(wall_id)
             replaced = self._store.get_assignment(wall_id)
             store_write(
@@ -439,24 +445,26 @@ class Themes:
         chosen = list(dict.fromkeys(artwork_ids))
         if not chosen:
             raise ServiceError("A selection needs at least one work to hang.")
-        wall = self._lookups.get_wall(wall_id)
-        # One question for every work, as the manifest build asks it: the facade
-        # is written as if remote.
-        for answer in self._library.playable(chosen).values():
-            if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
-                raise ServiceError(answer.detail)
         now = datetime.now(UTC)
         theme_id = str(uuid.uuid4())
-        theme = Theme(
-            id=theme_id,
-            # Names are unique across themes, hidden or not, so the id's head
-            # keeps two selections for one wall apart.
-            name=f"Selection for {wall.name} ({theme_id[:8]})",
-            created_at=now,
-            hidden=True,
-        )
-        # One act, and what it replaces read inside it, as `activate_theme` says.
+        # One act, the wall and what it replaces read inside it, as `activate_theme`
+        # says, and the Library asked there too, in the order the refusals have
+        # always come in, as the build inside the act asks it.
         with self._feeds.publishing():
+            wall = self._lookups.get_wall(wall_id)
+            # One question for every work, as the manifest build asks it: the facade
+            # is written as if remote.
+            for answer in self._library.playable(chosen).values():
+                if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
+                    raise ServiceError(answer.detail)
+            theme = Theme(
+                id=theme_id,
+                # Names are unique across themes, hidden or not, so the id's head
+                # keeps two selections for one wall apart.
+                name=f"Selection for {wall.name} ({theme_id[:8]})",
+                created_at=now,
+                hidden=True,
+            )
             replaced = self._store.get_assignment(wall_id)
             store_write(self._store.add_theme, theme)
             for position, artwork_id in enumerate(chosen):
@@ -532,12 +540,14 @@ class Themes:
         `wall_id` is the wall the curator was looking at, recorded in the
         history so that wall's history shows the act. It changes nothing else.
         """
-        self._require_held(artwork_id)
-        looking_at = self._lookups.get_wall(wall_id) if wall_id is not None else None
-        if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
-            raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
-        exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
+        # Checked inside the act, so a second *Not this one again* landing
+        # meanwhile is told so rather than refused by the file.
         with self._feeds.publishing():
+            self._require_held(artwork_id)
+            looking_at = self._lookups.get_wall(wall_id) if wall_id is not None else None
+            if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+                raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
+            exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
             store_write(self._store.add_exclusion, exclusion)
             self._feeds.withdraw(artwork_id, [wall.id for wall in self._store.list_walls()], cause="being kept off every wall")
         self._library.record(
@@ -557,9 +567,11 @@ class Themes:
         Every wall whose hung theme holds it gets it back now, if the Library
         will show it (`reconcile`, the owner's ruling of 2026-10-10).
         """
-        if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
-            raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
+        # Checked inside the act, so of two allows landing together one allows
+        # and the other is told there is nothing to allow.
         with self._feeds.publishing():
+            if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+                raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
             store_write(self._store.remove_exclusion, artwork_id)
             self._feeds.reconcile([artwork_id], cause="being allowed back")
         self._library.record(ProgrammingAct(kind=EventKind.ALLOWED, work_id=artwork_id))
@@ -654,10 +666,12 @@ class Themes:
         **A wall hanging the theme gets the work at once**, if the Library will
         show it (`reconcile`, the owner's ruling of 2026-10-10).
         """
-        self.get_listed_theme(theme_id)
-        self._require_held(artwork_id)
-        target = self._require_position(position)
+        # The theme read inside the act that adds to it, so a theme deleted
+        # meanwhile is refused in this service's words, not the file's.
         with self._feeds.publishing():
+            self.get_listed_theme(theme_id)
+            self._require_held(artwork_id)
+            target = self._require_position(position)
             membership = self._insert(theme_id=theme_id, artwork_id=artwork_id, position=target)
             self._feeds.reconcile([artwork_id], cause="joining its theme")
         return membership
@@ -691,13 +705,14 @@ class Themes:
         words — so nothing is half-added. Walls hanging the theme get what
         joined, once, as `add_to_theme` says.
         """
-        self.get_listed_theme(theme_id)
         chosen = list(dict.fromkeys(artwork_ids))
-        for answer in self._library.playable(chosen).values():
-            if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
-                raise ServiceError(answer.detail)
         now = datetime.now(UTC)
+        # The theme read inside, as `add_to_theme` says.
         with self._feeds.publishing():
+            self.get_listed_theme(theme_id)
+            for answer in self._library.playable(chosen).values():
+                if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
+                    raise ServiceError(answer.detail)
             others = list(self._store.list_memberships(theme_id))
             held = {membership.artwork_id for membership in others}
             joining = [artwork_id for artwork_id in chosen if artwork_id not in held]
@@ -719,9 +734,9 @@ class Themes:
         not renumbered, as a single removal does not renumber it. Walls hanging
         the theme lose what left, as `remove_from_theme` says.
         """
-        self._lookups.get_theme(theme_id)
         removed: list[str] = []
         with self._feeds.publishing():
+            self._lookups.get_theme(theme_id)
             for artwork_id in dict.fromkeys(artwork_ids):
                 if self._store.get_membership(theme_id, artwork_id) is None:
                     continue
@@ -817,9 +832,11 @@ class Themes:
         ways, or a restart, which publishes what the theme lacks, would be the
         only thing that moved the wall.
         """
-        if self._store.get_membership(theme_id, artwork_id) is None:
-            raise ServiceError(f"Artwork {artwork_id!r} is not in theme {theme_id!r}.")
+        # Checked inside the act, so of two removals landing together one
+        # removes and the other is told the work is not there.
         with self._feeds.publishing():
+            if self._store.get_membership(theme_id, artwork_id) is None:
+                raise ServiceError(f"Artwork {artwork_id!r} is not in theme {theme_id!r}.")
             store_write(self._store.remove_membership, theme_id, artwork_id)
             self._feeds.withdraw(artwork_id, [wall.id for wall in self.walls_hanging(theme_id)], cause="leaving its theme")
 
@@ -836,13 +853,16 @@ class Themes:
         because `None` is a meaningful value — "no description" — and a caller
         changing only the name would otherwise silently clear it.
         """
-        theme = self.get_listed_theme(theme_id)
-        updated = replace(
-            theme,
-            name=theme.name if name is None else require_text(name, field="name"),
-            description=theme.description if isinstance(description, Unset) else description,
-        )
-        store_write(self._store.update_theme, updated)
+        # The row read inside the transaction that writes it back whole, so a
+        # description, a name or the default's mark written meanwhile is kept.
+        with self._store.transaction():
+            theme = self.get_listed_theme(theme_id)
+            updated = replace(
+                theme,
+                name=theme.name if name is None else require_text(name, field="name"),
+                description=theme.description if isinstance(description, Unset) else description,
+            )
+            store_write(self._store.update_theme, updated)
         return updated
 
     def delete_theme(self, theme_id: str) -> None:
@@ -868,20 +888,22 @@ class Themes:
         degradation. Publishing an empty manifest instead would blank the wall as
         a side effect of tidying up the catalogue.
         """
-        theme = self._lookups.get_theme(theme_id)
-        if theme.is_default:
-            raise ServiceError(
-                f"Theme {theme.name!r} is the default, which new works join, so it cannot be deleted. "
-                "Make another theme the default first, and then delete this one."
-            )
-        hanging = self.walls_hanging(theme_id)
-        if hanging:
-            where = ", ".join(repr(wall.name) for wall in hanging)
-            raise ServiceError(
-                f"Theme {theme.name!r} is hanging on {where}. Hang another theme there first, or take this one "
-                "down, so that what those walls show next is a choice rather than whatever was on them before."
-            )
+        # Both refusals decided inside the transaction that deletes, so a theme
+        # hung or made the default meanwhile is refused, not deleted under a wall.
         with self._store.transaction():
+            theme = self._lookups.get_theme(theme_id)
+            if theme.is_default:
+                raise ServiceError(
+                    f"Theme {theme.name!r} is the default, which new works join, so it cannot be deleted. "
+                    "Make another theme the default first, and then delete this one."
+                )
+            hanging = self.walls_hanging(theme_id)
+            if hanging:
+                where = ", ".join(repr(wall.name) for wall in hanging)
+                raise ServiceError(
+                    f"Theme {theme.name!r} is hanging on {where}. Hang another theme there first, or take this one "
+                    "down, so that what those walls show next is a choice rather than whatever was on them before."
+                )
             for membership in self._store.list_memberships(theme_id):
                 store_write(self._store.remove_membership, theme_id, membership.artwork_id)
             store_write(self._store.remove_theme, theme_id)

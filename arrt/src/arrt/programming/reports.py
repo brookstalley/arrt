@@ -373,21 +373,27 @@ class Reports:
         and no screen (minor 4, a screen unplugged), says nothing about the
         screen, and nothing is kept.
         """
-        wall = self._lookups.get_wall(wall_id)
         capabilities = document.get("capabilities")
         screen = capabilities.get("screen") if isinstance(capabilities, Mapping) else None
-        if wall.display_id is None or not isinstance(screen, Mapping):
+        if not isinstance(screen, Mapping):
             return
         width, height = screen.get("width_px"), screen.get("height_px")
         if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
             return
         now = datetime.now(UTC)
-        known = self._store.reported_screens(wall.display_id)
-        if any((w, h) == (width, height) and now - at < SCREEN_REFRESH for w, h, at in known):
-            # Seen within the hour: the judgement needs day-scale freshness, and
-            # a write per heartbeat per wall would buy nothing it uses.
-            return
+        # The wall's display and the sizes it knows are read inside the
+        # transaction that writes and forgets: a heartbeat landing between a read
+        # and the forgetting refreshed a size this one then forgot, and a wall
+        # moved to another screen meanwhile had this size kept against the old one.
         with self._store.transaction():
+            wall = self._lookups.get_wall(wall_id)
+            if wall.display_id is None:
+                return
+            known = self._store.reported_screens(wall.display_id)
+            if any((w, h) == (width, height) and now - at < SCREEN_REFRESH for w, h, at in known):
+                # Seen within the hour: the judgement needs day-scale freshness, and
+                # a write per heartbeat per wall would buy nothing it uses.
+                return
             store_write(self._store.record_screen, wall.display_id, width, height, now)
             for old_width, old_height, at in known:
                 if at < now - SCREEN_MEMORY:

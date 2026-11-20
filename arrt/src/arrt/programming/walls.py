@@ -152,15 +152,23 @@ class Walls:
         who took everything down both produce it, and `information-architecture.md`
         designs it as one of the Walls screen's named empty states.
         """
-        self._lookups.get_wall(wall_id)
-        assignment = self._store.get_assignment(wall_id)
-        return None if assignment is None else self._lookups.get_theme(assignment.theme_id)
+        # One scope, so a hang changed between the two reads cannot name a
+        # theme deleted meanwhile and refuse a wall that is fine.
+        with self._store.reading():
+            self._lookups.get_wall(wall_id)
+            assignment = self._store.get_assignment(wall_id)
+            return None if assignment is None else self._lookups.get_theme(assignment.theme_id)
 
     def survey_walls(self) -> Sequence[WallView]:
-        """Every wall with what hangs on it and what its screen is doing."""
-        themes = {theme.id: theme for theme in self._store.list_themes()}
-        hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
-        return [self._view(wall, themes, hanging) for wall in self._store.list_walls()]
+        """Every wall with what hangs on it and what its screen is doing.
+
+        Read in one scope: a theme made and hung between the themes' read and the
+        hangs' was a hang naming a theme the survey did not hold, and a fault.
+        """
+        with self._store.reading():
+            themes = {theme.id: theme for theme in self._store.list_themes()}
+            hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
+            return [self._view(wall, themes, hanging) for wall in self._store.list_walls()]
 
     def get_wall_view(self, wall_id: str) -> WallView:
         """One wall with what hangs on it and what its screen is doing.
@@ -169,15 +177,16 @@ class Walls:
         "what hangs here" has one answer in this class. `survey_walls` is the
         bulk path, and reads the whole catalogue once for N walls.
         """
-        wall = self._lookups.get_wall(wall_id)
-        return WallView(
-            wall=wall,
-            hanging=self.hanging_on(wall_id),
-            display_state=self.display_state(wall),
-            reads_feed=self._reads_feed(wall.id),
-            last_shown=self._store.latest_showing(wall.id),
-            upcoming=self._upcoming(wall.id),
-        )
+        with self._store.reading():
+            wall = self._lookups.get_wall(wall_id)
+            return WallView(
+                wall=wall,
+                hanging=self.hanging_on(wall_id),
+                display_state=self.display_state(wall),
+                reads_feed=self._reads_feed(wall.id),
+                last_shown=self._store.latest_showing(wall.id),
+                upcoming=self._upcoming(wall.id),
+            )
 
     def display_state(self, wall: Wall) -> DisplayState:
         """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
@@ -301,6 +310,9 @@ class Walls:
                 if any(pin.wall_id == wall_id for pin in self._store.list_pins(draft.id)):
                     store_write(self._store.remove_pin, draft.id, wall_id)
             store_write(self._store.remove_wall, wall_id)
+            # Read here, not in the line below: a theme deleted after the commit
+            # failed a delete that had already happened.
+            taken_down = None if assignment is None else self._store.get_theme(assignment.theme_id)
         # After the commit, for the reason `ClientService.remove_client` gives:
         # files nothing will read again would otherwise sit under the art root.
         self._settings.manifest_v2_path(wall_id).unlink(missing_ok=True)
@@ -309,11 +321,7 @@ class Walls:
             "Deleted wall %r (%s)%s.",
             wall.name,
             wall_id,
-            (
-                f"; took down {self._lookups.get_theme(assignment.theme_id).name!r}"
-                if assignment and self._store.get_theme(assignment.theme_id)
-                else ""
-            ),
+            f"; took down {taken_down.name!r}" if taken_down else "",
         )
         return wall
 
@@ -333,8 +341,11 @@ class Walls:
             feed = self._feeds.published(wall_id)
             if feed is not None:
                 self._feeds.patch_v2_works(wall_id, feed, {})
+            # Inside, so a wall deleted after the commit is not a refusal of a
+            # setting that was written.
+            written = self._lookups.get_wall(wall_id)
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
-        return self._lookups.get_wall(wall_id)
+        return written
 
     def set_playback(
         self,
@@ -384,6 +395,8 @@ class Walls:
             shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
             store_write(self._store.update_wall, chosen)
             build = self._feeds.republish(wall_id, self._feeds.published(wall_id))
+            # Inside, as `set_mat_mode` says.
+            written = self._lookups.get_wall(wall_id)
         interval, shuffled = self._feeds.pace(chosen)
         log.info(
             "Wall %r: each work stays up %ds%s, %s%s; it shows %s.",
@@ -396,7 +409,7 @@ class Walls:
         )
         if build is not None:
             log_published(build)
-        return self._lookups.get_wall(wall_id)
+        return written
 
     # -- writes: what the wall shows now ---------------------------------------
 
@@ -409,8 +422,8 @@ class Walls:
         the study; a wall sharing works with it has its slots to come rebuilt
         beside it (`FeedPublisher._write_v2`).
         """
-        self._lookups.get_wall(wall_id)
         with self._feeds.publishing():
+            self._lookups.get_wall(wall_id)
             return self._feeds.restart(wall_id, pinned=None)
 
     def show_work_now(self, wall_id: str, artwork_id: str) -> str:
@@ -424,9 +437,11 @@ class Walls:
         is not in the theme hanging there is shown for one slot, as a guest,
         and the schedule then carries on through the theme.
         """
-        self._lookups.get_wall(wall_id)
-        answer = self._themes.require_showable(artwork_id)
+        # Checked inside the act, so a work kept off every wall meanwhile is
+        # refused rather than put up.
         with self._feeds.publishing():
+            self._lookups.get_wall(wall_id)
+            answer = self._themes.require_showable(artwork_id)
             return self._feeds.restart(wall_id, pinned=answer)
 
     # -- internals ------------------------------------------------------------
