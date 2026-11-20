@@ -534,6 +534,19 @@ left as planned and this section is the later word.
   (`NOT_ASKED_RECHECK_SECONDS`), writing nothing to the refused work's row. The bound
   belongs to a pass going from work to work: a look outside a pass is never refused. A
   run's refusal writes one journal line, `image_pool.still_asking`.
+- **2026-11-20 (Chunk 55), the pull request's required check went red:** every suite passed
+  on the pool and CI's guard then failed the run, because Chunk 59's three comparisons of a
+  frozen release with its tag skip where the tag is not fetched (the pool and GitHub's
+  checkout have none), and the guard reads any skip in CI as something not provisioned,
+  on purpose. Integration had reported those skips on every pass and never ran CI's own
+  guard over the pool's report. Fixed without touching the guard: the comparison sits
+  behind `release_tags`, deselected by default and run by hand after a freeze, and fails
+  by name when selected without its tag; `test_released.py` still holds each frozen copy
+  to its own `sha256.json` on every run; a root test
+  (`tests/test_ci_runs_no_unprovisioned_skip.py`) names any skip in a suite CI runs that
+  is neither behind a deselected marker nor on its short list with a reason. The cost:
+  that a frozen copy's `sha256.json` matches what its tag writes is checked only when a
+  person runs the command.
 
 ## The items 2a carried forward, and where each went
 
@@ -1790,8 +1803,10 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
     `contract/released/<version>/` (the fixtures with their index, `routes.json`, and from
     1.2.0 on `transport.json` and `vocabulary.json`) and its `sha256.json`. Run on the tags
     of 1.0.0, 1.1.0 and 1.2.0 it reproduces the three existing copies byte for byte; a test
-    holds that for every copy whose tag is fetched, and says by name when a tag is not
-    there to compare (never a silent pass).
+    holds that for every copy, behind the marker `release_tags`, which no default run
+    collects (as first built it skipped, by name, where a tag was not fetched; see
+    § Decisions made mid-build for why that changed). Run by hand after a freeze, it
+    fails by name when a tag is not there to compare.
   - The package ships `py.typed`, and its wheel carries it (a test reads the built
     distribution's file list, or the installed package).
   - `released()`'s docstring says what a copy holds, from which release.

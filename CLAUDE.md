@@ -108,5 +108,7 @@ Each is an instruction. Why it holds is in `docs/testing.md`.
 - The root suite is not optional, even for a change made entirely inside `arrt/`.
 - The live markers (`live_museum`, `live_binary`, `live_api`, `llm_eval`) run by
   hand, as `uv run pytest … -n0` on this machine, never through testament.
+- `release_tags` (in `contract/`) compares each frozen release with its git tag. Run it
+  by hand after a freeze: `git fetch origin --tags && cd contract && uv run pytest -m release_tags`.
 - The mutation sweep runs per project.
 - Whether the UI is good to use: follow `docs/ux-walkthrough.md`.
