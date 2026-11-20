@@ -327,6 +327,18 @@ convenience would otherwise make that split a migration.
 > transaction spanning the Library's commit and Programming's handler, so a crash
 > can lose an event. Programming reconciles every manifest against the facade at
 > startup, so a lost event delays an update and never leaves a manifest wrong.
+> *(Since wave 2b, 2026-11-20, Chunks 39 and 60, it also reconciles while running:*
+> `FeedsJob` (`arrt/src/arrt/services/container.py`) hands the whole reconciliation
+> to the Library's scheduler as a job, at its first pass and then every sixth
+> (`RECONCILE_EVERY_PASSES`, thirty minutes at the five-minute pass), retrying the
+> next pass after a failure. The scheduler still imports nothing of Programming
+> (`test_seam_imports.py`): the job is the container's adapter and reads Programming
+> through `DisplayService`. A reconciliation is one publishing transaction under the
+> store's lock, so an act that arrives during one waits for it. Measured in-process on
+> one machine with nothing to fix: 0.4 s a pass at 2,000 works and 1.1 to 2.5 s at
+> 5,000, most of it the per-work lookups, whose batching is left to a later part. A
+> lost event now delays an update by at most about half an hour, not until the next
+> start.)*
 >
 > **Status 2026-10-10 (wave 4g): still `in-transition`, for rule 3 only.** The
 > `retire_directives` migration (`persistence/migrations.py`) drops the
@@ -501,8 +513,17 @@ network.
   against the contract wherever it is built is held by the suite-wide feed guard
   (`arrt/tests/conftest.py`, `every_feed_keeps_the_contract`), which patches the
   builder where it now lives (`feeds.as_v2_document`); it checks feeds built in the
-  test's own process, so a feed a server *process* publishes (the system tests') is not
-  checked by it. This is cohesion, not the Library/Programming split, which is not a
+  test's own process. *(Since wave 2b, 2026-11-20, Chunk 50, a feed a server process
+  publishes is checked too:* `arrt/tests/system/server_process.py` holds every feed
+  each system test's server left on disk to the contract when the test ends
+  (`feed_guard.published_problems`), and refuses, before a server starts, any path
+  setting that would resolve outside the test's scratch root, read with the server's
+  own `Settings.from_env`; the in-process guard has a monkeypatch of its own, so a
+  test's `monkeypatch.undo()` no longer turns it off.) Every Programming collaborator
+  looks a wall and a theme up through one `Lookups` (`arrt/src/arrt/programming/lookups.py`,
+  Chunk 48), the one owner of the "no wall" and "no theme" refusals, which raise
+  `NotFound` since Chunk 37; each act reads what it checks inside the transaction that
+  writes (`arrt/tests/unit/test_reads_inside_their_writes.py`). This is cohesion, not the Library/Programming split, which is not a
   requirement (ruling 9 of 2026-11-19).
 - **A fourth binding is not a surface:** `arrt/seed/` is a hand-run command
   that reads the 2024 index and mints its works through `CatalogueService`. It is
