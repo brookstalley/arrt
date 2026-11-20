@@ -276,6 +276,27 @@ what it did (counts at the commit that wrote the guard):
   `datetime.now` and asserts on elapsed time is listed for wave 2b's Chunk 43
   (clocks), not changed here.
 
+## The real-Player test
+
+**`player_e2e` runs the shipped pair: `python -m arrt` and a real Arrt Player,
+two processes over HTTP** (`arrt/tests/system/test_a_real_player.py`). The Player
+is the commit `arrt/tests/system/player-ref.txt` names, fetched from GitHub with
+`git` and synced from its own lockfile with `uv sync --frozen --no-dev` (as a Pi
+installs it, on uv's Python 3.13) into a cache outside the repository, by commit
+(`~/.cache/arrt/player-e2e`, or `ARRT_PLAYER_E2E_CACHE`). So it needs the network
+to GitHub, `git` and `uv`, checks for the last two first and fails by name without
+them; it reaches nothing else. That is why it is deselected by default, with the
+live suites' reason: run it as `cd arrt && uv run pytest -m player_e2e -n0
+tests/system/test_a_real_player.py` (about 65 s warm, two of the Player's 30 s
+client polls; the first run also fetches and builds the Player), or on the pool
+with `testament run --json --suite curation -- -m player_e2e
+arrt/tests/system/test_a_real_player.py`, whose runners reach GitHub and carry
+both (210 s cold and 81 s warm there, 2026-11-19). Nothing runs it unasked: not
+the default suites, not `tests.yml`. The image's test stage deselects it (no
+git there), and `.github/workflows/image.yml` runs it against the built app image
+(`ARRT_SERVER_IMAGE`) on a pull request into `main`. Moving the Player's pin is a
+one-line change to `player-ref.txt`, and the first run after it is a cold one.
+
 ## The live suites
 
 Four markers — `live_museum`, `live_binary`, `live_api`, `llm_eval` — all

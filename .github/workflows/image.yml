@@ -115,3 +115,53 @@ jobs:
       - name: Fail if nothing actually ran
         if: always() && steps.decide.outputs.build == 'true'
         run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml
+
+  player:
+    name: "The built image against a real Arrt Player"
+    # The app stage, built as the NAS runs it, with a real Arrt Player pointed at it:
+    # `arrt/tests/system/test_a_real_player.py` with `ARRT_SERVER_IMAGE` naming the image,
+    # so the server is the image, run over the test's art root mounted at `/art`, and the
+    # Player is the commit `arrt/tests/system/player-ref.txt` names, installed from GitHub.
+    # The test stage cannot do this (no git, no network: the Dockerfile says so), and the
+    # pool runs the same test against `python -m arrt` from the checkout, not the image.
+    #
+    # On a pull request into `main` only, and by hand: a release, at most weekly, so the
+    # shipped image meets a real Player once a release, inside the owner's ruling on
+    # minutes (2026-11-18). This job is proven only by such a pull request.
+    if: github.event_name != 'pull_request' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the app stage
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: arrt
+          build-contexts: repo=.
+          target: app
+          platforms: linux/amd64
+          load: true
+          tags: arrt:player-e2e
+          # Read from the image job's cache, never written: the dependency layers are
+          # the ones that job keeps, and a second writer to its scope would evict them.
+          cache-from: type=gha,scope=server-image
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - name: The server's test environment
+        working-directory: arrt
+        run: uv sync --frozen
+      - name: A real Arrt Player against the built image
+        working-directory: arrt
+        env:
+          ARRT_SERVER_IMAGE: arrt:player-e2e
+        # `-m player_e2e` because the addopts deselect it; `-n0` because it is one test of
+        # two processes; the path scoped, as every CI pytest line is.
+        run: uv run --frozen pytest tests/system/test_a_real_player.py -m player_e2e -n0 -q -p no:cacheprovider -o junit_suite_name=player --junitxml ../player-report/results.xml
+      - name: Fail if nothing actually ran
+        if: always()
+        run: python3 .github/scripts/assert_tests_ran.py player-report/results.xml

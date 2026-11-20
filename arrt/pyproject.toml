@@ -280,6 +280,7 @@ markers = [
     "live_binary: drives the real dezoomify-rs against a live museum, checking the CLI behaviours the wrapper is written against. Costs nothing and needs no key, but needs the binary installed and the network. Deselected by default; run with `-m live_binary`.",
     "plugin_fault_expected: the test makes a source plugin fault on purpose, so the suite-wide guard that fails any test logging `source.plugin_fault` lets it pass.",
     "browser: drives the shipped browser client in a real Chromium against a real booted server. Costs nothing and reaches no foreign API, but needs the `browser` dependency group and a downloaded browser — deselected by default, run with `-m browser`.",
+    "player_e2e: runs a real Arrt Player, installed from GitHub at `tests/system/player-ref.txt`, against the server as a process. Costs nothing and reaches no museum, but needs the network to GitHub, `git` and `uv` — deselected by default, run with `-m player_e2e -n0` (docs/testing.md § The real-Player test).",
 ]
 # All three live suites are off unless asked for, but for two different reasons
 # and they are kept on separate markers because of it. `llm_eval` and `live_api`
@@ -293,6 +294,12 @@ markers = [
 # impose on a default `uv sync`. That makes its deselection a packaging decision
 # rather than a statement about the tests — they gate exactly as hard as the rest
 # of the suite wherever the browser is installed, and CI installs it.
+#
+# `player_e2e` is off for `live_museum`'s reason, the network, but only to install:
+# the test fetches Arrt Player's commit and its git dependency from GitHub, then
+# runs it against a local server and reaches nothing else. Off here, so the
+# image's test stage (no git) and a machine offline stay green on what they can
+# run; `image.yml` runs it against the built image on a pull request into `main`.
 #
 # **Separate markers so that opting into the free one does not opt into the paid
 # ones.** They shared `live_api` briefly, which meant the museum suite's own
@@ -316,7 +323,7 @@ markers = [
 # contract change the probe exists to detect. Run them as
 # `uv run pytest -m live_museum -n0`. `.github/workflows/api-drift.yml` does the
 # same and says so at each call site.
-addopts = "-n auto -m 'not llm_eval and not live_api and not live_museum and not live_binary and not browser'"
+addopts = "-n auto -m 'not llm_eval and not live_api and not live_museum and not live_binary and not browser and not player_e2e'"
 
 [tool.mypy]
 # The type checker, run as `uv run mypy` beside ruff and black (CLAUDE.md's
