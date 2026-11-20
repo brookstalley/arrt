@@ -339,8 +339,8 @@ def _queue(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
         total=len(in_line),
         limit=limit,
         offset=offset,
-        failing=len(listing.entries) - len(in_line),
-        causes=len(listing.causes),
+        failing=listing.failing,
+        causes=listing.cause_count,
     )
 
 

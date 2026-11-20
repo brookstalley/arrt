@@ -507,8 +507,8 @@ def list_acquisitions(
         total=len(in_line),
         limit=limit,
         offset=offset,
-        failing=len(listing.entries) - len(in_line),
-        causes=len(listing.causes),
+        failing=listing.failing,
+        causes=listing.cause_count,
     )
 
 

@@ -938,6 +938,28 @@ async def test_the_queue_its_causes_and_a_causes_works_are_the_routes_answers(se
     assert page["works"][0]["acquisition"]["phase"] == "failed"
 
 
+async def test_the_queues_two_counts_are_the_listings_own_on_both_surfaces(server_url, services, store, monkeypatch):
+    """`failing` and `causes` are `QueueListing.failing` and `.cause_count`, rendered by the route and by MCP, not counted twice.
+
+    The listing's counts are checked against what it lists, then replaced, so a
+    surface still counting for itself would answer the real figures.
+    """
+    from arrt.library.acquisition.queue import QueueListing
+
+    _failing(services, store, 3, "a 404.")
+    _failing(services, store, 1, "reset.")
+    listing = services.acquisition_queue.listing()
+    assert (listing.failing, listing.cause_count) == (sum(len(group.entries) for group in listing.causes), len(listing.causes))
+    assert (listing.failing, listing.cause_count) == (4, 2)
+
+    monkeypatch.setattr(QueueListing, "failing", property(lambda _listing: 41))
+    monkeypatch.setattr(QueueListing, "cause_count", property(lambda _listing: 7))
+    queue, _ = await call(server_url, "art_catalogue", action="queue")
+    route = await _route(server_url, "/api/acquisitions")
+
+    assert (queue["failing"], queue["causes"]) == (route["failing"], route["causes"]) == (41, 7)
+
+
 async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(server_url, services, store):
     failed = _failing(services, store, 2, "a 404.")
 
