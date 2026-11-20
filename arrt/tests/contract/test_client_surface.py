@@ -258,8 +258,14 @@ def test_the_client_heartbeat_refuses_without_a_valid_client_token(heartbeat_url
 
 # -- the Player's settings page address (contract 1.2.0) ------------------------------
 
-#: Every client heartbeat fixture carrying `settings_url`, valid and invalid.
-WITH_SETTINGS_URL = [row for row in HEARTBEATS if client_heartbeat.SETTINGS_URL_KEY in _fixture(row["path"])]
+#: Every client heartbeat fixture carrying `settings_url`, valid and invalid. A
+#: fixture whose document is not an object (contract 1.3.0's must-refuse
+#: `document-not-an-object`) carries no key at all.
+WITH_SETTINGS_URL = [
+    row
+    for row in HEARTBEATS
+    if isinstance(document := _fixture(row["path"]), dict) and client_heartbeat.SETTINGS_URL_KEY in document
+]
 
 
 def test_the_index_holds_settings_addresses_the_server_serves_and_ones_it_does_not():
