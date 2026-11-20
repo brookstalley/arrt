@@ -10,10 +10,16 @@ make the same bytes. Two things are held here:
   what it copies and what it leaves out, that it reads the tag and not the working tree,
   what `sha256.json` records and in what order, and each refusal by name.
 - **The tool, on the real tags**: each committed copy is written again from its tag and
-  compared byte for byte, `sha256.json` included. That needs the tag. A checkout that has
-  not fetched tags, and a runner sent only this tree's files, do not have it; the test
-  then **skips by name** (`contract-v1.0.0 is not in this repository`), so a run without
-  the comparison says so in its report and never passes as if it had made it.
+  compared byte for byte, `sha256.json` included. That needs the tags, which only a full
+  clone has: the pool is sent this tree's files and no tags, and GitHub's checkout fetches
+  none. So it is a check run by hand, like the live markers, under the marker
+  `release_tags`, which `pyproject.toml` deselects by default: no default run collects it,
+  so none skips it, and CI's guard reads any skip as a provisioning failure. Whoever
+  freezes a release runs it (`git fetch origin --tags`, then
+  `cd contract && uv run pytest -m release_tags`); selected where a tag is missing, it
+  **fails by name**, because someone who asked for the comparison and did not get it must
+  not read a pass. Every default run still holds each copy to its own `sha256.json`
+  (`test_released.py`), which needs no tag.
 """
 
 import hashlib
@@ -313,20 +319,21 @@ def _has_tag(repo: Path, tag: str) -> bool:
     return done.returncode == 0
 
 
+@pytest.mark.release_tags
 @pytest.mark.parametrize("version", sorted(arrt_contract.released()))
 def test_each_committed_copy_is_the_bytes_the_tool_writes_from_its_tag(version, tmp_path):
-    """The three copies in `released/`, written again by the committed tool from their tags, byte for byte.
+    """Each copy in `released/`, written again by the committed tool from its tag, byte for byte.
 
-    **Where this runs.** Where the repository's tags are fetched: a developer's checkout
-    (`git fetch origin --tags`) and any CI checkout that fetches them. A runner that is sent
-    this tree's files and no tags skips each case by name, and the report says which tag was
-    missing: the comparison was not made there, and no run reports that it was.
+    **Where this runs.** Only when asked for, with `-m release_tags`, in a checkout that
+    has fetched the tags. A missing tag is a failure naming it, never a skip: the run
+    was asked to make this comparison, and a skip would let it report green without it.
     """
     repo = _repository()
     tag = f"contract-v{version}"
     if repo is None or not _has_tag(repo, tag):
-        pytest.skip(
-            f"{tag} is not in this repository, so the copy of {version} was not compared with it (git fetch origin --tags)"
+        pytest.fail(
+            f"{tag} is not in this repository, so the copy of {version} was not compared with it: "
+            "run `git fetch origin --tags` and run this again"
         )
 
     written = freeze_release.freeze(repo, version, tmp_path)

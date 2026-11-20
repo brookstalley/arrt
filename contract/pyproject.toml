@@ -66,6 +66,14 @@ packages = ["src/arrt_contract"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "release_tags: compares each frozen copy under `released/` with what `tools/freeze_release.py` writes from its git tag. Needs the tags (`git fetch origin --tags`), which neither the pool nor CI's checkout has, so it is deselected by default; run it by hand after a freeze with `uv run pytest -m release_tags`.",
+]
+# Deselected rather than skipped, because a skip in CI is read as a dependency that
+# was not provisioned (`.github/scripts/assert_tests_ran.py`), and the tags are absent
+# from every run but a full clone's. A command-line `-m` replaces this one, which is how
+# the comparison is asked for; asked for without the tags, it fails by name.
+addopts = "-m 'not release_tags'"
 
 # The source is checked strict; the tests are not type-checked. Run as
 # `cd contract && uv run mypy`.
