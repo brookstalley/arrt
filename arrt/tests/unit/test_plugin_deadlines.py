@@ -107,8 +107,44 @@ def until(condition, *, within: float = SETTLE) -> None:
         time.sleep(0.01)
 
 
-def late_lines(caplog, event: str) -> list[logging.LogRecord]:
-    return [record for record in caplog.records if getattr(record, "event", None) == event]
+def late_lines(caplog, event: str, *, plugin: str | None = None) -> list[logging.LogRecord]:
+    """The journal lines carrying `event`, and only `plugin`'s when it is named.
+
+    `caplog` collects from every thread in the process, so a call another test
+    left running past its deadline logs into this one's records when it returns.
+    A test that counts lines names a plugin no other test uses.
+    """
+    return [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == event and (plugin is None or getattr(record, "plugin", None) == plugin)
+    ]
+
+
+@pytest.fixture(autouse=True)
+def every_plugin_call_ends_with_its_test() -> Iterator[None]:
+    """Each test reaps the plugin calls it started, so none returns, and logs, during the next.
+
+    These tests leave calls running past their deadline on purpose and let them
+    go as they end. A call let go returns on its own thread a moment later, and
+    `caplog` collects from every thread: one returning during the next test put
+    a late line among that test's, whose count it then never matched (one
+    failure in 54 serial runs of this file, measured 2026-11-20). Joined here,
+    after the test let its gates go, with `SETTLE` as the bound: a call still
+    running then fails the test that started it, by name.
+    """
+    before = set(threading.enumerate())
+    yield
+    ends = time.monotonic() + SETTLE
+    started = [
+        thread
+        for thread in set(threading.enumerate()) - before
+        if thread.name.startswith(("source-plugin-", "image-source-"))
+    ]
+    for thread in started:
+        thread.join(max(0.0, ends - time.monotonic()))
+    outlived = sorted(thread.name for thread in started if thread.is_alive())
+    assert not outlived, f"a plugin call outlived its test: {outlived}"
 
 
 def reading(roster: SourceRoster, name: str):
@@ -149,24 +185,24 @@ def test_a_hung_plugin_finder_is_could_not_be_asked_within_its_deadline_and_the_
 
 
 def test_a_late_answer_after_the_deadline_is_discarded_and_logged_and_never_counted_as_an_answer(caplog):
-    slow = Hung()
+    slow = Hung("discarded")
     roster = SourceRoster.of(finders=[slow], deadlines=Deadlines(finder=QUICK))
 
     with pytest.raises(ImageSearchFailure, match="did not answer within"):
         list(roster.finders[0].find_images(QUERY))
     with caplog.at_level(logging.WARNING):
         slow.gate.set()
-        until(lambda: late_lines(caplog, "source.plugin_late"))
+        until(lambda: late_lines(caplog, "source.plugin_late", plugin="discarded"))
 
-    (late,) = late_lines(caplog, "source.plugin_late")
-    assert (late.plugin, late.operation) == ("slow", "find_images")
+    (late,) = late_lines(caplog, "source.plugin_late", plugin="discarded")
+    assert (late.plugin, late.operation) == ("discarded", "find_images")
     assert "past its deadline; discarded" in late.getMessage()
-    slow_reading = reading(roster, "slow")
+    slow_reading = reading(roster, "discarded")
     assert (slow_reading.unasked, slow_reading.answered) == (1, 0), "the late answer was counted"
 
 
 def test_calls_still_running_past_their_deadline_are_bounded_and_a_returned_one_frees_its_place(caplog):
-    slow = Hung()
+    slow = Hung("bounded")
     roster = SourceRoster.of(finders=[slow], deadlines=Deadlines(finder=QUICK, stragglers=2))
     finder = roster.finders[0]
     try:
@@ -184,10 +220,10 @@ def test_calls_still_running_past_their_deadline_are_bounded_and_a_returned_one_
         slow.gate.set()
 
     with caplog.at_level(logging.WARNING):
-        until(lambda: len(late_lines(caplog, "source.plugin_late")) == 2)
+        until(lambda: len(late_lines(caplog, "source.plugin_late", plugin="bounded")) == 2)
     assert len(list(finder.find_images(QUERY))) == 1, "with its stragglers returned, the plugin is asked again"
     assert slow.entered == 3
-    assert reading(roster, "slow").unasked == 3
+    assert reading(roster, "bounded").unasked == 3
 
 
 def test_a_reader_a_preview_and_a_browse_each_have_their_deadline():

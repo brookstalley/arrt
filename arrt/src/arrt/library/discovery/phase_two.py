@@ -74,8 +74,8 @@ from dataclasses import dataclass
 from typing import Final
 
 from arrt.library.discovery.dedup import artist_key, title_key
-from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageSearchFailure
-from arrt.library.discovery.pool import ImageSourcePool
+from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery
+from arrt.library.discovery.pool import ImageSourcePool, SourcesNotAsked
 from arrt.library.registry import Registry, RegistryUnavailable
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX, Fit, QualityProfile
 from arrt.library.sources.names import museum_name
@@ -183,7 +183,7 @@ class PhaseTwoEngine:
         #: no registry, where only the title comparison identifies a work.
         self._registry = registry
 
-    def resolve(self, query: ImageQuery) -> Resolution:
+    def resolve(self, query: ImageQuery, *, work_id: str | None = None) -> Resolution:
         """Every credible instance for this work, most confident first, and the refusals.
 
         An empty result is a real answer and the caller must record it as one,
@@ -203,9 +203,15 @@ class PhaseTwoEngine:
         when no source answers, and is searched again later. Calling it
         unresolved would record a fact about the work that nobody observed.
         A source that answered that the work's pages at it are gone (`LinkGone`)
-        did answer, holding nothing, and leaves nothing in doubt.
+        did answer, holding nothing, and leaves nothing in doubt. A source still
+        asking when the run stopped waiting at its window (`PoolAnswer.owed`)
+        leaves the work in doubt as one that could not be asked does: the work is
+        settled without it only by an instance that meets the minimum, and is
+        otherwise searched again, when the record makes its next pass wait for it.
+
+        `work_id` is the candidate work's, which the pool records the search under.
         """
-        answer = self._sources.find_images(query)
+        answer = self._sources.find_images(query, work_id=work_id)
         judged: list[JudgedImage] = []
         refusals: set[UnresolvedReason] = set()
         link = self.link(query)
@@ -216,10 +222,13 @@ class PhaseTwoEngine:
             else:
                 judged.append(outcome)
         judged.sort(key=self.rank)
-        if answer.unreachable and all(entry.below_minimum for entry in judged):
-            raise ImageSearchFailure(
-                f"{', '.join(answer.unreachable)} could not be asked, and no other source has an image of "
-                f"{query.title!r} that meets the quality minimum."
+        in_doubt = (*answer.unreachable, *answer.owed)
+        if in_doubt and all(entry.below_minimum for entry in judged):
+            # By the museum, not the plugin id: the sentence reaches a curator.
+            raise SourcesNotAsked(
+                f"{_doubt(answer.unreachable, answer.owed)}, and no other source has an image of "
+                f"{query.title!r} that meets the quality minimum.",
+                sources=in_doubt,
             )
         log.info(
             "judged a work's instances",
@@ -230,6 +239,8 @@ class PhaseTwoEngine:
                 "instances_below_floor": sum(1 for entry in judged if entry.below_minimum),
                 "refused_at": sorted(str(reason) for reason in refusals),
                 "unreachable": list(answer.unreachable),
+                # Still asking at the run's window: owed, and recorded when they answer.
+                "owed": list(answer.owed),
                 # Sources that answered their linked pages are gone (1.6): an
                 # answer holding nothing, so they settle the work, named apart.
                 "gone": list(answer.gone),
@@ -451,6 +462,16 @@ class WikidataLink:
         if asked_key and held_key and any(asked_key in keys and held_key in keys for keys in names):
             return None
         return "names_unavailable" if unavailable else "not_a_creators_name"
+
+
+def _doubt(unreachable: Sequence[str], owed: Sequence[str]) -> str:
+    """Which sources leave a work in doubt, by museum: those that could not be asked, and those that had not yet answered."""
+    said = []
+    if unreachable:
+        said.append(f"{', '.join(map(museum_name, unreachable))} could not be asked")
+    if owed:
+        said.append(f"{', '.join(map(museum_name, owed))} had not answered yet")
+    return "; ".join(said)
 
 
 def _renaming(link: WikidataLink, found: FoundImage, *, asked: str, holds: str) -> str | None:

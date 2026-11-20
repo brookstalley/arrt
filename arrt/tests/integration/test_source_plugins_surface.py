@@ -18,8 +18,22 @@ from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
 
 #: The could-not-be-asked and answered counts, as fields: on `/api/sources` first
-#: (wave 2b, Chunk 32); Chunk 53 gives the tool their twins and removes this.
-HTTP_ONLY = frozenset({"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"})
+#: (wave 2b, Chunk 32), and the search record's counts (Chunk 33); Chunk 53 gives
+#: the tool their twins and removes this.
+HTTP_ONLY = frozenset(
+    {
+        "unasked",
+        "last_unasked_at",
+        "last_unasked_age_seconds",
+        "last_unasked",
+        "answered",
+        "searched",
+        "searches_answered",
+        "searches_unasked",
+        "searches_owed",
+        "last_search_answered_at",
+    }
+)
 
 
 @pytest.fixture
@@ -66,6 +80,12 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
         "last_unasked_age_seconds": None,
         "last_unasked": None,
         "answered": 0,
+        # Never searched: the search record holds nothing of it (Chunk 33).
+        "searched": 0,
+        "searches_answered": 0,
+        "searches_unasked": 0,
+        "searches_owed": 0,
+        "last_search_answered_at": None,
         "description": None,
         "distribution": "arrt",
         "version": importlib.metadata.version("arrt"),

@@ -1430,6 +1430,16 @@ class SourcePluginOut(BaseModel):
     last_unasked_age_seconds: float | None
     last_unasked: str | None
     answered: int
+    #: From the search record, which a restart keeps: how many works phase 2
+    #: last searched this plugin for, and of those how many it answered, could
+    #: not be asked about, and still owes an answer about (it had not answered
+    #: when the run stopped waiting); and when it last answered one. Zeros and
+    #: null for a plugin never searched.
+    searched: int
+    searches_answered: int
+    searches_unasked: int
+    searches_owed: int
+    last_search_answered_at: str | None
     description: str
     #: The installed distribution that registers the plugin, and its version;
     #: null for a plugin registered by hand, or one two distributions both claim.

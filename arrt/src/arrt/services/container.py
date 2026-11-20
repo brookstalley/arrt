@@ -300,7 +300,7 @@ class Services:
         # The quality profile reaches discovery for one reason: automatic
         # selection must withhold an instance below its minimum.
         sources = SourceRoster.empty() if sources is None else sources
-        pool = ImageSourcePool(sources.finders) if sources.finds_images else None
+        pool = ImageSourcePool(sources.finders, searches=discovery) if sources.finds_images else None
         discovery_service = DiscoveryService(
             discovery, catalogue_service, quality_profile, precedence=None if pool is None else pool.precedence
         )
@@ -424,6 +424,7 @@ class Services:
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
                 sources=sources,
                 yields=discovery.source_yields,
+                searches=discovery.search_tallies,
                 pictures=pictures,
                 watches=watches.reading,
                 # Every Player's state, and the queue's failed works: the two

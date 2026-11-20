@@ -2876,6 +2876,7 @@ def _pictures(reading: PicturesReading) -> PicturesOut:
 
 def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     reading = health.reading
+    searches = health.searches
     return SourcePluginOut(
         name=reading.name,
         museum=museum_name(reading.name, reading.identity.museum),
@@ -2890,6 +2891,13 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
         last_unasked_age_seconds=health.last_unasked_age_seconds,
         last_unasked=reading.last_unasked,
         answered=reading.answered,
+        searched=0 if searches is None else searches.searched,
+        searches_answered=0 if searches is None else searches.answered,
+        searches_unasked=0 if searches is None else searches.unasked,
+        searches_owed=0 if searches is None else searches.owed,
+        last_search_answered_at=(
+            None if searches is None or searches.last_answered_at is None else searches.last_answered_at.isoformat()
+        ),
         description=health.describe(),
         distribution=reading.identity.distribution,
         version=reading.identity.version,

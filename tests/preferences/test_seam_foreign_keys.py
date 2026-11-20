@@ -72,6 +72,7 @@ OWNER: dict[str, str] = {
     "resolve_run_works": LIBRARY,
     "sightings": LIBRARY,
     "run_citations": LIBRARY,
+    "source_searches": LIBRARY,
     # Library: the file's own record of which release last opened it (`file.py`)
     "catalogue_opened": LIBRARY,
     # Programming
