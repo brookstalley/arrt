@@ -348,6 +348,33 @@ left as planned and this section is the later word.
   stops building on GitHub's runner for every pull request. (c) No chunk of this plan adds a
   step, a job or an install to a workflow that runs on GitHub's runner except to remove or
   shorten one; a chunk that needs CI to do more gives the work to the pool.
+- **2026-11-20 (Chunk 49), as built:** the Goals say the release-list test requires a dump for every
+  release *below* the version `arrt/pyproject.toml` names. It was built as *at or below*: "below"
+  would let a release ship without its own dump and refuse only at the one after. The cost is that
+  `arrt/tools/old_catalogue.py` runs inside the release commit, before that release's tag exists;
+  the tool builds the newest untagged release from `HEAD` for that reason, and any other missing
+  tag fails by name. Between releases the version is still the last release's, so an ordinary pull
+  request is green. Every release now has a row in `arrt/tests/fixtures/catalogues/releases.json`
+  (a release that changed nothing in the catalogue reuses an earlier dump), which the norm row in
+  `project-preferences.md` now says.
+- **2026-11-20 (Chunks 30, 32 and 40), a value three chunks share:** the acquisition queue kept no
+  instant of a work's last failure, so the health model could count the works the queue gave up
+  on and could not say how old the newest failure is. Chunk 32 adds a nullable `failed_at` to the
+  queue row, written at every recorded failure, the give-up included; a row that failed before
+  the column existed keeps none, which reads as "not recorded" (no instant is guessed). Chunk 30,
+  built beside it, derives the instant for rows still being retried behind one function and
+  answers "not known" for the rest; Chunk 40, which waits for both, makes that function read the
+  column and keeps the derivation only for rows written before it.
+- **2026-11-20 (Chunk 35), two edits outside its files, allowed by the coordinator:** one
+  defaulted field `cost_status` on `EngineSpend` (`arrt/src/arrt/library/discovery/engine.py`,
+  which no chunk of this plan owns) and one keyword in `_record_spend`'s call in
+  `arrt/src/arrt/library/discovery/runner.py`, so that "cost not known" travels from the engine to
+  the ledger.
+- **2026-11-20 (Chunk 30), two assertions rewritten in test files Chunk 45 owns later, allowed by
+  the coordinator:** the parity of the MCP `clients` tool with the browser's route holds except
+  for a named set of fields the route answers and the tool does not yet, which Chunk 53 deletes
+  when it adds them; and the status observation's test assigns its wall to a Player, with a new
+  case for a wall that has none. No tool name, argument or result key changes in Chunk 30.
 
 ## The items 2a carried forward, and where each went
 
