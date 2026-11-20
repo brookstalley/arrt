@@ -1489,6 +1489,22 @@ class TroubleOut(BaseModel):
     words: str
 
 
+class SetupStepOut(BaseModel):
+    """One step of setting up not yet taken: never a fault, and never all well (`HealthReading.setup_steps`)."""
+
+    #: `no_wall` (the catalogue holds no wall), `wall` (no Player shows it) or
+    #: `player` (no token yet, or no report yet): what it is about, so a screen
+    #: links it to where the step is taken.
+    about: str
+    #: The wall's or Player's id; null for `no_wall`.
+    subject: str | None
+    #: The wall's display state (`unassigned`) or the Player's state (`no_token`,
+    #: `awaiting_report`); null for `no_wall`.
+    state: str | None
+    #: A short phrase in the household's words.
+    words: str
+
+
 class WatchesHealthOut(BaseModel):
     """The Watches a person needs to know about: overdue ones, by their words, and a spent allowance holding one."""
 
@@ -1534,6 +1550,11 @@ class HealthOut(BaseModel):
     #: Every fault this reading holds, in one list: what the top bar and the
     #: System badge count. Derived only from states whose setup flag is false.
     troubles: list[TroubleOut]
+    #: Every step of setting up not yet taken, which the top bar states beside
+    #: the troubles and never counts as one: no wall recorded, a wall no Player
+    #: shows, a Player with no token or no report yet. A household with no wall
+    #: carries `no_wall` here, so it is never read as all well.
+    setup_steps: list[SetupStepOut]
 
 
 class SourceYieldOut(BaseModel):

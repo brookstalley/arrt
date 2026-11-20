@@ -52,7 +52,7 @@ from arrt.library.sources.loading import PluginReading, PluginState, SourceRoste
 from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
 from arrt.persistence.discovery_records import SourceYield
-from arrt.persistence.records import BackupReading
+from arrt.persistence.records import BackupReading, Wall
 from arrt.programming import display_state, player_state
 from arrt.programming.clients import ClientView, DisplayFault
 from arrt.programming.display import DisplayService, WallHeartbeat, describe_wall_status
@@ -261,6 +261,32 @@ class Trouble:
     words: str
 
 
+class SetupKind(StrEnum):
+    """What a setup step is about, so a screen can link it to where it is taken."""
+
+    #: The catalogue holds no wall at all: nothing can be hung, and nothing reports.
+    NO_WALL = "no_wall"
+    WALL = "wall"
+    PLAYER = "player"
+
+
+@dataclass(frozen=True, slots=True)
+class SetupStep:
+    """One step of setting the household up that is not yet taken: never a fault, and never all well.
+
+    Stated by the server, as `Trouble` is, so the top bar reads what remains to
+    be set up rather than deciding it from the walls and Players itself.
+    """
+
+    about: SetupKind
+    #: The wall's or Player's id; null for `no_wall`.
+    subject: str | None
+    #: The wall's display state or the Player's state (a setup state); null for `no_wall`.
+    state: str | None
+    #: A short phrase, in the household's words, for the top bar's list.
+    words: str
+
+
 @dataclass(frozen=True, slots=True)
 class HealthReading:
     """Every observation the panel makes, gathered at one instant."""
@@ -301,18 +327,33 @@ class HealthReading:
         in `player_state.TROUBLES`. A display two Players report is one too,
         though its wall reads `unassigned`: that is a configuration fault, not a
         step not yet taken (`clients.DisplayFault`).
+
+        **One trouble for one cause.** A Player not heard from is one trouble,
+        stated on the Player and naming the walls it shows that are not
+        reporting with it; those walls are not listed again on their own. A
+        wall that is not reporting for any other reason (its Player is heard
+        from, or cannot be read) is still a trouble of its own.
         """
-        found = [
-            Trouble(TroubleKind.WALL, seen.wall.id, str(seen.state.state), _wall_words(seen))
-            for seen in self.walls
-            if seen.state.state in display_state.TROUBLES
-        ]
+        states = {seen.wall.id: seen.state.state for seen in self.walls}
+        found: list[Trouble] = []
+        with_their_player: set[str] = set()
         faults: dict[str, DisplayFault] = {}
         for view in self.players:
             if view.player.state in player_state.TROUBLES:
-                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), _player_words(view)))
+                quiet = [
+                    shown.wall
+                    for shown in view.walls
+                    if view.player.state is PlayerState.NOT_HEARD_FROM and states.get(shown.wall.id) in display_state.TROUBLES
+                ]
+                with_their_player.update(wall.id for wall in quiet)
+                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), _player_words(view, quiet)))
             for fault in view.faults:
                 faults.setdefault(fault.identity, fault)
+        found[:0] = [
+            Trouble(TroubleKind.WALL, seen.wall.id, str(seen.state.state), _wall_words(seen))
+            for seen in self.walls
+            if seen.state.state in display_state.TROUBLES and seen.wall.id not in with_their_player
+        ]
         for identity, fault in faults.items():
             names = " and ".join(client.name for client in fault.clients)
             found.append(Trouble(TroubleKind.DISPLAY_FAULT, identity, None, f"{names} both report one display"))
@@ -325,6 +366,29 @@ class HealthReading:
             count = self.failed_fetches.count
             works = "1 work" if count == 1 else f"{count:,} works"
             found.append(Trouble(TroubleKind.FAILED_FETCHES, None, None, f"{works} could not fetch a picture"))
+        return tuple(found)
+
+    def setup_steps(self) -> tuple[SetupStep, ...]:
+        """Every step of setting up not yet taken: what the top bar states beside the troubles.
+
+        **A household with no wall is never all well**: it is told that no wall
+        is recorded. Then each wall no Player shows (`display_state.SETUP`),
+        but not one whose display two Players report, which is a trouble
+        (`clients.DisplayFault`), and each Player whose state is a setup state
+        (`player_state.SETUP`): no token yet, or no report yet.
+        """
+        if not self.walls:
+            found = [SetupStep(SetupKind.NO_WALL, None, None, "No wall is recorded yet")]
+        else:
+            in_fault = {fault.wall.id for view in self.players for fault in view.faults if fault.wall is not None}
+            found = [
+                SetupStep(SetupKind.WALL, seen.wall.id, str(seen.state.state), f"{seen.wall.name} has no Player yet")
+                for seen in self.walls
+                if seen.state.state in display_state.SETUP and seen.wall.id not in in_fault
+            ]
+        for view in self.players:
+            if view.player.state in player_state.SETUP:
+                found.append(SetupStep(SetupKind.PLAYER, view.client.id, str(view.player.state), _setup_words(view)))
         return tuple(found)
 
     def describe(self) -> str:
@@ -348,12 +412,30 @@ def _wall_words(seen: WallHeartbeat) -> str:
     return f"{name} has not reported"
 
 
-def _player_words(view: ClientView) -> str:
-    """A Player in fault, as the top bar says it."""
+def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
+    """A Player in fault, as the top bar says it, naming the walls not reporting with it."""
     name = view.client.name
     if view.player.state is PlayerState.REPORT_UNREADABLE:
         return f"{name}'s report cannot be read"
-    return f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
+    said = f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
+    if not quiet:
+        return said
+    return f"{said}, nor {'has' if len(quiet) == 1 else 'have'} {_listed([wall.name for wall in quiet])}"
+
+
+def _setup_words(view: ClientView) -> str:
+    """A Player being set up, as the top bar says it."""
+    name = view.client.name
+    if view.player.state is PlayerState.NO_TOKEN:
+        return f"{name} has no token yet"
+    return f"{name} is waiting for its first report"
+
+
+def _listed(names: Sequence[str]) -> str:
+    """Names in a sentence: "A", "A and B", "A, B and C"."""
+    if len(names) <= 1:
+        return "".join(names)
+    return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def _backup_troubles(reading: BackupReading) -> list[Trouble]:

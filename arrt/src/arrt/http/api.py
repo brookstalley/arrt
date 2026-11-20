@@ -147,6 +147,7 @@ from arrt.http.models import (
     SetSetting,
     SettingListOut,
     SettingOut,
+    SetupStepOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -2820,6 +2821,10 @@ def _health(reading: HealthReading) -> HealthOut:
         troubles=[
             TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
             for trouble in reading.troubles()
+        ],
+        setup_steps=[
+            SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
+            for step in reading.setup_steps()
         ],
     )
 

@@ -436,7 +436,10 @@ class TestHealth:
         health = http.get("/api/health").json()
         [reading] = health["walls"]
         assert reading["heartbeat"]["absent"] is True
-        assert "has not reported yet" in reading["heartbeat"]["description"]
+        assert "no Player has reported for this wall yet" in reading["heartbeat"]["description"]
+        # The fresh deployment's wall has no Player, so none is "this wall's".
+        assert reading["display_state"]["state"] == "unassigned"
+        assert "this wall's Player" not in reading["heartbeat"]["description"]
         assert set(reading["heartbeat"]) == self.OBSERVATION_FIELDS | {"reported_at"}
 
     #: What follows the names of walls not reporting (`reports.describe_wall_status`).
@@ -616,6 +619,83 @@ class TestHealth:
             ("player", quiet, "not_heard_from", "The Pi in the study has not been heard from for 3 hours")
         ]
 
+    def test_a_player_not_heard_from_and_the_walls_it_shows_are_one_trouble_on_the_player(self, http, settings, wall):
+        """One cause, one trouble, naming its walls; a wall silent for another reason is still its own.
+
+        The hall Pi has not reported for three hours and shows two walls whose
+        reports are as old. The study Pi reports now and shows the landing,
+        which has never reported: that silence is the landing's own.
+        """
+        stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        hall = http.post("/api/clients", json={"name": "The hall Pi"}).json()["client_id"]
+        study = http.post("/api/clients", json={"name": "The study Pi"}).json()["client_id"]
+        second = http.post("/api/walls", json={"name": "The study"}).json()
+        landing = http.post("/api/walls", json={"name": "The landing"}).json()
+        for client_id, reported_at, outputs in ((hall, stale, ("hdmi-a-1", "hdmi-a-2")), (study, None, ("hdmi-a-1",))):
+            assert http.post(f"/api/clients/{client_id}/token").status_code == 200
+            report = {
+                "reported_at": reported_at or datetime.now(UTC).isoformat(),
+                "outputs": [{"name": name, "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for name in outputs],
+            }
+            client_heartbeat_path_in(settings.art_root, client_id).write_text(json.dumps(report), encoding="utf-8")
+        for wall_id, client_id, output in (
+            (wall["wall_id"], hall, "hdmi-a-1"),
+            (second["wall_id"], hall, "hdmi-a-2"),
+            (landing["wall_id"], study, "hdmi-a-1"),
+        ):
+            placed = http.post(f"/api/walls/{wall_id}/client", json={"client_id": client_id, "output": output})
+            assert placed.status_code == 200, placed.text
+        for wall_id in (wall["wall_id"], second["wall_id"]):
+            settings.heartbeat_path(wall_id).write_text(json.dumps({"reported_at": stale}), encoding="utf-8")
+
+        health = http.get("/api/health").json()
+
+        silent = {reading["wall_id"] for reading in health["walls"] if reading["display_state"]["state"] == "silent"}
+        assert silent == {wall["wall_id"], second["wall_id"], landing["wall_id"]}, "the case itself changed"
+        assert [
+            (t["about"], t["subject"], t["state"], t["words"]) for t in health["troubles"] if t["about"] in {"wall", "player"}
+        ] == [
+            ("wall", landing["wall_id"], "silent", "The landing has not reported"),
+            (
+                "player",
+                hall,
+                "not_heard_from",
+                "The hall Pi has not been heard from for 3 hours, nor have The study and The wall",
+            ),
+        ]
+
+    def test_what_remains_to_be_set_up_is_stated_by_the_server(self, http, wall):
+        """A wall no Player shows, a Player with no token and one with no report yet: steps, never troubles."""
+        spare = http.post("/api/clients", json={"name": "The spare Pi"}).json()["client_id"]
+        waiting = http.post("/api/clients", json={"name": "The hall Pi"}).json()["client_id"]
+        assert http.post(f"/api/clients/{waiting}/token").status_code == 200
+
+        health = http.get("/api/health").json()
+
+        assert [(s["about"], s["subject"], s["state"], s["words"]) for s in health["setup_steps"]] == [
+            ("wall", wall["wall_id"], "unassigned", "The wall has no Player yet"),
+            # In the order Players lists them, by name.
+            ("player", waiting, "awaiting_report", "The hall Pi is waiting for its first report"),
+            ("player", spare, "no_token", "The spare Pi has no token yet"),
+        ]
+        assert not [t for t in health["troubles"] if t["about"] in {"wall", "player"}]
+
+    def test_a_household_with_no_wall_is_told_so_and_never_read_as_all_well(self, http, wall):
+        assert http.delete(f"/api/walls/{wall['wall_id']}").status_code == 200
+
+        health = http.get("/api/health").json()
+
+        assert health["walls"] == []
+        assert health["setup_steps"] == [{"about": "no_wall", "subject": None, "state": None, "words": "No wall is recorded yet"}]
+
+    def test_a_wall_being_shown_by_a_player_leaves_the_setup_steps(self, http, wall, shown_by_a_player):
+        """The step is gone once taken: the wall is on a Player, whose own step (no token yet) takes its place."""
+        player = shown_by_a_player(wall["wall_id"])
+
+        steps = http.get("/api/health").json()["setup_steps"]
+
+        assert [(s["about"], s["subject"]) for s in steps] == [("player", player)]
+
     def test_failed_fetches_are_counted_with_the_newest_failures_age(self, http, accepted, store):
         """Acceptance 5: three failed rows, the newest two hours old, read 3 and its age; none, no observation.
 
@@ -758,6 +838,8 @@ class TestHealth:
         # `players`, `failed_fetches` and `troubles` are the one health model
         # (audit 2026-11-19): each Player's state, the queue's failed works, and
         # the faults among every reading here, which the top bar counts.
+        # `setup_steps` is what remains to be set up, which it states and never
+        # counts (audit wave 2b): a step, never a verdict.
         assert set(http.get("/api/health").json()) == {
             "walls",
             "description",
@@ -768,6 +850,7 @@ class TestHealth:
             "players",
             "failed_fetches",
             "troubles",
+            "setup_steps",
         }
 
     def test_each_installed_sources_yield_is_counted_from_the_library(self, http, hold):

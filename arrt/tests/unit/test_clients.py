@@ -412,6 +412,8 @@ def test_a_display_two_players_report_is_a_trouble_though_its_wall_reads_unassig
     assert [(t.about, t.subject, t.words) for t in reading.troubles() if t.about in {"wall", "display_fault"}] == [
         ("display_fault", "uuid:the-one-frame", "The Pi in the hall and The Pi in the study both report one display")
     ]
+    # Nor is the wall a setup step: "has no Player yet" would be false of it.
+    assert wall_id not in {step.subject for step in reading.setup_steps()}
 
 
 def test_players_being_set_up_are_on_the_health_reading_and_not_among_its_troubles(services, clients, pi, access):

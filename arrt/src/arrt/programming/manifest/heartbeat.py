@@ -108,7 +108,9 @@ class HeartbeatReading:
         not have to — and `observability-strategy.md` states the target wording.
         """
         if self.absent:
-            return f"No heartbeat file exists at {self.path}; this wall's Player has not reported yet."
+            # Not "this wall's Player": the file cannot say whether the wall has
+            # one, and a wall no Player shows has no Player to have not reported.
+            return f"No heartbeat file exists at {self.path}; no Player has reported for this wall yet."
         if self.problem is not None:
             return f"The heartbeat file at {self.path} could not be read: {self.problem}"
         # Neither absent nor unreadable: `observations.observe` aged the document it read.
