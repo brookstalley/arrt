@@ -402,8 +402,10 @@ def test_a_wall_with_no_theme_says_both_ways_to_hang_something_in_the_words_of_i
     expect(reason).to_have_text(
         "Nothing is hanging on The study. Choose a theme under Hanging, below, or choose works there.", use_inner_text=True
     )
-    link_text = card(ui, study).locator("a.wall-choose-works").inner_text()
-    assert link_text.lower() in reason.inner_text().lower(), "the sentence and the link say the act in different words"
+    link_text = card(ui, study).locator("a.wall-choose-works").inner_text()  # one-shot: the sentence settled above
+    expect(reason, "the sentence and the link say the act in different words").to_contain_text(
+        link_text, ignore_case=True, use_inner_text=True
+    )
 
 
 def test_a_wall_with_no_theme_to_choose_says_to_create_one_or_choose_works(ui, walls):
