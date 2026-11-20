@@ -74,24 +74,39 @@ export async function hangSelection({ control, artworkIds, title, wall, leftOut 
  * The Work page asks the same of one work (`screens/work.js` `chooseWall`),
  * which a `screens/` module cannot lend: this is the selection's, in the same
  * words. `leftOut` and `then` are `hangSelection`'s. Nothing is returned: a
- * dialog of walls is answered by one of its buttons, not by this call. */
-export async function hangOnAWall({ control, artworkIds, title, leftOut = 0, then }) {
+ * dialog of walls is answered by one of its buttons, not by this call.
+ *
+ * `wallId`: the wall the works were chosen for, when the selection was started
+ * from that wall's card on Walls (`screens/walls.js`, *Choose works*). Then
+ * which wall is not asked: the question is asked about that wall, read now like
+ * any other, so it names the wall as the server has it at this moment. A wall
+ * no longer recorded is said, and the others are offered as for any selection. */
+export async function hangOnAWall({ control, artworkIds, title, leftOut = 0, then, wallId = null }) {
   let walls = null;
   const read = await attempt(control, `hang ${title}`, async () => {
     walls = (await api("/api/walls")).walls;
   });
   if (!read) return;
   const hangOn = (wall) => hangSelection({ control, artworkIds, title, wall, leftOut, then });
-  if (walls.length === 1) {
+  const chosenFor = wallId ? walls.find((wall) => wall.wall_id === wallId) : null;
+  if (chosenFor) {
+    await hangOn(chosenFor);
+    return;
+  }
+  // Said before any choice, so a curator who chose works for a wall is never
+  // handed another wall's question without being told why.
+  const gone = wallId ? "The wall these were chosen for is no longer recorded. " : "";
+  if (walls.length === 1 && !gone) {
     await hangOn(walls[0]);
     return;
   }
   if (!walls.length) {
-    openPanel({ title: `Hang ${title}`, lead: `There is no wall to hang ${artworkIds.length === 1 ? "it" : "them"} on yet.` });
+    openPanel({ title: `Hang ${title}`, lead: `${gone}There is no wall to hang ${artworkIds.length === 1 ? "it" : "them"} on yet.` });
     return;
   }
   const panel = openPanel({
     title: `Hang ${title} on…`,
+    lead: gone ? gone.trim() : null,
     body: [
       el(
         "div",

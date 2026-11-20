@@ -33,11 +33,11 @@
  */
 
 import { attempt } from "../core/acting.js";
-import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
+import { api, fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
 import { absentImage, fitBadge, noPicture, shortfallNote, statusBadge, workName } from "../core/badges.js";
 import { counted, number } from "../core/counting.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { goWithParams, link } from "../core/router.js";
+import { go, goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { selectionMode } from "../core/selecting.js";
 import { state } from "../core/state.js";
@@ -742,6 +742,80 @@ function heading() {
   return el("h1", { text: "Artworks" });
 }
 
+/* -- choosing works for one wall ---------------------------------------------- */
+
+/* *Choose works* on a wall's card (`screens/walls.js`, its Hanging line) opens
+ * this page as `#collection?hang_on=<wall id>`: selecting, for that wall, until
+ * the works are hung there or the curator leaves (the owner's ruling of
+ * 2026-11-20, a hang started from Walls).
+ *
+ * **The state is the address and nothing else.** Held in the address, it is on
+ * the page exactly while the page says so: a reload or Back to this entry shows
+ * it again, note and all; the sidebar's Artworks, Back to Walls, or any other
+ * way off this address drops it, and a later *Hang…* asks which wall as every
+ * selection's does. A flag kept in a module would outlive the page that said
+ * it, and hang a later selection on a wall nobody named. The rail's filters
+ * keep it (`goWithParams` keeps the address's other keys), since narrowing
+ * the works is part of choosing them.
+ *
+ * The wall's name is the server's, read as the page is drawn; the hang reads
+ * the walls again when pressed (`hangOnAWall`), so its question names the wall
+ * as it is then. A rename while the page stands shows in the note on the next
+ * paint, not before: watching for it would be a poll this page does not run. */
+const HANG_ON = "hang_on";
+
+/* The wall the address chooses works for: `{ wall }` when it is recorded,
+ * `{ gone: true }` when the address names one that is not, and `{}` without one. */
+async function chosenFor() {
+  const wallId = state.params[HANG_ON];
+  if (!wallId) return {};
+  const wall = (await api("/api/walls")).walls.find((each) => each.wall_id === wallId);
+  return wall ? { wall: { wall_id: wall.wall_id, name: wall.name } } : { gone: true };
+}
+
+/* What the page is doing, said above the toolbar so the words never push
+ * *Select* from its place on the toolbar's right (ruling 6). It takes the
+ * keyboard as the page arrives (`data-arrive`, `core/router.js`), so a screen
+ * reader says which wall the selection is for as the selection starts; its
+ * way out is in it. */
+function forWallNote(wall) {
+  return el("p", { class: "note hang-for-wall", tabindex: "-1", "data-arrive": true }, [
+    el("span", { text: `Choosing works to hang on ${wall.name}. Tick them and press Hang; until then ${wall.name} stays as it is. ` }),
+    leaveFor(wall),
+  ]);
+}
+
+/* The way out, which changes nothing: back to Walls, at the wall. When the
+ * entry behind this one is Walls, it is the browser's Back, so Walls returns
+ * scrolled as it was with the keyboard on *Choose works*, the link that left it
+ * (`core/router.js` `rememberPlace`). Otherwise (a reload of a copied address)
+ * it opens Walls at the wall's card. */
+function leaveFor(wall) {
+  const node = link({ view: "walls", params: { wall: wall.wall_id } }, { class: "action quiet hang-for-wall-leave", text: `Leave ${wall.name} as it is` });
+  node.addEventListener(
+    "click",
+    (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const came = window.history.state && window.history.state.came;
+      if (!came || !(came === "#walls" || came.startsWith("#walls?"))) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.history.back();
+    },
+    { capture: true },
+  );
+  return node;
+}
+
+/* Said where the works are when the address names a wall that is not recorded:
+ * the page is Artworks as usual, and *Hang…* asks which wall. */
+function wallGoneNote() {
+  return el("p", {
+    class: "note hang-for-wall-gone",
+    text: "The wall this address was choosing works for is not recorded — it may have been deleted — so Hang asks which wall.",
+  });
+}
+
 /* What the filter holds, in one line: the count, then what narrows it, in the
  * words the empty state names a filter by (`filterPhrase`), so the two can
  * never describe one narrowing two ways.
@@ -793,6 +867,8 @@ export async function viewCollection(generation) {
   // line waits for the count; a test waiting on `.page-facts` waits for the
   // works, where one waiting on the heading would be met here.
   render(generation, heading(), el("p", { class: "muted", text: "Loading Artworks…" }));
+  const forWall = await chosenFor();
+  const lead = forWall.wall ? forWallNote(forWall.wall) : forWall.gone ? wallGoneNote() : null;
 
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the line of facts a statement about the catalogue rather than about
@@ -848,7 +924,7 @@ export async function viewCollection(generation) {
       generation,
       heading(),
       facts,
-      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)]),
+      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)], lead),
     );
     return;
   }
@@ -877,6 +953,10 @@ export async function viewCollection(generation) {
       themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
       shownTheme,
       hang: true,
+      hangOn: forWall.wall || null,
+      // Back to Walls, at the wall, which now shows what was hung. A new entry
+      // rather than Back: the wall's card takes the keyboard (`data-arrive`).
+      onHung: () => go("walls", null, { wall: forWall.wall.wall_id }),
       filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall(), shown: shownPeriod() }),
       total: page.total,
       onAdded: (into, added) => moveThemeCount(into, added),
@@ -932,6 +1012,9 @@ export async function viewCollection(generation) {
     onToggle: (on) => {
       const layout = grid.closest(".collection");
       if (layout) layout.classList.toggle("selecting", on);
+      // *Stop selecting* while choosing for a wall ends the choosing too: the
+      // note would otherwise go on naming a wall no selection is for.
+      if (!on && forWall.wall) goWithParams({ [HANG_ON]: "" });
     },
   });
   for (const work of page.works) grid.append(tile(work, selection));
@@ -1040,8 +1123,9 @@ export async function viewCollection(generation) {
     generation,
     heading(),
     facts,
-    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more], lead),
   );
+  if (forWall.wall) selection.start();
   remember();
 
   if (!exhausted && typeof IntersectionObserver !== "undefined") {
@@ -1123,7 +1207,7 @@ function skipFilters() {
  * populated screen and each empty one cannot come to disagree about where the
  * controls live — an empty grid that also loses its filters is an empty state a
  * curator cannot get out of. */
-function collectionLayout(page, chosen, shownTheme, density, selection, main) {
+function collectionLayout(page, chosen, shownTheme, density, selection, main, lead = null) {
   const rails = railContents(page, chosen);
   const shown = !railsHidden();
   // With the rails away, a facet or a theme still narrowing the works would be
@@ -1144,6 +1228,6 @@ function collectionLayout(page, chosen, shownTheme, density, selection, main) {
   const classes = ["collection", shown ? null : "rails-hidden", selection && selection.selecting() ? "selecting" : null];
   return el("div", { class: classes.filter(Boolean).join(" ") }, [
     shown ? el("aside", { class: "rails", "aria-label": "Filters" }, withSkip(rails)) : null,
-    el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),
+    el("div", { class: "collection-main" }, [lead, pageToolbar(density, selection), narrowedOutOfSight, ...main]),
   ]);
 }

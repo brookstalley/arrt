@@ -1341,6 +1341,7 @@ function hangingFacts(wall, themes, manifest) {
         ? el("p", { text: "Hanging a selection. No theme has been created to hang instead." })
         : el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
       link({ view: "theme" }, { class: "action", text: "Create a theme" }),
+      chooseWorks(wall),
     ]);
   }
   const pickerId = `hang-${wall.wall_id}`;
@@ -1360,10 +1361,29 @@ function hangingFacts(wall, themes, manifest) {
   return el("dl", { class: "facts wall-hanging wall-controls" }, [
     // The visible term is the word; the field's own label names the wall too.
     el("dt", { "aria-hidden": "true", text: "Hanging" }),
-    el("dd", {}, [el("label", { for: pickerId, class: "visually-hidden", text: `Hanging on ${wall.name}` }), picker]),
+    el("dd", {}, [el("label", { for: pickerId, class: "visually-hidden", text: `Hanging on ${wall.name}` }), picker, " ", chooseWorks(wall)]),
     manifest ? el("dt", { text: "Changes" }) : null,
     manifest ? el("dd", { text: playsWords(manifest) }) : null,
   ]);
+}
+
+/* *Choose works*: the Hanging line's other way to change what the wall hangs,
+ * beside its themes (the owner's ruling of 2026-11-20). It opens Artworks
+ * selecting for this wall (`screens/collection.js`, `hang_on`), whose *Hang…*
+ * hangs the works chosen here without asking which wall.
+ *
+ * **A link beside the picker, not an option in it**: it goes to another page,
+ * and a navigation is a link (`information-architecture.md` § Direction),
+ * which opens in a new tab and is announced as one. An option would also go
+ * there the moment a keyboard's arrow reached it, where a theme's option asks
+ * first. Being a link, the browser's Back from Artworks puts the keyboard back
+ * on it (`core/router.js` `rememberPlace`). Its accessible name carries the
+ * wall's, as every act on this screen does. */
+function chooseWorks(wall) {
+  return link(
+    { view: "collection", params: { hang_on: wall.wall_id } },
+    { class: "action quiet wall-choose-works", text: "Choose works", "aria-label": `Choose works to hang on ${wall.name}` },
+  );
 }
 
 /* How the wall plays what hangs on it, in one line: the interval and the order,
