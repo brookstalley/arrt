@@ -543,24 +543,94 @@ def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     ]
 
 
+#: Every module in the sources package that is not a built-in plugin, by name, with
+#: why the rule below does not bind it. A module added here is a decision; one added
+#: to the package and listed in neither this table nor the entry points fails
+#: `test_every_module_of_the_package_is_a_built_in_or_named_as_not_one`.
+NOT_A_PLUGIN: dict[str, str] = {
+    "__init__.py": "the interface itself: it re-exports from where Arrt keeps each name",
+    "plugin.py": "the interface's types, which import the types they are made of",
+    "reading.py": "the interface's reader types",
+    "iiif.py": "the IIIF parsers a plugin may use (1.3), which import the interface's failure and locator from where they live",
+    "names.py": "the host's museum names, read by every sentence the server writes; gathers the built-ins' own",
+    "loading.py": "the host's loader and containment: Arrt's own, never imported by a plugin",
+    "testing.py": (
+        "the helper plugin authors' tests import (`source-plugins.md` § Testing): it runs the host's own phase "
+        "two, pool, loader and acquisition so that a test of a plugin reaches the host's verdicts, which is "
+        "reaching past the interface by design. No plugin imports it, and the interface does not"
+    ),
+}
+
+#: The modules above that import nothing from `arrt`: the rule has nothing to say of them,
+#: and they are named only so the list is whole.
+IMPORTS_NOTHING: frozenset[str] = frozenset({"reading.py"})
+
+
+def _offences(module: str, source: str) -> list[str]:
+    """How `source`, the text of `module`, imports from `arrt` anything but the interface."""
+    offences = []
+    for node in ast.walk(ast.parse(source)):
+        names = []
+        if isinstance(node, ast.ImportFrom) and node.level > 0:
+            # `from .loading import …` reaches past the interface as surely as
+            # the absolute spelling does, and reads nothing like it.
+            offences.append(f"{module} imports {'.' * node.level}{node.module or ''} relatively")
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names = [node.module]
+        elif isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        offences += [f"{module} imports {n}" for n in names if n.split(".")[0] == "arrt" and n != "arrt.library.sources"]
+    return offences
+
+
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():
     """They are the examples a plugin author copies, so they may not reach past it."""
     offences = []
     for module in _built_in_modules():
-        tree = ast.parse((SOURCES / module).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.ImportFrom) and node.level > 0:
-                # `from .loading import …` reaches past the interface as surely as
-                # the absolute spelling does, and reads nothing like it.
-                offences.append(f"{module} imports {'.' * node.level}{node.module or ''} relatively")
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names = [node.module]
-            elif isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            offences += [f"{module} imports {n}" for n in names if n.split(".")[0] == "arrt" and n != "arrt.library.sources"]
+        offences += _offences(module, (SOURCES / module).read_text(encoding="utf-8"))
 
     assert offences == []
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "from arrt.library.discovery.phase_two import _confidence",
+        "import arrt.library.discovery.phase_two",
+        "from arrt.library.sources.loading import load_sources",
+        "from arrt.library.sources.testing import host",
+        "from .loading import load_sources",
+    ],
+)
+def test_a_built_in_reaching_past_the_interface_is_refused_however_it_spells_it(planted):
+    """The rule above is red with one planted: phase two's internals, the loader, the helper, a relative import."""
+    assert _offences("planted.py", planted) != []
+
+
+def test_the_interface_itself_is_not_an_offence():
+    assert _offences("fine.py", "from arrt.library.sources import FoundImage, ImageQuery\nimport httpx") == []
+
+
+def test_every_module_of_the_package_is_a_built_in_or_named_as_not_one():
+    """The rule's exclusions are by name: a module in neither list is a decision nobody made."""
+    present = {path.name for path in SOURCES.glob("*.py")}
+
+    assert present == set(_built_in_modules()) | set(NOT_A_PLUGIN)
+    assert not set(NOT_A_PLUGIN) & set(_built_in_modules()), "a built-in is never excused from the rule"
+
+
+@pytest.mark.parametrize("module", sorted(IMPORTS_NOTHING))
+def test_a_module_excused_for_importing_nothing_imports_nothing(module):
+    assert _offences(module, (SOURCES / module).read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize("module", sorted(set(NOT_A_PLUGIN) - IMPORTS_NOTHING))
+def test_a_module_excused_by_reaching_past_the_interface_still_does(module):
+    """An excuse nothing needs is a hole in the rule nobody remembers: the helper is excused because it reaches phase two."""
+    assert len(NOT_A_PLUGIN[module]) > 20
+    assert _offences(
+        module, (SOURCES / module).read_text(encoding="utf-8")
+    ), f"{module} imports nothing past the interface: take it out of NOT_A_PLUGIN so the rule binds it"
 
 
 # -- helpers ------------------------------------------------------------------
