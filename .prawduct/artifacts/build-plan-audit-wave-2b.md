@@ -431,6 +431,20 @@ left as planned and this section is the later word.
   client's 2,048-byte description limit with the Player and assignment actions beside the
   wall acts (3,054 bytes), so those ten actions moved, under their old names, to a new
   tool, `art_players`. It is part of the one break ruling 3 allows.
+- **2026-11-20 (Chunk 56), as built:** the pool cannot run the image's test stage for this
+  project (a host suite is refused for it, and its container route has no build target and
+  no Docker), so no suite was added; a root test holds what the stage must carry against
+  what the tests open, and `image.yml` runs on pull requests into `main` and by hand. The
+  cost: a Dockerfile, lockfile or interpreter change that no longer builds, and a test that
+  passes only as the files' owner, are met at the pull request into `main`.
+- **2026-11-20 (Chunk 39), a cost to settle:** the periodic reconcile runs every scheduler
+  pass and holds the store's lock for the whole of it (170 to 420 ms with nothing to fix at
+  300 works on one machine, most of it growing with the Library). Chunk 60 measures it at
+  the size of a real Library and sets how often it runs from that.
+- **2026-11-20 (Chunks 60 and 61 added):** what the chunks of groups B and C found and could
+  not settle in their own files. Chunk 61 exists because two chunks together made the CI
+  fallback's governance step red while the pool stayed green (the type check followed a
+  tool into a package the fallback's environment does not install).
 
 ## The items 2a carried forward, and where each went
 
@@ -1698,6 +1712,73 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   environment that installed it. Each shown red first.
 - **Verification ceiling:** the contract suite whole, the governance suite whole, the
   contract project's mypy, ruff and black in `contract/`.
+
+### Chunk 60: Small server follow-ups from groups B and C
+
+- **Type:** code
+- **Closes:** items the chunks of groups B and C reported and could not settle in their own
+  files (§ Decisions made mid-build).
+- **Model:** Opus-class, medium: eight small things, three of which change what a person
+  reads on Status.
+- **Waits for:** 39 and 53 (it adds response fields; 53 owns `arrt/src/arrt/mcp/` until it
+  merges).
+- **Owns:** `arrt/src/arrt/services/health.py` (setup steps and the source's sentence only),
+  `arrt/src/arrt/library/sources/names.py`, `arrt/src/arrt/library/services/registry_search.py`,
+  `arrt/src/arrt/services/container.py` (the reconcile's cadence only),
+  `arrt/src/arrt/http/models.py` and `arrt/src/arrt/http/api.py` (the four cost summaries
+  only), `contract/` (one semantic rule, its fixtures, the specification's sentence),
+  their tests, and the builders in `arrt/tests/browser/`.
+- **Deliverables:**
+  - The walls of a Player still in setup (no token, or awaiting its first report) are setup
+    steps, not troubles.
+  - A source's sentence names the museum the plugin declares, as the rest of its answer does.
+  - `registry_search.py`'s own copy of "which held work pictures this" calls
+    `CatalogueService.pictured`.
+  - `names.built_in_museums()` does not import the plugin-testing helper, and the test that
+    holds the helper out of a plugin's imports covers that path.
+  - The answers that carry a cost and no sentence gain the service's `summary`: the
+    unattended allowance, a watch, an Ask reply's metadata, a run. Additive; the client
+    reads them in a later chunk.
+  - The cap of 32 outputs and 32 label outputs per report is a rule of the contract (1.3.0,
+    not yet released): a semantic rule with a must-refuse fixture for each, and the
+    specification says it.
+  - The periodic reconcile's cost is measured at 2,000 and 5,000 works, and it runs as
+    often as that cost allows: the number and its reason are recorded.
+- **Acceptance:** each item has a test through the route or caller that reads it, shown red
+  first; the whole browser suite passes with the builders deriving the new fields through
+  the server's own functions; the contract suite and the server's contract tests pass with
+  the two new fixtures refused for their own reason alone; the measurement is returned as
+  made, with how.
+- **Verification ceiling:** the curation files of each item, `arrt/tests/contract`, the
+  contract suite whole, the whole browser suite, the governance suite whole, mypy in both
+  projects, ruff and black.
+
+### Chunk 61: The type gate holds in the fallback's environment
+
+- **Type:** code
+- **Closes:** the fault two chunks made together (§ Decisions made mid-build): the type
+  check passed on the pool and failed in the environment CI's fallback builds.
+- **Model:** Sonnet-class, high: one guard and one allowance removed.
+- **Waits for:** 50, 52, 56 and 59.
+- **Owns:** new `tests/preferences/test_type_gate_in_the_fallback.py`,
+  `tests/preferences/test_type_gate.py`, `arrt/pyproject.toml` (`[tool.mypy]` only).
+- **Deliverables:**
+  - A root test that reads the groups CI's fallback syncs for each project from
+    `.github/scripts/pool_or_fallback.py`'s `FALLBACK_SETUP` itself, and, for every module
+    the type check follows (the configured `files` and what they import from `mypy_path`),
+    requires each third-party import, one guarded only by `TYPE_CHECKING` included, to come
+    from those groups' packages, the project's own dependencies, or the
+    `ignore_missing_imports` allowance. It fails by name for an import the fallback's
+    environment would not have.
+  - The allowance for `arrt_contract` comes out, with its comment: the package ships its
+    type marker (Chunk 59), and the type check is clean without it.
+- **Acceptance:** with `playwright` taken out of the allowance the new test is red naming
+  `tools.ux_walk` and the import; with a new third-party import under `TYPE_CHECKING` in a
+  followed module it is red; with the fallback's groups changed in `FALLBACK_SETUP` it
+  follows; the type check is clean in both environments (the pool's, and a fresh sync of
+  the fallback's groups alone) with `arrt_contract` out of the allowance.
+- **Verification ceiling:** the governance suite whole on the pool; the fallback's
+  governance step run locally in a fresh environment; ruff and black at the root.
 
 ### Chunk 54: Records, and the change record
 
