@@ -2417,6 +2417,16 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 > `LibraryFacade.record`, which refuses any other kind,
 > **after** its own change commits (after a split there is no shared transaction,
 > and a history line for a hang that rolled back would be false).
+>
+> **Which act writes which, for a work leaving a wall** *(as built in audit wave 2b,
+> 2026-11-20, Chunks 39 and 60; `arrt/src/arrt/programming/themes.py`)*. One writer,
+> `Themes._record_left`, writes `work.left_theme` once for each wall the theme hangs
+> on, for removing one work from a theme (`remove_from_theme`, which `DELETE
+> /api/themes/{id}/works/{artwork_id}` and `art_theme(action='remove')` call), for HTTP's
+> *Not this one again* with `scope=theme` (`leave_theme`), and for removing a selection
+> (`remove_works_from_theme`, works × walls lines). `work.excluded` is *Not this one again* from every wall (HTTP
+> `scope=every_wall`, MCP `art_display(action='not_again')`), and it leaves the work in
+> its theme. Deleting a theme and retiring a selection write neither.
 
 ### CatalogueOpened
 
