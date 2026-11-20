@@ -742,6 +742,7 @@ function paint(detail, generation, { where, focus = null }) {
           // `archived` when that is true and says nothing when it is not, which is
           // the same inversion the derivation footnote uses.
           ["Description", work.description ? emphasised(work.description) : null],
+          ...provenance(detail),
         ]),
       ]),
     ]),
@@ -755,6 +756,28 @@ function paint(detail, generation, { where, focus = null }) {
   const shown = [page.hang, restoring, page.add].find((control) => control && !control.hidden && !control.disabled);
   const target = focus === "primary" ? shown : focus === "more" ? page.more.querySelector("button") : null;
   if (target && document.contains(target)) target.focus();
+}
+
+/* Where the work came from and what has happened to it: the Get it was accepted
+ * from (`WorkDetailOut.get`, null for a work that came another way or before the
+ * log of events was kept) and the work's own History, `GET /api/history?artwork_id=`
+ * (audit-5 F18: "when was this hung, and where did it come from" was not
+ * answerable from the work). The History row is always there: a held work has
+ * a record of events, and an empty one says so on its own page. */
+function provenance(detail) {
+  const { work, get } = detail;
+  return [
+    [
+      "Came from",
+      get
+        ? el("span", {}, [
+            link({ view: "get", id: get.run_id }, { class: "link", text: "Its Get", "aria-label": `Open the Get ${work.title} came from` }),
+            ` · accepted ${dated(get.accepted_at)}`,
+          ])
+        : null,
+    ],
+    ["History", link({ view: "history", params: { artwork_id: work.artwork_id } }, { class: "link", text: "What has happened to it" })],
+  ];
 }
 
 /* The one line of facts under the title, as a museum label begins: who made it

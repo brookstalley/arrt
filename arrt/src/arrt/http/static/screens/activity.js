@@ -356,7 +356,9 @@ export async function viewQueue(generation) {
  * or a restore, and every hang and *Not this one again* — as one sentence with
  * how long ago it was, the readable date a hover away. Filtered by kind with
  * links, so a filtered history is an address a curator can keep; `?wall=` is one
- * wall's history, which its card on Walls opens.
+ * wall's history, which its card on Walls opens, and `?artwork_id=` is one
+ * work's (the Get it was accepted from, its archive and restore, what kept it off
+ * walls), which its own page opens.
  *
  * **Every id in an event may no longer resolve**, so the sentence is built from
  * the words the event carries (`detail`), and only where those are missing from
@@ -370,12 +372,27 @@ export async function viewHistory(generation) {
   const query = new URLSearchParams({ limit: String(HISTORY_PAGE), offset: String(offset) });
   for (const kind of group ? group.kinds : []) query.append("kind", kind);
   if (params.wall) query.set("wall_id", params.wall);
+  if (params.artwork_id) query.set("artwork_id", params.artwork_id);
   const [page, walls] = await Promise.all([api(`/api/history?${query}`), api("/api/walls")]);
   const wallNames = new Map(walls.walls.map((wall) => [wall.wall_id, wall.name]));
-  const titles = await titlesFor(page.events);
+  const titles = await titlesFor(page.events, params.artwork_id);
 
   const wallName = params.wall ? wallNames.get(params.wall) || "a wall no longer recorded" : null;
-  const panels = [el("h1", { text: wallName ? `History of ${wallName}` : "History" })];
+  // One work's history: its title is read the way an event's is (a work the
+  // library no longer answers for is said to be one), and its page is the way back.
+  const workTitle = params.artwork_id ? titles.get(params.artwork_id) || null : null;
+  const aboutAWork = Boolean(params.artwork_id);
+  const subject = aboutAWork ? workTitle || "a work the library no longer holds" : wallName;
+  const panels = [el("h1", { text: subject ? `History of ${subject}` : "History" })];
+  if (aboutAWork) {
+    panels.push(
+      el("p", { class: "muted" }, [
+        "What happened to it: the Get it came from, and what was done with it since. ",
+        workTitle ? [link({ view: "work", id: params.artwork_id }, { class: "link", text: `${workTitle} on its own page` }), " · "] : null,
+        link({ view: "history", params: { kind: params.kind || "" } }, { text: "All history" }),
+      ].flat()),
+    );
+  }
   if (wallName) {
     panels.push(
       el("p", { class: "muted" }, [
@@ -395,7 +412,7 @@ export async function viewHistory(generation) {
     panels.push(
       offset
         ? emptyState("Nothing older than this.")
-        : group || wallName
+        : group || wallName || aboutAWork
           ? emptyState("Nothing of this kind has happened yet.")
           : emptyState(
               "Nothing has happened yet.",
@@ -434,7 +451,7 @@ const HISTORY_GROUPS = [
 ];
 
 function kindFilter(group, params) {
-  const target = (key) => ({ view: "history", params: { wall: params.wall || "", kind: key } });
+  const target = (key) => ({ view: "history", params: { wall: params.wall || "", artwork_id: params.artwork_id || "", kind: key } });
   const item = (key, label, current) =>
     el("li", {}, [link(target(key), { class: "link", text: label, "aria-current": current ? "page" : null })]);
   return el("ul", { class: "history-kinds", "aria-label": "Show" }, [
@@ -465,8 +482,11 @@ function when(iso) {
 /* A title for every event that names a work and carries no title of its own
  * (*Not this one again* and its undo are recorded by the walls, which do not
  * hold works' titles), each work asked for once. */
-async function titlesFor(events) {
-  const wanted = [...new Set(events.filter((event) => event.artwork_id && !event.detail.title).map((event) => event.artwork_id))];
+async function titlesFor(events, subject = null) {
+  // The work a history is about is always asked for, whatever its events carry:
+  // its heading names it, and a history with no events still has a subject.
+  const untitled = events.filter((event) => event.artwork_id && !event.detail.title).map((event) => event.artwork_id);
+  const wanted = [...new Set(subject ? [subject, ...untitled] : untitled)];
   const answers = await Promise.all(
     wanted.map(async (id) => {
       try {
