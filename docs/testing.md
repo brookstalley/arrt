@@ -664,6 +664,25 @@ is right locally and a trap in CI, where a green run that made no request looks
 identical to a passing one. `.github/scripts/assert_tests_ran.py` is what closes
 that: it fails the job on any skip and names which dependency was absent.
 
+**So a test that legitimately cannot run in CI is never collected there; it does
+not skip.** The fifth by-hand check is the contract package's `release_tags`: it
+writes each frozen copy under `contract/released/` again from its git tag with
+`contract/tools/freeze_release.py` and compares every byte. Only a full clone has
+the tags (the pool is sent the tree without them, and GitHub's checkout fetches
+none), so `contract/pyproject.toml`'s addopts deselect it, and whoever freezes a
+release runs it after the freeze (`player-contract.md` § The package):
+
+```sh
+git fetch origin --tags && cd contract && uv run pytest -m release_tags
+```
+
+Selected where a tag is missing, it fails naming the tag rather than skipping,
+since someone who asked for the comparison must not read a pass without it. Every
+run still holds each copy to its own `sha256.json` (`contract/tests/test_released.py`),
+which needs no tag. `tests/test_ci_runs_no_unprovisioned_skip.py` keeps the class
+from coming back: every skip in a file a suite CI runs collects must be behind a
+marker that suite deselects, or listed there with why CI has what it waits for.
+
 **Touching `library/acquisition/mat.py` or `library/acquisition/color.py`? Run the masters by
 hand** — `cd arrt && uv run python tools/mat_masters.py ../all.json`. The
 corpus's colours are in the repo but the paintings are the operator's masters, so
