@@ -1533,8 +1533,10 @@ class SetupStepOut(BaseModel):
     about: str
     #: The wall's or Player's id; null for `no_wall`.
     subject: str | None
-    #: The wall's display state (`unassigned`) or the Player's state (`no_token`,
-    #: `awaiting_report`); null for `no_wall`.
+    #: A setup state, null for `no_wall`: a Player's own (`no_token`,
+    #: `awaiting_report`); for a wall, `unassigned` when no Player shows it, or
+    #: the state of the Player that shows it while that Player is still being
+    #: set up (`HealthReading.setup_steps`).
     state: str | None
     #: A short phrase in the household's words.
     words: str

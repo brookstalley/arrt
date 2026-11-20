@@ -502,3 +502,38 @@ async def test_the_status_carries_the_health_models_readings_value_for_value(
     assert {"players", "failed_fetches", "troubles", "setup_steps"} <= payload.keys()
     assert [player["client_id"] for player in payload["players"]] == [player["client_id"] for player in tool["players"]]
     assert all("display_state" in entry for entry in payload["walls"])
+
+
+async def test_the_walls_of_a_player_still_being_set_up_are_setup_steps_on_both_surfaces(server_url, hall, wall):
+    """A Player with a token and no report, and one with no token: each shows a wall, and neither wall is a trouble.
+
+    Each wall has never reported, which by itself reads `silent`; it has not
+    because its Player has not yet been able to, so `GET /api/health` and
+    `art_display(action='status')` both list it among the setup steps, with its
+    Player's state, and never among the troubles.
+    """
+    await ok(server_url, "issue_client_token", client_id=hall)
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    landing = (await ok(server_url, "add_wall", name="The landing"))["wall"]["wall_id"]
+    spare = (await ok(server_url, "add_client", name="Spare Pi"))["client"]["client_id"]
+    await ok(server_url, "assign_wall", wall_id=landing, client_id=spare, output="hdmi-a-1")
+
+    route = (await request("GET", f"{server_url}/api/health")).json()
+    tool = await ok(server_url, "status")
+
+    for answer in (route, tool):
+        assert {entry["wall_id"]: entry["display_state"]["state"] for entry in answer["walls"]} == {
+            wall: "silent",
+            landing: "silent",
+        }
+        assert not [t for t in answer["troubles"] if t["about"] in {"wall", "player"}], answer["troubles"]
+        names = {entry["wall_id"]: entry["wall_name"] for entry in answer["walls"]}
+        # Walls first, in the walls' order, then the Players.
+        assert [s["about"] for s in answer["setup_steps"]] == ["wall", "wall", "player", "player"]
+        assert [s["subject"] for s in answer["setup_steps"][:2]] == [entry["wall_id"] for entry in answer["walls"]]
+        assert {(s["about"], s["subject"]): (s["state"], s["words"]) for s in answer["setup_steps"]} == {
+            ("wall", wall): ("awaiting_report", f"{names[wall]} waits for Hall Pi's first report"),
+            ("wall", landing): ("no_token", "The landing waits for Spare Pi, which has no token yet"),
+            ("player", hall): ("awaiting_report", "Hall Pi is waiting for its first report"),
+            ("player", spare): ("no_token", "Spare Pi has no token yet"),
+        }

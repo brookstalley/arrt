@@ -310,7 +310,10 @@ class SetupStep:
     about: SetupKind
     #: The wall's or Player's id; null for `no_wall`.
     subject: str | None
-    #: The wall's display state or the Player's state (a setup state); null for `no_wall`.
+    #: A setup state, never a fault's; null for `no_wall`: the Player's state for
+    #: a Player; for a wall, `unassigned` (no Player shows it) or the state of
+    #: the Player that shows it and is still being set up (`no_token`,
+    #: `awaiting_report`).
     state: str | None
     #: A short phrase, in the household's words, for the top bar's list.
     words: str
@@ -351,7 +354,8 @@ class HealthReading:
 
         **Derived only from states whose setup flag is false** (`display_state.SETUP`,
         `player_state.SETUP`): a wall with no Player, and a Player with no token or
-        no report yet, are steps not yet taken and never a trouble. A wall is one
+        no report yet, are steps not yet taken and never a trouble, nor is a wall
+        such a Player shows (it is a setup step). A wall is one
         when its state is in `display_state.TROUBLES`, a Player when its state is
         in `player_state.TROUBLES`. A display two Players report is one too,
         though its wall reads `unassigned`: that is a configuration fault, not a
@@ -365,7 +369,10 @@ class HealthReading:
         """
         states = {seen.wall.id: seen.state.state for seen in self.walls}
         found: list[Trouble] = []
-        with_their_player: set[str] = set()
+        # A wall whose Player is still being set up is a setup step of that
+        # Player's (`setup_steps`), never a trouble of its own: it has not
+        # reported because its Player has not yet been able to.
+        with_their_player: set[str] = set(_waiting_on_their_player(self.players))
         faults: dict[str, DisplayFault] = {}
         for view in self.players:
             if view.player.state in player_state.TROUBLES:
@@ -403,18 +410,28 @@ class HealthReading:
         **A household with no wall is never all well**: it is told that no wall
         is recorded. Then each wall no Player shows (`display_state.SETUP`),
         but not one whose display two Players report, which is a trouble
-        (`clients.DisplayFault`), and each Player whose state is a setup state
-        (`player_state.SETUP`): no token yet, or no report yet.
+        (`clients.DisplayFault`), and each wall not reporting because the
+        Player that shows it is being set up, with that Player's state; then
+        each Player whose state is a setup state (`player_state.SETUP`): no
+        token yet, or no report yet.
         """
         if not self.walls:
             found = [SetupStep(SetupKind.NO_WALL, None, None, "No wall is recorded yet")]
         else:
             in_fault = {fault.wall.id for view in self.players for fault in view.faults if fault.wall is not None}
-            found = [
-                SetupStep(SetupKind.WALL, seen.wall.id, str(seen.state.state), f"{seen.wall.name} has no Player yet")
-                for seen in self.walls
-                if seen.state.state in display_state.SETUP and seen.wall.id not in in_fault
-            ]
+            waiting = _waiting_on_their_player(self.players)
+            found = []
+            for seen in self.walls:
+                if seen.state.state in display_state.SETUP and seen.wall.id not in in_fault:
+                    found.append(
+                        SetupStep(SetupKind.WALL, seen.wall.id, str(seen.state.state), f"{seen.wall.name} has no Player yet")
+                    )
+                elif seen.state.state in display_state.TROUBLES and (view := waiting.get(seen.wall.id)) is not None:
+                    # Its Player's setup state, not the wall's `silent`: the step
+                    # is the Player's, and a setup step carries a setup state.
+                    found.append(
+                        SetupStep(SetupKind.WALL, seen.wall.id, str(view.player.state), _waiting_words(seen.wall, view))
+                    )
         for view in self.players:
             if view.player.state in player_state.SETUP:
                 found.append(SetupStep(SetupKind.PLAYER, view.client.id, str(view.player.state), _setup_words(view)))
@@ -458,6 +475,19 @@ def _setup_words(view: ClientView) -> str:
     if view.player.state is PlayerState.NO_TOKEN:
         return f"{name} has no token yet"
     return f"{name} is waiting for its first report"
+
+
+def _waiting_on_their_player(players: Sequence[ClientView]) -> dict[str, ClientView]:
+    """Every wall a Player still being set up shows (`player_state.SETUP`), by wall id, with that Player."""
+    return {shown.wall.id: view for view in players if view.player.state in player_state.SETUP for shown in view.walls}
+
+
+def _waiting_words(wall: Wall, view: ClientView) -> str:
+    """A wall that has not reported because its Player is being set up, as the top bar says it."""
+    name = view.client.name
+    if view.player.state is PlayerState.NO_TOKEN:
+        return f"{wall.name} waits for {name}, which has no token yet"
+    return f"{wall.name} waits for {name}'s first report"
 
 
 def _listed(names: Sequence[str]) -> str:
