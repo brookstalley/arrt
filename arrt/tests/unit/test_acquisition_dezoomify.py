@@ -7,6 +7,7 @@ A fake that returned tidy exit codes would test a binary this product does not
 have.
 """
 
+import errno
 import json
 import os
 import stat
@@ -69,6 +70,31 @@ PARTIAL = (
     "exit 1\n"
 )
 WRITES_NOTHING = 'echo "[WARN ] Reached end of input. Exiting..." >&2\nexit 0\n'
+
+#: The last two lines `dezoomify-rs 2.18.1` wrote on a full disk, copied from an
+#: observed run (2026-11-20: the generic dezoomer over sixteen 512 px tiles
+#: served locally, writing to a 1 MiB HFS+ volume on macOS). It exited 1 and
+#: left a truncated, non-empty file of 860,160 bytes.
+FULL_DISK_LINES = (
+    "[WARN ] Error when finalizing image: No space left on device (os error 28)\n"
+    "[ERROR] Input/Output error: No space left on device (os error 28)\n"
+)
+#: The same run with the tile cache on that volume too: a line per tile it could
+#: not cache, before the same two lines. One of them, copied from that run.
+CACHE_FULL_LINE = (
+    "[WARN ] Unable to write http://127.0.0.1:18765/tile_3_3.jpg to the tile cache mnt/cache: "
+    "No space left on device (os error 28)\n"
+)
+
+
+def _emits(lines: str) -> str:
+    """Shell that writes `lines` to stderr verbatim."""
+    return "".join(f"printf '%s\\n' '{line}' >&2\n" for line in lines.splitlines())
+
+
+FULL_DISK = 'printf "x%.0s" $(seq 1 500) > "$(eval echo \\${$#})"\n' + _emits(FULL_DISK_LINES) + "exit 1\n"
+#: A finished image whose tiles could not be cached: the fetch worked.
+CACHE_FULL_ONLY = SAVES_IMAGE.replace("exit 0\n", _emits(CACHE_FULL_LINE) + "exit 0\n")
 
 
 #: The tests that run the wrapper's child process, which is what they test.
@@ -255,6 +281,25 @@ class TestClassification:
         assert result.usable
         assert (result.tiles_fetched, result.tiles_expected) == (None, None)
         assert "does not recognise" in result.detail
+
+    def test_a_full_disk_is_raised_as_the_disk_saying_it_is_full(self, tmp_path):
+        """Not a partial image from what the binary left, nor a failure counted against the work: the disk's fault."""
+        script = _fake_binary(tmp_path, FULL_DISK)
+
+        with pytest.raises(OSError, match="the disk is full") as raised:
+            _run(tmp_path, script)
+
+        assert raised.value.errno == errno.ENOSPC
+        assert raised.value.errno in atomic.DISK_FAULT_ERRNOS, "the queue pauses only on these"
+        assert "No space left on device" in str(raised.value)
+        assert not [p for p in (tmp_path / "out").iterdir()], "the truncated file was left to be found"
+
+    def test_a_tile_cache_that_could_not_be_written_is_no_fault_when_the_image_was(self, tmp_path):
+        script = _fake_binary(tmp_path, CACHE_FULL_ONLY)
+
+        result = _run(tmp_path, script)
+
+        assert result.outcome is TileOutcome.COMPLETE
 
     def test_a_timeout_is_a_failure_and_says_so(self, tmp_path):
         script = _fake_binary(tmp_path, "sleep 5\nexit 0\n")
