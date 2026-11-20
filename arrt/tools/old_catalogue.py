@@ -28,8 +28,17 @@ included (renamed after its open), so running this again over the same tags
 writes the same bytes, and a diff in a fixture is a change in a release.
 
 Run from `arrt/`, in a checkout with the tags: ``uv run python tools/old_catalogue.py``.
-It needs git and the tags; the tests that read its output need neither. A new
-release whose schema changed gets its dump by adding its tag to `RELEASES`.
+It needs git and the tags; the tests that read its output need neither.
+
+**Every release has a row in `releases.json`**: its own dump, or, when its
+schema is the release before it's, the dump of the release whose shape it
+shares (`"v0.4.0": "v0.3.0.sql"`), so the chain opens the catalogue every
+release left. `tests/preferences/test_catalogue_release_dumps.py` refuses a
+release the change log records, at or below `arrt/pyproject.toml`'s version,
+that has none. **A release cut** adds its tag to `RELEASES` and runs this in the
+release's own commit, before the tag exists: the newest release in `RELEASES`,
+when git has no tag of that name, is made from `HEAD`, and the run says so.
+Any other missing tag fails.
 """
 
 import argparse
@@ -451,9 +460,48 @@ def _extract(repository: Path, tag: str, into: Path) -> Path:
     return into / "arrt" / "src"
 
 
+def _tagged(repository: Path, tag: str) -> bool:
+    """Whether git has a tag named `tag`."""
+    found = subprocess.run(  # noqa: S603 -- git, with a tag from RELEASES
+        ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"],  # noqa: S607 -- a developer's tool, as above
+        cwd=repository,
+        capture_output=True,
+        check=False,
+    )
+    return found.returncode == 0
+
+
+def ref_for(tag: str, repository: Path, releases: tuple[str, ...] = RELEASES) -> str:
+    """The git ref a release's code is read from: its tag, or `HEAD` for the newest release while it is being cut.
+
+    The release commit carries its own dump (the release-list test refuses it
+    otherwise), and its tag is made only after that commit, so the newest
+    release is made from the commit the cut is in. Any other release with no tag
+    is a mistake in `RELEASES` or a checkout without the tags, and fails by name.
+    """
+    if _tagged(repository, tag):
+        return tag
+    if tag == releases[-1]:
+        return "HEAD"
+    raise SystemExit(f"{tag}: git has no such tag (fetch the tags: git fetch --tags), and it is not the newest release")
+
+
+def rows(schemas: dict[str, list[str]]) -> dict[str, str]:
+    """`releases.json`'s rows from each release's schema, oldest first: its own dump, or the earlier one it shares."""
+    kept: dict[str, str] = {}
+    previous: tuple[str, list[str]] | None = None
+    for tag, schema in schemas.items():
+        if previous is not None and schema == previous[1]:
+            kept[tag] = f"{previous[0]}.sql"
+            continue
+        previous = (tag, schema)
+        kept[tag] = f"{tag}.sql"
+    return kept
+
+
 def make(tag: str, repository: Path, scratch: Path) -> tuple[str, list[str]]:
-    """The dump of the catalogue `tag` makes over the seed, and its schema."""
-    source = _extract(repository, tag, scratch / tag)
+    """The dump of the catalogue `tag` makes over the seed, and its schema. `tag` is any git ref."""
+    source = _extract(repository, tag, scratch / tag.replace("/", "_"))
     path = scratch / f"{tag}.sqlite"
     environment = {**os.environ, "PYTHONPATH": str(source)}
     child = (
@@ -490,19 +538,22 @@ def main() -> int:
         print(f"{arguments.ref}: wrote {arguments.to}")
         return 0
     arguments.out.mkdir(parents=True, exist_ok=True)
-    kept: dict[str, str] = {}
+    schemas: dict[str, list[str]] = {}
+    dumps: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="old-catalogue-") as scratch:
-        previous: list[str] | None = None
         for tag in RELEASES:
-            dump, schema = make(tag, arguments.repository, Path(scratch))
-            if schema == previous:
-                print(f"{tag}: schema as before, no dump")
-                continue
-            previous = schema
-            header = f"-- The catalogue Arrt {tag} made over the synthetic seed in tools/old_catalogue.py, which wrote this.\n"
-            (arguments.out / f"{tag}.sql").write_text(header + dump, encoding="utf-8")
-            kept[tag] = f"{tag}.sql"
-            print(f"{tag}: wrote {tag}.sql")
+            ref = ref_for(tag, arguments.repository)
+            if ref != tag:
+                print(f"{tag}: no tag yet, so made from {ref} (the release being cut)")
+            dumps[tag], schemas[tag] = make(ref, arguments.repository, Path(scratch))
+    kept = rows(schemas)
+    for tag, name in kept.items():
+        if name != f"{tag}.sql":
+            print(f"{tag}: schema as {name.removesuffix('.sql')}'s, no dump of its own")
+            continue
+        header = f"-- The catalogue Arrt {tag} made over the synthetic seed in tools/old_catalogue.py, which wrote this.\n"
+        (arguments.out / name).write_text(header + dumps[tag], encoding="utf-8")
+        print(f"{tag}: wrote {name}")
     (arguments.out / "releases.json").write_text(json.dumps(kept, indent=2) + "\n", encoding="utf-8")
     return 0
 
