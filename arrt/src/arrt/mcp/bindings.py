@@ -203,9 +203,18 @@ def _facet_group(group: FacetGroup) -> dict[str, Any]:
 
 def _get_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     artwork_id = arguments["artwork_id"]
+    artwork = _full(services.catalogue.get_artwork(artwork_id))
+    brought = services.catalogue.get_that_brought(artwork_id)
     return ok(
-        artwork=_full(services.catalogue.get_artwork(artwork_id)),
+        artwork=artwork,
         acquisition=_acquisition_fields(services.acquisition_queue.state_of([artwork_id]).get(artwork_id)),
+        # The Get the work was accepted from, as `WorkDetailOut.get` says it; null
+        # for a work that came another way, or before the history (wave 2b, Chunk 40).
+        get=(
+            None
+            if brought is None or brought.run_id is None
+            else {"run_id": brought.run_id, "accepted_at": _moment(brought.occurred_at)}
+        ),
     )
 
 
@@ -305,6 +314,11 @@ def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None
         "since": None if state.since is None else state.since.isoformat(),
         "condition": state.condition,
         "remedy": state.remedy,
+        # What the last failed fetch said, which decides when it is tried again;
+        # the plugin that said it; when the failure was recorded (wave 2b, Chunk 32).
+        "outcome": None if state.outcome is None else str(state.outcome),
+        "plugin": state.plugin,
+        "failed_at": _moment(state.failed_at),
     }
 
 
@@ -632,6 +646,7 @@ def _history(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
     page = services.catalogue.list_events(
         kinds=arguments.get("kinds") or (),
         wall_id=arguments.get("wall_id"),
+        work_id=arguments.get("artwork_id"),
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
     )

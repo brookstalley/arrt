@@ -473,6 +473,14 @@ ART_CATALOGUE: Final = ToolRecord(
                     type="string",
                     description="Only this wall's history, as art_display(action='walls') names walls. Omit for every wall.",
                 ),
+                Param(
+                    name="artwork_id",
+                    type="string",
+                    description=(
+                        "Only this work's history: the Get it was accepted from, its archive and restore, and what kept "
+                        "it off walls. Omit for every work; with wall_id, what both name."
+                    ),
+                ),
                 _LIMIT,
                 _OFFSET,
             ),

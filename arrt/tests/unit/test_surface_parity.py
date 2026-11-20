@@ -502,6 +502,36 @@ def test_a_plugin_never_searched_reads_alike_on_both_surfaces():
     assert (tool["searched"], tool["searches_owed"], tool["last_search_answered_at"]) == (0, 0, None)
 
 
+def test_a_works_place_in_the_queue_agrees_value_for_value():
+    """`art_catalogue(action='get')`'s `acquisition` is `AcquisitionStateOut`: Chunk 32's outcome, plugin and failure time too.
+
+    Every field filled, so a formatter that dropped one or wrote a constant
+    fails here, not only one that misnamed it. No test held this pair until
+    wave 2b's Chunk 53: the route gained three fields and the tool did not.
+    """
+    from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+    from arrt.persistence.records import FetchOutcome
+
+    state = AcquisitionState(
+        artwork_id="awk_1",
+        phase=AcquisitionPhase.FAILED,
+        failures=2,
+        detail="The Met plugin could not be asked: it did not answer within 60 seconds",
+        next_try_at=WHEN,
+        since=WHEN,
+        condition="DiskFull",
+        outcome=FetchOutcome.UNASKED,
+        plugin="met",
+        failed_at=WHEN,
+    )
+
+    tool = bindings._acquisition_fields(state)
+    assert tool is not None
+    check_parity("AcquisitionState", set(tool), _fields(http_models.AcquisitionStateOut))
+    assert tool == http_api._acquisition(state).model_dump()
+    assert (tool["outcome"], tool["plugin"], tool["failed_at"]) == ("unasked", "met", WHEN.isoformat())
+
+
 def test_the_picture_store_readings_agree_value_for_value():
     """Status and `art_display(action='status')` state the store's size in the same names and numbers."""
     reading = PicturesReading(pictures_bytes=123_456_789, pictures_files=2_468, age_seconds=42.0, unreadable=3)
