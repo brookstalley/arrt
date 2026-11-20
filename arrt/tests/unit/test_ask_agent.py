@@ -385,7 +385,12 @@ async def test_a_reply_the_client_abandons_records_what_it_spent_before_it_stopp
     assert [cost.cost_usd for cost in recorded] == [PER_CALL]
 
 
-async def test_a_reply_whose_calls_reported_no_cost_records_nothing():
+async def test_a_reply_whose_calls_reported_no_cost_records_each_as_unknown_never_as_nothing():
+    """Chunk 62: a call answered with no cost on it may have been billed, so the ledger is told so.
+
+    Until then this recorded nothing at all, and the month's total read those
+    calls as a known $0.
+    """
     recorded: list[ReplyCost] = []
     ask = Ask(
         answered,
@@ -397,7 +402,38 @@ async def test_a_reply_whose_calls_reported_no_cost_records_nothing():
     events = await events_of(ask)
 
     assert events[-1]["type"] == "stream_end"
-    assert recorded == []
+    [cost] = recorded
+    assert (cost.cost_usd, cost.unknown_calls, cost.unknown_model_id) == (Decimal(0), 2, ANSWERED_BY)
+    assert events[-1]["metadata"]["summary"] == "at least $0.00, and 2 calls whose cost is unknown"
+
+
+async def test_a_reply_with_one_call_costed_and_one_not_records_the_known_cost_and_one_unknown():
+    recorded: list[ReplyCost] = []
+    ask = Ask(
+        answered, ScriptedModel(replies=[calls(SEARCH), unpriced(says("Done."))]), step_limit=8, record_cost=recorded.append
+    )
+
+    await events_of(ask)
+
+    [cost] = recorded
+    assert (cost.cost_usd, cost.unknown_calls) == (PER_CALL, 1)
+
+
+async def test_the_step_limits_sentence_says_its_cost_in_the_one_writers_words():
+    """Not `$0.0030` formatted here: "at least" when a step said no cost (`SpendTotal.words`)."""
+    ask = Ask(
+        answered,
+        ScriptedModel(replies=[unpriced(calls(SEARCH)), calls(SEARCH), calls(SEARCH)]),
+        step_limit=3,
+        record_cost=unrecorded,
+    )
+
+    events = await events_of(ask)
+
+    assert events[-1]["code"] == "STEP_LIMIT"
+    said = SpendTotal(cost_usd=2 * PER_CALL, unknown_calls=1).words
+    assert events[-1]["message"].endswith(f" It cost {said}.")
+    assert said.startswith("at least $")
 
 
 class RefusedAfterOneCall(ScriptedModel):
