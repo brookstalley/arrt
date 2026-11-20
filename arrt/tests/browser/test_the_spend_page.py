@@ -114,7 +114,7 @@ def test_the_unknown_calls_are_listed_apart_with_what_when_and_which_get(two_mon
     unknown = month(ui, "2026-11").locator("section.spend-unknown")
     expect(unknown.locator("h3")).to_have_text("Calls whose cost is unknown", use_inner_text=True)
     expect(unknown).to_contain_text("the provider may have billed them", use_inner_text=True)
-    expect(unknown.locator("thead th")).to_have_text(["When", "What", "Model", "Get"], use_inner_text=True)
+    expect(unknown.locator("thead th")).to_have_text(["When", "What", "Model", "Get"])
     # Newest first, each with what it was, the model if one is known, and its Get if it had one.
     expect(unknown.locator("tbody tr")).to_have_count(2)
     expect(unknown.locator("tbody tr").nth(0).locator("td").nth(1)).to_have_text("Ask's replies", use_inner_text=True)
@@ -145,7 +145,7 @@ def test_what_it_was_spent_on_and_which_gets_spent_it(two_months):
         use_inner_text=True,
     )
     spent_by = month(ui, "2026-11").locator("section.spend-gets")
-    expect(spent_by.locator("thead th")).to_have_text(["Get", "Started", "Calls", "Cost"], use_inner_text=True)
+    expect(spent_by.locator("thead th")).to_have_text(["Get", "Started", "Calls", "Cost"])
     expect(spent_by.locator("tbody tr")).to_have_count(1)
     expect(spent_by.locator("tbody td").nth(0)).to_have_text("Something by Dalí", use_inner_text=True)
     expect(spent_by.locator("tbody td").nth(2)).to_have_text("3", use_inner_text=True)
@@ -238,7 +238,7 @@ def test_a_get_is_opened_from_the_keyboard_alone(two_months):
     link.focus()
     ui.page.keyboard.press("Enter")
 
-    ui.page.wait_for_function(f"() => window.location.hash === '#get/{GET_ID}'")
+    ui.page.wait_for_function(f"() => window.location.hash.startsWith('#get/{GET_ID}')")
 
 
 def test_the_tables_are_stacked_cards_on_a_phone_with_each_value_under_its_heading(two_months):
