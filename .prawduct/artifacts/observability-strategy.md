@@ -699,9 +699,17 @@ walls. **Works the queue holds as failed are a health observation** (`failed_fet
 how many, how many will be retried and how many were given up on, and the age of the
 newest failure from `acquisition_queue.failed_at`; `age_unknown` counts failures written
 before that column, whose time is not guessed), linking to Activity › Queue. Nothing of
-it is persisted (`data-model.md` § Player observation). *Chunk 62, building as this is
-written, changes how many setup steps one cause makes and what a waiting wall's own panel
-reads; this paragraph says neither.*
+it is persisted (`data-model.md` § Player observation). **One step for one cause**
+(Chunk 62, `walls_waiting` and `HealthReading.setup_steps`): a Player with no token, or
+with one and no first report, is one setup step naming the walls that wait for it ("The
+living room Pi has no token yet, so The hall and The study wait for it"), and a wall
+waiting for it is neither a step nor a trouble of its own. Such a wall's `display_state`
+stays `silent`, the state a Player's label already carries (a new state would change the
+contract), and `GET /api/health` says beside it whom it waits for, `waiting_for`
+(`{client_id, name, state, words}`), which Status's panel and the Walls card read. A wall
+waits only while its Player is being set up and nothing was ever written for it, or its
+Player has no token; a wall whose reports came and stopped is a trouble, as it always
+was.
 
 **What the journal gains**, each line JSON with its `event` (`arrt/src/arrt/logs.py`):
 
@@ -723,8 +731,9 @@ reads; this paragraph says neither.*
 
 Ask's reply line (`arrt.ask`, § Signals) gains `unanswered=`: the model calls that
 may have run and been billed with nobody told (no status, a 5xx or a 408), apart from
-an answered refusal (`arrt/src/arrt/ask/agent.py`). What Ask's ledger records for them
-is Chunk 62's, building as this is written, and this paragraph does not say it.
+an answered refusal (`arrt/src/arrt/ask/agent.py`). Since Chunk 62 each such call, and
+each call the provider answered without saying what it cost, is a spend row of its own
+marked unknown, never a known $0 (`app._record_ask_cost`, `arrt/src/arrt/app.py`).
 
 ### The panel shows staleness in absolute terms
 
