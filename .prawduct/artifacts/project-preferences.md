@@ -114,9 +114,9 @@ Developer preferences for how code is written in this project. Captured during d
 
 - **Framework**: pytest, in three projects — `tests/` at the root (the
   governance suite), `arrt/tests/` and `contract/tests/`, each on its own
-  interpreter — and five testament suites, the server's browser suite running
+  interpreter — and six testament suites, the server's browser suite running
   apart from its other tests. The evidence hook's one `test_commands` entry in
-  `project-state.yaml` is a `testament run` of all five, so a run made through
+  `project-state.yaml` is a `testament run` of all six, so a run made through
   the recorder is both the verification and the evidence (2026-11-18; until then
   it was three local pytest invocations, which never ran the browser suite). Arrt Player's suite left
   with it at wave 5 (2026-10-27) and is declared in its own repository.
