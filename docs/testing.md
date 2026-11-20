@@ -123,9 +123,11 @@ issues between August and November).
 
 **`arrt/tests/unit/test_browser_reads_retry.py` holds it.** It reads every file in
 `arrt/tests/browser/` and refuses a one-shot read or a fixed sleep in any file
-not on its `UNCONVERTED` list, which holds each remaining file's count and only
-shrinks: a file listed with more or fewer than it has fails, and so does a
-converted file still on the list. Two markers excuse one statement each, and
+not on its `UNCONVERTED` list. Every file is converted, so the list is empty. A
+file listed with more or fewer than it has fails, and so does a converted file
+still on the list; adding a row with a file's exact counts is the one way past
+the guard, which it does not refuse, so it is a decision to argue in review. Two
+markers excuse one statement each, and
 each needs its reason after the colon:
 
 - `# one-shot: <why>` — a read that computes a value rather than asserting one
@@ -246,10 +248,9 @@ asserted against it).
     does not find `<li>  16th   century </li>`). Wrong: turning
     `s not in loc.all_inner_texts()` into a `has_text` pattern with
     `to_have_count(0)`, which passes on an item whose words are `s`. Right:
-    keep the set read, after its anchor, with `# one-shot:` (a membership
-    claim has no retrying form). A `has_text` *string* is a case-insensitive
-    substring and is fine for choosing a row to assert on.
-
+    hazard 11's anchored regex, or the set read kept after its anchor with
+    `# one-shot:`. A `has_text` *string* is a case-insensitive substring and is
+    fine for choosing a row to assert on.
 11. **Membership of one item among several.** `to_contain_text([..])` on a locator
     that matches several elements passes when the list's items are found, in order,
     among the elements, and a *string* in the list is a substring: `["16th"]`
