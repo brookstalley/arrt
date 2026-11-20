@@ -206,7 +206,8 @@ was written.
 | a class tested for, `"x" in (loc.get_attribute("class") or "").split()` | — | `expect(loc).to_have_class(re.compile(r"(^\|\s)x(\s\|$)"))`: hazard 12 |
 | `assert loc.is_visible()` / `not loc.is_visible()` | 59 / 19 | `expect(loc).to_be_visible()` / `expect(loc).to_be_hidden()`, under the anchor rule |
 | `assert loc.is_hidden()` | 35 | `expect(loc).to_be_hidden()`, under the anchor rule |
-| `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` |
+| `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` — the two agree on `aria-disabled` (hazard 19) |
+| boxes read into a dict by their labels, `{label.inner_text(): box.is_checked()}` | — | the boxes' count with `to_have_count(n)`, then `expect(dialog.get_by_label(name, exact=True)).to_be_checked(checked=…)` per name: hazard 17, since a label is matched by its text content, not its `innerText` |
 | `assert loc.input_value() == v` | 39 | `expect(loc).to_have_value(v)` |
 | a tuple of reads compared to a tuple: `assert (a.input_value(), b.is_disabled()) == (x, True)` | 13 | one `expect` per element, each by its own row |
 | `assert page.title() == s` / `.startswith(s)` / `re.match(r"^s\b", …)` / `s not in` | 6 | `expect(page).to_have_title(s)` / `re.compile("^" + re.escape(s))` / `re.compile(r"^s\b")` / `not_to_have_title(re.compile(re.escape(s)))` |
@@ -217,6 +218,7 @@ was written.
 | `bounding_box()` | 44 | stays, after an `expect` of the state it measures, with `# one-shot: <why>` (geometry, as `evaluate` is) |
 | `page.evaluate(…)`, `loc.evaluate(…)` | not counted | out of scope (the plan's decision): a computed value no `expect` retries. Placed after an `expect` of the state it reads; `wait_for_function` is its retrying form where the claim is a predicate |
 | `ui.page.wait_for_timeout(ms)`, a `setTimeout` promise | 39 | a wait on the condition it stood for; one that proves nothing happens for a while stays, with `# sleep: <why>` |
+| `assert s.count(w) == 1` on a whole card or page ("said once") | — | `to_have_text(re.compile(r"^(?:(?!w).)*w(?:(?!w).)*$", re.IGNORECASE \| re.DOTALL), use_inner_text=True)`: hazard 18 |
 
 #### The hazards, each with the wrong conversion and the right one
 
@@ -320,6 +322,54 @@ asserted against it).
     one request, list full at the exit every time), so treat it as a reported
     hazard of the wiring, not a measured rule: if such a test ever flips, look
     here first.
+17. **A label is matched by its text content.** `get_by_label(name, exact=True)`
+    on a `<label>` compares `name` with the label's whole text content,
+    whitespace-normalised and trimmed, and case-sensitively: words CSS hides
+    (`hidden`, `display: none`, `aria-hidden`) count, and `text-transform` does
+    not, where `innerText` is the other way round on both. A control with an
+    `aria-label` is found by that and no longer by its label's words. Measured on
+    1.62 in a page set with `set_content`, eight labels: `Study <span
+    hidden>(current)</span>` is found as `Study (current)` and not as `Study`; an
+    uppercased `Hall` as `Hall`, not `HALL`; `Kitchen` with an `aria-label` of
+    `Kitchen wall` only as the latter. So the conversion of a dict of label texts
+    is right for a label whose words all show, which *Hang…*'s are
+    (`screens/theme.js`: each label's text is the wall's name, its box has no
+    `aria-label`, and no rule transforms it); a label that carries hidden words
+    is found by them, not by its `innerText`.
+18. **"Said once" as one pattern.** `re.compile(r"^(?:(?!w).)*w(?:(?!w).)*$",
+    re.IGNORECASE | re.DOTALL)` with `use_inner_text=True` passes on exactly one
+    `w` and fails on none or two, across lines (measured on 1.62: zero, one, two
+    on one line, two on separate lines, one hidden copy beside one shown). It
+    needs `re.DOTALL`: Playwright passes the flag through, and without it a text
+    of several lines fails even when it holds `w` once. It sees the raw
+    `innerText`, so `screen&nbsp;off` is not `screen off`, and a `w` that wraps
+    across two elements (`screen` in one, `off` in the next) is not found.
+    Without `use_inner_text`, a hidden copy counts.
+19. **`aria-disabled` is disabled to both reads.** `is_disabled()` and
+    `to_be_disabled()` agree in every case measured on 1.62: a native `disabled`
+    button, a button in a disabled `<fieldset>`, and `aria-disabled="true"` on a
+    button, an `<input>`, a `role=button`, or on an ancestor of the button (a
+    plain `div` or a `role=group`) are disabled to both; `aria-disabled="false"`,
+    and `aria-disabled="true"` on a `span` with no role, are enabled to both. So
+    converting one to the other changes nothing; what neither says is whether
+    the control ignores a press, which is the client's to do.
+20. **A window is the page's clock.** A count over a window ("one request per
+    poll") read after a fixed sleep counts whatever the runner managed in that
+    time. Right: `page.clock.install()` before the page loads, then
+    `page.clock.run_for(interval)` one interval at a time, each followed by a
+    wait on what that interval's paint leaves behind, so the count is per tick.
+    An init script added *after* the install wraps the clock's `setTimeout`, so
+    a test can count the timers the page sets (`test_the_run_view.py`,
+    `COUNT_POLL_TIMERS`). Added before it, the wrapper is replaced: measured on
+    1.62, it then saw none of the page's two-second timers in five seconds,
+    only shorter ones (100 ms, 5 ms).
+21. **An absence that settles by a callback.** A fitting scroll box carries no
+    `tabindex`, both before the client's `ResizeObserver` has reported and
+    after, so `not_to_have_attribute` passes on its first poll whether or not
+    the observer has run. Anchor it on an observer of the test's own, made
+    after the client's: within one rendering step observers report in the
+    order they were made, so once the test's has reported, the client's has
+    settled the box (`test_a_table_wider_than_its_box_takes_the_keyboard`).
 
 #### Where there is no mechanical form
 

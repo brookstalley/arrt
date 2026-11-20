@@ -367,7 +367,12 @@ def test_a_row_drawn_again_while_its_forget_is_held_shows_the_hold(ui, wanted, d
     open_wanted(ui)
 
     ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
-    ui.page.wait_for_timeout(1500)  # sleep: staggers the two holds, so the first lands while the second is held
+    # Staggered by the hold's own countdown, not a sleep: at "4 s" or "3 s" at
+    # least one of Lobster's five seconds has gone and two are left, so its hold
+    # runs out while the second is held. Two readings, not one, because
+    # `expect` asks about once a second by then and one reading lasts a second.
+    lobster = ui.page.locator(".wanted tbody tr", has_text="Lobster Telephone")
+    expect(lobster.locator(".verdict-countdown")).to_have_text(re.compile(r"^[34] s$"), use_inner_text=True)
     ui.page.click("button[aria-label='Forget The Persistence of Memory: stop proposing it']")
     # Lobster's hold runs out and lands, and the page repaints with the other row still held.
     ui.page.wait_for_function("() => !document.querySelector('.wanted')?.innerText.includes('Lobster Telephone')", timeout=15000)

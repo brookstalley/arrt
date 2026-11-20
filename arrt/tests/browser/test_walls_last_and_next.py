@@ -366,7 +366,17 @@ def test_after_a_skip_next_is_redrawn_from_the_new_schedule(ui, services, the_wa
     nxt.first.wait_for()
     before = nxt.all_inner_texts()  # one-shot: Next as first drawn, which the skip must change
 
-    ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
+    # The step's answer is waited for by itself, so a red here says which link
+    # broke (#442): no POST at all is the click lost, an answer that is not ok
+    # is the server refusing, and an ok answer with no "Skipped." below is the
+    # card. 1,478 loaded runs on the pool did not reproduce it (chunk 51).
+    def is_the_step(response):
+        return response.request.method == "POST" and response.url.endswith(f"/api/walls/{the_wall.id}/next")
+
+    with ui.page.expect_response(is_the_step) as answered:
+        ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
+    step = answered.value
+    assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
     # prints everything the card says, a failure beside Skip included (#442).
