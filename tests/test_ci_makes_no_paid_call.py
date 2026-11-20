@@ -138,6 +138,7 @@ def test_a_yaml_workflow_holding_a_model_key_is_read_and_refused(tmp_path):
 
     assert found == {"nightly.yaml": ["eval reads OPENROUTER_API_KEY"], "tests.yml": []}
 
+
 KEYED = {"env": {"OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}"}, "run": "uv run pytest -m live_api"}
 
 
