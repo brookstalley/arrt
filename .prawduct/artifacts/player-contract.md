@@ -167,6 +167,38 @@ field asks for it as a change to the package.
   - This file: § Transport points at the table, says what a `404` on a master
     and the client document's tag mean, and no longer promises what a
     Library/Programming split would require (§ Transport, media).
+- **1.3.0** (audit wave 2b, 2026-11-20): **not cut yet**. `contract/pyproject.toml`
+  says 1.3.0 and no `contract-v1.3.0` tag exists; the tag is cut on the merge
+  commit after the 2b plan merges, and its frozen copy is written then with
+  `contract/tools/freeze_release.py`. Additive but for one corrected answer.
+  - `contract/vocabulary.json`, `vocabulary()`: `player_states`, a Player's five
+    states as the server reads them, each with its `word`, `setup` and `means`:
+    `no_token` "No token yet" and `awaiting_report` "Waiting for its first report"
+    (`setup` true: a step of setting up, never a fault), `reporting` "Reporting",
+    `not_heard_from` "Not heard from since {date}", `report_unreadable` "Report
+    unreadable". `display_states` is unchanged.
+  - `contract/transport.json`: **the one corrected answer.** The wall heartbeat's
+    `not_an_object` case answers `400` in the error shape, as the client
+    heartbeat's does, where 1.2.0's row recorded `422` in the framework's body; the
+    row carries `corrected` (`in` 1.3.0, `was`, `why`), and no row answers
+    `framework` since. The server reads the raw body now
+    (`arrt/src/arrt/http/player.py`), so a JSON object sent with another
+    `Content-Type` is read, as the client heartbeat's route already read it.
+  - The must-refuse fixtures: **170 invalid fixtures added** (counted against
+    `contract-v1.2.0`'s `fixtures/index.json`): `client-heartbeat.v1` 21,
+    `client.v1` 20, `heartbeat.v1` 47, `label.v1` 14, `manifest.v2` 68 (28 of them
+    `player_must_refuse`, 40 not: a setting, the playlist, the schema minor, a
+    label's text, a mat colour, a master's bytes and dimensions). Each is a valid fixture with one change, and
+    every invalid row in the index now carries `constraint` (the schema keyword it
+    breaks, or the rule) and `refused_because`.
+  - Two semantic rules of the client heartbeat, in `semantic_errors(document,
+    schema=…)` (the default schema is unchanged): no two outputs share a name, nor
+    two label outputs; and a report carries at most `MAX_OUTPUTS_PER_REPORT` (32)
+    of each (§ Transport). Four fixtures break them; each passes the schema.
+  - `contract/released/1.2.0/` holds that release's `transport.json` and
+    `vocabulary.json` as they are at the tag, and the package's suite holds HEAD
+    to them (§ The package). `freeze_release.py`, `py.typed`, and `released()`'s
+    docstring corrected to say what a copy holds.
 
 ### What a Player does at 1.2.0
 
@@ -191,6 +223,27 @@ refuses ("carries no media with a sha256 and a url"). A Player moving its pin to
   until heartbeat major 2;
 - run its parsers and its writers over the new fixtures, and over
   `released()`'s, to hold itself to what an older server sent.
+
+### What a Player does at 1.3.0
+
+**Nothing a Player reads, writes or requests must change**, and 1.3.0 is not cut
+yet: a Player moves its pin when `contract-v1.3.0` exists. What its suite must do
+then, if it holds every must-refuse fixture to a stated reason as Arrt Player's
+does: **give a reason to each new invalid fixture its table reads** (the 170 above;
+the 68 of `manifest.v2` with `player_must_refuse` say which a reader enforces, a
+split Arrt drew and the Player's coordinator is asked to confirm), and
+to the four client-heartbeat fixtures that pass the schema and break a semantic
+rule. Its writer should send no more than 32 outputs or label outputs and no two of
+one name, which a Player with one display and one label already does. A Player
+moving its pin may:
+
+- quote `vocabulary()`'s `player_states` for its own settings page, which speaks of
+  the Player as the server's Players page does, with a test against the package;
+- read each invalid row's `constraint` and `refused_because` rather than its own
+  note of why a fixture is refused;
+- replay the corrected `not_an_object` row (`400`, the error shape) in its server
+  double; a double answering from 1.2.0's row answers `422`, and both rows say a
+  Player reacts as for `400`, so nothing it does changes.
 
 ## Major 1
 
