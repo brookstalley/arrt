@@ -395,7 +395,7 @@ def test_a_hang_from_the_card_of_a_wall_whose_player_has_no_token_yet_is_recorde
     _, study = walls
     waiting = services.clients.add_client(name="Study Pi")
     services.clients.assign_wall(study.id, client_id=waiting.id, output="hdmi-a-1")
-    words = services.health.observe_waiting()[study.id].words
+    words = services.health.observe_walls().waiting[study.id].words
     choose_works_for(ui, study)
     tick(ui, two_works[0])
     hang_button(ui).click()

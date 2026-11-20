@@ -26,6 +26,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from unit.test_surface_parity import WALL_RENAMES, check_renamed, in_http_names
 
+from arrt import observations
 from arrt.http import api as http_api
 from arrt.mcp import bindings
 from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
@@ -609,74 +610,249 @@ async def test_whom_a_wall_waits_for_is_said_by_the_status_the_walls_and_the_wal
     assert renamed["waiting_for"] == health[study]
 
 
-#: Each answer that says a wall's display state beside whom it waits for, and
-#: every read it makes of the wall's report or the Players' states: the seams a
-#: report can land at. Built from what each route calls at integration head
-#: `ebc26de2` and after Chunk 66's fix, so every seam is a read the answer makes
-#: (the test asserts the report landed).
-_ANSWERS_AND_THEIR_READS = [
-    ("GET /api/walls", ("survey_walls", "survey_wall_status", "players")),
-    ("one wall's answer", ("get_wall_view", "survey_wall_status", "players")),
-    ("art_display walls", ("survey_walls", "survey_wall_status", "players")),
-    ("GET /api/health", ("survey_wall_status", "players")),
-    ("art_display status", ("survey_wall_status", "players")),
-]
+# -- one answer, one reading --------------------------------------------------------------
+
+#: Every answer that says a wall's display state beside who shows it, whom it
+#: waits for or whether its Player reads the feed.
+_WALL_ANSWERS = ("GET /api/walls", "one wall's answer", "art_display walls", "GET /api/health", "art_display status")
 
 
-async def _answer_about(server_url: str, surface: str, wall: str) -> dict:
-    """The one wall's entry in `surface`'s answer."""
+async def _answer_about(server_url: str, surface: str, wall: str, name: str) -> dict | None:
+    """The one wall's entry in `surface`'s answer; None when the answer does not hold the wall."""
     if surface == "GET /api/walls":
         walls = (await request("GET", f"{server_url}/api/walls")).json()["walls"]
     elif surface == "one wall's answer":
-        return (await request("POST", f"{server_url}/api/walls/{wall}", json={"name": "The hall"})).json()
+        answer = await request("POST", f"{server_url}/api/walls/{wall}", json={"name": name})
+        return None if answer.status_code == 404 else answer.json()
     elif surface == "art_display walls":
         walls = (await ok(server_url, "walls"))["walls"]
     elif surface == "GET /api/health":
         walls = (await request("GET", f"{server_url}/api/health")).json()["walls"]
     else:
         walls = (await ok(server_url, "status"))["walls"]
-    return next(entry for entry in walls if entry["wall_id"] == wall)
+    return next((entry for entry in walls if entry["wall_id"] == wall), None)
 
 
-@pytest.mark.parametrize(("surface", "seam"), [(surface, seam) for surface, seams in _ANSWERS_AND_THEIR_READS for seam in seams])
-async def test_a_wall_report_landing_between_an_answers_reads_never_makes_it_disagree_with_itself(
-    server_url, services, settings, hall, wall, monkeypatch, surface, seam
-):
-    """Chunk 66, found at integration: `waiting_for` beside `display_state: showing_art` in one walls answer.
+def _wall_report(work_id: str, majors: list[int] | None = None) -> str:
+    document: dict = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "current_work_id": work_id}
+    if majors is not None:
+        document["capabilities"] = {"backend": "frame", "label_modes": ["none"], "manifest_majors": majors}
+    return json.dumps(document)
 
-    The wall's Player has its token and has not reported, so the wall waits for
-    its first report. The wall's own first report is written just before the
-    answer's read named by `seam`, each read in turn, deterministically (the read
-    is wrapped; no thread races it). Whichever read it lands before, the answer
-    says one thing: the wall waits exactly when its display state is `silent`
-    (the Player stays in setup throughout, so nothing else can explain a silence).
+
+def _says_one_instant(entry: dict) -> list[str]:
+    """What in one wall's entry contradicts the rest of it, in words; empty when it says one instant.
+
+    Each field is checked where the answer carries it: the health answers carry
+    the state and the wait, the walls answers who shows the wall too.
     """
-    await ok(server_url, "issue_client_token", client_id=hall)
-    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
-    landed: list[str] = []
-
-    def land() -> None:
-        if not landed:
-            report = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "current_work_id": "wrk_1"}
-            settings.heartbeat_path(wall).write_text(json.dumps(report), encoding="utf-8")
-            landed.append(seam)
-
-    def first_landing(read):
-        def wrapped(*args, **kwargs):
-            land()
-            return read(*args, **kwargs)
-
-        return wrapped
-
-    if seam == "players":
-        monkeypatch.setattr(services.health, "_players", first_landing(services.health._players))
-    else:
-        monkeypatch.setattr(services.display, seam, first_landing(getattr(services.display, seam)))
-
-    entry = await _answer_about(server_url, surface, wall)
-
-    assert landed == [seam], f"{surface} never read {seam}, so nothing landed between its reads"
     state = entry["display_state"]["state"]
-    assert (entry["waiting_for"] is not None) == (
-        state == "silent"
-    ), f"{surface}, the report landing before {seam}: display_state {state!r} beside waiting_for {entry['waiting_for']}"
+    wait = entry["waiting_for"]
+    wrong = []
+    if wait is not None and state != "silent":
+        wrong.append(f"waits for {wait['name']} beside display_state {state!r}")
+    if "client_id" in entry:
+        display = entry["display"]
+        shown = entry["client_id"] is not None and (display is None or display["fault"] is None)
+        if shown == (state == "unassigned"):
+            wrong.append(f"display_state {state!r} beside client_id {entry['client_id']!r}")
+        if wait is not None and wait["client_id"] != entry["client_id"]:
+            wrong.append(f"waits for {wait['client_id']!r} beside client_id {entry['client_id']!r}")
+        if display is None and entry["display_id"] is not None:
+            wrong.append(f"display_id {entry['display_id']!r} beside no display")
+        if display is not None and (display["display_id"], display["wall_id"]) != (entry["display_id"], entry["wall_id"]):
+            wrong.append(f"display_id {entry['display_id']!r} beside display {display['display_id']!r} on {display['wall_id']!r}")
+    return wrong
+
+
+class _Household:
+    """A wall and a Player made for one landing and taken away after it, so every landing meets the same household."""
+
+    def __init__(self, services, settings, step: int) -> None:
+        self.services = services
+        self.settings = settings
+        self.name = f"Wall {step}"
+        self.wall = services.display.add_wall(name=self.name).id
+        self.player = services.clients.add_client(name=f"Player {step}").id
+
+    def assign(self) -> None:
+        self.services.clients.assign_wall(self.wall, client_id=self.player, output="hdmi-a-1")
+
+    def report(self, document: str) -> None:
+        self.settings.heartbeat_path(self.wall).write_text(document, encoding="utf-8")
+
+    def leave(self) -> None:
+        if any(view.wall.id == self.wall for view in self.services.display.survey_walls()):
+            self.services.display.delete_wall(self.wall)
+        self.services.clients.remove_client(self.player)
+
+
+def _nothing_more(_entry: dict) -> list[str]:
+    return []
+
+
+def _waits_exactly_while_silent(entry: dict) -> list[str]:
+    # The Player stays in setup throughout, so nothing but its wait can explain a silence.
+    if (entry["waiting_for"] is None) == (entry["display_state"]["state"] == "silent"):
+        return [f"display_state {entry['display_state']['state']!r} beside waiting_for {entry['waiting_for']}"]
+    return []
+
+
+def _reads_feed_of_the_report_its_state_is(entry: dict) -> list[str]:
+    if "reads_feed" not in entry:
+        return []
+    shown = entry["display_state"].get("work_id", entry["display_state"].get("artwork_id"))
+    if (shown == "wrk_before") != (entry["reads_feed"] is True) or (entry["feed_notice"] is None) != (
+        entry["reads_feed"] is not False
+    ):
+        return [f"display_state showing {shown!r} beside reads_feed {entry['reads_feed']!r}"]
+    return []
+
+
+def _report_arrives(house: _Household):
+    """Its Player has a token and has not reported; the wall's first report lands."""
+    house.services.access.issue(house.player)
+    house.assign()
+    return (lambda: house.report(_wall_report("wrk_1"))), _waits_exactly_while_silent
+
+
+def _player_assigned(house: _Household):
+    """An unassigned wall; a Player with no token is assigned to it."""
+    return house.assign, _nothing_more
+
+
+def _feed_major_changes(house: _Household):
+    """The wall shows a work from a Player reading major 2; its Player, updated, reports another work and major 1 alone."""
+    house.services.access.issue(house.player)
+    house.assign()
+    house.report(_wall_report("wrk_before", [2]))
+    return (lambda: house.report(_wall_report("wrk_after", [1]))), _reads_feed_of_the_report_its_state_is
+
+
+def _wall_deleted(house: _Household):
+    """A wall its Player, with no token, would show; the wall is deleted."""
+    house.assign()
+    return (lambda: house.services.display.delete_wall(house.wall)), _nothing_more
+
+
+_LANDINGS = {
+    "a report arrives": _report_arrives,
+    "a Player is assigned": _player_assigned,
+    "a Player is updated across a feed major": _feed_major_changes,
+    "the wall is deleted": _wall_deleted,
+}
+
+
+class _Landing:
+    """Runs `land` once, just before the report read numbered `before` (from 0): every read an answer makes is one."""
+
+    def __init__(self, read) -> None:
+        self._read = read
+        self.reads = 0
+        self.before: int | None = None
+        self.land = None
+        self.landed = False
+
+    def arm(self, land, before: int) -> None:
+        self.reads, self.before, self.land, self.landed = 0, before, land, False
+
+    def disarm(self) -> None:
+        self.before = None
+
+    def __call__(self, path, **kwargs):
+        if self.before is not None and self.reads == self.before and not self.landed:
+            self.landed = True
+            self.land()
+        self.reads += 1
+        return self._read(path, **kwargs)
+
+
+@pytest.mark.parametrize("landing", _LANDINGS)
+@pytest.mark.parametrize("surface", _WALL_ANSWERS)
+async def test_whatever_lands_between_an_answers_reads_it_says_one_instant_of_the_wall(
+    server_url, services, settings, monkeypatch, surface, landing
+):
+    """Everything an answer says of a wall is one reading's: its state, its wait, who shows it, its display, its feed.
+
+    What lands is written just before the answer's first read of a report
+    file, then before its second, and so on until the answer makes fewer reads
+    than that: deterministically, before every read it makes (the reads are
+    wrapped; no thread races them). Each landing meets a household made for it
+    and taken away after, so every one meets the same. However many reads the
+    answer makes, it never says two instants of the wall at once. Before, a
+    walls answer read the reports and the placements more than once, and a
+    landing between two reads made it say both.
+    """
+    landings = _Landing(observations.observe)
+    monkeypatch.setattr(observations, "observe", landings)
+    wrong: list[str] = []
+    before = 0
+    while True:
+        house = _Household(services, settings, before)
+        land, agrees = _LANDINGS[landing](house)
+        landings.arm(land, before)
+        entry = await _answer_about(server_url, surface, house.wall, house.name)
+        landings.disarm()
+        if entry is not None:
+            wrong += [f"{surface}, landing before read {before}: {each}" for each in _says_one_instant(entry) + agrees(entry)]
+        house.leave()
+        if not landings.landed:
+            break
+        before += 1
+
+    assert before >= 2, f"{surface} made {before} report reads, so nothing could land between two"
+    assert not wrong, "\n".join(wrong)
+
+
+async def test_a_walls_or_health_answer_reads_each_report_file_once_however_many_walls_and_players(
+    server_url, services, settings, monkeypatch
+):
+    """Every walls answer and every health answer reads each report file once, and one wall's answer no other wall's.
+
+    With W walls and P Players a list reads W + P report files, each once:
+    every wall's, and every Player's, since who shows a wall depends on every
+    Player's report (a display two report now is in fault). One wall's answer
+    reads its own report and every Player's. Before, one list read each wall's
+    report three times and each Player's 2W + 2 times, the walls' survey taking
+    a survey of every Player for each wall; the health answer read each
+    Player's twice, once for the walls and once for the Players.
+    """
+    walls = [services.display.add_wall(name=name).id for name in ("Study", "Landing", "Attic")]
+    players = [services.clients.add_client(name=name).id for name in ("Study Pi", "Landing Pi")]
+    for each in players:
+        services.access.issue(each)
+        _report(settings, each, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+    services.clients.assign_wall(walls[0], client_id=players[0], output="hdmi-a-1")
+    services.clients.assign_wall(walls[1], client_id=players[0], output="hdmi-a-2")
+    services.clients.assign_wall(walls[2], client_id=players[1], output="hdmi-a-1")
+    for each in walls:
+        settings.heartbeat_path(each).write_text(_wall_report("wrk_1", [2]), encoding="utf-8")
+    every_wall = [view.wall.id for view in services.display.survey_walls()]
+    named = {str(settings.heartbeat_path(each)): f"wall {each}'s report" for each in every_wall} | {
+        str(client_heartbeat_path_in(settings.art_root, each)): f"Player {each}'s report" for each in players
+    }
+    read = observations.observe
+    counted: list[str] = []
+
+    def counting(path, **kwargs):
+        counted.append(str(path))
+        return read(path, **kwargs)
+
+    monkeypatch.setattr(observations, "observe", counting)
+
+    async def reads_of(answer) -> dict[str, int]:
+        counted.clear()
+        await answer
+        return {named[path]: counted.count(path) for path in named if path in counted}
+
+    for surface, answer in (
+        ("GET /api/walls", request("GET", f"{server_url}/api/walls")),
+        ("art_display walls", ok(server_url, "walls")),
+        ("GET /api/health", request("GET", f"{server_url}/api/health")),
+        ("art_display status", ok(server_url, "status")),
+    ):
+        seen = await reads_of(answer)
+        assert seen == dict.fromkeys(named.values(), 1), f"{surface}, W={len(every_wall)} P={len(players)}: {seen}"
+    one = await reads_of(request("POST", f"{server_url}/api/walls/{walls[0]}", json={"name": "Study"}))
+    own = [f"wall {walls[0]}'s report", *(f"Player {each}'s report" for each in players)]
+    assert one == dict.fromkeys(own, 1), f"one wall's answer: {one}"

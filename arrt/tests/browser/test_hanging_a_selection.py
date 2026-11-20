@@ -256,7 +256,7 @@ def test_a_selection_hung_on_a_wall_whose_player_has_no_token_says_it_waits_and_
     wall = the_wall(services)
     hall = services.clients.add_client(name="Hall Pi")
     services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
-    words = services.health.observe_waiting()[wall.id].words
+    words = services.health.observe_walls().waiting[wall.id].words
     open_selecting(ui, address)
     tick(ui, works[0])
     ui.page.click("#view .selection button.selection-hang")

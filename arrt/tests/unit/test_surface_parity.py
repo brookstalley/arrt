@@ -848,12 +848,13 @@ def test_a_field_added_to_a_walls_health_answer_and_not_to_the_status_is_refused
 def test_a_wall_reads_alike_on_the_walls_answer_and_mcp_walls_but_for_the_one_rename(services):
     """`art_display(action='walls')` against `WallOut`, by name, and `waiting_for` by value (Chunk 66)."""
     wall, player = _a_wall_waiting_for_its_player(services)
-    view = services.display.get_wall_view(wall.id)
-    tool = bindings._wall_view_fields(services, view)
-    route = http_api._wall(services, view).model_dump()
+    now = services.health.observe_walls(wall.id)
+    [view] = now.views
+    tool = bindings._wall_view_fields(services, view, now)
+    route = http_api._wall(services, view, now).model_dump()
 
     check_parity("Wall", check_renamed("Wall", set(tool), set(route), WALL_RECORD_RENAMES), _fields(http_models.WallOut))
-    waits = services.health.observe_waiting()
+    waits = services.health.observe_walls().waiting
     assert tool["waiting_for"] == route["waiting_for"] == bindings._wall_wait_fields(waits[wall.id])
     assert route["waiting_for"]["client_id"] == player.id
 

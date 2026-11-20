@@ -461,7 +461,7 @@ def test_hanging_a_work_promises_the_house_sees_it_only_where_a_player_shows_the
         expect(consequence).to_contain_text(f"Everyone in the house sees {the_wall.name} change.")
         expect(consequence).not_to_contain_text("No Player shows")
     elif shown == "waiting":
-        words = services.health.observe_waiting()[the_wall.id].words
+        words = services.health.observe_walls().waiting[the_wall.id].words
         assert words == f"{the_wall.name} waits for Hall Pi, which has no token yet"
         expect(consequence).to_contain_text(f"{words}.")
         expect(consequence).not_to_contain_text("Everyone in the house")

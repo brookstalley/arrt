@@ -36,6 +36,7 @@ from arrt.library.sources.loading import (
     SourceRoster,
     load_sources,
 )
+from arrt.programming.clients import PlacementSurvey, WallsReading
 from arrt.services.health import HealthReading, HealthService
 
 SOURCES = pathlib.Path(__file__).resolve().parents[2] / "src" / "arrt" / "library" / "sources"
@@ -652,10 +653,12 @@ class _Fixed:
 
 
 class _NoWalls:
-    """The one display question the health service asks, answered with no walls."""
+    """The one display question the health service asks, answered with no walls and no Players."""
 
-    def survey_wall_status(self) -> list:
-        return []
+    def read_wall_reports(self) -> WallsReading:
+        return WallsReading(
+            survey=PlacementSurvey(clients={}, displays={}, walls=[], label_outputs=[], readings={}, faults={}), reports={}
+        )
 
 
 #: A tree no file is ever written to, inside this one: what the health service

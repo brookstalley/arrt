@@ -1182,10 +1182,7 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 @router.get("/walls")
 def list_walls(request: Request) -> WallListOut:
     """Every wall, what is hanging on each, and where each is shown."""
-    services = _services(request)
-    views = services.display.survey_walls()
-    now = services.health.observe_walls()
-    return WallListOut(walls=[_wall(services, view, now) for view in views])
+    return _walls(_services(request))
 
 
 @router.post("/walls")
@@ -1200,7 +1197,7 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     a second wall overwrote it silently.
     """
     services = _services(request)
-    return _wall(services, services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+    return _one_wall(services, services.display.add_wall(name=body.name).id)
 
 
 @router.post("/walls/{wall_id}")
@@ -1208,7 +1205,7 @@ def rename_wall(request: Request, wall_id: str, body: CreateWall) -> WallOut:
     """Rename a wall. Nothing a Player reads carries the name, so nothing is republished."""
     services = _services(request)
     services.display.rename_wall(wall_id, name=body.name)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}")
@@ -1220,9 +1217,7 @@ def delete_wall(request: Request, wall_id: str) -> WallListOut:
     """
     services = _services(request)
     services.display.delete_wall(wall_id)
-    views = services.display.survey_walls()
-    now = services.health.observe_walls()
-    return WallListOut(walls=[_wall(services, view, now) for view in views])
+    return _walls(services)
 
 
 @router.post("/walls/{wall_id}/client")
@@ -1235,7 +1230,7 @@ def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignm
     """
     services = _services(request)
     assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
-    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_one_wall(services, wall_id), notice=assignment.notice)
 
 
 @router.post("/walls/{wall_id}/display")
@@ -1246,7 +1241,7 @@ def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallA
     """
     services = _services(request)
     assignment = services.clients.assign_display(wall_id, display_id=body.display_id)
-    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_one_wall(services, wall_id), notice=assignment.notice)
 
 
 @router.get("/works/{artwork_id}/mat")
@@ -1306,7 +1301,7 @@ def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
     """
     services = _services(request)
     services.display.set_mat_mode(wall_id, body.mode)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.put("/walls/{wall_id}/playback")
@@ -1325,7 +1320,7 @@ def set_playback(request: Request, wall_id: str, body: SetPlayback) -> WallOut:
         wall_id,
         **{field: getattr(body, field) if field in sent else UNSET for field in SetPlayback.model_fields},
     )
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.post("/walls/{wall_id}/labels")
@@ -1333,9 +1328,7 @@ def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignment
     """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
     services = _services(request)
     assignment = services.clients.add_label(wall_id, client_id=body.client_id, output=body.output)
-    return LabelAssignmentOut(
-        wall=_wall(services, services.display.get_wall_view(wall_id)), label_id=assignment.label.id, notice=assignment.notice
-    )
+    return LabelAssignmentOut(wall=_one_wall(services, wall_id), label_id=assignment.label.id, notice=assignment.notice)
 
 
 @router.delete("/walls/{wall_id}/labels/{label_id}")
@@ -1343,7 +1336,7 @@ def remove_label(request: Request, wall_id: str, label_id: str) -> WallOut:
     """Stop a label output captioning this wall. The label output stays recorded, captioning nothing."""
     services = _services(request)
     services.clients.remove_label(wall_id, label_id=label_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}/client")
@@ -1351,7 +1344,7 @@ def unassign_wall(request: Request, wall_id: str) -> WallOut:
     """Take the wall off whichever client showed it. Its theme stays hung."""
     services = _services(request)
     services.clients.unassign_wall(wall_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -1368,7 +1361,7 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     """
     services = _services(request)
     services.display.clear_wall(wall_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.post("/walls/{wall_id}/selection")
@@ -1395,7 +1388,7 @@ def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) ->
     return NotAgainOut(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall(services, services.display.get_wall_view(wall_id)),
+        wall=_one_wall(services, wall_id),
         left_theme=None if done.left_theme is None else _theme(done.left_theme),
         excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
     )
@@ -2408,18 +2401,30 @@ def _scenes(services: Services) -> ScenesOut:
     )
 
 
-def _wall(services: Services, view: WallView, now: WallsNow | None = None) -> WallOut:
-    """One wall's answer. `now` is `HealthService.observe_walls()`, read once for a list; read here for one wall.
+def _walls(services: Services) -> WallListOut:
+    """Every wall's answer, from one reading taken now (`HealthService.observe_walls`)."""
+    now = services.health.observe_walls()
+    return WallListOut(walls=[_wall(services, view, now) for view in now.views])
 
-    **The display state and the wait are one reading's** (`now`), never the
-    view's own read of the report beside `now`'s: a first report landing
-    between the two made one answer say the wall waits beside a badge showing a
-    work (wave 2b, Chunk 66). The view's state stands only for a wall `now` did
-    not read, one recorded after it.
+
+def _one_wall(services: Services, wall_id: str) -> WallOut:
+    """One wall's answer, from a reading of it taken now: after the act that answers with it has written."""
+    now = services.health.observe_walls(wall_id)
+    [view] = now.views
+    return _wall(services, view, now)
+
+
+def _wall(services: Services, view: WallView, now: WallsNow) -> WallOut:
+    """One wall's answer, every part of it from `now`, the one reading `view` was built from.
+
+    **One answer, one reading** (`HealthService.observe_walls`): the display
+    state, the wait, who shows the wall, its display and its labels, and
+    whether its Player reads the feed. Read apart, a report or an assignment
+    landing between two reads made one answer say two instants: the wall
+    waiting beside a badge showing a work, or unassigned beside the Player
+    that shows it.
     """
-    now = services.health.observe_walls() if now is None else now
-    seen = now.walls.get(view.wall.id)
-    survey = services.clients.placements.survey()
+    survey = now.survey
     placement = survey.placement_of(view.wall)
     return WallOut(
         wall_id=view.wall.id,
@@ -2441,12 +2446,12 @@ def _wall(services: Services, view: WallView, now: WallsNow | None = None) -> Wa
             )
             for label in placement.labels
         ],
-        display_state=_display_state(view.display_state if seen is None else seen.state),
+        display_state=_display_state(view.display_state),
         mat_mode=view.wall.mat_mode,
         rotation_interval_seconds=view.wall.rotation_interval_seconds,
         shuffle=view.wall.shuffle,
         **_shape_fields(view.wall),
-        **_size_fields(services.display.judge_sizes(view.wall.id)),
+        **_size_fields(services.display.judge_sizes_of(view.wall)),
         last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
         upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
         waiting_for=_wall_wait(now.waiting.get(view.wall.id)),

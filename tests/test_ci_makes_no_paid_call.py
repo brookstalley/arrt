@@ -20,7 +20,7 @@ can be given (`secrets[...]`, `toJSON(secrets)`, a reusable workflow's `secrets:
 inherit`) is refused too, since nothing can say which secret it is. A name kept
 here that no workflow reads any more fails, so the list stays what CI holds.
 
-Read from every file under `.github/workflows/`, the whole of each: a workflow's
+Read from every workflow under `.github/workflows/`, `.yml` and `.yaml` alike, the whole of each: a workflow's
 own `env`, each job's `env`, `with` and `secrets`, each step's `env`, `with` and
 `run`, whatever event starts it. So a job reached only by a dispatch is refused
 as surely as a scheduled one.
@@ -91,8 +91,9 @@ def secrets_ci_may_not_hold(workflow: dict) -> list[str]:
     return found
 
 
-def _workflows() -> list[pathlib.Path]:
-    return sorted(WORKFLOWS.glob("*.yml"))
+def _workflows(directory: pathlib.Path = WORKFLOWS) -> list[pathlib.Path]:
+    """Every workflow GitHub would run from `directory`: each `.yml` and each `.yaml` file in it."""
+    return sorted([*directory.glob("*.yml"), *directory.glob("*.yaml")])
 
 
 def _load(path: pathlib.Path) -> dict:
@@ -124,6 +125,19 @@ def test_the_workflows_are_read():
 
 
 # -- the check itself can fail ---------------------------------------------------------------------
+
+
+def test_a_yaml_workflow_holding_a_model_key_is_read_and_refused(tmp_path):
+    """GitHub runs `.yaml` workflows as it runs `.yml` ones, so a key in one is found as surely."""
+    (tmp_path / "nightly.yaml").write_text(
+        yaml.safe_dump({"on": {"schedule": [{"cron": "0 3 * * *"}]}, "jobs": {"eval": {"steps": [KEYED]}}}), encoding="utf-8"
+    )
+    (tmp_path / "tests.yml").write_text(yaml.safe_dump({"jobs": {"suite": {"steps": [{"run": "true"}]}}}), encoding="utf-8")
+
+    found = {path.name: secrets_ci_may_not_hold(_load(path)) for path in _workflows(tmp_path)}
+
+    assert found == {"nightly.yaml": ["eval reads OPENROUTER_API_KEY"], "tests.yml": []}
+
 
 KEYED = {"env": {"OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}"}, "run": "uv run pytest -m live_api"}
 

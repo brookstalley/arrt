@@ -27,7 +27,7 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import shape
-from arrt.programming.clients import Placements
+from arrt.programming.clients import Placements, WallsReading
 from arrt.programming.display_state import DisplayState
 from arrt.programming.feeds import FeedPublisher, log_published
 from arrt.programming.lookups import Lookups
@@ -109,6 +109,20 @@ class WallView:
     upcoming: Sequence[Slot] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class WallsSeen:
+    """Walls as a surface shows them, and the one reading of reports and placements each view was built from.
+
+    `views[i].display_state` and `views[i].reads_feed` are `reading`'s, so an
+    answer that says who shows a wall, its display and its labels from
+    `reading.survey` says them of the instant its state was read
+    (`WallsReading`).
+    """
+
+    views: Sequence[WallView]
+    reading: WallsReading
+
+
 def feed_notice(*, reads_feed: bool | None) -> str | None:
     """What a curator is told about a wall whose Player cannot read this server's feed, or None.
 
@@ -160,37 +174,37 @@ class Walls:
             return None if assignment is None else self._lookups.get_theme(assignment.theme_id)
 
     def survey_walls(self) -> Sequence[WallView]:
-        """Every wall with what hangs on it and what its screen is doing.
-
-        Read in one scope: a theme made and hung between the themes' read and the
-        hangs' was a hang naming a theme the survey did not hold, and a fault.
-        """
-        with self._store.reading():
-            themes = {theme.id: theme for theme in self._store.list_themes()}
-            hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
-            return [self._view(wall, themes, hanging) for wall in self._store.list_walls()]
+        """Every wall with what hangs on it and what its screen is doing (`read_walls`)."""
+        return self.read_walls().views
 
     def get_wall_view(self, wall_id: str) -> WallView:
-        """One wall with what hangs on it and what its screen is doing.
+        """One wall with what hangs on it and what its screen is doing (`read_walls`)."""
+        [view] = self.read_walls(wall_id).views
+        return view
 
-        **Composed from the single-fact reads rather than repeating them**, so
-        "what hangs here" has one answer in this class. `survey_walls` is the
-        bulk path, and reads the whole catalogue once for N walls.
+    def read_walls(self, wall_id: str | None = None) -> WallsSeen:
+        """Every wall, or the one named, each view built from one reading of the reports and placements.
+
+        **One store scope for the rows and one read of each report file.** A
+        theme made and hung between the themes' read and the hangs' was a hang
+        naming a theme the survey did not hold, and a fault; a wall's state read
+        apart from its feed's major, or from who shows it, let one answer say
+        two instants (`WallsReading`). The store's scope excludes this process's
+        writers for the whole read, so the views, the placements and the walls
+        listed are one instant's; each report file is read once, inside it.
+        A named wall the catalogue does not hold is refused, as `get_wall` does.
         """
         with self._store.reading():
-            wall = self._lookups.get_wall(wall_id)
-            return WallView(
-                wall=wall,
-                hanging=self.hanging_on(wall_id),
-                display_state=self.display_state(wall),
-                reads_feed=self._reads_feed(wall.id),
-                last_shown=self._store.latest_showing(wall.id),
-                upcoming=self._upcoming(wall.id),
-            )
+            if wall_id is not None:
+                self._lookups.get_wall(wall_id)
+            reading = self._placements.read_walls(wall_id)
+            themes = {theme.id: theme for theme in self._store.list_themes()}
+            hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
+            return WallsSeen(views=[self._view(wall, themes, hanging, reading) for wall in reading.walls], reading=reading)
 
-    def display_state(self, wall: Wall) -> DisplayState:
-        """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
-        return self._placements.wall_state(wall).state
+    def read_reports(self) -> WallsReading:
+        """Every wall's report and who shows each, one survey and one read of each file (`Placements.read_walls`)."""
+        return self._placements.read_walls()
 
     def _upcoming(self, wall_id: str) -> Sequence[Slot]:
         """The published schedule's next slots, starting after now: the one on the wall now is not among them."""
@@ -200,18 +214,16 @@ class Walls:
         now = datetime.now(UTC)
         return tuple(slot for slot in published.slots if slot.start > now)[:UPCOMING]
 
-    def _reads_feed(self, wall_id: str) -> bool | None:
-        """Whether the wall's last readable heartbeat lists major 2, or None if there is no such heartbeat."""
-        reading = heartbeat.read(self._settings.heartbeat_path(wall_id))
-        return None if reading.contents is None else heartbeat.reads_major(reading.contents, MANIFEST_MAJOR)
-
-    def _view(self, wall: Wall, themes: Mapping[str, Theme], hanging: Mapping[str, str]) -> WallView:
+    def _view(self, wall: Wall, themes: Mapping[str, Theme], hanging: Mapping[str, str], reading: WallsReading) -> WallView:
         theme_id = hanging.get(wall.id)
+        report = reading.reports[wall.id]
         return WallView(
             wall=wall,
             hanging=None if theme_id is None else themes[theme_id],
-            display_state=self.display_state(wall),
-            reads_feed=self._reads_feed(wall.id),
+            display_state=reading.state_of(wall),
+            # Whether the wall's last readable report lists major 2, from the
+            # read its state is: None while there is no such report.
+            reads_feed=None if report.contents is None else heartbeat.reads_major(report.contents, MANIFEST_MAJOR),
             last_shown=self._store.latest_showing(wall.id),
             upcoming=self._upcoming(wall.id),
         )

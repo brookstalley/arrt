@@ -524,7 +524,7 @@ class TestHanging:
         wall = services.display.survey_walls()[0].wall
         hall = services.clients.add_client(name="Hall Pi")
         services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
-        words = services.health.observe_waiting()[wall.id].words
+        words = services.health.observe_walls().waiting[wall.id].words
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 

@@ -488,9 +488,9 @@ class Services:
                 searches=discovery.search_tallies,
                 pictures=pictures,
                 watches=watches.reading,
-                # Every Player's state, and the queue's failed works: the two
-                # halves of the one health model the top bar counts.
-                players=clients.list_clients,
+                # The queue's failed works: with every Player's state, which
+                # the walls' reading carries, the two halves of the one health
+                # model the top bar counts.
                 queue=acquisition_queue.failed_states,
             ),
             runner=runner_service,
