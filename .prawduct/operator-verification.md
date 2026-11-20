@@ -15,8 +15,6 @@ each entry, which is the durable form.
 **`build-plan-audit-wave-2b.md`**, the chunks named in each item. On the NAS once the
 release carrying 2b is deployed, at a desktop and on a phone (or the browser's narrow
 view, 390 px). Each item says what to look at and what to report; none is a gate.
-*Chunk 62 changes how many setup steps one cause makes and what a waiting wall's own
-panel on Status says; check those when its entry is added here.*
 
 - **Walls, one card per wall (Chunk 31).** A wall no Player shows has the badge *No
   Player yet*, in the setup style, not the problem one; a card carries at most one
@@ -29,6 +27,20 @@ panel on Status says; check those when its entry is added here.*
   their count and the newest's age and link to Activity › Queue. The top bar's glyph is
   ▲ with a count for troubles, ○ with no count when only steps remain, ● when well. With
   the real household, say whether anything reads as a fault that is not one.
+- **One Player being set up, two walls waiting (Chunk 62).** Add a Player and give it
+  two walls without giving it its token (or give it the token and do not start it).
+  What you should see, as the integration saw it on a real server: the top bar ○ with
+  no count, saying the one step ("The living room Pi has no token yet, so The hall and
+  The study wait for it", with your names), and the System badge "1 step to finish";
+  Status's *Needs attention* empty and *Still to set up* that one step; each wall's
+  panel on Status "○ The hall waits for The living room Pi, which has no token yet",
+  never "Not reporting"; each Walls card's badge "○ No token yet" in the setup style.
+  Then start the Player with its token: within a report the step and the waits go and
+  each wall reads what it shows. Then stop the Player: once its walls have reported and
+  gone quiet, that is a trouble (▲, counted), as it should be. Say whether any of this
+  reads as a fault while you are still setting up, or as well while something is wrong.
+  *Not yet:* the question before a hang onto a waiting wall still says everyone will
+  see it change, and MCP's walls answer does not say whom a wall waits for.
 - **Hang a selection (Chunk 34).** On Artworks, an Artist's works, a search's results
   and a Topic: *Select*, tick some works, *Hang…*; the dialog asks which wall and says how
   many were left out (no picture, or not held); *Select all* on an Artist sends only the
@@ -38,7 +50,10 @@ panel on Status says; check those when its entry is added here.*
   Hanging picker opens Artworks selecting, with the note "Choosing works to hang on
   {wall}…" taking the keyboard; *Leave {wall} as it is* returns to Walls; *Hang on
   {wall}…* hangs the ticked works and returns to that wall's card with focus on its
-  heading. Try Back, the sidebar and a reload mid-way: each leaves the wall as it was.
+  heading. Do it twice, once with the mouse and once with the keyboard alone (Tab to
+  *Choose works*, Enter; Space to tick; Tab to *Hang on {wall}…*), and say whether focus
+  is always where you expect it. Try Back, the sidebar and a reload mid-way: each leaves
+  the wall as it was.
   Back after a hang returns to the choosing page with its note; say whether that reads
   as a fault.
 - **System › Spend (Chunk 36).** Listed under System in the sidebar, reached also from
