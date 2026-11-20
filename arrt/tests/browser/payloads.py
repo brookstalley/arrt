@@ -41,6 +41,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
+from arrt.library.services.discovery import SpendTotal
 from arrt.library.services.quality import Fit
 from arrt.library.services.spending import cost_tier
 from arrt.persistence.discovery_records import (
@@ -386,8 +387,13 @@ def a_spend(**overrides) -> dict:
         "run_id": "run-under-test",
         "year": None,
         "month": None,
+        "unknown_cost_calls": 0,
     }
-    return SpendOut(**(fields | overrides)).model_dump(mode="json")
+    fields |= overrides
+    # Derived, never passed, as the server derives it: a fixture free to word the
+    # figure could show a sentence no server would say.
+    fields["summary"] = SpendTotal(cost_usd=Decimal(fields["cost_usd"]), unknown_calls=fields["unknown_cost_calls"]).words
+    return SpendOut(**fields).model_dump(mode="json")
 
 
 def an_affinity(value="Agnes Martin", **overrides) -> AffinityOut:
