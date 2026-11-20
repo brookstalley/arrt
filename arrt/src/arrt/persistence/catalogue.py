@@ -19,7 +19,7 @@ caller — a store that also enforced would be a second place for those rules to
 live, and the two would disagree.
 """
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
 from typing import Protocol
@@ -199,6 +199,10 @@ class CatalogueStore(Protocol):
         """Return the artist, or None if no such id is stored."""
         ...
 
+    def get_artists(self, artist_ids: Collection[str]) -> Mapping[str, Artist]:
+        """The artists of these ids that are stored, by id, in one read; an id not stored is absent."""
+        ...
+
     def update_artist(self, artist: Artist) -> None:
         """Overwrite a stored artist with this one. Raises if the id is absent."""
         ...
@@ -221,6 +225,15 @@ class CatalogueStore(Protocol):
 
     def get_artwork(self, artwork_id: str) -> Artwork | None:
         """Return the work, or None if no such id is stored."""
+        ...
+
+    def get_artworks(self, artwork_ids: Collection[str]) -> Mapping[str, Artwork]:
+        """The works of these ids that are stored, by id, in one read; an id not stored is absent.
+
+        `get_artwork` for a whole theme at once: what answering every work a
+        wall's feed rests on reads, where one statement per work grew a pass
+        with the Library.
+        """
         ...
 
     def update_artwork(self, artwork: Artwork) -> None:
@@ -351,6 +364,10 @@ class CatalogueStore(Protocol):
         """Return the work's master image, or None if none has been acquired."""
         ...
 
+    def get_originals(self, artwork_ids: Collection[str]) -> Mapping[str, Original]:
+        """The master image of each of these works that holds one, by work id, in one read."""
+        ...
+
     def update_original(self, original: Original) -> None:
         """Overwrite a stored master image with this one. Raises if the id is absent."""
         ...
@@ -381,6 +398,13 @@ class CatalogueStore(Protocol):
         """Return a work's renditions in a stable order."""
         ...
 
+    def list_renditions_of(self, artwork_ids: Collection[str]) -> Mapping[str, Sequence[Rendition]]:
+        """Each of these works' renditions, by work id, in one read, each work's in `list_renditions`'s order.
+
+        A work with none is absent.
+        """
+        ...
+
     # -- mat colours ----------------------------------------------------------
 
     def add_mat_color(self, mat_color: MatColor) -> None:
@@ -393,6 +417,15 @@ class CatalogueStore(Protocol):
 
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         """Return a work's mat colours newest first, which is its history."""
+        ...
+
+    def current_mat_colors(self, artwork_ids: Collection[str]) -> Mapping[str, MatColor]:
+        """The mat colour in force for each of these works that has one, by work id, in one read.
+
+        `mat_colors_one_current` lets a work hold at most one; were a file to
+        hold two, the newer is the answer, as it is the first `is_current` row
+        of `list_mat_colors`.
+        """
         ...
 
     # -- the acquisition queue ------------------------------------------------
