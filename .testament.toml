@@ -44,6 +44,21 @@ command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/p
 default_selection = ["arrt/tests/unit", "arrt/tests/integration", "arrt/tests/contract", "arrt/tests/system", "arrt/tests/eval", "arrt/tests/test_scaffold.py"]
 default_for_paths = true
 
+# The curation suite's areas, one per test directory (`testament guide project`, "Areas
+# within a suite"). They change nothing about how the suite runs: no cache key, batch or
+# duration moves. What they add: `testament run --suite curation --area unit` (or
+# `--not-area system`) selects by them, a run's report breaks the suite down by them, and
+# `testament time --by area` and `trend --by area` divide its history. First match wins, so
+# `other` takes whatever a later directory adds until it is given an area of its own.
+[suites.curation.areas]
+unit = ["arrt/tests/unit/**"]
+integration = ["arrt/tests/integration/**"]
+contract = ["arrt/tests/contract/**"]
+system = ["arrt/tests/system/**"]
+eval = ["arrt/tests/eval/**"]
+scaffold = ["arrt/tests/test_scaffold.py"]
+other = ["arrt/tests/**"]
+
 # The browser suite: the shipped client in Chromium, on the runners that carry it.
 [suites.browser]
 adapter = "pytest"

@@ -1293,6 +1293,8 @@ def test_a_catalogue_file_from_before_the_mat_mode_gains_it_and_keeps_its_walls(
 def shown_by_a_client(services, wall_id):
     """The wall on a client's HDMI output, so it has a display to remember screens against."""
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
     return services.display.get_wall(wall_id)
 

@@ -523,6 +523,8 @@ async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
         )
     wall = services.display.survey_walls()[0].wall
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(wall.id, client_id=client.id, output="hdmi-a-1")
     theme = services.display.add_theme(name="Sizes")
     for work in (small, large):

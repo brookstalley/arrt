@@ -65,6 +65,8 @@ def two_walls(display, mastered, wall_id):
 def pi(services):
     """A Player with two screens and two label panels, showing nothing yet."""
     client = services.clients.add_client(name="The Pi in the hall")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.record_heartbeat(client.id, _REPORT)
     return client
 

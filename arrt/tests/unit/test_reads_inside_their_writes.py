@@ -101,6 +101,8 @@ def _outside(spy: _Scoped, act: Callable[[], object]) -> list[str]:
 def on_a_display(services, wall_id):
     """The wall on a client's HDMI output, so it has a display that screen sizes are kept against."""
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
     return services.display.get_wall(wall_id).display_id
 

@@ -162,6 +162,8 @@ def test_survey_walls_carries_each_walls_state(services, wall_settings):
     hall = services.display.survey_walls()[0].wall
     study = services.display.add_wall(name="Study")
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(hall.id, client_id=client.id, output="hdmi-a-1")
     services.display.record_heartbeat(
         hall.id, {**minor_3("in_use"), "reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
@@ -182,6 +184,8 @@ def test_the_health_survey_carries_the_same_state_walls_does(services):
     hall = services.display.survey_walls()[0].wall
     study = services.display.add_wall(name="Study")
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(hall.id, client_id=client.id, output="hdmi-a-1")
     services.display.record_heartbeat(
         hall.id,

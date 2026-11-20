@@ -27,18 +27,17 @@ core keeps this logic testable without an event loop.
 """
 
 import logging
-import uuid
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import MAXYEAR, MINYEAR, UTC, datetime
+from datetime import MAXYEAR, MINYEAR, datetime
 from decimal import ROUND_DOWN, Decimal
 
 from arrt.counting import counted
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.months import utc_month
 from arrt.library.services import attribution, selection
-from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.catalogue import CatalogueService, machine_now, new_id
 from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import checked_qid
 from arrt.library.services.taste import observe_artist
@@ -245,9 +244,18 @@ class DiscoveryService:
         profile: QualityProfile | None = None,
         *,
         precedence: selection.Precedence | None = None,
+        now: Callable[[], datetime] = machine_now,
+        mint_id: Callable[[], str] = new_id,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
+        #: The clock every record this service writes is stamped by, and the
+        #: source of every identity it mints; defaults read the machine, so no
+        #: construction site changes. **One act reads the clock once**: a run's
+        #: start or end, a verdict and an acceptance pass their one instant to
+        #: the history line and the work they write beside it.
+        self._now = now
+        self._mint_id = mint_id
         #: The quality profile. Held because automatic selection has to withhold
         #: an instance below its minimum. Optional so a caller with no deployment
         #: profile gets the ranking without a minimum rather than a constructor
@@ -294,12 +302,12 @@ class DiscoveryService:
         the work list arrives, and a run in flight honestly has none.
         """
         run = DiscoveryRun(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             kind=RunKind.DISCOVERY,
             initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
             status=RunStatus.RESOLVING_WORKS,
             approval_required=False,
-            started_at=datetime.now(UTC),
+            started_at=self._now(),
             intent_text=require_text(intent_text, field="intent_text"),
             watch_id=watch_id,
         )
@@ -489,12 +497,12 @@ class DiscoveryService:
                     f"{len(parent_ids)}. Start one per originating run."
                 )
             run = DiscoveryRun(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 kind=RunKind.RESOLVE,
                 initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
                 status=RunStatus.RESOLVING_IMAGES,
                 approval_required=False,
-                started_at=datetime.now(UTC),
+                started_at=self._now(),
                 parent_run_id=parent_ids.pop(),
                 estimated_cost_usd=None if price is None else price(len(works)),
             )
@@ -535,12 +543,12 @@ class DiscoveryService:
         chosen = list({work.qid: work for work in works}.values())
         with self._store.transaction():
             run = DiscoveryRun(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 kind=RunKind.GET,
                 initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
                 status=RunStatus.RESOLVING_IMAGES,
                 approval_required=False,
-                started_at=datetime.now(UTC),
+                started_at=self._now(),
                 estimated_cost_usd=Decimal(0),
                 destination_theme_id=destination_theme_id,
             )
@@ -550,7 +558,7 @@ class DiscoveryService:
                 store_write(
                     self._store.add_candidate_work,
                     CandidateWork(
-                        id=str(uuid.uuid4()),
+                        id=self._mint_id(),
                         discovery_run_id=run.id,
                         proposed_title=title,
                         proposed_artist=work.artist,
@@ -631,6 +639,8 @@ class DiscoveryService:
         in. That line is the *only* signal a run died — silence here is not the
         absence of a problem, it is the absence of this repair.
         """
+        # One start's repair is one act: every run it ends carries this instant.
+        at = self._now()
         with self._store.transaction():
             for status in (held for held in RunStatus if held.is_process_held):
                 for run in self._store.list_runs(status=status):
@@ -651,7 +661,7 @@ class DiscoveryService:
                     # Coverage is released by the run becoming terminal, not by
                     # deleting its rows: the join records what the run's scope
                     # was, and that stays true after the run has ended.
-                    interrupted = self._ended(run, RunStatus.INTERRUPTED)
+                    interrupted = self._ended(run, RunStatus.INTERRUPTED, at=at)
                     store_write(self._store.update_run, interrupted)
                     self._record_ended(interrupted)
             self._reclean_proposed_titles()
@@ -867,7 +877,7 @@ class DiscoveryService:
                     "Pass reconsider=True to propose it again deliberately."
                 )
             work = CandidateWork(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 discovery_run_id=run_id,
                 proposed_title=require_text(proposed_title, field="proposed_title"),
                 rationale=require_text(rationale, field="rationale"),
@@ -931,7 +941,7 @@ class DiscoveryService:
                 )
                 return None
             work = CandidateWork(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 discovery_run_id=run_id,
                 proposed_title=require_text(title, field="title"),
                 rationale=require_text(rationale, field="rationale"),
@@ -972,23 +982,27 @@ class DiscoveryService:
         if target is Verdict.PENDING:
             raise ServiceError("'pending' is where a work starts, not a decision. Valid verdicts are: accepted, rejected.")
 
+        # One verdict is one act: the work, the artwork it mints and the history
+        # line all carry this instant.
+        at = self._now()
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             if work.verdict.is_terminal:
                 raise ServiceError(f"Candidate work {candidate_work_id!r} was already {work.verdict}, and that is final.")
             if target is Verdict.ACCEPTED:
-                outcome = self._accept(work)
+                outcome = self._accept(work, at=at)
                 self._catalogue.record_event(
                     EventKind.ACCEPTED,
                     work_id=outcome.work.artwork_id,
                     run_id=work.discovery_run_id,
                     detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                    at=at,
                 )
                 # In the verdict's transaction, so a verdict and the taste it
                 # implies commit together or not at all.
                 observe_artist(self._store, work.proposed_artist)
                 return outcome
-            rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
+            rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=at)
             store_write(self._store.update_candidate_work, rejected)
             # A turned-down candidate never became a work, so the event names it
             # by its candidate id and its title rather than by a work id.
@@ -996,6 +1010,7 @@ class DiscoveryService:
                 EventKind.REJECTED,
                 run_id=work.discovery_run_id,
                 detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                at=at,
             )
             observe_artist(self._store, work.proposed_artist)
         return VerdictOutcome(work=rejected)
@@ -1092,7 +1107,7 @@ class DiscoveryService:
                 )
                 return already
             image = CandidateImage(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 candidate_work_id=work.id,
                 url=found_at,
                 provider=require_text(provider, field="provider"),
@@ -1246,7 +1261,7 @@ class DiscoveryService:
         self._require_turnable(image, work)
         store_write(
             self._store.update_candidate_image,
-            replace(image, is_selected=False, rejected_at=datetime.now(UTC)),
+            replace(image, is_selected=False, rejected_at=self._now()),
         )
         # Only a vacancy is filled. Rejecting an alternate while the instance
         # actually on offer still stands must not move the selection — a curator
@@ -1409,10 +1424,10 @@ class DiscoveryService:
         if artwork_id is not None:
             self._catalogue.get_artwork(artwork_id)
         record = SpendRecord(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             category=require_member(category, enum=SpendCategory, field="category"),
             cost_usd=cost_usd,
-            occurred_at=at if at is not None else datetime.now(UTC),
+            occurred_at=at if at is not None else self._now(),
             discovery_run_id=discovery_run_id,
             artwork_id=artwork_id,
             model_id=model_id,
@@ -1503,7 +1518,7 @@ class DiscoveryService:
 
     # -- internals ------------------------------------------------------------
 
-    def _accept(self, work: CandidateWork) -> VerdictOutcome:
+    def _accept(self, work: CandidateWork, *, at: datetime) -> VerdictOutcome:
         """Mint the artwork this candidate becomes, and promote its instances.
 
         Acceptance is the only way into the catalogue, and it is a promotion
@@ -1579,6 +1594,7 @@ class DiscoveryService:
             # The item the curator chose the work by. Works may share one (a
             # duplicate the Artist page shows as *Held ×2*), so nothing is refused.
             wikidata_qid=work.wikidata_qid,
+            at=at,
         )
         for image in images:
             # A scan the curator turned down stays a candidate and is never
@@ -1601,7 +1617,7 @@ class DiscoveryService:
                 confidence=image.confidence,
                 selection_rationale=image.selection_rationale,
             )
-        accepted = replace(work, verdict=Verdict.ACCEPTED, artwork_id=artwork.id, decided_at=datetime.now(UTC))
+        accepted = replace(work, verdict=Verdict.ACCEPTED, artwork_id=artwork.id, decided_at=at)
         store_write(self._store.update_candidate_work, accepted)
         return VerdictOutcome(
             work=accepted,
@@ -1709,14 +1725,14 @@ class DiscoveryService:
             detail["intent"] = intent
         if works is not None:
             detail["works"] = works
-        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail)
+        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail, at=run.started_at)
 
     def _record_ended(self, run: DiscoveryRun) -> None:
         """Write the history's line for a Get ending, however it ended, inside the transaction that ends it."""
         detail: dict[str, object] = {"run_kind": str(run.kind), "status": str(run.status)}
         if run.end_reason is not None:
             detail["reason"] = run.end_reason
-        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail)
+        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail, at=run.completed_at)
 
     def _require_status(self, run_id: str, expected: RunStatus, *, doing: str) -> DiscoveryRun:
         """Refuse a transition the run is not standing on the edge of."""
@@ -1763,15 +1779,16 @@ class DiscoveryService:
             self._record_ended(ended)
         return ended
 
-    @staticmethod
     def _ended(
+        self,
         run: DiscoveryRun,
         status: RunStatus,
         *,
         actual_cost_usd: Decimal | None = None,
         unresolved_work_count: int | None = None,
+        at: datetime | None = None,
     ) -> DiscoveryRun:
-        """The run as it will be stored once it has ended.
+        """The run as it will be stored once it has ended, at `at` or, when None, now.
 
         A cost already recorded is kept when the caller supplies none: a run that
         spent money before being cancelled still spent it.
@@ -1779,7 +1796,7 @@ class DiscoveryService:
         return replace(
             run,
             status=status,
-            completed_at=datetime.now(UTC),
+            completed_at=self._now() if at is None else at,
             actual_cost_usd=actual_cost_usd if actual_cost_usd is not None else run.actual_cost_usd,
             unresolved_work_count=(unresolved_work_count if unresolved_work_count is not None else run.unresolved_work_count),
         )

@@ -144,6 +144,8 @@ def test_each_client_is_told_the_same_walls_on_the_same_outputs(services):
 
 def test_the_frame_wall_stays_put_when_its_client_first_names_the_set(services):
     """The carried Frame display is keyed by place; the Pi's first report with the set's id re-keys it."""
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue("c-pi")
     services.clients.record_heartbeat(
         "c-pi",
         {

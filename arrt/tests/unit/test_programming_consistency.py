@@ -152,9 +152,12 @@ def moved_frame(services, store, wall_id):
     """
     clients = services.clients
     old = clients.add_client(name="The old Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(old.id)
     clients.record_heartbeat(old.id, _frame_report("FRAME-SERIAL", at=_OLD_REPORT_AT))
     frame = next(display for display in store.list_displays() if display.identity == "FRAME-SERIAL")
     new = clients.add_client(name="The new Pi")
+    services.access.issue(new.id)
     placed = clients.assign_wall(wall_id, client_id=new.id, output="frame")
     assert placed.display.id != frame.id
 
