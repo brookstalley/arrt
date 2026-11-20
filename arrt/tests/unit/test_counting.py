@@ -152,7 +152,7 @@ class TestTheManifestSummary:
     """
 
     def test_one_work_all_of_it_on_the_wall(self, one_work_build):
-        assert one_work_build(excluded=0, entries=1).summarise() == "All 1 work in this theme is on the wall."
+        assert one_work_build(excluded=0, entries=1).summarise() == "The one work in this theme is on the wall."
 
     def test_one_work_and_it_is_not_displayable(self, one_work_build):
         assert (

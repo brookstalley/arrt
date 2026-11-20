@@ -22,7 +22,7 @@ that safe.
 """
 
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -268,7 +268,7 @@ from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth, WallWait, walls_waiting
+from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth, WallsNow, WallWait, walls_waiting
 from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
@@ -1183,8 +1183,9 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 def list_walls(request: Request) -> WallListOut:
     """Every wall, what is hanging on each, and where each is shown."""
     services = _services(request)
-    waiting = services.health.observe_waiting()
-    return WallListOut(walls=[_wall(services, view, waiting) for view in services.display.survey_walls()])
+    views = services.display.survey_walls()
+    now = services.health.observe_walls()
+    return WallListOut(walls=[_wall(services, view, now) for view in views])
 
 
 @router.post("/walls")
@@ -1219,8 +1220,9 @@ def delete_wall(request: Request, wall_id: str) -> WallListOut:
     """
     services = _services(request)
     services.display.delete_wall(wall_id)
-    waiting = services.health.observe_waiting()
-    return WallListOut(walls=[_wall(services, view, waiting) for view in services.display.survey_walls()])
+    views = services.display.survey_walls()
+    now = services.health.observe_walls()
+    return WallListOut(walls=[_wall(services, view, now) for view in views])
 
 
 @router.post("/walls/{wall_id}/client")
@@ -2406,9 +2408,17 @@ def _scenes(services: Services) -> ScenesOut:
     )
 
 
-def _wall(services: Services, view: WallView, waiting: Mapping[str, WallWait] | None = None) -> WallOut:
-    """One wall's answer. `waiting` is `HealthService.observe_waiting()`, read once for a list; read here for one wall."""
-    waiting = services.health.observe_waiting() if waiting is None else waiting
+def _wall(services: Services, view: WallView, now: WallsNow | None = None) -> WallOut:
+    """One wall's answer. `now` is `HealthService.observe_walls()`, read once for a list; read here for one wall.
+
+    **The display state and the wait are one reading's** (`now`), never the
+    view's own read of the report beside `now`'s: a first report landing
+    between the two made one answer say the wall waits beside a badge showing a
+    work (wave 2b, Chunk 66). The view's state stands only for a wall `now` did
+    not read, one recorded after it.
+    """
+    now = services.health.observe_walls() if now is None else now
+    seen = now.walls.get(view.wall.id)
     survey = services.clients.placements.survey()
     placement = survey.placement_of(view.wall)
     return WallOut(
@@ -2431,7 +2441,7 @@ def _wall(services: Services, view: WallView, waiting: Mapping[str, WallWait] | 
             )
             for label in placement.labels
         ],
-        display_state=_display_state(view.display_state),
+        display_state=_display_state(view.display_state if seen is None else seen.state),
         mat_mode=view.wall.mat_mode,
         rotation_interval_seconds=view.wall.rotation_interval_seconds,
         shuffle=view.wall.shuffle,
@@ -2439,7 +2449,7 @@ def _wall(services: Services, view: WallView, waiting: Mapping[str, WallWait] | 
         **_size_fields(services.display.judge_sizes(view.wall.id)),
         last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
         upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
-        waiting_for=_wall_wait(waiting.get(view.wall.id)),
+        waiting_for=_wall_wait(now.waiting.get(view.wall.id)),
     )
 
 
