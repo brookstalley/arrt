@@ -699,9 +699,17 @@ walls. **Works the queue holds as failed are a health observation** (`failed_fet
 how many, how many will be retried and how many were given up on, and the age of the
 newest failure from `acquisition_queue.failed_at`; `age_unknown` counts failures written
 before that column, whose time is not guessed), linking to Activity › Queue. Nothing of
-it is persisted (`data-model.md` § Player observation). *Chunk 62, building as this is
-written, changes how many setup steps one cause makes and what a waiting wall's own panel
-reads; this paragraph says neither.*
+it is persisted (`data-model.md` § Player observation). **One step for one cause**
+(Chunk 62, `walls_waiting` and `HealthReading.setup_steps`): a Player with no token, or
+with one and no first report, is one setup step naming the walls that wait for it ("The
+living room Pi has no token yet, so The hall and The study wait for it"), and a wall
+waiting for it is neither a step nor a trouble of its own. Such a wall's `display_state`
+stays `silent`, the state a Player's label already carries (a new state would change the
+contract), and `GET /api/health` says beside it whom it waits for, `waiting_for`
+(`{client_id, name, state, words}`), which Status's panel and the Walls card read. A wall
+waits only while its Player is being set up and nothing was ever written for it, or its
+Player has no token; a wall whose reports came and stopped is a trouble, as it always
+was.
 
 **What the journal gains**, each line JSON with its `event` (`arrt/src/arrt/logs.py`):
 
@@ -723,8 +731,9 @@ reads; this paragraph says neither.*
 
 Ask's reply line (`arrt.ask`, § Signals) gains `unanswered=`: the model calls that
 may have run and been billed with nobody told (no status, a 5xx or a 408), apart from
-an answered refusal (`arrt/src/arrt/ask/agent.py`). What Ask's ledger records for them
-is Chunk 62's, building as this is written, and this paragraph does not say it.
+an answered refusal (`arrt/src/arrt/ask/agent.py`). Since Chunk 62 each such call, and
+each call the provider answered without saying what it cost, is a spend row of its own
+marked unknown, never a known $0 (`app._record_ask_cost`, `arrt/src/arrt/app.py`).
 
 ### The panel shows staleness in absolute terms
 
@@ -858,9 +867,11 @@ already has somebody watching it.
 **The schedule stopped firing.** Nothing above can fire, because no job runs.
 This is the same shape as the topic sweep's `topics.swept`: the positive
 signal is a successful run, and its *absence* over an interval is the fault.
-`drift-freshness.yml` measures how long since each tier last
-succeeded — **free after 21 days, paid after 75** — reading the tiers apart,
-because a healthy monthly run would otherwise vouch for three missed Mondays.
+`drift-freshness.yml` measures how long since the free tier last
+succeeded — **past 21 days fails** (`STALE_AFTER`). *(Until audit wave 2b's Chunk 66,
+2026-11-20, it read a paid tier apart too, past 75 days; the paid probe left CI by
+the owner's ruling that CI makes no paid call, and is run by hand, so there is no
+paid tier to watch.)*
 Both known routes land here: a workflow not on the default branch has never run,
 and a schedule GitHub disabled for repository inactivity stops refreshing. A tier whose only red probes are unexpired known-blocked rows counts fresh, by the
 job's own conclusion; what this check owns of the file is its age, since a row that
@@ -990,5 +1001,5 @@ signal exists:
 | Mat colour degraded to the dominant-colour fallback | Recorded on the record itself (`MatColor.method`), not merely logged. The 2024 code degrades invisibly |
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
 | A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. A probe listed in `.github/known-blocked.json` (cause not established, expiry within 60 days) is excused and named in the summary instead, and only a probe that is red and not listed opens one. See § The one surface the panel does not cover |
-| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
-| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract, and since wave 2b's Chunk 29 `player`, the real-Player test) on testament's pool on every pull request, after a lint step of ruff and black (the type check runs on the pool, in the governance suite's type gate); when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, each from the manifest's own command (`pool_or_fallback.py fallback --suite`, Chunk 52), never the browser or real-Player suite (`LEFT_OUT`, by the owner's ruling of 2026-11-20), and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on a pull request into `main`, which is a release, and when run by hand, and on no other pull request (since wave 2b's Chunk 56; it had built on any pull request that changed the image's environment, a step now gone). What that costs before `develop`: a Dockerfile, lockfile or interpreter change that no longer builds, or a test that passes only as the files' owner, is met at the pull request into `main`; `tests/test_the_image_carries_what_tests_read.py` holds what the image's test stage copies against what the tests open. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
+| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days for the free tier, the only one CI runs since wave 2b's Chunk 66 (the paid probe is run by hand). Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
+| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares but `image` (governance, curation, browser, contract, and since wave 2b's Chunk 29 `player`, the real-Player test) on testament's pool on every pull request (`image`, the server image's test stage, needs a run signed with an owner secret CI's key does not hold, and is run from a machine doing the work: Chunk 65, `NOT_CI` in `pool_or_fallback.py`), after a lint step of ruff and black (the type check runs on the pool, in the governance suite's type gate); when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, each from the manifest's own command (`pool_or_fallback.py fallback --suite`, Chunk 52), never the browser or real-Player suite (`LEFT_OUT`, by the owner's ruling of 2026-11-20), and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on a pull request into `main`, which is a release, and when run by hand, and on no other pull request (since wave 2b's Chunk 56; it had built on any pull request that changed the image's environment, a step now gone). What that costs before `develop`: a Dockerfile, lockfile or interpreter change that no longer builds, or a test that passes only as the files' owner, is met at the pull request into `main`; `tests/test_the_image_carries_what_tests_read.py` holds what the image's test stage copies against what the tests open. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |

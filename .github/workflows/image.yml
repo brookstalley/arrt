@@ -11,14 +11,15 @@
 # one that changes the Dockerfile or a lockfile, as it did until build-plan-audit-wave-2b's
 # Chunk 56.
 #
-# Why not on the pool instead: the image's test stage is a `docker build`, and a suite of
-# testament's runs either in the project's container, which has no Docker daemon and builds
-# no target, or on the host, which this project is not granted (the probe of 2026-11-20:
-# "host suites (image): arrt may use ['container'] here, not executor 'host'"). A host grant
-# is a pool admin's act; `docs/testing.md` § The image's test stage has the suite it would be.
+# The pool runs the same stage too, since the owner granted this project the host executor
+# (2026-11-20, `.prawduct/owner-rulings.md`): the `image` suite in `.testament.toml`
+# (build-plan-audit-wave-2b's Chunk 65), run from a machine doing the work, never by CI,
+# whose key holds no owner secret (`docs/testing.md` § The image's test stage on the pool).
+# This workflow stays the release's own build of it, and the only place the built app image
+# meets a real Arrt Player.
 #
-# What that leaves to a pull request into `main`, stated, since an ordinary pull request
-# no longer builds the image:
+# What that leaves to a pull request into `main`, or to the `image` suite when someone runs
+# it, stated, since an ordinary pull request no longer builds the image:
 # - the one class the image caught that nothing else did, a test reading a file the image
 #   does not carry (wave 1's four tests on `.env.example`; Chunk 32's on
 #   `docs/source-plugins.md`), is held on every pull request by a root test instead,

@@ -17,7 +17,10 @@
 # it. The app image needs none of them.
 #
 # CI builds the test target only on a pull request into `main` and by hand
-# (`.github/workflows/image.yml`). Before that, on every pull request,
+# (`.github/workflows/image.yml`); the pool builds it as the `image` suite of
+# `.testament.toml`, run from a machine doing the work and never by CI
+# (`tests/the_image_test_stage.py`, `docs/testing.md` § The image's test stage on
+# the pool). Before that, on every pull request,
 # `tests/test_the_image_carries_what_tests_read.py` reads the test stage's COPY
 # lines, and the stages it is built on, against every path the server's tests
 # and tools build from their own location: a test that reads a file this stage

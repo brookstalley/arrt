@@ -60,8 +60,10 @@ about how the suite runs. They select (`testament run --suite curation --area un
 `--not-area system`), break a run's report down, and divide its history (`testament
 time --by area`).
 
-**There are five suites on the pool:** governance (the root), curation, browser,
-contract, and `player`, the real-Player test (§ The real-Player test).
+**There are six suites on the pool:** governance (the root), curation, browser,
+contract, `player`, the real-Player test (§ The real-Player test), and `image`, the
+server image's test stage, which CI never asks for (§ The image's test stage on the
+pool).
 
 **The root suite holds no product code, and it is not optional.** It carries
 `tests/preferences/`, where this repo's artifact-versus-code contracts
@@ -85,8 +87,9 @@ CI builds it only on a pull request into `main` and by hand
 (`.github/workflows/image.yml`, by the owner's ruling of 2026-11-20 that CI is
 kept small); before that it also built on any pull request that changed the
 image's inputs (the Dockerfile, a lockfile, an interpreter pin, the workflow),
-about seven minutes of GitHub's runner each, and seconds otherwise. Run it yourself, by hand on the branch, when you change the
-Dockerfile, a lockfile or the interpreter pin.
+about seven minutes of GitHub's runner each, and seconds otherwise. The pool runs it
+as the `image` suite from a machine doing the work (below); run that when you change
+the Dockerfile, a lockfile or the interpreter pin.
 
 The one class it caught that nothing else did, a test reading a file the image
 does not carry (`.env.example` in wave 1, `docs/source-plugins.md` in wave 2b),
@@ -98,15 +101,11 @@ work out to one path (`.parents` walked as a whole) is declared there with what
 it reads. It does not see a path built from a string, from the working
 directory or inside a subprocess; those still meet the image at the release.
 
-Why not on the pool: a suite of testament's runs in the project's container,
-which has no Docker daemon and builds no target of the Dockerfile, or on the
-runner's host, which this project is not granted. The probe of 2026-11-20 for a
-host suite answered `host suites (image): arrt may use ['container'] here, not
-executor 'host'`. Granting it is a pool admin's act. The suite it would be:
-`executor = "host"`, `requires = ["docker", "docker-heavy", "arch:x86_64"]` (the
-image is amd64-only for dezoomify-rs), `max_batches_per_runner = 1`, its one test
-running `docker buildx build --target test-report --build-context repo=. arrt/`
-and reading the report with `.github/scripts/assert_tests_ran.py`.
+*Until 2026-11-20 it could not run on the pool:* a suite ran in the project's
+container, which has no Docker daemon, or on a runner's host, which this project was
+not granted (`host suites (image): arrt may use ['container'] here, not executor
+'host'`, the probe of that day). The owner's ruling of the same day granted the host
+executor, and the stage is now a suite of its own, below.
 
 ### The image's test stage on the pool
 
@@ -148,14 +147,21 @@ runner.
   shared with other builders and never removed by it. One log file,
   `<tmp>/arrt-image-stage/last-build.log`, overwritten by each build. To take all of
   it away: `docker buildx rm arrt-image-stage`.
-- **Cost, as measured on 2026-11-20** (one runner with Docker, N = 1 each): 147 s
-  cold, on a builder with no cache; 125 to 127 s with the dependency layers cached
-  and the code changed, which is nearly every run, since any change under `arrt/`
-  reruns the stage's whole suite; 2 s when nothing the stage copies changed (its
-  layers all cached); 1 s to fail when a `COPY` names a missing file. In a full
-  `testament run` it runs beside the other suites and is not the long pole: the
-  browser suite took 303 s of that run's 304 s. What it costs there is a runner
-  host's cores for about two minutes while it rebuilds.
+- **Cost, as measured on 2026-11-20**, each a run on a runner with Docker, in two
+  sets of runs at different times, so the figures differ with the runner and its load:
+  - by Chunk 65's delegate: 147 s cold, on a builder with no cache; 125 to 127 s with
+    the dependency layers cached and the code changed; 2 s when nothing the stage
+    copies changed (its layers all cached); 1 s to fail when a `COPY` names a missing
+    file;
+  - by the integrator, later: 167 s and 192 s with the code changed (two runs), and
+    5.7 s with nothing changed.
+
+  So with the code changed, which is nearly every run since any change under `arrt/`
+  reruns the stage's whole suite, it took 125 to 192 s in the runs measured, and 2 to
+  6 s cached. In a full `testament run` it runs beside the other suites; in the
+  delegate's run it was not the long pole (the browser suite took 303 s of that run's
+  304 s). What it costs there is a runner host's cores for two to three minutes while it
+  rebuilds.
 
 ## The browser suite
 
@@ -600,9 +606,9 @@ concurrent requests at a public museum API — which comes back as a rate limit 
 is indistinguishable from the contract change you were looking for.
 
 ```sh
-cd arrt && uv run pytest -m live_museum -n0     # free, needs the network
-cd arrt && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
-cd arrt && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
+cd arrt && uv run pytest tests/live -m live_museum -n0     # free, needs the network
+cd arrt && uv run pytest tests/live -m live_binary -n0     # free, needs dezoomify-rs
+cd arrt && uv run pytest tests/live -m live_api -n0        # SPENDS REAL MONEY: by hand only
 ```
 
 **A museum marker may run beside an OpenRouter marker, each serial within**
@@ -622,10 +628,14 @@ path as well** — `uv run pytest tests/live -m live_museum …`. That is assert
 `tests/test_assert_tests_ran.py`, which reads the workflow files, so a new job
 written from the line above fails at home rather than on a schedule.
 
-Run one when your work touches that client. Otherwise leave the **three
-`live_*` markers** to `.github/workflows/api-drift.yml`, which runs the two free
-tiers weekly and the paid one monthly — drift is on the provider's schedule, not
-on our commit rate.
+Run one when your work touches that client. Otherwise leave the two free
+markers, `live_museum` and `live_binary`, to `.github/workflows/api-drift.yml`,
+which runs them weekly — drift is on the provider's schedule, not on our commit
+rate. **`live_api` and `llm_eval` are run by hand and by nothing else**, on a
+person's machine with their own key (the owner's ruling of 2026-11-20: CI makes
+no paid call). No workflow holds a model key: `tests/test_ci_makes_no_paid_call.py`
+allows CI only the secrets it names (today the pool's client key, `TESTAMENT_KEY`)
+and fails by name for any other a workflow reads, on any event.
 
 **A probe red for a cause nobody has established is listed, not left to turn the
 alarm permanently red.** `.github/known-blocked.json` has one row per probe (its

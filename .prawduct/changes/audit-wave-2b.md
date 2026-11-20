@@ -6,7 +6,7 @@ date: 2026-11-20
 title: "The audit's second wave, second part: one story about the walls and Players, the plugin host's answers kept apart, hang on any selection, spend that says what it does not know, not found as 404, and the MCP surface's one break"
 ---
 This is the second part of the audit's second wave (`build-plan-audit-wave-2b.md`,
-chunks 28 to 64, 55 the integration). Where the first part changed what is checked, this
+chunks 28 to 66, 55 the integration). Where the first part changed what is checked, this
 part changes behaviour: what Status, Walls and the top bar say, what the acquisition queue
 does with each answer a plugin gives, what a failed paid call is recorded as, which
 status `/api` answers for a thing that is not there, and where an agent finds every act on
@@ -37,7 +37,16 @@ words, quoted on both sides with a test against the package (`programming/displa
 `art_display(action='status')` answer `troubles` (faults) and `setup_steps` (steps not yet
 taken: no wall, a wall no Player shows, a Player with no token or no first report), and
 the top bar and the System badge count only the troubles; a Player not heard from and the
-walls it shows are one trouble, named on the Player. Works the queue holds as failed are a
+walls it shows are one trouble, named on the Player. **One step for one cause** (62): a
+Player with no token, or awaiting its first report, is one step naming the walls that wait
+for it, and those walls make no step and no trouble; a waiting wall's `display_state`
+stays `silent` (a new state would be a contract change) and `GET /api/health` says
+beside it whom it waits for (`waiting_for`), as `GET /api/walls`, MCP's `walls` and
+`status` do since 66, from one function (`walls_waiting`). The question asked before a
+hang says the server's words for a waiting wall ("The hall waits for The living room Pi,
+which has no token yet.") and still says everyone sees a wall a Player shows change (66).
+A wall waits only while nothing was ever written for it; one whose reports came and
+stopped is a trouble. Works the queue holds as failed are a
 trouble too, with their count and the newest's age, linking to Queue (`failed_fetches`;
 the instant is the queue's new `failed_at`, and a failure from before it reads "not
 known", never guessed). `GET /api/clients` serves each Player's state and its settings
@@ -68,17 +77,36 @@ duration is not built (the same ruling).
 **Spend (35, 36, 60).** A paid call that fails after it was sent records a spend row whose
 cost is unknown (`spend_records.cost_status`); every figure that sums the ledger counts
 those calls apart, worded by one function as "at least $X, and N calls whose cost is
-unknown", on runs, months, the unattended allowance and Watches. System › Spend
+unknown", on runs, months, the unattended allowance and Watches. Since 62 every cost a
+person reads is those words, shown as the server sent them, so a cost under a dollar is
+said to a hundredth of a cent ("$0.0024" where a screen said "under $0.01"), something
+spent below that reads "under $0.0001" (beside unknown calls, "more than $0.00, and N
+calls whose cost is unknown"), never "$0.00", and a figure from a thousand dollars is
+grouped ("$1,234.56") (66); Ask
+records a call of unknown cost as unknown, never a known zero; a guard
+(`arrt/tests/unit/test_one_cost_formatter.py`) refuses a dollar formatted in a screen.
+System › Spend
 (`#spend`, `GET /api/spend`) lists the current month and up to eleven earlier ones that
 spent anything, by category and by Get, and every call whose cost is unknown. No generation
 lookup was built: it answered 404 on every attempt (`openrouter-api-findings.md`).
 
 **Not found is 404, and a refusal names the Library (37, 48).** Under `/api` a thing named
 that does not exist answers `404`; every other refusal stays `400`, one error shape; MCP's
-failure shape is unchanged and a Player's routes keep `400` (`api-contract.md` § the error
-model). Programming's collaborators look walls and themes up through one `Lookups`, and
+failure shape is unchanged and a Player's routes answer exactly as before (`api-contract.md`
+§ the error model; the integration compared 35 cases byte for byte before and after). Programming's collaborators look walls and themes up through one `Lookups`, and
 every act reads what it checks inside the transaction that writes (48). The refusal
-sentences say the Library, not the catalogue.
+sentences say the Library, not the catalogue, and so do the five other sentences a person
+read that still said it (Status's description of a household with no wall, now "No wall
+is recorded…", the notice after accepting a work the Library nearly holds, the backup
+trouble and its panel, the queue's reason for pausing) (64). A guard reads every
+sentence the server builds (`arrt/tests/unit/test_refusal_sentences.py`): every string
+literal of two words or more in every module, less docstrings, a logger's arguments,
+the start-up modules, code in another language and a model's prompt, and a few
+sentences each with its reason. **Its limits, as it states them:** it cannot see a
+sentence assembled from parts or a word arriving from a value (an enum's, a stored
+name, a plugin's), a comment, or the client's JavaScript (which `test_client_vocabulary.py`
+reads), and it names a literal in a module no person reads all the same. MCP's opening
+instruction and thirteen client sentences were corrected with it.
 
 **The publisher's two promises (39, 60).** The full reconciliation of every wall's feed
 also runs as a scheduler job, at the first pass and every sixth (thirty minutes), so a lost
@@ -102,9 +130,16 @@ own history; a wall with nothing hanging says both ways to hang something there.
 own, `player`, run on every pull request inside the required check; the fallback leaves it
 out by name, as it does the browser suite (the owner's ruling of 2026-11-20). The fallback
 runs each suite from the manifest's own command (52). `image.yml` builds the image's test
-stage only on a pull request into `main` and by hand, because the pool cannot run it for
-this project (measured: a host suite is refused, and the container route has no Docker), and
-a root test holds what the stage copies against what the tests open (56). A root test holds
+stage only on a pull request into `main` and by hand, and a root test holds what the stage
+copies against what the tests open (56). Once the owner granted this project the pool's
+host executor, the stage became a sixth suite, `image` (`.testament.toml`,
+`tests/the_image_test_stage.py`), run in a full `testament run` from a machine doing the
+work and never by CI, whose key holds no owner secret; a machine without one gets one red
+verdict for the run (`no_warrant`) with the other suites' results inside it (65;
+`docs/testing.md` § The image's test stage on the pool has its cost and what it leaves on a
+runner). **Its first run found a test that passed everywhere but inside the image**: a
+system test expected the server's working directory to be the checkout's, where the image's
+is `/app`; chunk 64 made it take the path from where the server runs. A root test holds
 the type gate to the fallback's environment, and `arrt_contract` left the type checker's
 allowance once the package shipped `py.typed` (61).
 
@@ -118,6 +153,12 @@ UX walk names the states it must visit (43, 63).
 
 **The compose example, hardened (42).** Every capability dropped, a read-only root, and a
 64 MB `/tmp` tmpfs, which SQLite's sort spill was measured to need (`operational-spec.md`).
+
+**The owner's rulings while it was built**: three on 2026-11-20 (an agent may post its
+measurements on the issue it works; a hang can be started from Walls and hanging for a
+duration waits; CI is kept small and makes no paid call) and six more the same day, "six
+answers while part 2b was finishing"; each is in `.prawduct/owner-rulings.md`, with what it
+changed in the plan in the plan's § Decisions made mid-build.
 
 **Records (54).** The artifacts, `docs/testing.md`, `docs/source-plugins.md`,
 `docs/ux-walkthrough.md` and `deploy/README.md` say what this part built, each against
@@ -149,9 +190,8 @@ the code it describes; the 2a plan's § Wave 2b points here.
   integrator's full run on the head with chunk 43 merged (`c4ceada5`, `--no-cache`;
   request ids `27dbbdf2`, `f9ae3248`, `5df08bac`, `27a9d59e`, `123b9e2c`) measured 49.6%
   uncacheable, 5,454 of 11,007. By reason, that run's figures: clock 2,257, subprocess
-  1,695, socket 1,412, entropy 90; so about 3,100 are uncacheable for a real server
-  process or a socket, which no clock seam frees. The clock's share is the shared
-  fixtures', in the third part.
+  1,695, socket 1,412, entropy 90; so about 3,100 are blocked for a real server process or
+  a socket. The clock's share is the shared fixtures', in the third part.
 - **#442** (a Skip test's flake) is **not established**. Ruled out, measured on the pool:
   CPU load alone, disk-sync load alone and many Chromiums, each well above the natural
   failures' load (chunk 51); ruled out from the code: the step that could fail to move on,
@@ -177,18 +217,34 @@ the write routes, which the route inventory does not read; #313's remainder (a s
 latency, answered split into found and found nothing, and the sources table's *Searches*,
 *Hit rate* and *Median latency* columns); the shared fixtures' clock and id source; batching the reconcile's per-work lookups (the cost below); the Library's
 sentences that name a museum through `museum_name(` without the declared name (14 call
-sites in six modules); the 25 direct clock reads in Programming's modules, and
-`TasteService.set_affinity`'s own clock and id; the prototype-scale test's
-`build_large_catalogue`; the browser tests that seed a time from `datetime.now`.
+sites in six modules); the 25 direct clock reads in Programming's modules; the
+prototype-scale test's `build_large_catalogue`; the browser tests that seed a time from
+`datetime.now`; about 28 client strings that say "your library" (the owner is asked
+whether the Library's capital belongs there too); the run's not-found page drawing the
+router's words; `walls.js` joining `waiting_for` from `/api/health` rather than reading it
+on the walls answer, which carries it since 66; the hang question's way in from the Work
+page, whose waiting-wall words have a test still being added; and a guard for the fixtures that write a wall's report, which chunk
+63 measured (about thirty lines, two exemptions and a marker) and did not add.
 
-**For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`; one
-thing that ruling settles is not done: `.github/workflows/api-drift.yml` still schedules the
-paid OpenRouter probe on the 1st of each month, where the ruling says no workflow reaches a
-paid service, and #150 stays open until it stops): Q1 (the four norm texts in `project-preferences.md`, and with it the
-forbidden-columns check in `test_catalogue_store.py`), Q3 (which household settings are set
-where), granting this project the pool's host executor so the image's test stage could run
-on the pool, and whether to spend one scratch pull request (about fifteen runner-minutes)
-to see the fallback's new wiring and 56's workflow on GitHub.
+**No workflow holds a model key** (66), as the owner's ruling of 2026-11-20 says: CI makes
+no paid call. `api-drift.yml` has no paid job, no monthly schedule and no input that asks
+for one; `drift-freshness.yml` watches the free tier alone; and
+`tests/test_ci_makes_no_paid_call.py` allows CI exactly the secrets it names (the pool's
+client key) and fails by name for any other a workflow reads, on any event. The paid
+probe is run by hand, `cd arrt && uv run pytest tests/live -m live_api -n0`. That answers
+the standing question of #150 as the ruling answered it; the issue, opened by the drift
+job, asks to be closed once someone has reconciled the findings against what the API
+returns now, which is a hand run's to settle, so it is not closed here. The repository
+holds no model key to delete: its secrets list names `TESTAMENT_KEY` alone (read with
+`gh secret list` on 2026-11-20).
+
+**For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`): Q1 (the four norm texts in `project-preferences.md`, and with it the
+forbidden-columns check in `test_catalogue_store.py`), and Q3 (which household settings are set
+where). The host executor and the one scratch pull request were ruled (rulings 1 and 3 of
+"six answers"). **An assumption to see at that scratch pull request:** that CI's key
+holds no owner secret, so the pool step must never ask for the `image` suite, rests on
+testament's guide and a simulation (the identity taken from the environment, as a CI job
+has it), not on a run in GitHub's runner.
 
 **For the operator's hands** (the plan's Chunk 55 checklist): close by hand what this
 record settles; cut `contract-v1.3.0` on the merge commit and freeze it in the next plan's
@@ -197,16 +253,21 @@ interface 1.6 and the testing helper; branch protection, knowing the required ch
 waits for the real-Player pair and that a fork's pull request can never pass it; the
 `live_binary` dezoomify probe on this machine; one manual `drift-freshness.yml` dispatch
 after this reaches `main`; the real-Player test's docker path, first seen on the release's
-pull request into `main`; and the entries in `.prawduct/operator-verification.md`.
+pull request into `main`; the one scratch pull request for the fallback, closed unmerged;
+the paid probe by hand when the OpenRouter findings are to be re-checked (#150);
+and the entries in `.prawduct/operator-verification.md`.
 
 ## Consumer note
 **For a person running the server.** Status reads differently: setting up is not a
 trouble. A wall no Player shows, a Player with no token and one that has not reported yet
 are steps, listed under *Still to set up* and never counted on the top bar or the System
-badge; *Needs attention* lists only faults, and two thousand failed fetches are now one of
+badge, one step per cause: a Player with no token that shows two walls is one step naming
+both, and each wall's own panel says it waits for that Player rather than "Not
+reporting"; *Needs attention* lists only faults, and two thousand failed fetches are now one of
 them, linking to Activity › Queue. Spend has a page, System › Spend, and any total that
 includes a paid call that never said what it cost reads "at least $X, and N calls whose
-cost is unknown" rather than leaving the call out. A wall's card can start a hang with
+cost is unknown" rather than leaving the call out; a cost under a dollar is said to a
+hundredth of a cent, where some screens said "under $0.01". A wall's card can start a hang with
 *Choose works*. The first start widens the catalogue (five nullable columns on the
 acquisition queue and the sources, `cost_status` on the spend records) and adds one table,
 `source_searches`; **the shape generation does not rise, so the way back is the previous
@@ -249,7 +310,11 @@ What an agent can now ask, all additive: `art_display(action='status')` answers 
 `artwork_id`, `get` answers the Get a work came from and its acquisition's `outcome`,
 `plugin` and `failed_at`, and the tool's title is *Art Library*;
 `art_discovery(action='source_plugins')` answers the could-not-be-asked and search-record
-counts; and every cost carries `summary` and its unknown-call count. A refusal names the
+counts; a run, the unattended allowance and a Watch carry `summary`, their cost in words
+with any unknown calls counted inside them, and `art_discovery(action='spend')` and
+`art_spend`'s totals carry `unknown_cost_calls` beside it. `art_watches`' delete is
+described as forgetting a Watch. `art_display`'s `walls` and `status` say whom a wall
+waits for (`waiting_for`), as the walls answer and Status do. A refusal names the
 Library, not the catalogue.
 
 **For Arrt Player: nothing to change now.** Contract **1.3.0 is not released**; `contract-v1.3.0`
