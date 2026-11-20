@@ -1156,6 +1156,61 @@ class TestEachOutcomeIsRetriedByItsRule:
         assert (state.phase, state.failures) == (AcquisitionPhase.FAILED, passes)
         assert queue.run().acquired == 1, "the pass after the holder answers fetches it"
 
+    def test_a_scheduled_failure_after_could_not_be_asked_ones_starts_the_schedule_and_is_not_given_up(
+        self, queue, work, fetcher, clock
+    ):
+        """Four passes with the museum down, then one transient error: the schedule counts only what it schedules."""
+        artwork_id = work()
+        fetcher.answers = [(FetchOutcome.UNASKED, "Tate could not be asked")] * GIVE_UP_AFTER + [
+            (FetchOutcome.FAILED, "the connection was reset")
+        ]
+        for _ in range(GIVE_UP_AFTER):
+            queue.run()
+
+        assert queue.run().failed == 1, "the first scheduled failure gave the work up"
+
+        state = queue.state_of([artwork_id])[artwork_id]
+        assert (state.phase, state.failures, state.next_try_at) == (
+            AcquisitionPhase.FAILED,
+            1,
+            clock.now + timedelta(hours=1),
+        )
+
+    @pytest.mark.parametrize("before", [FetchOutcome.UNASKED, FetchOutcome.FAULTED, FetchOutcome.LINK_GONE])
+    def test_a_row_another_rule_wrote_starts_the_schedule_at_its_first_step(self, queue, work, fetcher, store, clock, before):
+        """A row of failures under another rule, an older release's included: the next scheduled one is the first."""
+        artwork_id = work()
+        # Each due now by its own rule: asked on any pass; faulted under an earlier
+        # load; settled against an item the work no longer has.
+        store.set_queued_acquisition(
+            QueuedAcquisition(
+                artwork_id=artwork_id,
+                failures=GIVE_UP_AFTER,
+                detail="earlier",
+                outcome=before,
+                plugin="tate",
+                failed_at=clock.now - timedelta(days=1),
+                settled_qid="Q1001" if RETRY_RULES[before] is RetryRule.SETTLED else None,
+            )
+        )
+        fetcher.answers = [(FetchOutcome.FAILED, "the connection was reset")]
+
+        assert queue.run().failed == 1, "the first scheduled failure after another rule's gave the work up"
+
+        held = store.get_queued_acquisition(artwork_id)
+        assert (held.failures, held.next_try_at) == (1, clock.now + timedelta(hours=1))
+
+    def test_scheduled_failures_in_a_row_still_count_up_to_giving_up(self, queue, work, fetcher, store, clock):
+        """The schedule's own failures still add up: the fourth in a row is given up."""
+        artwork_id = work()
+        fetcher.answers = [(FetchOutcome.FAILED, "the museum answered 500")] * GIVE_UP_AFTER
+        for wait in (timedelta(hours=1), timedelta(days=1), timedelta(days=3)):
+            queue.run()
+            clock.now += wait
+
+        assert queue.run().gave_up == 1
+        assert store.get_queued_acquisition(artwork_id).failures == GIVE_UP_AFTER
+
     def test_faulted_waits_for_the_plugins_next_load_and_not_for_any_clock(self, store, service, work, fetcher, preparer, clock):
         artwork_id = work()
         fetcher.answers = [(FetchOutcome.FAULTED, "the Tate plugin faulted while reading this source: KeyError")]

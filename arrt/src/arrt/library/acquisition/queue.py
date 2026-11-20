@@ -26,7 +26,8 @@ plugin again cannot help; a page that shows no image or is gone (`none_held`,
 `link_gone`) not at all, until a Retry or until the work's Wikidata item is
 another; and every other failure, those recorded before outcomes were included,
 after an hour, a day and three days, giving up after the fourth in a row until
-someone asks again (`retry`). A preparation that failed after a good fetch is
+someone asks again (`retry`). The schedule counts only its own failures: one
+under another rule starts its count again (`_record_failure`). A preparation that failed after a good fetch is
 retried by preparing alone: the image is held, and fetching it again would cost
 a museum a gigapixel to repeat what already worked.
 
@@ -228,7 +229,8 @@ class AcquisitionState:
 
     artwork_id: str
     phase: AcquisitionPhase
-    #: Failures in a row so far. Non-zero on a work queued again after one.
+    #: Failures in a row so far, under the retry rule of the last one. Non-zero
+    #: on a work queued again after one.
     failures: int = 0
     #: Why the last attempt failed (`failed`, `gave_up`, and a queued work that
     #: failed before), or why the queue is paused (`paused`).
@@ -850,10 +852,24 @@ class AcquisitionQueue:
         `failed_at` is written on every one, the one given up on included,
         because "when did it last fail" is what the schedule's clearing of
         `next_try_at` on giving up would otherwise lose.
+
+        **`failures` counts the failures in a row under one rule.** One under
+        another rule than the last starts the count again at one, because the
+        schedule's give-up and its `RETRY_AFTER` step read that count, and the
+        rules that never give up (`NEXT_PASS`, `NEXT_LOAD`, `SETTLED`) are not
+        the schedule's to count: four passes with a museum down, then one
+        transient error, is the schedule's first failure, not its fifth. A row
+        an older release wrote reads the same way, by the outcome it carries, so
+        none is rewritten; one it already gave up on by a count so inflated
+        stays given up until a Retry, since nothing recorded tells it apart. The
+        cost: failures that alternate between a rule that never gives up and
+        the schedule are never given up, each scheduled one retried after an hour.
         """
-        failures = entry.failures + 1
         now = self._clock()
-        failed = replace(entry, failures=failures, detail=detail, outcome=outcome, plugin=plugin, failed_at=now, settled_qid=None)
+        failed = replace(entry, detail=detail, outcome=outcome, plugin=plugin, failed_at=now, settled_qid=None)
+        under_another_rule = entry.failures > 0 and retry_rule(entry) is not retry_rule(replace(failed, failures=1))
+        failures = 1 if under_another_rule else entry.failures + 1
+        failed = replace(failed, failures=failures)
         rule = retry_rule(failed)
         next_try_at = None
         if rule is RetryRule.SCHEDULE:

@@ -484,9 +484,11 @@ class QueuedAcquisition:
     """
 
     artwork_id: str
-    #: Attempts that failed in a row since the last success or Retry. The retry
-    #: schedule and "gave up" are read from it, so neither is a second field that
-    #: could disagree with it.
+    #: Attempts that failed in a row since the last success or Retry, under the
+    #: retry rule of the last one: a failure under another rule than the one
+    #: before starts it again at one (`AcquisitionQueue._record_failure`). The
+    #: retry schedule and "gave up" are read from it, so neither is a second
+    #: field that could disagree with it.
     failures: int = 0
     #: When the work may next be tried. None means now (no failure yet, or a
     #: Retry) or never (the queue gave up); `failures` says which.
