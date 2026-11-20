@@ -20,5 +20,5 @@
       ]
     }
   ],
-  "settings_url": "http://admin:secret@player.example:8771/"
+  "settings_url": "http://admin@player.example:8771/"
 }
