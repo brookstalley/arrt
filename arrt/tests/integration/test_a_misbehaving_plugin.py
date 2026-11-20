@@ -618,8 +618,12 @@ def test_every_sentence_and_field_naming_a_plugin_from_outside_names_the_museum_
     assert on_status(http, "gone")["museum"] == in_settings(http, "gone")["museum"] == "Gone Archive"
     (cause,) = [each for each in http.get("/api/acquisitions/causes").json()["causes"] if each["outcome"]]
     assert (cause["plugin"], cause["museum"]) == ("gone", "Gone Archive")
+    # The cause's sentence names the museum its `museum` field beside it names:
+    # one owner, so the two cannot differ however the process-wide names stand.
+    assert cause["cause"].startswith(f"The {cause['museum']} plugin read"), cause
     over_mcp = bindings._failures(services, {})
     assert [each["museum"] for each in over_mcp["causes"] if each["outcome"]] == ["Gone Archive"]
+    assert [each["cause"] for each in over_mcp["causes"] if each["outcome"]] == [cause["cause"]]
     assert {each["name"]: each["museum"] for each in bindings._image_sources(services, {})["sources"]}["gone"] == "Gone Archive"
 
 

@@ -180,6 +180,12 @@ class _LookOptions(TypedDict, total=False):
     now: Callable[[], datetime]
 
 
+class _AcquisitionOptions(TypedDict, total=False):
+    """`AcquisitionService`'s, as `_RunnerOptions` is the runner's."""
+
+    resolve: Resolver
+
+
 @dataclass(frozen=True, slots=True)
 class Services:
     """Every service the server offers, assembled over one open file."""
@@ -404,6 +410,7 @@ class Services:
         # required and validated there. A third copy would be a third chance for
         # the copies to disagree. `ReviewService` reaches it through the store.
         pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
+        acquisition_options: _AcquisitionOptions = {} if resolve is None else {"resolve": resolve}
         acquisition_service = AcquisitionService(
             catalogue_service,
             acquisition or _default_acquisition(thumbnails.art_root),
@@ -416,7 +423,7 @@ class Services:
             # plugin that claims it and is not loaded is a deployment fault named
             # by that plugin; a URL nobody claims is fetched as recorded.
             route=sources.route,
-            **({} if resolve is None else {"resolve": resolve}),
+            **acquisition_options,
         )
         preparation_service = PreparationService(
             catalogue_service,
@@ -430,7 +437,16 @@ class Services:
             # The ledger is discovery's today, reached through its one method.
             spend=discovery_service,
         )
-        acquisition_queue = AcquisitionQueue(catalogue, catalogue_service, acquisition_service, preparation_service)
+
+        def museum_of(plugin: str) -> str:
+            # The health service's, which the `museum` field beside a failure
+            # cause quotes, so the cause's sentence names the plugin as the
+            # field does. Read when a listing is built, after `health` is.
+            return health.museum_of(plugin)
+
+        acquisition_queue = AcquisitionQueue(
+            catalogue, catalogue_service, acquisition_service, preparation_service, museum_of=museum_of
+        )
         # Acceptance, and a restore, wake the queue, as they wake the topic
         # sweep: the work is fetched now rather than at the next pass. A lost
         # announcement delays the fetch until the next start, which catches up.
@@ -461,6 +477,26 @@ class Services:
         look_options: _LookOptions = {} if look_now is None else {"now": look_now}
         registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, profile=quality_profile)
         clients = ClientService(catalogue, display_settings, library)
+        # Built before the services are gathered, because the queue's failure
+        # causes name their museum by it (`museum_of` above). The receipt is
+        # located off the thumbnail settings' `art_root`, as the picture store
+        # is above, and for the same reason. It is not a `DisplaySettings` field
+        # beside the art root the heartbeats are named from: that settings
+        # object carries what the *walls'* operations need, and the backup is
+        # the server's own business rather than a wall's.
+        health = HealthService(
+            display_service,
+            backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
+            sources=sources,
+            yields=discovery.source_yields,
+            searches=discovery.search_tallies,
+            pictures=pictures,
+            watches=watches.reading,
+            # The queue's failed works: with every Player's state, which
+            # the walls' reading carries, the two halves of the one health
+            # model the top bar counts.
+            queue=acquisition_queue.failed_states,
+        )
         return cls(
             catalogue=catalogue_service,
             library=library,
@@ -474,25 +510,7 @@ class Services:
             survey=SurveyService(catalogue_service, thumbnail_service, quality_profile, acquisition=acquisition_queue),
             review=ReviewService(discovery_service, profile=quality_profile, pictures=pictures),
             pictures=pictures,
-            # The receipt is located off the thumbnail settings' `art_root`, as
-            # the picture store is above, and for the same reason. It is
-            # not a `DisplaySettings` field beside the art root the heartbeats are
-            # named from: that settings object carries what the *walls'*
-            # operations need, and the backup is the server's own business rather
-            # than a wall's.
-            health=HealthService(
-                display_service,
-                backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
-                sources=sources,
-                yields=discovery.source_yields,
-                searches=discovery.search_tallies,
-                pictures=pictures,
-                watches=watches.reading,
-                # The queue's failed works: with every Player's state, which
-                # the walls' reading carries, the two halves of the one health
-                # model the top bar counts.
-                queue=acquisition_queue.failed_states,
-            ),
+            health=health,
             runner=runner_service,
             acquisition=acquisition_service,
             preparation=preparation_service,

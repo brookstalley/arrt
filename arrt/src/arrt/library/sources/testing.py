@@ -46,13 +46,15 @@ under their own name.
 
 import importlib.metadata
 import tempfile
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, cast
+from typing import Any, Final, NoReturn, cast
 
+from arrt.library.acquisition.dezoomify import TileResult
 from arrt.library.acquisition.queue import RETRY_RULES, RetryRule
-from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult, AcquisitionService, AcquisitionSettings
+from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.service import SourcePluginUnavailable as _SourcePluginUnavailable
 from arrt.library.discovery.images import (
     DEFAULT_PREVIEW_MAX_BYTES,
@@ -236,38 +238,44 @@ class _Ledger:
         self.recorded.append((status, outcome))
 
 
-class _StopsBeforeFetching(AcquisitionService):
-    """Acquisition with the two methods that fetch replaced by ones that say what they would fetch.
+#: What `Read.detail` says when the reader answered a locator, which the host would fetch next.
+_WOULD_FETCH_NEXT: Final[str] = "the reader answered; the host would fetch it next, and this helper does not"
 
-    Everything before them is the host's: the routing, the reader call under its
-    deadline and containment, the reader's answer sorted into an outcome, the
-    address check of the locator. Only the bytes are not got.
+
+class _Stopped(BaseException):
+    """Raised where acquisition would fetch, and caught by `read`.
+
+    A `BaseException`, so that no handler in acquisition's fetch paths (each
+    turns an `Exception` into a recorded failure) takes it for a failed fetch:
+    the helper stops there, with nothing recorded and nothing journalled.
     """
 
-    would_fetch: WouldFetch | None = None
 
-    def _acquire_tiled(self, source: Source, *, url: str, destination: Path) -> AcquisitionResult:
-        del destination  # the parent's keyword, which its caller passes; nothing is written
-        self.would_fetch = WouldFetch("tiles", url)
-        return self._stopped(source)
+class _StopsBeforeFetching:
+    """Acquisition's two fetches, the direct path's and the tiled path's, each replaced by one that says what it would fetch.
 
-    def _acquire_direct(self, source: Source, *, url: str, destination: Path) -> AcquisitionResult:
-        del destination  # as above
-        self.would_fetch = WouldFetch("direct", url)
-        return self._stopped(source)
+    Handed to `AcquisitionService` as its `open_stream` and `fetch_tiles`, the
+    seams it fetches through, so everything before them is the host's: the
+    routing, the reader call under its deadline and containment, the reader's
+    answer sorted into an outcome, the address check of the locator. Only the
+    bytes are not got, and neither fetch can run whatever acquisition's own
+    methods are called.
+    """
 
-    @staticmethod
-    def _stopped(source: Source) -> AcquisitionResult:
-        return AcquisitionResult(
-            artwork_id=source.artwork_id,
-            source_id=source.id,
-            outcome=AcquisitionOutcome.FAILED,
-            detail="the reader answered; the host would fetch it next, and this helper does not",
-        )
+    def __init__(self) -> None:
+        self.would_fetch: WouldFetch | None = None
 
+    def open_stream(self, url: str) -> AbstractContextManager[Iterator[bytes]]:
+        self._stop(WouldFetch("direct", url))
 
-def _nowhere(url: str) -> object:
-    raise AssertionError(f"the testing helper opened {url}: it fetches nothing")
+    def fetch_tiles(self, url: str, **_how: object) -> TileResult:
+        self._stop(WouldFetch("tiles", url))
+
+    def _stop(self, would: WouldFetch) -> NoReturn:
+        # Kept before raising, so that a handler that took the stop for a
+        # failure still leaves what the host would have fetched.
+        self.would_fetch = would
+        raise _Stopped
 
 
 def _public(_host: str) -> Sequence[str]:
@@ -392,7 +400,8 @@ class PluginHost:
         ledger = _Ledger(source)
         originals = self._scratch / "originals"
         originals.mkdir(parents=True, exist_ok=True)
-        service = _StopsBeforeFetching(
+        stops = _StopsBeforeFetching()
+        service = AcquisitionService(
             cast("CatalogueService", ledger),
             AcquisitionSettings(
                 art_root=self._scratch,
@@ -405,9 +414,10 @@ class PluginHost:
                 max_image_bytes=1,
                 min_free_bytes=0,
             ),
-            open_stream=_nowhere,  # type: ignore[arg-type]  # a function that always raises: it never opens
+            open_stream=stops.open_stream,
             route=self._roster.route,
             resolve=resolve,
+            fetch_tiles=stops.fetch_tiles,
         )
         route = self._roster.route(url, self._name)
         self._declare()
@@ -415,8 +425,10 @@ class PluginHost:
             result = service.acquire(source.artwork_id)
         except _SourcePluginUnavailable as unavailable:
             return Read(plugin=route.plugin, outcome=None, again=None, detail="", fetch=None, unavailable=str(unavailable))
-        if service.would_fetch is not None:
-            return Read(plugin=route.plugin, outcome=None, again=None, detail=result.detail, fetch=service.would_fetch)
+        except _Stopped:
+            pass
+        if stops.would_fetch is not None:
+            return Read(plugin=route.plugin, outcome=None, again=None, detail=_WOULD_FETCH_NEXT, fetch=stops.would_fetch)
         _status, outcome = ledger.recorded[-1]
         if outcome is None:
             raise RuntimeError("acquisition ended without recording an outcome or reaching a fetch")
