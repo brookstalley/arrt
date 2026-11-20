@@ -24,13 +24,14 @@ explain nor revisit.
 
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from fractions import Fraction
 from typing import Final
 
 from arrt.library.discovery.dedup import artist_key, artist_prefix
+from arrt.library.services.catalogue import machine_now, new_id
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment, Verdict
 from arrt.persistence.records import VocabularyKind
@@ -147,7 +148,13 @@ def observed_sentiment(*, accepted: int, rejected: int) -> AffinitySentiment | N
     return None
 
 
-def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None:
+def observe_artist(
+    store: DiscoveryStore,
+    artist: str | None,
+    *,
+    at: datetime | None = None,
+    mint_id: Callable[[], str] = new_id,
+) -> Affinity | None:
     """Re-derive the observed judgment of one artist from every verdict on their works, and store it.
 
     **What review's decisions write, and the only writer of `observed`.** Called
@@ -164,6 +171,12 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
     beside it rather than left to contradict it. An `inferred` one is left alone
     too: nothing can write one any more, so replacing it would lose it for good
     once the verdicts stopped holding, while an observed row is re-derived at will.
+
+    **A verdict's affinity carries the verdict's instant** (`at`), as the work and the
+    history line beside it do: one act reads the clock once. A call with no `at` (the
+    startup's re-derivation) reads this machine's clock. `mint_id` is the service's id
+    source, so a row written inside a verdict takes its identity from the same place the
+    verdict's other rows do.
 
     Returns the observed judgment now stored, or None when there is none.
     """
@@ -207,7 +220,7 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
         derivation=AffinityDerivation.OBSERVED,
         rationale=rationale,
     )
-    now = datetime.now(UTC)
+    now = machine_now() if at is None else at
     # Corrected in place where an observed judgment of this artist exists, under
     # the name it already has: the unique index is on the name, and renaming it
     # is not this rule's business.
@@ -232,7 +245,7 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
         log.info("an observed taste was corrected", extra={"event": "taste.observed", "sentiment": str(write.sentiment)})
         return corrected
     fresh = Affinity(
-        id=str(uuid.uuid4()),
+        id=mint_id(),
         kind=write.kind,
         value=write.value,
         sentiment=write.sentiment,

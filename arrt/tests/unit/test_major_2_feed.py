@@ -317,7 +317,7 @@ def _age(wall_settings, wall_id, *, by):
 
 
 def test_a_heartbeat_with_under_two_days_left_rolls_the_horizon_forward(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
     _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
@@ -334,7 +334,7 @@ def test_a_heartbeat_with_under_two_days_left_rolls_the_horizon_forward(
 
 
 def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_named(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """A feed names only what its horizon schedules, so a roll that cycled those alone narrowed the theme for good."""
     works = [mastered(title) for title in "ABCDEF"]
@@ -349,7 +349,7 @@ def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_
 
 
 def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
-    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed
+    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """An announcement lost to a crash: the next roll builds the hung theme, so the work arrives within a day."""
     theme = theme_of(mastered("A"))
@@ -366,7 +366,7 @@ def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
 
 
 def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """A wall whose theme was taken down keeps showing what it was showing; a roll does not empty it."""
     works = {mastered("A").id, mastered("B").id}
@@ -383,7 +383,9 @@ def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(
     assert feed(wall_id).horizon_until - _now() > timedelta(days=2, hours=23)
 
 
-def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(display, mastered, theme_of, wall_id, wall_settings):
+def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(
+    display, mastered, theme_of, wall_id, wall_settings, shown_by_a_client
+):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
     _age(wall_settings, wall_id, by=timedelta(hours=23))
     before = wall_settings.manifest_v2_path(wall_id).read_bytes()
@@ -1023,7 +1025,9 @@ def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour
         assert [slot for slot in _overlaps(feeds[here], feeds[there]) if not slot.covers(now)] == [], (here, there)
 
 
-def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(store, display, mastered, theme_of, wall_id, wall_settings, feed):
+def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(
+    store, display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
+):
     """The wall's own roll publishes what the store says hangs there, unlike a pass beside another wall."""
     display.activate_theme(theme_of(mastered("A"), name="Published").id, wall_id=wall_id)
     hung = theme_of(mastered("B"), name="Hung")

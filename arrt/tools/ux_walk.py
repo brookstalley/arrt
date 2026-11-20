@@ -105,6 +105,41 @@ _IGNORED_PARAMS = {"from"}
 _WRITE_SAFE_METHODS = {"GET", "HEAD"}
 
 
+@dataclasses.dataclass(frozen=True)
+class NamedState:
+    """A state of a screen the walk visits whatever `per_screen` says: a screen's *other* page.
+
+    `per_screen` keeps a few instances of one route, and the first ones are the
+    plain page and the first record: so an Artworks with a search, History for
+    one work, or Walls at one wall (each its own screen to a person, with its own
+    sentences and its own controls) was walked only when the cap allowed a
+    second instance, and a cap of one dropped them without saying. A state named
+    here is admitted past the cap, once, and the summary lists any a walk did not
+    reach (`named_states_not_visited`) so a missing one is a finding, never silence.
+    """
+
+    name: str
+    route: str
+    #: The query parameter that makes the route this state: its mere presence.
+    param: str
+    #: Where to go when no link reached the state. Only a state that needs no id has one;
+    #: a state about one work or one wall is reached by the link that names it.
+    by_address: tuple[tuple[str, str], ...] | None = None
+
+    def matches(self, address: Address) -> bool:
+        return address.route == self.route and any(key == self.param for key, _ in address.query)
+
+
+#: The states a walk must visit. A search is typed, so nothing links to "Artworks searched":
+#: the walk asks for it by address, with a word that is the same on every library.
+NAMED_STATES = (
+    NamedState("History for one work", route="history", param="artwork_id"),
+    NamedState("Walls at one wall", route="walls", param="wall"),
+    NamedState("Artworks searched", route="collection", param="q", by_address=(("q", "night"),)),
+    NamedState("Artworks choosing works for a wall", route="collection", param="hang_on"),
+)
+
+
 # ── The declared screens ─────────────────────────────────────────────────────
 
 
@@ -394,14 +429,18 @@ class _Crawler:
         self.per_screen, self.clicks_per_page, self.refused = per_screen, clicks_per_page, refused
         self.visits: dict[Address, Visit] = {}
         self.kept: dict[str, int] = {}
+        self.named_kept: set[str] = set()
         self.queue: deque[tuple[Address, str, int | None]] = deque()
 
     def _admit(self, address: Address, how: str) -> bool:
         if address in self.visits:
             return False
-        if how != "requested" and self.kept.get(address.route, 0) >= self.per_screen:
+        # A named state is kept once past the cap, and counts when the cap kept it anyway.
+        named = [state.name for state in NAMED_STATES if state.matches(address) and state.name not in self.named_kept]
+        if how != "requested" and self.kept.get(address.route, 0) >= self.per_screen and not named:
             return False
         self.kept[address.route] = self.kept.get(address.route, 0) + 1
+        self.named_kept.update(named)
         return True
 
     def _home(self) -> Address:
@@ -490,6 +529,11 @@ class _Crawler:
             address = parse_fragment(fragment, self.aliases)
             if address is not None:
                 self.queue.append((address, "requested", None))
+        self._drain()
+        # A named state no link reached and that needs no id is asked for, as `--visit` would.
+        for state in NAMED_STATES:
+            if state.name not in self.named_kept and state.by_address is not None:
+                self.queue.append((Address(route=state.route, query=state.by_address), "address", None))
         self._drain()
         return self.visits
 
@@ -595,6 +639,9 @@ def summarise(walk: Walk) -> dict:
             if target != visit.address.route:
                 inbound[target] = inbound.get(target, 0) + 1
     return {
+        "named_states_not_visited": [
+            state.name for state in NAMED_STATES if not any(state.matches(address) for address in walk.visits)
+        ],
         "declared_not_reached_by_link": sorted(set(walk.declared) - reached_by_link),
         "reached_only_by_button": sorted(reached_by_button - reached_by_link),
         "declared_never_visited": sorted(set(walk.declared) - visited),
@@ -665,6 +712,7 @@ def write_sheet(walk: Walk, inventory: dict, out: Path) -> None:
     findings = "".join(
         f"<li><b>{e(label)}</b>: {e(', '.join(summary[key]) or 'none')}</li>"
         for label, key in [
+            ("Named states not visited", "named_states_not_visited"),
             ("Declared, not reached by any link", "declared_not_reached_by_link"),
             ("Reached only by a button, never a link", "reached_only_by_button"),
             ("Declared, never visited (needs an id no link supplied)", "declared_never_visited"),
@@ -888,7 +936,12 @@ def main() -> int:
     target.add_argument("--base-url", help="A running Arrt to walk, e.g. http://localhost:8765")
     target.add_argument("--synthetic", type=int, metavar="N", help="Boot a throwaway Arrt over N synthetic works and walk it")
     parser.add_argument("--out", type=Path, required=True, help="Where the photographs, inventory.json and index.html go")
-    parser.add_argument("--per-screen", type=int, default=2, help="How many instances of one route to keep. Default 2.")
+    parser.add_argument(
+        "--per-screen",
+        type=int,
+        default=2,
+        help="How many instances of one route to keep. Default 2. The named states are kept whatever this says.",
+    )
     parser.add_argument("--visit", action="append", default=[], help="An extra address to photograph, e.g. '#search?q=monet'")
     parser.add_argument(
         "--clicks-per-page", type=int, default=30, help="Buttons to try per page for script navigation; 0 follows links only"
@@ -922,6 +975,7 @@ def main() -> int:
     summary = inventory["summary"]
     print(f"{len(inventory['visits'])} pages → {arguments.out / 'index.html'}")
     for key in (
+        "named_states_not_visited",
         "declared_not_reached_by_link",
         "reached_only_by_button",
         "declared_never_visited",

@@ -291,6 +291,30 @@ def wall_id(store: SqliteCatalogue) -> str:
 
 
 @pytest.fixture
+def a_player_shows_the_wall(services: Services, wall_id: str):
+    """A Player, with a token, on the catalogue's wall: what a test needs before it writes a report for that wall.
+
+    A report for a wall is what the wall's Player sends, and a Player reports only with a token
+    (one with none is `no_token` whatever it reports: `player_state.py`), so a wall nobody shows
+    has nothing to report. A test that writes reports through `display.record_heartbeat` asks
+    for this first; one about a wall with no Player, or a Player in setup, builds that itself.
+    The Player is set up all the way: token issued, wall placed on its output, and it has
+    reported that output.
+    """
+    client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
+    services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
+    services.clients.record_heartbeat(
+        client.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
+    return client
+
+
+@pytest.fixture
 def discovery_store(quiet_catalogue_file: SqliteDurableStore) -> SqliteDiscovery:
     return SqliteDiscovery(quiet_catalogue_file)
 

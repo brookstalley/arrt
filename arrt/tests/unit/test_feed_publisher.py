@@ -199,7 +199,7 @@ def test_a_wall_said_over_the_bound_is_said_again_after_a_feed_of_it_was_publish
 
 
 def test_a_roll_over_the_bound_leaves_the_heartbeat_answered_and_the_feed_as_it_was(
-    display, themed, wall_id, wall_settings, monkeypatch, caplog
+    display, themed, wall_id, wall_settings, monkeypatch, caplog, a_player_shows_the_wall
 ):
     themed(wall_id, "Nighthawks", "Automat", name="Late night")
     _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))

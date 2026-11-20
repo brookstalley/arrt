@@ -75,7 +75,7 @@ def test_the_client_parses(path):
 
     Every Python test asserts what the *server* sends and that the script is
     served; none of them runs a line of it. So a stray brace ships a page that
-    loads, fetches nothing, and shows the "Loading the catalogue…" placeholder
+    loads, fetches nothing, and shows the "Loading the Library…" placeholder
     forever, against a fully green suite — the shape of failure this product
     exists to refuse.
 
@@ -524,7 +524,7 @@ def test_the_client_names_each_museum_as_the_server_does():
 
 
 def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():
-    """The Work page's *Allow on walls again* and `art_theme(action='allow_again')`, in one wording."""
+    """The Work page's *Allow on walls again* and `art_display(action='allow_again')`, in one wording."""
     from arrt.mcp.bindings import ALLOW_AGAIN_NOTICE
 
     assert ALLOW_AGAIN_NOTICE in CLIENT

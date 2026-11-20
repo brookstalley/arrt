@@ -1095,16 +1095,21 @@ function nextUp(wall, now) {
 
 /* Reason one: no theme has been hung here.
  *
- * The fix is the Hanging picker in this wall's own card, a few lines below,
+ * The fix is in the Hanging line of this wall's own card, a few lines below,
  * so the sentence points at it rather than
- * sending the curator to another screen for the one act this screen is named for. */
+ * sending the curator to another screen for the one act this screen is named for.
+ * That line has two ways to hang something, and the sentence says both: a theme
+ * from the picker, or works chosen (*Choose works*, `chooseWorks`). */
 function noThemeHung(wall, themes) {
   // Pointing at the picker only when it is there: with no theme to choose, the
-  // Hanging line below says so and offers to create one.
+  // Hanging line below says so and offers to create one, and the sentence names
+  // that and the works, which are offered either way.
   return [
     el("p", {
       class: "muted",
-      text: themes.length ? `Nothing is hanging on ${wall.name}. Choose a theme under Hanging, below.` : `Nothing is hanging on ${wall.name}.`,
+      text: themes.length
+        ? `Nothing is hanging on ${wall.name}. Choose a theme under Hanging, below, or choose works there.`
+        : `Nothing is hanging on ${wall.name}. Under Hanging, below, create a theme or choose works.`,
     }),
   ];
 }

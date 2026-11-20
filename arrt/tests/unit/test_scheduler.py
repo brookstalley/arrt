@@ -574,6 +574,29 @@ def test_the_feeds_reconcile_runs_at_the_first_pass_and_then_once_every_six(serv
     assert [each["feeds"].due for each in results] == [1 if index in ran else 0 for index in range(passes)]
 
 
+def test_a_pass_between_two_reconciles_still_writes_the_feeds_one_line_saying_nothing_was_due(services, hung, caplog):
+    """The scheduler's positive line holds on a pass that looked at no wall (`scheduler.pass`, one per job).
+
+    Each pass is read by what it wrote: the lines of that pass, picked by the job they name, so a
+    line the Watches' job wrote beside it, or a reordering of the jobs, cannot stand in for it. A
+    pass that reconciled says one due; every pass between says none, and is not silent.
+    """
+    passes = RECONCILE_EVERY_PASSES + 1
+    said: list[tuple[int, int]] = []
+    for index in range(passes):
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="arrt.library.services.scheduler"):
+            services.scheduler.run_pass()
+        pass_lines = [
+            line for line in caplog.records if getattr(line, "event", None) == "scheduler.pass" and line.job == FeedsJob.name
+        ]
+        assert len(pass_lines) == 1, f"pass {index} wrote {len(pass_lines)} lines for the feeds' job"
+        said.append((index, pass_lines[0].due))
+        assert (pass_lines[0].started, pass_lines[0].refused) == (0, 0)
+
+    assert said == [(index, 1 if index in (0, RECONCILE_EVERY_PASSES) else 0) for index in range(passes)]
+
+
 def test_a_feeds_pass_that_raised_is_not_counted_so_the_next_pass_reconciles(services, hung, monkeypatch):
     reconcile = services.display.reconcile
     calls = []

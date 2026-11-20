@@ -17,6 +17,7 @@ dialog of walls and one that does not is the question about one wall.
 
 import json
 import re
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -74,6 +75,12 @@ def choose_works_for(ui, wall):
     expect(ui.page.locator("#view button.select-toggle")).to_have_text("Stop selecting", use_inner_text=True)
 
 
+def address_keys(ui) -> dict[str, str]:
+    """The query the page is at, as a mapping: what the address holds, whatever order it is written in."""
+    _, _, query = ui.page.url.partition("#")[2].partition("?")
+    return {key: values[0] for key, values in parse_qs(query).items()}
+
+
 def tick(ui, work):
     ui.page.check(f"#view [data-artwork='{work.id}'] input[type='checkbox']")
 
@@ -125,6 +132,38 @@ def test_choosing_works_for_a_wall_hangs_them_there_without_asking_which(ui, api
     expect(ui.page.locator(f"#view section.wall[data-wall='{study.id}'] h2.wall-title")).to_be_focused()
     assert hanging_on(api, study.id) == [work.id for work in two_works]
     assert hanging_on(api, hall.id) == []
+
+
+def test_the_hang_itself_works_by_keyboard_alone(ui, api, walls, two_works):
+    """Not only the way in and out: ticking, *Hang…*, the question and the return, with no pointer.
+
+    A key press stands for each click, and `focus()` for the Tab to the control; what is
+    held is that every control in the pass is a real, focusable control that a key presses,
+    and that the keyboard ends on the wall's card heading, where a screen reader reads on.
+    """
+    _, study = walls
+    ui.open("#walls")
+    card(ui, study).locator("a.wall-choose-works").focus()
+    ui.page.keyboard.press("Enter")
+    expect(ui.page.locator("#view .hang-for-wall")).to_be_focused()
+
+    for work in two_works:
+        box = ui.page.locator(f"#view [data-artwork='{work.id}'] input[type='checkbox']")
+        box.focus()
+        ui.page.keyboard.press("Space")
+        expect(box).to_be_checked()
+    hang_button(ui).focus()
+    ui.page.keyboard.press("Enter")
+    ui.page.locator("dialog.confirm[open]").wait_for()
+    expect(ui.page.locator(".confirm-title")).to_have_text("Hang 2 works on The study?", use_inner_text=True)
+
+    with ui.page.expect_request(lambda request: bool(SELECTION.search(request.url)) and request.method == "POST"):
+        ui.page.locator(".confirm-actions button:text-is('Hang')").focus()
+        ui.page.keyboard.press("Enter")
+
+    expect(ui.page).to_have_url(re.compile(rf"#walls\?wall={study.id}$"))
+    expect(card(ui, study).locator("h2.wall-title")).to_be_focused()
+    assert hanging_on(api, study.id) == [work.id for work in two_works]
 
 
 def test_the_page_says_which_wall_and_a_screen_reader_hears_it_as_selection_starts(ui, walls, two_works):
@@ -273,3 +312,106 @@ def test_a_wall_deleted_while_choosing_is_said_before_the_others_are_offered(ui,
     gone = "The wall these were chosen for is no longer recorded."
     expect(dialog.locator(".panel-dialog-lead")).to_have_text(gone, use_inner_text=True)
     expect(dialog.locator(".wall-choices button")).to_have_text([hall.name], use_inner_text=True)
+
+
+# -- the address beside the other things an address holds ---------------------
+
+
+def test_a_theme_filter_chosen_while_choosing_keeps_the_wall_and_the_hang_still_names_it(ui, services, walls, two_works):
+    _, study = walls
+    theme = services.display.add_theme(name="Studies in blue")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=two_works[0].id)
+    choose_works_for(ui, study)
+
+    ui.page.locator(f"#view button.facet-option[data-theme='{theme.id}']").click()
+
+    expect(ui.page.locator("#view ul.grid li[data-artwork]")).to_have_count(1)
+    assert address_keys(ui) == {"hang_on": study.id, "theme": theme.id}
+    expect(ui.page.locator("#view .hang-for-wall")).to_contain_text("Choosing works to hang on The study.", use_inner_text=True)
+    tick(ui, two_works[0])
+    hang_button(ui).click()
+    expect(ui.page.locator(".confirm-title")).to_have_text("Hang 1 work on The study?", use_inner_text=True)
+
+
+def test_an_address_with_a_search_beside_the_wall_keeps_both_and_the_hang_names_the_wall(
+    ui, walls, two_works, work_with_an_image
+):
+    _, study = walls
+    found = work_with_an_image("Hunters in the Snow")
+    ui.open(f"#collection?hang_on={study.id}&q=Hunters%20in%20the%20Snow")
+
+    expect(ui.page.locator("#view ul.grid li[data-artwork]")).to_have_count(1)
+    expect(ui.page.locator("#view .hang-for-wall")).to_contain_text("Choosing works to hang on The study.", use_inner_text=True)
+    assert address_keys(ui) == {"hang_on": study.id, "q": "Hunters in the Snow"}
+    tick(ui, found)
+    hang_button(ui).click()
+    expect(ui.page.locator(".confirm-title")).to_have_text("Hang 1 work on The study?", use_inner_text=True)
+    assert address_keys(ui) == {"hang_on": study.id, "q": "Hunters in the Snow"}
+
+
+def test_stop_selecting_clears_the_wall_from_the_address_and_nothing_else(ui, services, walls, two_works):
+    _, study = walls
+    theme = services.display.add_theme(name="Studies in blue")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=two_works[0].id)
+    ui.open(f"#collection?hang_on={study.id}&q=Study&theme={theme.id}")
+    expect(ui.page.locator("#view button.select-toggle")).to_have_text("Stop selecting", use_inner_text=True)
+
+    ui.page.click("#view button.select-toggle")
+
+    expect(ui.page.locator("#view .hang-for-wall")).to_have_count(0)
+    assert address_keys(ui) == {"q": "Study", "theme": theme.id}
+    expect(ui.page.locator("#view ul.grid li[data-artwork]")).to_have_count(1)
+
+
+def test_a_hang_from_the_card_of_a_wall_whose_player_has_no_token_yet_is_recorded_and_shown(ui, api, services, walls, two_works):
+    """Allowed today: only what is recorded and shown is held here, not the words about the Player.
+
+    The wall's Player is set up (it shows the wall) but has been issued no token, and has
+    never reported: the hang is recorded and the card says what the wall hangs.
+    """
+    _, study = walls
+    waiting = services.clients.add_client(name="Study Pi")
+    services.clients.assign_wall(study.id, client_id=waiting.id, output="hdmi-a-1")
+    choose_works_for(ui, study)
+    tick(ui, two_works[0])
+    hang_button(ui).click()
+    ui.page.locator("dialog.confirm[open]").wait_for()
+
+    with ui.page.expect_request(lambda request: bool(SELECTION.search(request.url)) and request.method == "POST"):
+        ui.page.click(".confirm-actions button:text-is('Hang')")
+
+    expect(ui.page).to_have_url(re.compile(rf"#walls\?wall={study.id}$"))
+    expect(card(ui, study).locator(".wall-hanging")).to_have_text(re.compile(r"^Hanging a selection\."), use_inner_text=True)
+    assert hanging_on(api, study.id) == [two_works[0].id]
+
+
+# -- the sentence beside the link ---------------------------------------------
+
+
+def _reason_on(ui, wall):
+    return card(ui, wall).locator("p.muted", has_text="Nothing is hanging on")
+
+
+def test_a_wall_with_no_theme_says_both_ways_to_hang_something_in_the_words_of_its_controls(ui, services, walls):
+    """The sentence names the picker and *Choose works*, and the link it names is on the card."""
+    _, study = walls
+    services.display.add_theme(name="Evening")
+    ui.open("#walls")
+
+    reason = _reason_on(ui, study)
+    expect(reason).to_have_text(
+        "Nothing is hanging on The study. Choose a theme under Hanging, below, or choose works there.", use_inner_text=True
+    )
+    link_text = card(ui, study).locator("a.wall-choose-works").inner_text()
+    assert link_text.lower() in reason.inner_text().lower(), "the sentence and the link say the act in different words"
+
+
+def test_a_wall_with_no_theme_to_choose_says_to_create_one_or_choose_works(ui, walls):
+    _, study = walls
+    ui.open("#walls")
+
+    reason = _reason_on(ui, study)
+    expect(reason).to_have_text(
+        "Nothing is hanging on The study. Under Hanging, below, create a theme or choose works.", use_inner_text=True
+    )
+    expect(card(ui, study).locator("a.wall-choose-works")).to_have_count(1)
