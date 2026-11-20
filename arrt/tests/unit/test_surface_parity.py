@@ -439,7 +439,9 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
 #: The could-not-be-asked count and the answered count, as fields: HTTP carries
 #: them first (wave 2b, Chunk 32), and Chunk 53 gives `art_discovery`'s
 #: `source_plugins` their twins and removes this exemption.
-HTTP_ONLY_ON_SOURCE_PLUGIN = frozenset({"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"})
+SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset(
+    {"unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered"}
+)
 
 
 def test_the_source_plugin_projections_agree_value_for_value():
@@ -463,14 +465,14 @@ def test_the_source_plugin_projections_agree_value_for_value():
         "SourcePlugin",
         set(bindings._source_plugin_fields(health)),
         _fields(http_models.SourcePluginOut),
-        HTTP_ONLY_ON_SOURCE_PLUGIN,
+        SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET,
     )
     http = http_api._source_plugin(health).model_dump()
     assert bindings._source_plugin_fields(health) == {
-        name: value for name, value in http.items() if name not in HTTP_ONLY_ON_SOURCE_PLUGIN
+        name: value for name, value in http.items() if name not in SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
     }
     # The counts are the reading's, as fields, not only inside `description`.
-    assert {name: http[name] for name in sorted(HTTP_ONLY_ON_SOURCE_PLUGIN)} == {
+    assert {name: http[name] for name in sorted(SOURCE_PLUGIN_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET)} == {
         "answered": 5,
         "last_unasked": "the Met plugin could not be asked: it did not answer within 60 seconds",
         "last_unasked_age_seconds": 7.0,
