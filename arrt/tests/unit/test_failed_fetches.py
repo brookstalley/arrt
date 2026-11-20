@@ -14,7 +14,7 @@ import pytest
 from arrt.library.acquisition.queue import GIVE_UP_AFTER, AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from arrt.services.health import HealthService, failed_fetches
+from arrt.services.health import HealthService, failed_fetches, failed_states
 
 START = datetime(2026, 11, 19, 9, 0, tzinfo=UTC)
 
@@ -81,7 +81,7 @@ def _fail_until_due_again(queue, clock, *, passes: int) -> None:
 
 
 def test_no_failed_work_is_no_observation(queue, clock):
-    assert failed_fetches(queue.listing(), now=clock.now) is None
+    assert failed_fetches(failed_states(queue.listing()), now=clock.now) is None
 
 
 def test_the_newest_failures_age_is_read_from_the_real_queues_schedule(queue, clock, work):
@@ -93,7 +93,7 @@ def test_the_newest_failures_age_is_read_from_the_real_queues_schedule(queue, cl
     queue.run()
     clock.now = START + timedelta(minutes=50)
 
-    found = failed_fetches(queue.listing(), now=clock.now)
+    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
 
     assert found is not None
     assert (found.count, found.will_retry, found.given_up, found.age_unknown) == (2, 2, 0, 0)
@@ -110,7 +110,7 @@ def test_a_work_failed_twice_is_aged_from_its_second_failure(queue, clock, work)
     clock.now = second + timedelta(hours=2)
 
     [state] = [entry.state for entry in queue.listing().entries]
-    found = failed_fetches(queue.listing(), now=clock.now)
+    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
 
     assert state.failures == 2
     assert found is not None
@@ -124,7 +124,7 @@ def test_every_failed_work_given_up_on_is_counted_with_its_age_not_known(queue, 
     work("Automat")
     _fail_until_due_again(queue, clock, passes=GIVE_UP_AFTER)
 
-    found = failed_fetches(queue.listing(), now=clock.now)
+    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
 
     assert found is not None
     assert (found.count, found.will_retry, found.given_up) == (2, 0, 2)
@@ -141,7 +141,7 @@ def test_a_mix_says_how_many_failed_at_a_time_not_recorded(queue, clock, work):
     queue.run()
     clock.now += timedelta(minutes=5)
 
-    found = failed_fetches(queue.listing(), now=clock.now)
+    found = failed_fetches(failed_states(queue.listing()), now=clock.now)
 
     assert found is not None
     assert (found.count, found.age_unknown, found.newest_age_seconds) == (2, 1, 300)
@@ -157,7 +157,7 @@ def test_the_count_is_the_queue_pages_own(queue, clock, work):
     queue.run()
 
     listing = queue.listing()
-    found = failed_fetches(listing, now=clock.now)
+    found = failed_fetches(failed_states(listing), now=clock.now)
 
     assert found is not None
     assert found.count == sum(cause.failed + cause.gave_up for cause in listing.causes) == 3

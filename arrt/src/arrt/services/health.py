@@ -180,8 +180,8 @@ def failure_instant(state: AcquisitionState) -> datetime | None:
 class FailedFetches:
     """The works whose picture the queue failed to fetch: how many, and when the newest failed, where known.
 
-    Counted from the queue's own listing (`QueueListing.causes`), the figures
-    Activity › Queue shows, so the badge and the page cannot disagree. A health
+    Counted from `failed_states`, the works Activity › Queue lists as failed or
+    given up on, so the badge and the page cannot disagree. A health
     observation, because 2,000 failed fetches once raised nothing anywhere
     (audit 2026-11-19, audit-6 finding 3).
     """
@@ -215,17 +215,31 @@ class FailedFetches:
         )
 
 
-def failed_fetches(listing: QueueListing, *, now: datetime) -> FailedFetches | None:
-    """What the queue holds as failed, or None when it holds no failed work: then there is no observation."""
-    states = [entry.state for cause in listing.causes for entry in cause.entries]
+def failed_states(listing: QueueListing) -> tuple[AcquisitionState, ...]:
+    """Every work the Queue lists as failed or given up on, as its state: what the health count is counted from.
+
+    **Read from `AcquisitionQueue.listing()`, standing in for a cheaper read.**
+    The listing is the Queue page's own, so the count cannot disagree with it,
+    but it reads every owed work's title, which the count never uses: measured
+    on 2026-11-19 at 2,000 failed works, `GET /api/health` (which the top bar
+    reads on every page) took 87-93 ms with it against 0.3 ms without, where
+    `works_to_acquire()` alone is 11 ms. Chunk 40 of the audit's wave 2b adds
+    `AcquisitionQueue.failed_states()`, the same states with no title read, and
+    `container.py` hands that to `HealthService` instead of the listing.
+    """
+    return tuple(entry.state for cause in listing.causes for entry in cause.entries)
+
+
+def failed_fetches(states: Sequence[AcquisitionState], *, now: datetime) -> FailedFetches | None:
+    """What the queue holds as failed, from `failed_states`, or None when it holds none: then there is no observation."""
     if not states:
         return None
     instants = [instant for instant in map(failure_instant, states) if instant is not None]
     newest = max(instants, default=None)
     return FailedFetches(
         count=len(states),
-        will_retry=sum(cause.failed for cause in listing.causes),
-        given_up=sum(cause.gave_up for cause in listing.causes),
+        will_retry=sum(1 for state in states if state.phase is AcquisitionPhase.FAILED),
+        given_up=sum(1 for state in states if state.phase is AcquisitionPhase.GAVE_UP),
         newest_failed_at=newest,
         newest_age_seconds=None if newest is None else (now - newest).total_seconds(),
         age_unknown=len(states) - len(instants),
@@ -434,7 +448,7 @@ class HealthService:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""
         if self._queue is None:
             return None
-        return failed_fetches(self._queue(), now=self._now())
+        return failed_fetches(failed_states(self._queue()), now=self._now())
 
     def observe_pictures(self) -> PicturesReading:
         """The picture store's size and file count, from a walk at most ten minutes old."""
