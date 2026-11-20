@@ -607,3 +607,76 @@ async def test_whom_a_wall_waits_for_is_said_by_the_status_the_walls_and_the_wal
     # One wall's answer says it too, not only the list.
     renamed = (await request("POST", f"{server_url}/api/walls/{study}", json={"name": "The study"})).json()
     assert renamed["waiting_for"] == health[study]
+
+
+#: Each answer that says a wall's display state beside whom it waits for, and
+#: every read it makes of the wall's report or the Players' states: the seams a
+#: report can land at. Built from what each route calls at integration head
+#: `ebc26de2` and after Chunk 66's fix, so every seam is a read the answer makes
+#: (the test asserts the report landed).
+_ANSWERS_AND_THEIR_READS = [
+    ("GET /api/walls", ("survey_walls", "survey_wall_status", "players")),
+    ("one wall's answer", ("get_wall_view", "survey_wall_status", "players")),
+    ("art_display walls", ("survey_walls", "survey_wall_status", "players")),
+    ("GET /api/health", ("survey_wall_status", "players")),
+    ("art_display status", ("survey_wall_status", "players")),
+]
+
+
+async def _answer_about(server_url: str, surface: str, wall: str) -> dict:
+    """The one wall's entry in `surface`'s answer."""
+    if surface == "GET /api/walls":
+        walls = (await request("GET", f"{server_url}/api/walls")).json()["walls"]
+    elif surface == "one wall's answer":
+        return (await request("POST", f"{server_url}/api/walls/{wall}", json={"name": "The hall"})).json()
+    elif surface == "art_display walls":
+        walls = (await ok(server_url, "walls"))["walls"]
+    elif surface == "GET /api/health":
+        walls = (await request("GET", f"{server_url}/api/health")).json()["walls"]
+    else:
+        walls = (await ok(server_url, "status"))["walls"]
+    return next(entry for entry in walls if entry["wall_id"] == wall)
+
+
+@pytest.mark.parametrize(("surface", "seam"), [(surface, seam) for surface, seams in _ANSWERS_AND_THEIR_READS for seam in seams])
+async def test_a_wall_report_landing_between_an_answers_reads_never_makes_it_disagree_with_itself(
+    server_url, services, settings, hall, wall, monkeypatch, surface, seam
+):
+    """Chunk 66, found at integration: `waiting_for` beside `display_state: showing_art` in one walls answer.
+
+    The wall's Player has its token and has not reported, so the wall waits for
+    its first report. The wall's own first report is written just before the
+    answer's read named by `seam`, each read in turn, deterministically (the read
+    is wrapped; no thread races it). Whichever read it lands before, the answer
+    says one thing: the wall waits exactly when its display state is `silent`
+    (the Player stays in setup throughout, so nothing else can explain a silence).
+    """
+    await ok(server_url, "issue_client_token", client_id=hall)
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    landed: list[str] = []
+
+    def land() -> None:
+        if not landed:
+            report = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "current_work_id": "wrk_1"}
+            settings.heartbeat_path(wall).write_text(json.dumps(report), encoding="utf-8")
+            landed.append(seam)
+
+    def first_landing(read):
+        def wrapped(*args, **kwargs):
+            land()
+            return read(*args, **kwargs)
+
+        return wrapped
+
+    if seam == "players":
+        monkeypatch.setattr(services.health, "_players", first_landing(services.health._players))
+    else:
+        monkeypatch.setattr(services.display, seam, first_landing(getattr(services.display, seam)))
+
+    entry = await _answer_about(server_url, surface, wall)
+
+    assert landed == [seam], f"{surface} never read {seam}, so nothing landed between its reads"
+    state = entry["display_state"]["state"]
+    assert (entry["waiting_for"] is not None) == (
+        state == "silent"
+    ), f"{surface}, the report landing before {seam}: display_state {state!r} beside waiting_for {entry['waiting_for']}"

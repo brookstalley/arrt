@@ -79,7 +79,16 @@ from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import FailedFetches, PicturesReading, SetupStep, SourceHealth, Trouble, WallWait, walls_waiting
+from arrt.services.health import (
+    FailedFetches,
+    PicturesReading,
+    SetupStep,
+    SourceHealth,
+    Trouble,
+    WallsNow,
+    WallWait,
+    walls_waiting,
+)
 from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -1652,8 +1661,8 @@ def _preview(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.display.survey_walls()
-    waiting = services.health.observe_waiting()
-    return ok(walls=[_wall_view_fields(services, view, waiting) for view in views], count=len(views))
+    now = services.health.observe_walls()
+    return ok(walls=[_wall_view_fields(services, view, now) for view in views], count=len(views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -2428,19 +2437,21 @@ def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
     }
 
 
-def _wall_view_fields(services: Services, view: WallView, waiting: Mapping[str, WallWait] | None = None) -> dict[str, Any]:
+def _wall_view_fields(services: Services, view: WallView, now: WallsNow | None = None) -> dict[str, Any]:
     """One wall, what hangs on it, and whether its Player reads the feed.
 
-    `waiting` is `HealthService.observe_waiting()`, read once for a list and here for one wall.
+    `now` is `HealthService.observe_walls()`, read once for a list and here for one wall. The display
+    state and the wait are its one reading's, as `GET /api/walls`' (`http/api.py` `_wall` says why).
     """
-    waiting = services.health.observe_waiting() if waiting is None else waiting
+    now = services.health.observe_walls() if now is None else now
+    seen = now.walls.get(view.wall.id)
     return {
         **_wall_fields(services, view.wall),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
         "hanging": None if view.hanging is None else _theme_fields(view.hanging),
-        "display_state": _display_state_fields(view.display_state),
+        "display_state": _display_state_fields(view.display_state if seen is None else seen.state),
         "reads_feed": view.reads_feed,
         "feed_notice": feed_notice(reads_feed=view.reads_feed),
         # The work it showed last, whatever its screen does now, and what its
@@ -2448,7 +2459,7 @@ def _wall_view_fields(services: Services, view: WallView, waiting: Mapping[str, 
         "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
         "upcoming": [{"artwork_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
         # Whom the wall waits for while its Player is set up, as `GET /api/walls` says it.
-        "waiting_for": _wall_wait_fields(waiting.get(view.wall.id)),
+        "waiting_for": _wall_wait_fields(now.waiting.get(view.wall.id)),
     }
 
 

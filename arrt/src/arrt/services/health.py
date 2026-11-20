@@ -355,6 +355,19 @@ class WallWait:
     words: str
 
 
+@dataclass(frozen=True, slots=True)
+class WallsNow:
+    """Each wall's report as read once, and whom each waiting wall waits for, judged from that same read.
+
+    A wall's display state (`walls[id].state`) and its wait (`waiting.get(id)`)
+    are one reading's, so an answer built from both cannot say a wall waits
+    while saying it shows a work (`HealthService.observe_walls`).
+    """
+
+    walls: Mapping[str, WallHeartbeat]
+    waiting: Mapping[str, WallWait]
+
+
 def walls_waiting(walls: Sequence[WallHeartbeat], players: Sequence[ClientView]) -> dict[str, WallWait]:
     """Every wall not reporting because its Player is being set up, by wall id: the one rule every surface reads.
 
@@ -665,14 +678,22 @@ class HealthService:
             failed_fetches=self.observe_failed_fetches(),
         )
 
-    def observe_waiting(self) -> Mapping[str, WallWait]:
-        """Every wall waiting for its Player now, by wall id (`walls_waiting`): for an answer about walls.
+    def observe_walls(self) -> WallsNow:
+        """Each wall's report and whom it waits for, from one read of each report: what a walls answer says of a wall.
 
         The rule `observe()`'s reading applies, over the same two reads, so the
         walls answer and the health answer cannot disagree about whom a wall
-        waits for.
+        waits for. **An answer states the wall's display state from these
+        readings too**, never from a second read of the report: a first report
+        landing between two reads made one answer say the wall waits beside a
+        badge showing a work (wave 2b, Chunk 66, found at integration).
         """
-        return walls_waiting(self._display.survey_wall_status(), tuple(self._players()))
+        walls = self._display.survey_wall_status()
+        return WallsNow(walls={seen.wall.id: seen for seen in walls}, waiting=walls_waiting(walls, tuple(self._players())))
+
+    def observe_waiting(self) -> Mapping[str, WallWait]:
+        """Every wall waiting for its Player now, by wall id (`observe_walls`)."""
+        return self.observe_walls().waiting
 
     def observe_failed_fetches(self) -> FailedFetches | None:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""
