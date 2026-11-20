@@ -406,6 +406,31 @@ left as planned and this section is the later word.
   test of a slower neighbour that cannot be rebuilt failed once in a five-suite run on a
   loaded runner (once in 39 recorded runs) and has not been reproduced. Chunk 43 establishes
   whether it reads the real clock and fixes the cause where it is.
+- **2026-11-20 (Chunk 59 added), from Chunks 28, 50 and 58:** the writer of a frozen release
+  copy was in no commit (two chunks used a script in a scratch directory); the contract
+  package ships no `py.typed`, so the server's type check needs an allowance to import it;
+  and `released()`'s docstring still says a copy holds only `fixtures/` and `routes.json`.
+  Chunk 59 settles the three.
+- **2026-11-20 (Chunk 33), as ruled while it was building:** the pass in which a plugin that
+  is not answering is held back is the acquisition queue's (`AcquisitionQueue.run`), not
+  the image pool's; three consecutive could-not-be-asked answers from one plugin, and the
+  rest of that pass does not ask it. **A work the pass did not ask is left exactly as it
+  was**: no new failure, no refreshed `failed_at`. The cost: a plugin that fails three asks
+  in a row for unrelated reasons is not asked again until the next pass.
+- **2026-11-20 (Chunk 39), two items added to its work:** the service's remove-from-theme
+  writes the wall-history event `work.left_theme` for each wall the theme hangs on, so a
+  wall's history says a work left whichever way it left (the MCP break removed
+  `not_again`'s `scope`, which was the only path that wrote it for an MCP caller); and the
+  double readings of the clock within one act that the schedule fix listed (the step to
+  the next work; each wall's scene layer) are passed the act's one instant.
+- **2026-11-20 (Chunk 40), as built:** a work's Get is on the work's detail answer, not on
+  every card's, so a grid does not pay a read per card; `nga.py` was not moved onto
+  `atomic.py`, because a built-in plugin may import only the plugin interface and widening
+  that is a decision about the interface, not a tidy-up.
+- **2026-11-20 (Chunk 45), as built:** the regrouped wall tool would not fit the MCP
+  client's 2,048-byte description limit with the Player and assignment actions beside the
+  wall acts (3,054 bytes), so those ten actions moved, under their old names, to a new
+  tool, `art_players`. It is part of the one break ruling 3 allows.
 
 ## The items 2a carried forward, and where each went
 
@@ -1646,6 +1671,33 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
 - **Verification ceiling:** the contract suite whole, the server's contract tests
   (`arrt/tests/contract`), the governance suite whole, the contract project's mypy, ruff
   and black in `contract/`.
+
+### Chunk 59: The contract package's loose ends — the release-copy writer, `py.typed`, a docstring
+
+- **Type:** code
+- **Closes:** what Chunks 28, 50 and 58 found (above, § Decisions made mid-build).
+- **Model:** Sonnet-class, high: three small, separate things in one package.
+- **Waits for:** 58.
+- **Owns:** new `contract/tools/freeze_release.py`, new `contract/tests/test_freeze_release.py`,
+  new `contract/src/arrt_contract/py.typed`, `contract/pyproject.toml` (package data only),
+  `contract/src/arrt_contract/__init__.py` (`released()`'s docstring only),
+  `.prawduct/artifacts/player-contract.md` (§ The package: how a release is copied).
+- **Deliverables:**
+  - The writer of a frozen copy is in the repository: given a tag and a version it writes
+    `contract/released/<version>/` (the fixtures with their index, `routes.json`, and from
+    1.2.0 on `transport.json` and `vocabulary.json`) and its `sha256.json`. Run on the tags
+    of 1.0.0, 1.1.0 and 1.2.0 it reproduces the three existing copies byte for byte; a test
+    holds that for every copy whose tag is fetched, and says by name when a tag is not
+    there to compare (never a silent pass).
+  - The package ships `py.typed`, and its wheel carries it (a test reads the built
+    distribution's file list, or the installed package).
+  - `released()`'s docstring says what a copy holds, from which release.
+- **Acceptance:** the three copies reproduced byte for byte from their tags by the
+  committed tool; a byte changed by the tool's logic (a file left out, a hash line
+  reordered) is red; `py.typed` is found by a type checker importing the package from an
+  environment that installed it. Each shown red first.
+- **Verification ceiling:** the contract suite whole, the governance suite whole, the
+  contract project's mypy, ruff and black in `contract/`.
 
 ### Chunk 54: Records, and the change record
 
