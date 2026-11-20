@@ -299,6 +299,13 @@ MUSEUM_MODULES = "library/sources/"
 OUTSIDE_SENTENCES: dict[tuple[str, str], str] = {
     ("library/services/runner.py", "Offered by the collection"): "the collection a run browsed is a museum's",
     ("library/services/runner.py", "The collection's own record"): "the collection a run browsed is a museum's",
+    (
+        "library/sources/plugin.py",
+        "A plugin's parts need a finder",
+    ): (
+        "'collection' is the plugin interface's own word for one of its parts (a collection browser), "
+        "not a holding; Status shows this reason for a plugin that did not load"
+    ),
     ("mcp/bindings.py", "No image instances have been found"): "the collection that has the work is a museum's",
     ("mcp/bindings.py", " Separately, the collection offered"): "the collection that offered works is a museum's",
 }

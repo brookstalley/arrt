@@ -382,7 +382,7 @@ export async function viewHistory(generation) {
   // library no longer answers for is said to be one), and its page is the way back.
   const workTitle = params.artwork_id ? titles.get(params.artwork_id) || null : null;
   const aboutAWork = Boolean(params.artwork_id);
-  const subject = aboutAWork ? workTitle || "a work the library no longer holds" : wallName;
+  const subject = aboutAWork ? workTitle || "a work the Library no longer holds" : wallName;
   const panels = [el("h1", { text: subject ? `History of ${subject}` : "History" })];
   if (aboutAWork) {
     panels.push(
@@ -542,7 +542,7 @@ function verdictRun(run, wallNames, titles) {
 /* A work in a run of verdicts: a link while the library holds it (an accepted
  * work), else its title, as the event recorded it. */
 function verdictWork(event, titles) {
-  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the library";
+  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the Library";
   return event.kind === "work.accepted" && event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title;
 }
 
@@ -568,7 +568,7 @@ const ENDINGS = {
 /* One event as a sentence: text, with links to what can still be opened. */
 function sentence(event, wallNames, titles) {
   const detail = event.detail || {};
-  const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the library";
+  const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the Library";
   const work = () => (event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title);
   // A wall still recorded is a link to it; one since removed is its name, as
   // the event recorded it.

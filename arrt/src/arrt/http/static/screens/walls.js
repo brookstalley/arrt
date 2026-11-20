@@ -1353,7 +1353,7 @@ function askWhere(card) {
 function removedSaid(wall, title, scope, from) {
   const done =
     scope === "every_wall"
-      ? `${title} is kept off every wall. It stays in the library and in its themes.`
+      ? `${title} is kept off every wall. It stays in the Library and in its themes.`
       : `${title} is out of ${from}. Nothing else changed.`;
   return `${done} ${wall.name} shows its next work when its Player next reports.`;
 }
@@ -1517,7 +1517,7 @@ const EXCLUSION_WORDS = {
   no_rendition: "Not prepared yet",
   stale_rendition: "Being prepared again",
   no_mat_color: "No mat colour",
-  not_in_catalogue: "No longer in the library",
+  not_in_catalogue: "No longer in the Library",
   kept_off_every_wall: "Kept off every wall",
   outside_wall_shape: "Outside this wall's shapes",
 };

@@ -404,7 +404,7 @@ function paintWorks(section, known, view, selection) {
   fill(section,
     heading,
     el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
-      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the library holds it" }),
+      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the Library holds it" }),
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),
@@ -431,7 +431,7 @@ function paintArriving(section, heading, view) {
     heading,
     el("p", { class: "muted", "aria-live": "polite", text: "Still asking Wikidata who made them…" }),
     el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
-      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the library holds it" }),
+      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the Library holds it" }),
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),

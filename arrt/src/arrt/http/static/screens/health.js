@@ -104,7 +104,7 @@ function failureFacts(reported) {
 function showingLine(showing) {
   if (!showing) return null;
   if (showing.title) return link({ view: "work", id: showing.id }, { class: "link", text: showing.title });
-  return "A work the library could not answer for.";
+  return "A work the Library could not answer for.";
 }
 
 /* The work the wall's display state names: on screen while it shows art, and
