@@ -11,9 +11,10 @@ checked.
 override taken out of the configuration and compares the modules that report
 errors with the modules such an override lists. With none listed, **any module
 with an error fails it by name**, as it fails `uv run mypy`. A listed module that
-checks clean fails it too. What it does not refuse: an override put back that
-lists exactly the modules that fail. That would pass here and silence mypy, so it
-is a change to argue in review, not one this test catches.
+checks clean fails it too. On its own that comparison would let an override be
+put back that lists exactly the modules that fail, which silences mypy; so a
+second test refuses any `ignore_errors` override at all. The list was emptied
+once, and a type error is fixed, never excused.
 
 Reads `arrt/pyproject.toml`, `arrt/uv.lock`, `.github/workflows/tests.yml` and
 `CLAUDE.md`, and runs mypy in `arrt/`'s own environment (`uv run --no-sync`, so a
@@ -162,6 +163,14 @@ def test_the_ratchet_lists_exactly_the_modules_that_fail(tmp_path):
     assert not failing_unlisted, (
         f"these modules have type errors and are not on the ratchet: {failing_unlisted}. "
         "Fix the errors (`cd arrt && uv run mypy`); never add a module to the list."
+    )
+
+
+def test_no_module_is_excused_from_the_type_check():
+    listed = _ratchet()
+    assert not listed, (
+        f"arrt/pyproject.toml has an ignore_errors override again, naming {listed}. Every module is "
+        "checked: fix the errors (`cd arrt && uv run mypy`) and take the override out."
     )
 
 
