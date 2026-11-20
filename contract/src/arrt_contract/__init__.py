@@ -167,12 +167,17 @@ def vocabulary() -> dict[str, Any]:
 
 
 def released() -> dict[str, Path]:
-    """Each released version's frozen copy, by version: a directory holding its `fixtures/` and `routes.json`.
+    """Each released version's frozen copy, by version: a directory holding what that release held.
 
-    Copied from the release's tag when it was cut, with `sha256.json` recording
-    each file's hash then. A consumer can hold itself to what an older Player or
+    Every copy holds its `fixtures/` (the index included), `routes.json` and
+    `sha256.json`; from 1.2.0 on, which introduced them, it holds the release's
+    `transport.json` and `vocabulary.json` too, so 1.0.0's and 1.1.0's copies
+    have neither. Copied from the release's tag when it was cut
+    (`contract/tools/freeze_release.py`), with `sha256.json` recording each
+    file's hash then. A consumer can hold itself to what an older Player or
     server was tested against: every valid fixture of a release this major
-    still validates at this version (`contract/tests/test_released.py`).
+    still validates at this version, every answer and word of one from 1.2.0 on
+    still holds (`contract/tests/test_released.py`).
 
     Oldest first by version, compared as three whole numbers, so `1.9.0` comes
     before `1.10.0`; the last entry is the latest. A directory under `released/`
