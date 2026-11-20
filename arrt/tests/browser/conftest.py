@@ -69,8 +69,7 @@ from arrt.http.models import (
     WatchesHealthOut,
 )
 from arrt.library.services.watches import WatchesReading
-from arrt.library.sources.loading import PluginReading, PluginState
-from arrt.library.sources.names import museum_name
+from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.persistence.records import (
     AcquisitionMethod,
     BackupReading,
@@ -423,34 +422,29 @@ def _a_source(
     provides=None,
     museum=None,
 ):
-    # The server's own wording (`services/health.py`, `describe`): by the
-    # museum, never the plugin id. A plugin from elsewhere names its own (1.4).
-    museum = museum or museum_name(name)
-    if state == "declined":
-        description = f"The {museum} plugin is installed and not configured here: {reason}."
-    elif state == "failed":
-        description = f"The {museum} plugin is installed and was not loaded: {reason}."
-    elif faults:
-        description = (
-            f"The {museum} plugin is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
-        )
-    else:
-        description = f"The {museum} plugin is loaded, with no faults since startup."
-    return {
-        "name": name,
-        "museum": museum,
-        "state": state,
-        "reason": reason,
-        "faults": faults,
-        "last_fault_at": "2026-10-03T12:00:00+00:00" if faults else None,
-        "last_fault_age_seconds": 12.0 if faults else None,
-        "last_fault": "KeyError: 'x'" if faults else None,
-        "description": description,
-        "distribution": distribution,
-        "version": version,
-        "api_major": api_major,
-        "provides": (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides,
-    }
+    # Through the server's own functions, never written here: `SourceHealth`
+    # says the sentence (`services/health.py`, `describe`), by the museum and
+    # never the plugin id, and `_source_plugin` is the route's own projection,
+    # so every field the route answers is here as it would answer it. A plugin
+    # from elsewhere names its own museum (1.4). Nothing could not be asked and
+    # nothing has been answered, which is what a plugin just loaded reports.
+    parts = (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides
+    reading = PluginReading(
+        name=name,
+        state=PluginState(state),
+        reason=reason,
+        faults=faults,
+        last_fault_at=datetime(2026, 10, 3, 12, 0, tzinfo=UTC) if faults else None,
+        last_fault="KeyError: 'x'" if faults else None,
+        identity=PluginIdentity(
+            distribution=distribution,
+            version=version,
+            api_major=api_major,
+            provides=tuple(PluginPart(part) for part in parts),
+            museum=museum,
+        ),
+    )
+    return http_api._source_plugin(SourceHealth(reading=reading, last_fault_age_seconds=12.0 if faults else None)).model_dump()
 
 
 @pytest.fixture
