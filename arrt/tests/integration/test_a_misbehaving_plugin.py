@@ -57,6 +57,7 @@ from arrt.library.sources.loading import (
     SourceRoster,
     load_sources,
 )
+from arrt.mcp import bindings
 
 FIXTURE: Final = Path(__file__).resolve().parents[1] / "fixtures" / "plugins" / "misbehaving"
 #: The distribution's metadata, in pyproject's `[project]` shape, in a file not
@@ -593,6 +594,33 @@ def test_a_reader_answering_that_the_page_is_gone_settles_the_work_and_queue_gro
     )
     assert cause["cause"].startswith("The Gone Archive plugin read that the source's page is gone")
     assert services.acquisition_queue.run().due == 0, "a settled work is not asked again"
+
+
+@pytest.mark.parametrize("plugin_names", [("gone", "steady")])
+def test_every_sentence_and_field_naming_a_plugin_from_outside_names_the_museum_it_declares(http, plugin, services):
+    """The source's sentence, its troubles' words, the sources answer and a failure cause's museum: one name, the plugin's own.
+
+    Each is read from the plugin's own reading (`SourceHealth.museum`), never
+    from what the latest load declared process-wide: a second load in this
+    process (another host, the plugin-testing helper's) replaces that, and
+    the sentence then named the plugin by its id beside a `museum` field that
+    named the museum.
+    """
+    view = finished(http, start_get(http, ONLY_THERE))
+    answer = http.post(f"/api/candidates/{work_of(view, ONLY_THERE)['work_id']}/verdict", json={"verdict": "accepted"})
+    assert answer.status_code == 200, answer.text
+    services.acquisition_queue.run()
+    from arrt.library.sources import names
+
+    names.declare_museums({})  # as another load in this process would
+
+    assert on_status(http, "gone")["description"].startswith("The Gone Archive plugin is loaded"), on_status(http, "gone")
+    assert on_status(http, "gone")["museum"] == in_settings(http, "gone")["museum"] == "Gone Archive"
+    (cause,) = [each for each in http.get("/api/acquisitions/causes").json()["causes"] if each["outcome"]]
+    assert (cause["plugin"], cause["museum"]) == ("gone", "Gone Archive")
+    over_mcp = bindings._failures(services, {})
+    assert [each["museum"] for each in over_mcp["causes"] if each["outcome"]] == ["Gone Archive"]
+    assert {each["name"]: each["museum"] for each in bindings._image_sources(services, {})["sources"]}["gone"] == "Gone Archive"
 
 
 @pytest.mark.parametrize("plugin_names", [("newer", "steady")])

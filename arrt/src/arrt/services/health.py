@@ -74,6 +74,19 @@ class SourceHealth:
     #: no record is read here.
     searches: SearchTally | None = None
 
+    @property
+    def museum(self) -> str:
+        """The museum this plugin is named by: the built-in's `MUSEUM`, else what the plugin itself declared, else its id.
+
+        **The one owner of a source's name** wherever the server states it:
+        this answer's sentence and troubles, `GET /api/sources` and
+        `art_image(action='sources')`, and a failure cause's museum
+        (`HealthService.museum_of`). From the plugin's own reading, never from
+        whatever the latest load declared process-wide, so the sentence and the
+        `museum` beside it cannot name one plugin two ways.
+        """
+        return museum_name(self.reading.name, self.reading.identity.museum)
+
     def describe(self) -> str:
         """What happened to this plugin, in a sentence: an observation, never a verdict.
 
@@ -86,7 +99,7 @@ class SourceHealth:
         reading = self.reading
         # By the museum, not the plugin id: the id is a key, and a curator
         # reading "smk is loaded" learns nothing about which collection.
-        museum = museum_name(reading.name)
+        museum = self.museum
         if reading.state is PluginState.DECLINED:
             return f"The {museum} plugin is installed and not configured here: {reading.reason}."
         if reading.state is PluginState.FAILED:
@@ -510,7 +523,7 @@ def _source_troubles(sources: Sequence[SourceHealth]) -> list[Trouble]:
     found = []
     for source in sources:
         reading = source.reading
-        museum = museum_name(reading.name)
+        museum = source.museum
         if reading.state is PluginState.FAILED:
             found.append(Trouble(TroubleKind.SOURCE, reading.name, None, f"The {museum} source could not be loaded"))
         elif reading.faults > 0:
@@ -601,6 +614,15 @@ class HealthService:
     def observe_sources(self) -> tuple[SourceHealth, ...]:
         """Every installed source plugin, now, most preferred first: the part of the panel Settings › Sources shows."""
         return tuple(self._source_health())
+
+    def museum_of(self, plugin: str) -> str:
+        """The museum an installed plugin is named by (`SourceHealth.museum`); one no longer installed by its id.
+
+        For an answer that holds a plugin's name and not its reading, such as a
+        failure cause, so it names the museum as the sources answer does.
+        """
+        reading = next((each for each in self._sources.observe() if each.name == plugin), None)
+        return museum_name(plugin, None if reading is None else reading.identity.museum)
 
     def observe_yields(self) -> tuple[SourceYield, ...]:
         """What each installed source plugin has given the library, most preferred first.

@@ -42,7 +42,6 @@ from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WorkMatch
-from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
@@ -357,7 +356,7 @@ def _failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     cause = arguments.get("cause")
     if cause is None:
         return ok(
-            causes=[_failure_cause_fields(group) for group in causes[offset : offset + limit]],
+            causes=[_failure_cause_fields(group, services.health.museum_of) for group in causes[offset : offset + limit]],
             total=len(causes),
             limit=limit,
             offset=offset,
@@ -375,7 +374,7 @@ def _failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     )
 
 
-def _failure_cause_fields(group: FailureCause) -> dict[str, Any]:
+def _failure_cause_fields(group: FailureCause, museum_of: Callable[[str], str]) -> dict[str, Any]:
     return {
         "cause": group.cause,
         "works": len(group.entries),
@@ -383,7 +382,7 @@ def _failure_cause_fields(group: FailureCause) -> dict[str, Any]:
         "gave_up": group.gave_up,
         "outcome": None if group.outcome is None else str(group.outcome),
         "plugin": group.plugin,
-        "museum": None if group.plugin is None else museum_name(group.plugin),
+        "museum": None if group.plugin is None else museum_of(group.plugin),
     }
 
 
@@ -1176,7 +1175,7 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     searches = health.searches
     return {
         "name": reading.name,
-        "museum": museum_name(reading.name, reading.identity.museum),
+        "museum": health.museum,
         "state": reading.state.value,
         "reason": reading.reason,
         "faults": reading.faults,

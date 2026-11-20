@@ -234,7 +234,6 @@ from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
-from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     Affinity,
@@ -524,9 +523,12 @@ def list_failure_causes(
     Grouped by the reason's words with the work's own name taken out, so works
     that failed the same way share a row whatever they are called.
     """
-    causes = _services(request).acquisition_queue.listing().causes
+    services = _services(request)
+    causes = services.acquisition_queue.listing().causes
     limit, page = _queue_page(causes, limit, offset)
-    return FailureCausesOut(causes=[_failure_cause(each) for each in page], total=len(causes), limit=limit, offset=offset)
+    return FailureCausesOut(
+        causes=[_failure_cause(each, services.health.museum_of) for each in page], total=len(causes), limit=limit, offset=offset
+    )
 
 
 @router.get("/acquisitions/causes/works")
@@ -2221,7 +2223,7 @@ def _queued_work(entry: QueueEntry) -> QueuedWorkOut:
     return QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state))
 
 
-def _failure_cause(group: FailureCause) -> FailureCauseOut:
+def _failure_cause(group: FailureCause, museum_of: Callable[[str], str]) -> FailureCauseOut:
     return FailureCauseOut(
         cause=group.cause,
         works=len(group.entries),
@@ -2229,7 +2231,7 @@ def _failure_cause(group: FailureCause) -> FailureCauseOut:
         gave_up=group.gave_up,
         outcome=None if group.outcome is None else str(group.outcome),
         plugin=group.plugin,
-        museum=None if group.plugin is None else museum_name(group.plugin),
+        museum=None if group.plugin is None else museum_of(group.plugin),
     )
 
 
@@ -2941,7 +2943,7 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     searches = health.searches
     return SourcePluginOut(
         name=reading.name,
-        museum=museum_name(reading.name, reading.identity.museum),
+        museum=health.museum,
         state=reading.state.value,
         reason=reading.reason,
         faults=reading.faults,
