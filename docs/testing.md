@@ -84,16 +84,21 @@ the run within two minutes, it retries with backoff for up to ten minutes; a run
 pool accepted and still holds at the pool step's twenty-minute deadline (about three
 times a healthy full run) is stopped. Either way it then runs the governance,
 curation and contract suites on GitHub's runner with uv, by the commands in
-CLAUDE.md, after the lint the job always runs there. The browser suite needs Chrome,
-which only the pool's runners carry, so it does not run, and the job summary opens
-"The pool was unavailable; ran here, on GitHub's runner, without the browser suite".
+CLAUDE.md, after the lint the job always runs there. Two suites do not run there: the
+browser suite needs Chrome, which only the pool's runners carry, and the real-Player
+suite is the pool's alone by the owner's ruling of 2026-11-20 (`POOL_ONLY` in
+`pool_or_fallback.py`; § The real-Player test). The job summary opens "The pool was
+unavailable; ran here, on GitHub's runner, without the browser and real-Player
+suites" and names each as not run, with why.
 The required check, "Lint, then every suite", is then green on what ran, so the
 outage blocks no merge. The second check, **"The browser suite ran on the pool"**,
 is not required: it is green when the pool gave the verdict and red after a
-fallback, the mark that this tree has no browser verdict. Nothing gives it one
+fallback, the mark that this tree has no browser or real-Player verdict (its name
+still says the browser suite alone; its message names both). Nothing gives them one
 later on its own (no workflow runs on a push to `develop` or `main`): re-run all of
 the workflow's jobs once the pool is back, or run `testament run --json=summary
---suite browser` on the branch's head and put its request id on the pull request.
+--suite browser --suite player` on the branch's head and put its request ids on the
+pull request.
 The trade: an outage of the pool no longer blocks every merge (ruling 4 of
 2026-11-19), and GitHub's minutes are spent on suites only during one (the
 2026-11-18 ruling). A `failed` verdict is a result and never falls back, nor does a
@@ -370,17 +375,42 @@ is the commit `arrt/tests/system/player-ref.txt` names, fetched from GitHub with
 installs it, on uv's Python 3.13) into a cache outside the repository, by commit
 (`~/.cache/arrt/player-e2e`, or `ARRT_PLAYER_E2E_CACHE`). So it needs the network
 to GitHub, `git` and `uv`, checks for the last two first and fails by name without
-them; it reaches nothing else. That is why it is deselected by default, with the
-live suites' reason: run it as `cd arrt && uv run pytest -m player_e2e -n0
-tests/system/test_a_real_player.py` (about 65 s warm, two of the Player's 30 s
-client polls; the first run also fetches and builds the Player), or on the pool
-with `testament run --json --suite curation -- -m player_e2e
-arrt/tests/system/test_a_real_player.py`, whose runners reach GitHub and carry
-both (210 s cold and 81 s warm there, 2026-11-19). Nothing runs it unasked: not
-the default suites, not `tests.yml`. The image's test stage deselects it (no
-git there), and `.github/workflows/image.yml` runs it against the built app image
-(`ARRT_SERVER_IMAGE`) on a pull request into `main`. Moving the Player's pin is a
-one-line change to `player-ref.txt`, and the first run after it is a cold one.
+them; it reaches nothing else, and no paid service: the server runs with every
+name `.env.example` declares set blank and no `.env` read (`arrt/tests/system/conftest.py`
+starts it through `arrt/tools/ux_walk.py`'s `synthetic_environment` and launcher, which
+`arrt/tests/unit/test_ux_walk_isolation.py` holds), and the Player inherits nothing but
+`PATH`. That is why the curation plane's addopts deselect it, with the live suites'
+reason, and why **it is a testament suite of its own, `player`** (`.testament.toml`:
+the curation suite's command with `-m player_e2e`, selecting the one file).
+
+- **On every pull request**, inside the required check: `tests.yml` runs every suite
+  the manifest declares, so the pair is tested on every server change, beside the
+  other suites (65-80 s warm, 210 s cold on the first run after the pin moves; the
+  pool runs the suites at once, so it lengthens the run only when it is the slowest).
+  A Player pin that will not install, or a fetch from GitHub that fails, is a red,
+  never a fallback.
+- **On the pool, by hand:** `testament run --json=summary --suite player`. Every
+  runner may take it: it runs in the project's container, which carries `git` and
+  `uv`, and needs from the host only the network to GitHub and to uv's Python
+  downloads. It passed on five of the six runners, both architectures, on 2026-11-19
+  and -20. If a runner without that network joins, its operator labels the runners
+  that have it, and the suite `requires` the label.
+- **Here:** `cd arrt && uv run pytest -m player_e2e -n0 tests/system/test_a_real_player.py`
+  (about 65 s warm, two of the Player's 30 s client polls; the first run also fetches
+  and builds the Player).
+- **Never on GitHub's runner:** when the pool cannot answer, CI's fallback leaves the
+  suite out and says so by name, as it does the browser suite (§ The browser suite; the
+  owner's ruling of 2026-11-20: "We should minimize CI and prioritize local tests. We are
+  almost out of ci minutes.").
+
+Every curation run says what it did with the test: its header names where the test
+runs and how to run it, and its last line says whether this run selected it,
+deselected it, or never collected it (`arrt/tests/player_e2e_header.py`, decided from
+what pytest collected and deselected, through public hooks only). The image's test
+stage deselects it (no git there), and `.github/workflows/image.yml` runs it against
+the built app image (`ARRT_SERVER_IMAGE`) on a pull request into `main`. Moving the
+Player's pin is a one-line change to `player-ref.txt`, and the first run after it is a
+cold one.
 
 ## The live suites
 
