@@ -465,6 +465,16 @@ left as planned and this section is the later word.
   for about 3,100. A third part
   takes the shared fixtures' clock.
 - **2026-11-20 (Chunks 62 and 63 added):** what the last passes of integration found.
+- **2026-11-20 (Chunks 60 and 63, as integrated), a guard nobody ran:** two chunks each
+  reached integration with one red, from a guard that reads what the chunk added and that
+  its delegate did not run (a whole-answer comparison; the browser suite's rule against a
+  one-shot read of the page). Each was fixed on the integration branch by a commit that
+  names its chunk. The delegates' brief now says to run the guards that read what you add.
+- **2026-11-20 (Chunk 37, as integrated), five sentences left:** the refusals say the
+  Library; five other sentences a person reads on a screen still said the catalogue, in
+  files that chunk did not own. Chunk 64 changes them and holds the rest by a guard.
+- **2026-11-20 (Chunk 64 added):** a last sweep of what the final passes of integration
+  listed and no chunk owned.
 
 ## The items 2a carried forward, and where each went
 
@@ -1872,6 +1882,47 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   unfixed tree; a fixed clock given to a verdict is what the affinity carries, red today.
 - **Verification ceiling:** the browser files it edits and the files of the fixtures it
   changes, on the pool; the governance suite whole; mypy, ruff and black in `arrt/`.
+
+### Chunk 64: A last sweep
+
+- **Type:** code
+- **Closes:** rulings 1 and 2 in the last sentences a person reads; the reads of a 404
+  that no test held (§ Decisions made mid-build).
+- **Model:** Sonnet-class, high: named sentences, named tests, one guard.
+- **Waits for:** 37, 62 and 63.
+- **Owns:** `arrt/src/arrt/programming/reports.py`, `arrt/src/arrt/http/api.py`,
+  `arrt/src/arrt/services/health.py`, `arrt/src/arrt/persistence/records.py` and
+  `arrt/src/arrt/library/acquisition/space.py` (one sentence each),
+  `arrt/src/arrt/library/services/taste.py` (one method's instant and id),
+  `arrt/src/arrt/http/static/core/router.js` (one comment), the tests of those sentences,
+  `arrt/tests/browser/test_the_run_view.py`, `arrt/tests/browser/test_asking.py`,
+  `arrt/tests/browser/test_hanging_works_from_a_wall.py`,
+  `arrt/tests/unit/test_major_2_feed.py` (one test's name), and two comments in
+  `arrt/tests/browser/`.
+- **Deliverables:**
+  - The five sentences say the Library: Status's description of a household with no
+    wall, the notice after accepting a work the Library nearly holds already, the
+    trouble and the panel about backups, and the fetch queue's reason for pausing.
+  - A guard over the sentences the server sends a person, wherever they are built, that
+    names any that says the catalogue or, of the household's holdings, the collection;
+    the operator's log and the start-up refusals are outside it and it says so.
+  - A run that is gone is stubbed with what the server answers, a 404, and the run
+    page shows the server's sentence for it; a test holds the 404 on opening a thread
+    Ask has forgotten.
+  - A test of a stale theme beside a wall being chosen for: the note says the theme is
+    gone and the page is still choosing for that wall.
+  - The test of a report for a wall with no display is named for what it protects: the
+    guard that makes a wall unassigned mid-report harmless.
+  - Setting an affinity by hand takes the service's clock and id source.
+- **Acceptance:** the guard is red on each of the five sentences at its old wording and
+  on one planted in a module it had not seen; each new browser test is red under the
+  client break it names; a fixed clock and id source given to the taste service are what
+  a set affinity carries, red today; no assertion is loosened.
+- **Verification ceiling:** the curation and browser files it edits;
+  `arrt/tests/unit/test_browser_reads_retry.py` and
+  `arrt/tests/unit/test_client_vocabulary.py`; every test file that reads one of the five
+  sentences (by grep); `arrt/tests/unit/test_surface_parity.py`; the governance suite
+  whole; mypy, ruff and black in `arrt/`.
 
 ### Chunk 54: Records, and the change record
 
