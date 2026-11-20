@@ -58,7 +58,8 @@ PROVISIONED: dict[str, tuple[int, str]] = {
     "arrt/tests/unit/test_one_date_formatter.py": (1, "node, as above."),
     "arrt/tests/unit/test_pre_migration_snapshot.py": (
         1,
-        "skips only as root: the image runs as `tester` (`.devcontainer/Dockerfile`), and GitHub's runner as `runner`.",
+        "skips only as root: the image runs as an unprivileged user it creates (`.devcontainer/Dockerfile`), "
+        "and so does GitHub's runner.",
     ),
     "contract/tests/test_package.py": (1, "uv: every suite's command is `uv run`, so a run without uv never starts."),
     "contract/tests/test_typed.py": (1, "uv, as above."),
@@ -69,8 +70,7 @@ PROVISIONED: dict[str, tuple[int, str]] = {
     ),
     "tests/preferences/test_deployment_values.py": (
         1,
-        "skips only with no `.env` and no `$HOME`; every runner has a `$HOME` (`/home/tester` in the image, "
-        "`/home/runner` on GitHub's).",
+        "skips only with no `.env` and no `$HOME`; the image's user and GitHub's runner each have a home.",
     ),
 }
 
