@@ -90,14 +90,14 @@
           "status": 400,
           "body": "error",
           "means": "The body is not JSON. Nothing is recorded.",
-          "player": "The same bytes get the same answer: say so once, and send again when the report changes."
+          "player": "The same bytes get the same answer: say so once, and send again when the report changes. A report is the same when everything in it but reported_at is, so a refused report is not sent again because only its reported_at moved."
         },
         {
           "case": "not_a_client_heartbeat",
           "status": 400,
           "body": "error",
           "means": "JSON the server cannot read as a client heartbeat, including two outputs, or two label outputs, of one name; the sentence names the problem. Nothing is recorded. The index's server_must_refuse says which of the schema's invalid fixtures the server refuses this way.",
-          "player": "The same bytes get the same answer: say so once, and send again when the report changes."
+          "player": "The same bytes get the same answer: say so once, and send again when the report changes. A report is the same when everything in it but reported_at is, so a refused report is not sent again because only its reported_at moved."
         },
         {
           "case": "too_large",

@@ -37,7 +37,7 @@ from urllib.parse import urldefrag, urljoin
 import pytest
 from jsonschema import Draft202012Validator
 
-from arrt_contract import MAX_OUTPUTS_PER_REPORT, fixtures, root, schema, semantic_errors, validator
+from arrt_contract import MAX_OUTPUTS_PER_REPORT, fixtures, released, root, schema, semantic_errors, specification, validator
 
 CONTRACT = root()
 INDEX = fixtures()
@@ -415,3 +415,139 @@ def test_a_report_of_exactly_the_most_outputs_breaks_no_rule_and_one_more_breaks
     assert list(validator(_CLIENT_HEARTBEAT).iter_errors(at_the_bound)) == []
     assert semantic_errors(at_the_bound, _CLIENT_HEARTBEAT) == []
     assert semantic_errors(document, _CLIENT_HEARTBEAT) == [f"more than {MAX_OUTPUTS_PER_REPORT} {said}"]
+
+
+# -- a Player refuses what it acts on, and only that ------------------------------------
+#
+# The index's own rule for major 2 (its `_about`, unchanged since 1.2.0): a Player
+# refuses what it acts on (the shape it reads, instants, the semantic rules) and
+# never anything else. So every `player_must_refuse: true` row breaks a field some
+# rule of the specification reads. A row whose field nothing reads would make a
+# minor narrow a reader's obligation for nothing a reader does, which § Versioning
+# says a minor does not. `generated_at` is the case that teaches it: no rule reads
+# it (it is not a slot's instant), so a malformed one is the writer's fault and the
+# reader's to ignore. Likewise `content_type`: a Player decodes the bytes and checks
+# their sha256, and a reader must tolerate an enum a later minor may widen.
+
+#: Each field a must-refuse row breaks, with the section of `player-contract.md` whose
+#: rule reads it and words that section uses for it. A field is written as the
+#: index's `refused_because` writes it: `works[id]` for a work by its id, `[]` for a
+#: list's item, the empty string for the document itself.
+ACTED_ON = {
+    "": ("Versioning", "`schema: {major,"),
+    "schema": ("Versioning", "`schema: {major,"),
+    "schema.major": ("Versioning", "refuses a major it does not know"),
+    "works": ("Rules a schema cannot state", "is a key of `works`"),
+    "works[id]": ("Rules a schema cannot state", "is a key of `works`"),
+    "works[id].media": ("Transport (wave 2; clients from 2026-10-02)", "Media is identified"),
+    "works[id].media.url": ("Transport (wave 2; clients from 2026-10-02)", "located by its `url`"),
+    "works[id].media.sha256": ("Transport (wave 2; clients from 2026-10-02)", "against `sha256`"),
+    "scene": ("Scenes", "A scene wins over the schedule"),
+    "schedule": ("Time", "the schedule"),
+    "schedule.horizon": ("Time", "the horizon"),
+    "schedule.horizon.from": ("Time", "`from`"),
+    "schedule.slots": ("Time", "slot"),
+    "schedule.slots[]": ("Time", "slot"),
+    "schedule.slots[].work_id": ("Rules a schema cannot state", "Every work the schedule"),
+    "schedule.slots[].until": ("Time", "`until`"),
+    "staging": ("Staging", "`staging` lists works"),
+    "staging[]": ("Staging", "`staging` lists works"),
+}
+
+#: The field each of the manifest's semantic rules reads, by the words `semantic_errors` reports.
+SEMANTIC_FIELD = {
+    "a work is named that is not in works": "works",
+    "a slot ends before it starts": "schedule.slots[]",
+    "slots overlap or are out of order": "schedule.slots[]",
+    "the horizon is not a whole number of days": "schedule.horizon",
+    "a slot falls outside the horizon": "schedule.slots[]",
+    "the scene ends before it starts": "scene",
+}
+
+MUST_REFUSE = [row for row in INDEX if row.get("player_must_refuse")]
+
+
+def _field(steps: list) -> str:
+    """An instance path as the index's sentences write it: `works[id].media.url`, `schedule.slots[].work_id`."""
+    field = ""
+    for index, step in enumerate(steps):
+        if isinstance(step, int):
+            field += "[]"
+        elif index and steps[index - 1] == "works":
+            field += "[id]"
+        else:
+            field += f".{step}" if field else step
+    return field
+
+
+def field_broken(row: dict) -> str:
+    """The one field `row`'s fixture breaks; a semantic rule this file does not know fails by name."""
+    if row["breaks"] == "semantics":
+        if row["constraint"] not in SEMANTIC_FIELD:
+            pytest.fail(f"{row['path']} breaks a semantic rule SEMANTIC_FIELD does not name: {row['constraint']!r}")
+        return SEMANTIC_FIELD[row["constraint"]]
+    (error,) = validator(row["schema"]).iter_errors(_document(row))
+    steps = list(error.absolute_path)
+    if error.validator == "required":
+        steps.append(next(key for key in error.validator_value if key not in error.instance))
+    return _field(steps)
+
+
+def section(heading: str) -> str:
+    """The text of the one section of `player-contract.md` headed `heading`, to the next heading of any level.
+
+    Its words are joined by single spaces, so a phrase the file wraps across lines is still found.
+    """
+    lines = specification().read_text(encoding="utf-8").splitlines()
+    starts = [index for index, line in enumerate(lines) if line.startswith("#") and line.lstrip("#").strip() == heading]
+    assert len(starts) == 1, f"player-contract.md has {len(starts)} sections headed {heading!r}"
+    rest = lines[starts[0] + 1 :]
+    end = next((index for index, line in enumerate(rest) if line.startswith("#")), len(rest))
+    return " ".join(" ".join(rest[:end]).split())
+
+
+@pytest.mark.parametrize("row", MUST_REFUSE, ids=lambda row: Path(row["path"]).stem)
+def test_a_manifest_a_player_must_refuse_breaks_a_field_a_rule_of_the_specification_reads(row):
+    field = field_broken(row)
+
+    assert field in ACTED_ON, f"{row['path']} is must-refuse, but no rule a Player acts on reads {field or 'the document'}"
+    heading, words = ACTED_ON[field]
+    assert words in section(heading), f"§ {heading} does not say {words!r}, the rule cited for {field or 'the document'}"
+
+
+def test_every_field_said_to_be_acted_on_is_one_a_must_refuse_row_breaks():
+    """The table is the fields a reader refuses on, no more: an entry no row reaches is a claim nothing tests."""
+    assert set(ACTED_ON) == {field_broken(row) for row in MUST_REFUSE}
+
+
+def test_a_field_is_written_as_the_index_writes_it():
+    assert _field([]) == ""
+    assert _field(["works", "w-1", "media", "url"]) == "works[id].media.url"
+    assert _field(["schedule", "slots", 0, "work_id"]) == "schedule.slots[].work_id"
+    assert _field(["staging", 3]) == "staging[]"
+    assert _field(["schema", "major"]) == "schema.major"
+
+
+def test_a_semantic_rule_the_table_does_not_name_fails_by_name():
+    stranger = {"path": "fixtures/manifest.v2/invalid/x.json", "breaks": "semantics", "constraint": "a new rule"}
+
+    with pytest.raises(pytest.fail.Exception, match="a new rule"):
+        field_broken(stranger)
+
+
+def test_a_section_the_specification_does_not_have_is_refused_by_name():
+    with pytest.raises(AssertionError, match="0 sections headed 'No such section'"):
+        section("No such section")
+
+
+def test_the_must_refuse_manifests_1_3_0_adds_are_as_many_as_releases_says():
+    """§ Releases' 1.3.0 entry counts the manifest fixtures it adds and the must-refuse among them; the index owns the count."""
+    before = {
+        row["path"]
+        for row in json.loads((released()["1.2.0"] / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
+    }
+    added = [row for row in INDEX if row["path"].startswith("fixtures/manifest.v2/invalid/") and row["path"] not in before]
+    refused = sum(row["player_must_refuse"] for row in added)
+
+    said = " ".join(section("Releases").split())
+    assert f"`manifest.v2` {len(added)} ({refused} of them `player_must_refuse`, {len(added) - refused} not" in said

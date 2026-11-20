@@ -1391,7 +1391,7 @@
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true,
+      "player_must_refuse": false,
       "constraint": "schemas/manifest.v2.schema.json#/$defs/instant/pattern",
       "refused_because": "generated_at must be an RFC 3339 instant with an offset."
     },
@@ -1400,7 +1400,7 @@
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true,
+      "player_must_refuse": false,
       "constraint": "schemas/manifest.v2.schema.json#/$defs/instant/type",
       "refused_because": "generated_at must be text."
     },
@@ -2030,7 +2030,7 @@
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true,
+      "player_must_refuse": false,
       "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/content_type/enum",
       "refused_because": "works[id].media.content_type must be one of \"image/jpeg\", \"image/png\"."
     },
