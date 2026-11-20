@@ -2061,8 +2061,9 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   first; the draft pull request opened once 28 and 29 are in (29's acceptance 5 seen there, and
   52's acceptance 4 on a scratch pull request); the governance suite whole after every merge that
   adds a tracked file.
-- **Done when:** on the merged head the five suites pass (`testament run --json`); the image's
-  test stage passes (`image.yml` by hand on the head); the coordinator has read each delegate's
+- **Done when:** on the merged head the six suites pass (`testament run --json`, the `image`
+  suite, the server image's test stage, among them); the image's test stage passes
+  (`image.yml` by hand on the head); the coordinator has read each delegate's
   fail-first evidence and 45's byte count before its code; the Critic's cumulative review finds
   nothing blocking.
 - **The operator's checklist, after the merge into `develop`:**
