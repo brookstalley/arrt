@@ -461,8 +461,8 @@ left as planned and this section is the later word.
   as not reporting beside "nothing needs attention". Chunk 62 makes it one step per cause.
 - **2026-11-20 (Chunk 43), what a cheaper test cost:** the UX walk visits each screen once,
   and three states it reached only as a second visit are no longer walked. Chunk 63 names
-  them. Its cache result: about half the suite still cannot be cached; about 2,250 tests
-  for a clock read and about 3,100 for a real server process or a socket. A third part
+  them. Its cache result: about half the suite still cannot be cached; a clock read is why for about 2,250 of them, and a real server process or a socket
+  for about 3,100. A third part
   takes the shared fixtures' clock.
 - **2026-11-20 (Chunks 62 and 63 added):** what the last passes of integration found.
 
@@ -1839,7 +1839,7 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   formatted outside the one helper that shows the server's sentence. Each shown red first.
 - **Verification ceiling:** the curation files of health, Players, Ask and spend;
   `arrt/tests/unit/test_surface_parity.py`; `arrt/tests/contract`; the whole browser suite
-  (it changes `http/models.py`); mypy, ruff and black in `arrt/`.
+  (it changes `arrt/src/arrt/http/models.py`); mypy, ruff and black in `arrt/`.
 
 ### Chunk 63: The suite's tail
 
