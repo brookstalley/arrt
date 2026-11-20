@@ -2487,7 +2487,7 @@ ART_WATCHES: Final = ToolRecord(
         "nobody watching, leaving what they find in To review. As Settings › Watches does."
     ),
     read_only=False,
-    # Destructive because `delete` removes a Watch and nothing restores it. What
+    # Destructive because `delete` forgets a Watch and nothing restores it. What
     # it found stays in To review.
     destructive=True,
     open_world=False,
@@ -2534,10 +2534,10 @@ ART_WATCHES: Final = ToolRecord(
         ),
         Action(
             name="delete",
-            description="Remove a Watch and return what was removed. What it already found stays in To review.",
+            description="Forget a Watch and return what was forgotten. What it already found stays in To review.",
             example="art_watches(action='delete', watch_id='…')",
             params=(_WATCH_ID,),
-            tips=("To stop a Watch for a while, set enabled=false instead; a deleted Watch is gone.",),
+            tips=("To stop a Watch for a while, set enabled=false instead; a forgotten Watch is gone.",),
         ),
     ),
 )

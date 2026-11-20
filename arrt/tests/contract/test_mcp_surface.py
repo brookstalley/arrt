@@ -511,6 +511,22 @@ def test_the_players_tool_declares_itself_destructive_since_it_can_forget_a_clie
     assert ART_DISPLAY.destructive is True
 
 
+#: What `art_watches(action='delete')` was said to do before the screens' word
+#: for it, Forget (the vocabulary's: Forget drops a record the household made of
+#: something outside, a Watch among them), reached MCP (wave 2b, Chunk 62).
+_RETIRED_WATCH_WORDS = ("remove a watch", "what was removed", "a deleted watch", "removes a watch")
+
+
+def test_the_watches_tool_says_a_watch_is_forgotten_as_the_screens_do():
+    """Watches' button is *Forget…*; an agent reading "remove" would tell the household a different act."""
+    record = TOOLS_BY_NAME["art_watches"]
+    delete = next(action for action in record.actions if action.name == "delete")
+    prose = _tool_prose(record)
+
+    assert delete.description.startswith("Forget a Watch")
+    assert [words for words in _RETIRED_WATCH_WORDS if words in prose] == []
+
+
 @pytest.mark.parametrize(("tool_name", "action_name"), sorted(_ACTS_ON_ONE_WALL))
 def test_every_act_against_a_wall_names_which_wall(tool_name, action_name):
     """Required even while there is one wall and the answer is obvious.

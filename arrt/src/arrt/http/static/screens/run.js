@@ -301,10 +301,11 @@ function scheduleRunPoll(runId, generation, { done }) {
  * one formatted here from `cost_usd`: with a call whose cost is unknown it reads
  * "at least $0.42, and 2 calls whose cost is unknown", and a client that worded
  * the figure itself would say the Get cost less than the server knows it may
- * have. The Get's own figure is the run record's, which carries no count of
- * unknown calls, so it is said alone only where the family has none: otherwise
- * the server's sentence stands for the whole. */
-function costWords(own, family, finished) {
+ * have. The Get's own figure is the run record's, said in the server's words
+ * too (`RunOut.summary`, "at least" when one of its own calls never said what
+ * it cost: wave 2b, Chunk 62), and alone only where the family has no unknown
+ * call: otherwise the family's sentence stands for the whole. */
+function costWords(own, ownWords, family, finished) {
   const unknown = family ? family.unknown_cost_calls > 0 : false;
   const retriedCost = family && Number(family.cost_usd) > 0;
   if (own === null || own === undefined) {
@@ -314,9 +315,9 @@ function costWords(own, family, finished) {
     if (unknown) return family.summary;
     return finished ? "None recorded" : null;
   }
-  if (!family) return dollars(own);
-  if (Number(family.cost_usd) === Number(own)) return unknown ? family.summary : dollars(own);
-  return `${dollars(own)}, ${family.summary} with the Gets that retried it`;
+  if (!family) return ownWords;
+  if (Number(family.cost_usd) === Number(own)) return unknown ? family.summary : ownWords;
+  return `${ownWords}, ${family.summary} with the Gets that retried it`;
 }
 
 /* The Get's works section this screen last painted, and under which navigation.
@@ -554,7 +555,7 @@ export async function viewRun(runId, generation) {
         // Gets that retried it — joins the row only where it says something
         // more: a Get billed little whose retries cost ten times as much is the
         // case it exists for, and an equal one is the same number twice.
-        ["Cost", costWords(run.actual_cost_usd, familySpend, run.is_terminal)],
+        ["Cost", costWords(run.actual_cost_usd, run.summary || dollars(run.actual_cost_usd), familySpend, run.is_terminal)],
         // Only while it runs: the estimate prices what is still to come, and
         // the lookups are the model's own while it chooses, its allowance the
         // deployment's setting. Once it has finished, the cost above is the

@@ -493,10 +493,16 @@ class TestHealth:
             ("wall", wall["wall_id"], "silent"),
         ]
 
-    def test_a_wall_that_has_reported_is_named_apart_from_one_that_has_not(self, http, settings, wall, shown_by_a_player):
-        """The sentence a two-room installation is actually read for."""
+    def test_a_wall_that_has_reported_is_named_apart_from_one_that_has_not(
+        self, http, settings, wall, shown_by_a_reporting_player
+    ):
+        """The sentence a two-room installation is actually read for.
+
+        On a Player that reports (Chunk 62): a wall whose Player has no token
+        yet waits for it, and is said to, never named as not having reported.
+        """
         second = http.post("/api/walls", json={"name": "The study"}).json()
-        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": datetime.now(UTC).isoformat()}),
             encoding="utf-8",
@@ -581,11 +587,12 @@ class TestHealth:
         assert health["description"] == "No Player shows a wall yet, so there is no report to read."
 
     def test_a_wall_with_no_player_is_left_out_of_the_count_of_walls_a_player_shows(
-        self, http, settings, wall, shown_by_a_player
+        self, http, settings, wall, shown_by_a_reporting_player
     ):
+        # On a Player that reports: one with no token yet makes its walls wait (Chunk 62).
         second = http.post("/api/walls", json={"name": "The study"}).json()
         third = http.post("/api/walls", json={"name": "The landing"}).json()
-        shown_by_a_player(wall["wall_id"], second["wall_id"])
+        shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
         )
@@ -717,18 +724,173 @@ class TestHealth:
         """The step is gone once taken: the wall is on a Player, whose own step (no token yet) takes its place.
 
         The wall, which has not reported because its Player cannot yet, waits
-        on that Player's step (Chunk 60): it is still a setup step, in the
-        Player's state, and no longer "has no Player yet".
+        for that Player (Chunk 60), and is named by the Player's one step
+        (Chunk 62), never a step of its own: no longer "has no Player yet".
         """
         player = shown_by_a_player(wall["wall_id"])
 
         steps = http.get("/api/health").json()["setup_steps"]
 
-        assert [(s["about"], s["subject"], s["state"]) for s in steps] == [
-            ("wall", wall["wall_id"], "no_token"),
-            ("player", player, "no_token"),
+        assert [(s["about"], s["subject"], s["state"], s["words"]) for s in steps] == [
+            ("player", player, "no_token", "The Pi in the hall has no token yet, so The wall waits for it"),
         ]
-        assert "has no Player yet" not in steps[0]["words"]
+
+    @pytest.mark.parametrize(
+        ("token", "step", "waits"),
+        [
+            (
+                False,
+                ("no_token", "The Pi in the hall has no token yet, so The study and The wall wait for it"),
+                ("no_token", "{wall} waits for The Pi in the hall, which has no token yet"),
+            ),
+            (
+                True,
+                ("awaiting_report", "The Pi in the hall is waiting for its first report, and so are The study and The wall"),
+                ("awaiting_report", "{wall} waits for The Pi in the hall's first report"),
+            ),
+        ],
+        ids=["no_token", "awaiting_report"],
+    )
+    def test_a_player_being_set_up_that_shows_two_walls_is_one_step_naming_both(
+        self, http, wall, shown_by_a_player, token, step, waits
+    ):
+        """Chunk 62's acceptance: one cause, one step, linked to the Player; each wall says it waits, and nothing is a trouble.
+
+        Before, this household read three steps (each wall's, then the
+        Player's), and each wall's panel read "Not reporting" beside "Nothing
+        needs attention".
+        """
+        second = http.post("/api/walls", json={"name": "The study"}).json()
+        player = shown_by_a_player(wall["wall_id"], second["wall_id"])
+        if token:
+            assert http.post(f"/api/clients/{player}/token").status_code == 200
+
+        health = http.get("/api/health").json()
+
+        assert [(s["about"], s["subject"], s["state"], s["words"]) for s in health["setup_steps"]] == [("player", player, *step)]
+        assert not [t for t in health["troubles"] if t["about"] in {"wall", "player"}], health["troubles"]
+        # Each wall is still `silent` (no readable report, the contract's word),
+        # and says why: the Player it waits for, in that Player's setup state.
+        assert {entry["wall_name"]: (entry["display_state"]["state"], entry["waiting_for"]) for entry in health["walls"]} == {
+            name: (
+                "silent",
+                {"client_id": player, "name": "The Pi in the hall", "state": waits[0], "words": waits[1].format(wall=name)},
+            )
+            for name in ("The study", "The wall")
+        }
+        # The panel's sentence says they wait, and never that they have not reported.
+        assert health["description"] == f"The study and The wall wait for {waits[1].split(' for ', 1)[1]}."
+
+    @pytest.mark.parametrize(
+        ("walls", "said"),
+        [
+            (0, "The Pi in the hall has no token yet"),
+            (1, "The Pi in the hall has no token yet, so The wall waits for it"),
+            (2, "The Pi in the hall has no token yet, so A study and The wall wait for it"),
+            (
+                5,
+                "The Pi in the hall has no token yet, so A study, B study, C study, D study and The wall wait for it",
+            ),
+        ],
+    )
+    def test_the_one_step_names_every_wall_that_waits_in_the_servers_list(self, http, wall, shown_by_a_player, walls, said):
+        """None, one, two and five walls: the walls in the order they are listed, joined as the server joins names."""
+        others = [
+            http.post("/api/walls", json={"name": f"{letter} study"}).json()["wall_id"] for letter in "ABCD"[: max(walls - 1, 0)]
+        ]
+        if walls:
+            shown_by_a_player(*others, wall["wall_id"])
+        else:
+            http.post("/api/clients", json={"name": "The Pi in the hall"})
+
+        steps = http.get("/api/health").json()["setup_steps"]
+
+        assert [s["words"] for s in steps if s["about"] == "player"] == [said]
+
+    def test_a_wall_waits_then_reports_then_its_players_silence_is_a_trouble(self, http, settings, wall, shown_by_a_player):
+        """One wall through its Player's setup and after, through the route: no token, a token, a report, then quiet.
+
+        The clock is the reports' instants, which the test writes (the server
+        reads the machine's clock): a report now, then the same report three
+        hours old, past the contract's staleness.
+        """
+
+        def read():
+            health = http.get("/api/health").json()
+            [entry] = health["walls"]
+            return (
+                entry["display_state"]["state"],
+                entry["waiting_for"] and entry["waiting_for"]["state"],
+                [(s["about"], s["state"]) for s in health["setup_steps"]],
+                [(t["about"], t["state"], t["words"]) for t in health["troubles"] if t["about"] in {"wall", "player"}],
+            )
+
+        def report(at):
+            client_heartbeat_path_in(settings.art_root, player).write_text(
+                json.dumps(
+                    {
+                        "reported_at": at.isoformat(),
+                        "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": at.isoformat()}), encoding="utf-8")
+
+        player = shown_by_a_player(wall["wall_id"])
+        no_token = read()
+        assert http.post(f"/api/clients/{player}/token").status_code == 200
+        awaiting = read()
+        report(datetime.now(UTC))
+        reporting = read()
+        report(datetime.now(UTC) - timedelta(hours=3))
+        quiet = read()
+
+        assert no_token == ("silent", "no_token", [("player", "no_token")], [])
+        assert awaiting == ("silent", "awaiting_report", [("player", "awaiting_report")], [])
+        # A report with no display state of its own reads "Not known", which is no fault and no step.
+        assert reporting == ("unreachable", None, [], [])
+        assert quiet == (
+            "silent",
+            None,
+            [],
+            [("player", "not_heard_from", "The Pi in the hall has not been heard from for 3 hours, nor has The wall")],
+        )
+
+    def test_a_wall_whose_reports_stopped_while_its_player_sent_none_of_its_own_is_a_trouble_not_a_wait(
+        self, http, settings, wall, shown_by_a_player
+    ):
+        """The edge of `walls_waiting`: a Player with a token and no report of its own explains a wall never written.
+
+        A wall whose own reports came and stopped has gone quiet, which is the trouble it always was.
+        """
+        player = shown_by_a_player(wall["wall_id"])
+        assert http.post(f"/api/clients/{player}/token").status_code == 200
+        stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": stale}), encoding="utf-8")
+
+        health = http.get("/api/health").json()
+
+        [entry] = health["walls"]
+        assert (entry["display_state"]["state"], entry["waiting_for"]) == ("silent", None)
+        assert [(t["about"], t["words"]) for t in health["troubles"] if t["about"] in {"wall", "player"}] == [
+            ("wall", "The wall has not reported for 3 hours")
+        ]
+        assert [(s["about"], s["words"]) for s in health["setup_steps"]] == [
+            ("player", "The Pi in the hall is waiting for its first report")
+        ]
+
+    def test_a_wall_waiting_for_its_player_can_still_be_hung(self, http, wall, shown_by_a_player):
+        """How a waiting wall is said changed (Chunk 62); what it allows did not: a theme hangs on it, and it still waits."""
+        player = shown_by_a_player(wall["wall_id"])
+        theme = http.post("/api/themes", json={"name": "Late night"}).json()
+
+        hung = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]})
+
+        assert hung.status_code == 200, hung.text
+        health = http.get("/api/health").json()
+        assert [entry["waiting_for"]["client_id"] for entry in health["walls"]] == [player]
+        assert [(s["about"], s["subject"]) for s in health["setup_steps"]] == [("player", player)]
 
     def test_failed_fetches_are_counted_with_the_newest_failures_age(self, http, accepted, store):
         """Acceptance 5: three failed rows, the newest two hours old, read 3 and its age; none, no observation.

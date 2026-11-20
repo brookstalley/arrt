@@ -289,7 +289,8 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     # was one of four.)*
     cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
     expect(cost.locator("dt")).to_have_text(["Cost"], use_inner_text=True)
-    expect(cost.locator("dd")).to_have_text("$0.01", use_inner_text=True)
+    # The run's own figure in the server's words (`RunOut.summary`, Chunk 62): $0.0134 as it is, not "$0.01".
+    expect(cost.locator("dd")).to_have_text("$0.0134", use_inner_text=True)
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -334,7 +335,7 @@ def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
-    expect(ui.view).to_contain_text("$0.01, $0.25 with the Gets that retried it", use_inner_text=True)
+    expect(ui.view).to_contain_text("$0.0134, $0.25 with the Gets that retried it", use_inner_text=True)
     expect(ui.view).not_to_contain_text("could not be read", use_inner_text=True)
 
 

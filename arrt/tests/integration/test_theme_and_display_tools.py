@@ -11,7 +11,7 @@ path that produced it.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from mcp import ClientSession
@@ -521,11 +521,20 @@ async def test_status_says_plainly_that_a_walls_player_has_never_reported(server
     two rooms the useful sentence is "the study has not reported", and one shared
     file could only ever have said that *something* had not. The wall is given a
     Player first: one with none is a step of setting up, never named as silent
-    (the next test).
+    (the next test). The Player holds a token and reports (wave 2b, Chunk 62):
+    one still being set up makes the wall wait for it, which is said as that.
     """
     [only] = services.display.survey_walls()
     pi = services.clients.add_client(name="The Pi in the hall")
     services.clients.assign_wall(only.wall.id, client_id=pi.id, output="hdmi-a-1")
+    services.access.issue(pi.id)
+    services.clients.record_heartbeat(
+        pi.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
 
     payload, errored = await call(server_url, "art_display", action="status")
 

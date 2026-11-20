@@ -211,7 +211,7 @@ def _a_finished_get(ui, spend, *, own="0.0134"):
         pytest.param(
             a_spend(cost_usd="0.25", unknown_cost_calls=2),
             "0.0134",
-            "$0.01, at least $0.25, and 2 calls whose cost is unknown with the Gets that retried it",
+            "$0.0134, at least $0.25, and 2 calls whose cost is unknown with the Gets that retried it",
             id="retries cost more and two calls are unknown",
         ),
         pytest.param(
@@ -245,7 +245,7 @@ def test_a_gets_cost_with_no_unknown_call_says_no_at_least(ui):
     """The paired negative, with a positive anchor: the row is there and says its figure."""
     _a_finished_get(ui, a_spend(cost_usd="0.25"))
 
-    expect(_cost_row(ui)).to_have_text("$0.01, $0.25 with the Gets that retried it", use_inner_text=True)
+    expect(_cost_row(ui)).to_have_text("$0.0134, $0.25 with the Gets that retried it", use_inner_text=True)
     expect(ui.view).not_to_contain_text("at least", use_inner_text=True)
 
 

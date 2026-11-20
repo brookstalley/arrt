@@ -185,6 +185,25 @@ def a_reporting_wall(services, a_shown_wall):
     return a_shown_wall
 
 
+@pytest.fixture
+def a_quiet_wall(services, a_shown_wall):
+    """The shown wall, its Player reporting while nothing has ever been written for the wall: a wall gone quiet.
+
+    A Player with a token that has not reported at all is a step of its setup,
+    and its walls wait for it (wave 2b, Chunk 62): reason three is a Player that
+    reports and a wall it does not speak for.
+    """
+    [hall] = [view.client for view in services.clients.list_clients() if view.client.name == "Hall Pi"]
+    services.clients.record_heartbeat(
+        hall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
+    return a_shown_wall
+
+
 # -- reason one: no theme hung ------------------------------------------------
 
 
@@ -322,24 +341,58 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
 # -- reason three: its Player silent ------------------------------------------
 
 
-def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui, a_shown_wall):
+def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui, a_quiet_wall):
     """Published is not showing, and this screen must not conflate them.
 
     The feed is written and correct; nothing has ever picked it up. A screen
     that showed the pictures and said nothing would be reporting the server's
     intention as the television's state. The way to its reading is a link named
     for the page it opens, Status (audit 2026-11-19, finding 6: it was "Open the
-    reading for …").
+    reading for …"). On a Player that reports (`a_quiet_wall`) since Chunk 62:
+    one that has not reported at all makes its wall wait, which is a step
+    (`test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice`).
     """
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
     _expect_reasons_named(ui, "its Player silent")
-    expect(ui.view).to_contain_text(f"Hall Pi has not reported for {a_shown_wall.name} yet", use_inner_text=True)
-    status = ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading")
+    expect(ui.view).to_contain_text(f"Hall Pi has not reported for {a_quiet_wall.name} yet", use_inner_text=True)
+    status = ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_quiet_wall.name}'s reading")
     expect(status).to_have_text("Status", use_inner_text=True)
     expect(status).to_have_attribute("href", "#health")
     expect(ui.page.locator("a", has_text="Open the reading")).to_have_count(0)
+
+
+@pytest.mark.parametrize("token", [True, False], ids=["awaiting_report", "no_token"])
+def test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice(ui, services, a_hung_wall, token):
+    """Chunk 62: a wall whose Player is still being set up says it waits, as Status does, never that it is not reporting.
+
+    Its badge is the Player's state in the contract's word with a setup step's
+    mark (○), never ▲ "Not reporting"; its line is the server's words
+    (`waiting_for`), linking to the Player; and the card holds no fault's notice.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    if token:
+        services.access.issue(hall.id)
+    services.clients.assign_wall(a_hung_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    card = ui.page.locator("section.wall")
+    state, word, words = (
+        ("awaiting_report", "Waiting for its first report", f"{a_hung_wall.name} waits for Hall Pi's first report")
+        if token
+        else ("no_token", "No token yet", f"{a_hung_wall.name} waits for Hall Pi, which has no token yet")
+    )
+    badge = card.locator(f".wall-badge[data-state='{state}']")
+    expect(badge).to_have_text(re.compile(rf"^○\s*{re.escape(word)}\s*$"), use_inner_text=True)
+    expect(badge).to_have_class(re.compile(r"\bwall-badge-setup\b"))
+    waits = card.locator("p.wall-waits")
+    expect(waits.get_by_role("link", name=words)).to_have_attribute("href", f"#clients?client={hall.id}")
+    expect(card.locator(".wall-badge[data-state='silent']")).to_have_count(0)
+    expect(card.locator("p.note")).to_have_count(0)
+    _expect_reasons_named(ui)
+    expect(card).not_to_contain_text("Not reporting", use_inner_text=True)
 
 
 def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_shown_wall, a_health_reading, a_wall_reading):
@@ -431,11 +484,20 @@ def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, a
 
     The pair the audit saw stacked (finding 6): "… so the wall is dark." over
     "… has not reported …". Each stays said, in one notice, the dark one first.
+    The Player reports and nothing is written for the wall: one that has not
+    reported at all makes the wall wait, a step and no notice (Chunk 62).
     """
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
     hall = services.clients.add_client(name="Hall Pi")
     services.access.issue(hall.id)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    services.clients.record_heartbeat(
+        hall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
@@ -718,12 +780,20 @@ def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_reporting_wall):
     expect(_skip(ui, a_reporting_wall.name)).to_have_count(1)
 
 
-def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui, a_shown_wall):
+def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui, a_quiet_wall):
     """The other half of the gate: something is published, and nothing is showing it."""
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     _expect_reasons_named(ui, "its Player silent")
+    expect(_skip(ui, a_quiet_wall.name)).to_have_count(0)
+
+
+def test_a_wall_waiting_for_its_player_is_not_offered_a_skip(ui, a_shown_wall):
+    """Chunk 62 changed how the wait is said, not what the card offers: no Skip, since nothing reports what is on it."""
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-waits")
+
     expect(_skip(ui, a_shown_wall.name)).to_have_count(0)
 
 

@@ -32,6 +32,7 @@ import { attempt } from "../core/acting.js";
 import { stamp } from "../core/dates.js";
 import { el, emptyState, render } from "../core/render.js";
 import { refresh } from "../core/router.js";
+import { dollars } from "../core/spend.js";
 
 /* How a choice's value reads, by setting. A value with no words here reads as itself. */
 const CHOICE_WORDS = {
@@ -49,7 +50,7 @@ const EMPTY_WORDS = {
 const PAGE_SECTION = "General";
 
 function choiceWords(setting, value) {
-  if (setting.kind === "money") return `$${value}`;
+  if (setting.kind === "money") return dollars(value);
   if (value === "") return EMPTY_WORDS[setting.key] || "None";
   return (CHOICE_WORDS[setting.key] || {})[value] || value;
 }
@@ -130,9 +131,12 @@ function picker(setting, fieldId) {
 }
 
 /* What unattended work has spent this month against its allowance, whatever the standing:
- * the sentence above carries figures only when work may run or the allowance is spent. */
+ * the sentence above carries figures only when work may run or the allowance is spent.
+ * What was spent is the server's words (`summary`, `SpendTotal.words`), "at least"
+ * when a call's cost is unknown, never a figure formatted here (wave 2b, Chunk 62);
+ * the allowance and what is left are figures, said through the one helper. */
 function spendWords(unattended) {
-  return `$${unattended.spent_usd} spent this month of a $${unattended.allowance_usd} allowance; $${unattended.remaining_usd} left.`;
+  return `Spent this month: ${unattended.summary}, of a ${dollars(unattended.allowance_usd)} allowance; ${dollars(unattended.remaining_usd)} left.`;
 }
 
 /* A value typed rather than chosen: dollars to the cent, or a model's name. Sent
@@ -152,7 +156,7 @@ function field(setting, fieldId) {
   });
   control.addEventListener("change", async () => {
     const typed = control.value.trim();
-    const shown = typed === "" ? (EMPTY_WORDS[setting.key] || "nothing").toLowerCase() : money ? `$${typed.replace(/^[$]/, "")}` : typed;
+    const shown = typed === "" ? (EMPTY_WORDS[setting.key] || "nothing").toLowerCase() : money ? dollars(typed.replace(/^[$]/, "")) : typed;
     const changed = await attempt(
       control,
       `set ${setting.label.toLowerCase()} to ${shown}`,

@@ -90,8 +90,10 @@ Dispatch = Callable[[str, Mapping[str, Any]], dict[str, Any]]
 class ReplyCost:
     """What one reply was billed, summed over its model calls, as the provider reported it.
 
-    A call that reported no cost adds nothing here; the reply's log line counts
-    those as `uncosted`, so a short figure is visible rather than silent.
+    A call that reported no cost adds nothing to `cost_usd` and is one of
+    `unknown_calls`: the provider answered it and never said what it cost, so it
+    may have been billed, and the ledger records it as unknown, never as a
+    known $0 (wave 2b, Chunk 62).
     """
 
     cost_usd: Decimal
@@ -100,11 +102,13 @@ class ReplyCost:
     model_id: str | None
     input_tokens: int | None
     output_tokens: int | None
-    #: The model calls that were sent and never answered: the reply was
-    #: cancelled or failed while they ran, with no refusal from the provider to
-    #: say they cost nothing. Each may have been billed; none is in `cost_usd`.
+    #: The model calls whose cost is not known: those answered with no cost on
+    #: them (`_Tally.uncosted`), and those sent and never answered (the reply
+    #: was cancelled or failed while they ran, with no refusal from the provider
+    #: to say they cost nothing). Each may have been billed; none is in `cost_usd`.
     unknown_calls: int = 0
-    #: The model those calls asked for, when the binding named one.
+    #: The model those calls named, the one answering or the one asked for,
+    #: when they all named the same one.
     unknown_model_id: str | None = None
 
 
@@ -256,7 +260,7 @@ class Ask:
                     "uncosted": tally.uncosted,
                     # The figure in words, the one writer's (`SpendTotal.words`):
                     # "at least" when a call reported no cost.
-                    "summary": SpendTotal(cost_usd=tally.cost, unknown_calls=tally.uncosted).words,
+                    "summary": tally.spend.words,
                     "steps": tally.steps,
                     "cards": cards_for(answer, tally.payloads),
                 }
@@ -325,7 +329,7 @@ class Ask:
         either escaping here would leave the client's stream without its last
         line and the thread claimed.
         """
-        if tally.cost <= 0 and not tally.unanswered:
+        if tally.cost <= 0 and not tally.spend.unknown_calls:
             return
         try:
             self._record_cost(tally.reply_cost())
@@ -400,7 +404,10 @@ class _Tally:
     #: What the calls that reported a cost were billed, summed exactly: the
     #: ledger holds money as Decimal, and the stream shows its float.
     cost: Decimal = Decimal(0)
+    #: Calls the provider answered without saying what they cost, and the
+    #: models that answered them: each may have been billed, unknown how much.
     uncosted: int = 0
+    uncosted_models: set[str] = field(default_factory=set)
     #: Calls left running when the reply stopped and not answered by the
     #: provider (`settle_open_calls`): each may have been billed, unknown how much.
     unanswered: int = 0
@@ -453,13 +460,17 @@ class _Tally:
         self.steps += 1
         metadata = getattr(output, "response_metadata", None) or {}
         cost = metadata.get("cost")
+        name = metadata.get("model_name")
+        named = name if isinstance(name, str) and name else None
         if isinstance(cost, int | float):
             # Through its text, so 0.0012 is recorded as 0.0012 and not as the double nearest it.
             self.cost += Decimal(str(cost))
         else:
             self.uncosted += 1
-        if isinstance(name := metadata.get("model_name"), str) and name:
-            self.models.add(name)
+            if named is not None:
+                self.uncosted_models.add(named)
+        if named is not None:
+            self.models.add(named)
         usage = getattr(output, "usage_metadata", None) or {}
         self.input_tokens = _added(self.input_tokens, usage.get("input_tokens"))
         self.output_tokens = _added(self.output_tokens, usage.get("output_tokens"))
@@ -479,17 +490,28 @@ class _Tally:
     def cost_usd(self) -> float:
         return float(self.cost)
 
+    @property
+    def spend(self) -> SpendTotal:
+        """What the reply was billed and how sure that is: every call whose cost is not known counted apart.
+
+        The one writer's figure (`SpendTotal.words`) for every sentence about the
+        reply's cost, the stream's `summary` and the step limit's alike, and the
+        count the ledger's unknown rows are written from (`reply_cost`).
+        """
+        return SpendTotal(cost_usd=self.cost, unknown_calls=self.uncosted + self.unanswered)
+
     def reply_cost(self) -> ReplyCost:
         # One model when every call named the same one. A row naming the last of
         # several would attribute the whole reply's cost to it.
         model_id = next(iter(self.models)) if len(self.models) == 1 else None
-        asked = next(iter(self.unanswered_models)) if len(self.unanswered_models) == 1 else None
+        unknown_models = self.unanswered_models | self.uncosted_models
+        asked = next(iter(unknown_models)) if len(unknown_models) == 1 else None
         return ReplyCost(
             cost_usd=self.cost,
             model_id=model_id,
             input_tokens=self.input_tokens,
             output_tokens=self.output_tokens,
-            unknown_calls=self.unanswered,
+            unknown_calls=self.spend.unknown_calls,
             unknown_model_id=asked,
         )
 
@@ -585,7 +607,8 @@ def said(tool: str, arguments: object) -> str:
 
 
 def _stopped_sentence(limit: int, tally: _Tally) -> str:
-    spent = f" It cost ${tally.cost_usd:.4f}." if tally.steps else ""
+    # The one writer's figure (`SpendTotal.words`): "at least" when a step said no cost.
+    spent = f" It cost {tally.spend.words}." if tally.steps else ""
     return f"Ask stopped after {limit} steps without finishing an answer. Try asking for less at once.{spent}"
 
 

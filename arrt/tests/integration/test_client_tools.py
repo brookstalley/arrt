@@ -518,8 +518,9 @@ async def test_the_walls_of_a_player_still_being_set_up_are_setup_steps_on_both_
 
     Each wall has never reported, which by itself reads `silent`; it has not
     because its Player has not yet been able to, so `GET /api/health` and
-    `art_display(action='status')` both list it among the setup steps, with its
-    Player's state, and never among the troubles.
+    `art_display(action='status')` both name it in its Player's one setup step
+    (Chunk 62: one step for one cause, not a step for the wall beside the
+    Player's), never among the troubles, and both say so in their sentence.
     """
     await ok(server_url, "issue_client_token", client_id=hall)
     await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
@@ -537,12 +538,37 @@ async def test_the_walls_of_a_player_still_being_set_up_are_setup_steps_on_both_
         }
         assert not [t for t in answer["troubles"] if t["about"] in {"wall", "player"}], answer["troubles"]
         names = {entry["wall_id"]: entry["wall_name"] for entry in answer["walls"]}
-        # Walls first, in the walls' order, then the Players.
-        assert [s["about"] for s in answer["setup_steps"]] == ["wall", "wall", "player", "player"]
-        assert [s["subject"] for s in answer["setup_steps"][:2]] == [entry["wall_id"] for entry in answer["walls"]]
+        # One step per Player, each naming the wall that waits for it; no wall's own.
         assert {(s["about"], s["subject"]): (s["state"], s["words"]) for s in answer["setup_steps"]} == {
-            ("wall", wall): ("awaiting_report", f"{names[wall]} waits for Hall Pi's first report"),
-            ("wall", landing): ("no_token", "The landing waits for Spare Pi, which has no token yet"),
-            ("player", hall): ("awaiting_report", "Hall Pi is waiting for its first report"),
-            ("player", spare): ("no_token", "Spare Pi has no token yet"),
+            ("player", hall): ("awaiting_report", f"Hall Pi is waiting for its first report, and so is {names[wall]}"),
+            ("player", spare): ("no_token", "Spare Pi has no token yet, so The landing waits for it"),
         }
+        assert [s["about"] for s in answer["setup_steps"]] == ["player", "player"]
+        assert "has not reported" not in (answer["description"] if answer is route else answer["observation"])
+    # The route's walls say which Player each waits for; the tool's twin is the step.
+    assert {entry["wall_id"]: entry["waiting_for"]["state"] for entry in route["walls"]} == {
+        wall: "awaiting_report",
+        landing: "no_token",
+    }
+
+
+async def test_one_player_with_no_token_showing_two_walls_is_one_step_on_the_route_and_the_status(server_url, hall, wall):
+    """Chunk 62's acceptance on both surfaces: one step naming both walls, one sentence, and no trouble.
+
+    Before, both answered three steps for this household: one for each wall,
+    and the Player's.
+    """
+    await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
+    study = (await ok(server_url, "add_wall", name="The study"))["wall"]["wall_id"]
+    await ok(server_url, "assign_wall", wall_id=study, client_id=hall, output="hdmi-a-2")
+
+    route = (await request("GET", f"{server_url}/api/health")).json()
+    tool = await ok(server_url, "status")
+
+    names = sorted(entry["wall_name"] for entry in route["walls"])
+    one = [("player", hall, "no_token", f"Hall Pi has no token yet, so {names[0]} and {names[1]} wait for it")]
+    for answer in (route, tool):
+        assert [(s["about"], s["subject"], s["state"], s["words"]) for s in answer["setup_steps"]] == one
+        assert not [t for t in answer["troubles"] if t["about"] in {"wall", "player"}], answer["troubles"]
+    said = f"{names[0]} and {names[1]} wait for Hall Pi, which has no token yet."
+    assert route["description"] == tool["observation"] == said

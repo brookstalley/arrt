@@ -23,7 +23,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from arrt.counting import counted
 from arrt.library.months import utc_month_of
 from arrt.library.services.discovery import SpendTotal
 from arrt.library.services.settings import UNATTENDED_ALLOWANCE, UNATTENDED_WORK, SettingsService, Switch
@@ -140,9 +139,11 @@ class UnattendedAllowance:
         allowance = self._settings.value(UNATTENDED_ALLOWANCE)
         spend = self._spend_this_month()
         spent = spend.cost_usd
-        # "at least $1.20" where a call's cost is unknown: the figure is a floor.
-        figure = f"${spent:.2f}" if not spend.unknown_calls else f"at least ${spent:.2f}"
-        unknown = f", with {counted(spend.unknown_calls, 'call')} whose cost is unknown" if spend.unknown_calls else ""
+        # What was spent, in the one writer's words (`SpendTotal.words`): "at
+        # least $1.20, and 1 call whose cost is unknown" where a call's cost is
+        # unknown, the figure being a floor. The allowance is a setting, said to
+        # the cent as Settings › General shows it, not a cost.
+        figure = spend.words
         if not switched_on:
             refusal, sentence = Refusal.OFF, "Unattended work is off, so nothing runs with nobody watching."
         elif not self._has_key:
@@ -152,10 +153,10 @@ class UnattendedAllowance:
             sentence = "The monthly allowance for unattended work is $0.00, so nothing runs with nobody watching."
         elif spent >= allowance or spent + estimate_usd > allowance:
             refusal = Refusal.ALLOWANCE_SPENT
-            sentence = f"This month's unattended allowance is spent: {figure} of ${allowance:.2f}{unknown}."
+            sentence = f"This month's unattended allowance of ${allowance:.2f} is spent: unattended work has spent {figure}."
         else:
             refusal = None
-            sentence = f"Unattended work may run: {figure} of this month's ${allowance:.2f} is spent{unknown}."
+            sentence = f"Unattended work may run: this month's allowance is ${allowance:.2f}, of which it has spent {figure}."
         return Standing(
             switched_on=switched_on,
             allowance_usd=allowance,
