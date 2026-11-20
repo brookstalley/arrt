@@ -282,6 +282,13 @@ Appended while building, each in the plan's form and as vetoable as the ones abo
 Where one changes a chunk's text, the chunk is left as planned and this section is the
 later word.
 
+- **2026-11-19 (Chunk 22), as built:** the Library/Programming store split was taken out of
+  this wave by the owner's ruling ("Let's not worry about library and programming split.
+  Right now, it's not a requirement."), and WAL was not adopted, with the reopening
+  conditions the Goals give; both reasons are in `.prawduct/owner-rulings.md` § "2026-11-19:
+  after wave 1 of the audit fixes, ten rulings", items 9 and 10. No chunk of 2a prepares
+  either.
+
 ## Chunks
 
 ### Chunk 01: Records I — the architecture as built, the re-architecture's status, the seam's rule 3 not built toward
@@ -511,6 +518,19 @@ later word.
   && uv run ruff check . && uv run black --check .`. (`contract/` runs all four suites at
   integration, Chunk 22.)
 - **Model:** Opus-class, high: a released contract's shape is a lock-in decision.
+- **Note, 2026-11-19 (built; Chunk 22):** two departures from the text above, both
+  taken by the builder and kept. `adequacy.py` *quotes* the bottom weight (1.15) with a
+  test that fails if it differs from `defaults.bottom_weight`, instead of reading it
+  through the package at run time: `arrt-contract` is a dev dependency of the server and
+  the image's app stage installs without dev dependencies, so reading it would stop the
+  server starting. The media fixture the chunk relied on no longer existed, so
+  `manifest.v2/valid/media-on-another-host.json` and its must-refuse twin
+  `media-url-empty.json` were added. Not built: a must-refuse fixture per schema
+  constraint (many constraints still have none), and a duplicate-label-name fixture (no
+  schema refuses one). The wall heartbeat answers `422` in FastAPI's own body, not the
+  contract's error shape, for a body that is not a JSON object; `transport.json` states
+  it as it is, and the fix is wave 2b's. Chunk 22 also corrected `manifest.v2`'s title and
+  description, which still said it was a draft nothing read.
 
 ### Chunk 04: CI that survives a pool outage (ruling 4)
 
@@ -703,6 +723,18 @@ later word.
 - **Verification ceiling:** `testament run --json --suite curation --
   arrt/tests/system/test_a_real_player.py`.
 - **Model:** Opus-class, high: two processes, two environments, one verdict.
+- **Note, 2026-11-19 (built; Chunk 22):** four differences from the text above. (1) The
+  verification line needs the marker: `-m player_e2e` is not in `--suite curation --
+  arrt/tests/system/test_a_real_player.py`, and the marker is deselected by `addopts`, so
+  as written it collects nothing; the working commands are in `docs/testing.md` § The
+  real-Player test. (2) The Player is installed by `git fetch` of the pinned commit and
+  `uv sync --frozen --no-dev` into a cache outside the repository, not by `uv tool run
+  --from`: that form ignores the Player's lockfile, so it would test a Player no Pi runs.
+  (3) `player-ref.txt` pins a commit of the Player's integration branch
+  (`fix/audit-wave-2`), not a tag, because no Player tag carrying the file outputs
+  existed; it moves to the Player's release commit when one is cut. (4) The `player` job in
+  `image.yml` has never run: the docker path (`ARRT_SERVER_IMAGE`) is proven only by a
+  pull request into `main` (`operator-verification.md`).
 
 ### Chunk 09: A type checker — mypy, the seam strict, the gate, the first modules
 
@@ -742,6 +774,10 @@ later word.
   arrt/tests/unit/test_wikidata_client.py arrt/tests/unit/test_image_pool.py
   arrt/tests/unit/test_watches.py arrt/tests/unit/test_container.py`.
 - **Model:** Opus-class, medium.
+- **Note, 2026-11-19 (built; Chunk 22):** the strict seam names `--strict`'s eight flags
+  one by one in the override, not `strict = true`: a `strict` key inside an override turned
+  strict on for every module (measured: ten new errors outside the seam).
+  `arrt.services.conformance` is the seventh strict module.
 
 ### Chunk 10: Types II — the Library's sources, services and acquisition
 
@@ -784,6 +820,10 @@ later word.
   arrt/tests/unit/test_ask_agent.py arrt/tests/unit/test_ask_cards.py
   arrt/tests/integration/test_browser_surface.py`.
 - **Model:** Sonnet-class, high.
+- **Note, 2026-11-19 (built; Chunk 22):** the override list is **empty**, not "reduced to
+  `arrt.mcp.*`": no module is excused from `uv run mypy`, `arrt.mcp` included.
+  `tests/preferences/test_type_gate.py` still holds the shape, and wave 2b's Chunk 45 must
+  keep `uv run mypy` clean while it rewrites that surface.
 
 ### Chunk 12: Browser I — the guard, the conversion table, the two flaky files
 
@@ -986,6 +1026,11 @@ later word.
   arrt/tests/integration/test_startup.py arrt/tests/contract/test_player_surface.py`.
 - **Model:** Opus-class, high. A keystone: the coordinator reads the first commit (the
   guard re-pointed and seen to fire) before 21.
+- **Note, 2026-11-19 (built; Chunk 22):** `on_work_changed` stays on the facade (it composes
+  the publisher's `reconcile` with the themes' `offer_destinations`), and `get_wall`,
+  `get_theme` and `pace` were added to `FeedPublisher` as well as kept on the facade.
+  `feeds.py` logs as `arrt.programming.display`, as the four modules of Chunk 21 do, and a
+  test holds that name.
 
 ### Chunk 21: `DisplayService` II — scenes, reports, themes and walls; the facade
 
@@ -1362,6 +1407,9 @@ new fields in the one break the owner allowed; **last** 46. 2b's own decisions:
   arrt/tests/integration/test_theme_and_display_tools.py arrt/tests/integration/test_mcp_preview_and_sync.py
   arrt/tests/unit/test_surface_parity.py arrt/tests/unit/test_ask_agent.py`.
 - **Model:** Opus-class, high.
+- **Note, 2026-11-19 (Chunk 22, from 2a's Chunk 11):** the type override list is already
+  empty, so "`arrt.mcp.*` leaving the type override list" is done: this chunk keeps
+  `uv run mypy` clean while it rewrites `arrt/src/arrt/mcp/`, and puts no override back.
 
 ### Chunk 46: Dated history out of the docstrings (2b)
 

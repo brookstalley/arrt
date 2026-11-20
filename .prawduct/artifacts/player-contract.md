@@ -139,7 +139,8 @@ field asks for it as a change to the package.
   - `client.v1`: a fixture of a Player with several labels and no walls, and its
     twin.
   - `manifest.v2`: a fixture whose `url` names another host, and its twin, an
-    empty `url`, which a Player must refuse.
+    empty `url`, which a Player must refuse. Its title and description no longer
+    call it a draft nothing reads.
   - `vectors/mat-geometry.json`: `defaults.bottom_weight`, and its `_about`
     corrected to name what holds the vectors today.
   - `contract/released/1.0.0/` and `1.1.0/`, `released()`, and the check above.

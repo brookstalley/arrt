@@ -16,6 +16,23 @@ Do not replace that with an in-process ASGI transport: Starlette does not run a
 mounted sub-app's lifespan, and the lifespan is what makes the MCP mount work,
 so an in-process test would pass against an app that fails every real request.
 
+**`arrt/tests/system/` runs the product as it is assembled, in the curation
+suite and in the image's test stage.** `test_migration_chain.py` opens a
+catalogue each past release left (`arrt/tests/fixtures/catalogues/`, one SQL dump
+per release whose schema changed, made by that release's own code, from its git
+tag, by `arrt/tools/old_catalogue.py`) through the call the server makes, and
+asserts what survived, what was dropped, and the copy taken first;
+`test_restore.py` takes a backup generation from a running server, restores it by
+the runbook's steps (written as code in that file) in the same art root and in a
+new one, and starts the server on it. Nothing there reads git or the network at
+test time; a new release whose schema changed gets its dump by adding its tag to
+the tool and running it where the tags are. The tests start the server as a
+process, so they hold what an in-process fixture cannot: that a stale
+`-journal` beside a restored catalogue silently undoes the restore
+(`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`). The real
+Player's test is another marker of the same directory
+(§ The real-Player test).
+
 **That suite runs across cores** — `-n auto` is in the curation plane's
 `addopts`, so `uv run pytest` is already parallel (118s → 21s, measured
 2026-08-05). **To debug a failure, run it here with `uv run pytest … -n0`**:
@@ -159,7 +176,9 @@ was written.
 | `assert loc.get_attribute(a).startswith(s)` / `.endswith(s)` | 15 | `expect(loc).to_have_attribute(a, re.compile("^" + re.escape(s)))` / `re.escape(s) + "$"` |
 | `assert s in loc.get_attribute(a)` | 15 | `expect(loc).to_have_attribute(a, re.compile(re.escape(s)))`: a substring, as `in` was |
 | `assert s not in (loc.get_attribute(a) or "")` | 2 | `expect(loc).not_to_have_attribute(a, re.compile(re.escape(s)))`, under the anchor rule; it passes when the attribute is absent, as `or ""` did |
-| `assert loc.get_attribute(a) is None` / `is not None` | 11 | `expect(loc).not_to_have_attribute(a)` / `expect(loc).to_have_attribute(a)` |
+| `assert loc.get_attribute(a) is None` / `is not None` | 11 | `expect(loc).not_to_have_attribute(a)` / `expect(loc).to_have_attribute(a)`: both take no value (measured on 1.62: present passes `to_have_attribute`, absent passes `not_to_have_attribute`) |
+| `assert s in loc.all_inner_texts()` / `not in`, one item of a list | — | `expect(loc).to_contain_text([re.compile("^" + re.escape(s) + "$")], use_inner_text=True)` / `not_to_contain_text([…])`: hazard 11 |
+| a class tested for, `"x" in (loc.get_attribute("class") or "").split()` | — | `expect(loc).to_have_class(re.compile(r"(^\|\s)x(\s\|$)"))`: hazard 12 |
 | `assert loc.is_visible()` / `not loc.is_visible()` | 59 / 19 | `expect(loc).to_be_visible()` / `expect(loc).to_be_hidden()`, under the anchor rule |
 | `assert loc.is_hidden()` | 35 | `expect(loc).to_be_hidden()`, under the anchor rule |
 | `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` |
@@ -231,6 +250,53 @@ asserted against it).
     claim has no retrying form). A `has_text` *string* is a case-insensitive
     substring and is fine for choosing a row to assert on.
 
+11. **Membership of one item among several.** `to_contain_text([..])` on a locator
+    that matches several elements passes when the list's items are found, in order,
+    among the elements, and a *string* in the list is a substring: `["16th"]`
+    passes on an item `16th century`, where `==` on the item would not. Right:
+    one anchored regex, `to_contain_text([re.compile("^" + re.escape(s) + "$")],
+    use_inner_text=True)`; and `not_to_contain_text([…])` for absence, under the
+    anchor rule. With `use_inner_text=True` the regex sees what a person reads
+    (a `text-transform: uppercase` item matches `^OIL PAINT$`, and a
+    `display: none` child's words are not in it); without it, the text content.
+    The same call on a *bare string* and several elements fails, so it is a list
+    or a narrower locator. Measured on 1.62 in a page set with `set_content`.
+12. **A class.** `to_have_class("x")` is the *whole* attribute (`card selected`
+    is not `selected`), and `re.compile(r"selected")` also passes on
+    `unselected`. `\b` treats `-` as a boundary, so `\bquiet\b` passes on
+    `quiet-hover`. Right: `re.compile(r"(^|\s)quiet(\s|$)")`, which fails on
+    `quiet-hover` and on `unselected`; its negation is `not_to_have_class` of
+    the same pattern, under the anchor rule.
+13. **`:text-is()` matches the deepest element.** `h2:text-is('Walls')` finds no
+    element when the heading wraps its words in a `<span>` (the span is the one
+    that matches), where `get_by_role("heading", name="Walls", exact=True)` does.
+    A `wait_for_selector("h2:text-is('Walls')")` on such a heading waits out its
+    timeout: select by role, or by the span.
+14. **A row picked by its title.** `get_by_text(title)` is a case-insensitive
+    substring match over the text content, hidden words included, so a title that
+    is part of another row's title (or of a hidden year or subtitle in its cell)
+    picks several rows and `expect` refuses it. `get_by_text(title, exact=True)`
+    picks the element whose whole text is the title, and the whole text still
+    counts the cell's hidden words: a cell `Water <span hidden>Lilies</span>` is
+    not `Water`. Narrow to the column (`td:nth-of-type(2)`) first, as the Artist
+    page's row helper does.
+15. **A No is read once the page is quiet.** After a dialog is declined, the
+    client's request, if it wrongly sends one, goes out a moment later, so a read
+    of the server's state straight after the dialog closes sees the state before
+    it and passes by timing. Measured: a client that removes whether or not it
+    was confirmed, a read at once says "kept", a read after
+    `wait_for_load_state("networkidle")` says "removed". Right: `expect(dialog)
+    .to_be_hidden()` (the positive anchor), then `networkidle`, then the read.
+    Old tests of this kind (Watches, Players) passed under a client that removed on Cancel.
+16. **A list a request handler fills.** Where a test collects requests in a
+    Python list from a `page.on("request", …)` handler and reads it after
+    `with page.expect_request(…)`, one converting delegate found the list short
+    at the read and made one further awaited call (a Playwright call, any) before
+    it. That was not reproduced in a bare page (300 trials of a click that sends
+    one request, list full at the exit every time), so treat it as a reported
+    hazard of the wiring, not a measured rule: if such a test ever flips, look
+    here first.
+
 #### Where there is no mechanical form
 
 These are left for a person, and the chunk that meets one says in its report
@@ -257,8 +323,8 @@ what it did (counts at the commit that wrote the guard):
   `# one-shot:`; it is not a race when the client writes both in one turn.
 - **Text arithmetic** — `.split(" · ")[0]`, `.replace(…)`, `.count(s) == 1` ("said
   once"), `sorted(…)`, `len(…)`, comprehensions over `all_inner_texts()`
-  (`all(t.startswith("From ") for t in …)`), membership of one item in a list
-  (`s in loc.all_inner_texts()`), and `<` or `<=` on a count: 47. Where
+  (`all(t.startswith("From ") for t in …)`), and `<` or `<=` on a count: 47.
+  (Membership of one item in a list has a retrying form, hazard 11.) Where
   the length is known, a list of anchored regexes keeps it
   (`to_have_text([re.compile("^From ")] * 3, use_inner_text=True)`); "said
   once" is a regex with a negative lookahead or a count of matching elements,
@@ -336,6 +402,22 @@ Run one when your work touches that client. Otherwise leave the **three
 `live_*` markers** to `.github/workflows/api-drift.yml`, which runs the two free
 tiers weekly and the paid one monthly — drift is on the provider's schedule, not
 on our commit rate.
+
+**A probe red for a cause nobody has established is listed, not left to turn the
+alarm permanently red.** `.github/known-blocked.json` has one row per probe (its
+test, the issue where the cause is worked, an expiry no more than 60 days out,
+and the reason, which says "not established" where it is not);
+`.github/scripts/known_blocked.py` owns the shape. `judge_drift_probes.py`, not
+pytest's exit code, decides whether the drift job fails: a red probe that is
+listed is excused and named in the job summary with its expiry; a red probe that
+is not listed fails the job; a listed probe that is green fails it, telling
+whoever reads it to delete the row; an expired or malformed row fails by name.
+A probe that never ran (skipped for want of a key, no report, nothing collected)
+is never excused: that is `assert_tests_ran.py`'s finding, and no row covers it.
+`drift-freshness.yml` counts a tier fresh when its only red probes are unexpired
+rows, and checks every row's expiry on each push to `main`.
+`tests/test_known_blocked.py`, `tests/test_judge_drift_probes.py` and
+`tests/test_check_drift_freshness.py` hold this at the repository root.
 
 **`llm_eval` is not in that workflow and is not meant to be.** It drives the
 surface with a real model, so it spends and it can reach the same goal by a

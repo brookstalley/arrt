@@ -42,9 +42,20 @@ Three independent projects, three suites.
 run --json` runs all four on the pool, the browser suite on the runners with
 Chromium; `--suite governance|curation|browser|contract` picks one, and a path
 after `--` picks tests. `.testament.toml` says how each runs. CI runs every suite
-on the pool (`.github/workflows/tests.yml`); the commands above are the local
+on the pool (`.github/workflows/tests.yml`); when the pool cannot answer for ten
+minutes it runs lint and the governance, curation and contract suites on the
+GitHub runner instead, never the browser suite, and its summary says so
+(`docs/testing.md` § The browser suite). The commands above are the local
 equivalents, and testament's own fallback runs `.testament.toml`'s commands here. The live suites
 (`live_*`, `llm_eval`) are not on the pool and stay on this machine.
+
+**Lint includes the type check**, `uv run mypy` in `arrt/` and in `contract/`
+(the root is not type-checked); CI's lint step runs both, and no module is
+excused from it. **`arrt/tests/system/` is part of the curation suite**: it runs
+the server as a process over catalogues past releases left. **The real-Player
+test is marker `player_e2e`, off by default** (it fetches Arrt Player from
+GitHub): its command and what it needs are in `docs/testing.md` § The
+real-Player test.
 
 **All three must pass.** `contract/` is the `arrt-contract` package
 (`player-contract.md` § The package): every suite reads the schemas, fixtures,

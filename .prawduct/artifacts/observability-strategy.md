@@ -319,7 +319,7 @@ between planes.
 > then says the store could not be read in full rather than "no pictures yet": an
 > unreadable store must never read as an empty one.
 
-> **What each wall has shown, added 2026-10-15** (`programming/display.py`,
+> **What each wall has shown, added 2026-10-15** (now `programming/reports.py`, behind the `programming/display.py` facade,
 > `build-plan-shown-record.md`). Written on each heartbeat; neither refuses the
 > heartbeat, which is the Player's.
 >
@@ -583,7 +583,17 @@ copies pruned; INFO `catalogue.snapshot_kept` that an earlier copy stands, taken
 the same second or before the migrations a failed start left unfinished; WARNING
 `catalogue.snapshot_prune_failed` that an older copy could not be removed, which
 stops nothing; and ERROR `catalogue.snapshot_failed` that the copy could
-not be written, which stops the start with the catalogue as it was. Each pass
+not be written, which stops the start with the catalogue as it was. Every open
+of the catalogue records which release opened it (`catalogue_opened`,
+`data-model.md`): ERROR `catalogue.newer_release_refused` says the file was last
+opened by a newer release than this one (or by one whose name this release cannot
+read), names both releases, the path and the instant, and stops the start before
+anything is copied or changed, at every entry point; WARNING
+`catalogue.migrations_unfinished` says the last open began its migrations and did
+not finish them, and this open finishes them. The refusal protects only a
+downgrade to a release that itself carries the record (`operational-spec.md`
+§ Backup and Restore): v0.11.0's code, measured, opens a file a newer release
+migrated without a word. Each pass
 that succeeds logs INFO `backup.completed` with the generation's `path`, its
 `bytes`, the generations `kept` and how many were `removed`, and, since
 2026-11-19, `copy_seconds`: the monotonic time its `VACUUM INTO` took, which is
@@ -774,6 +784,20 @@ the probe goes green**, and that is deliberate: a green run proves the probe
 passed, not that anyone reconciled the findings document against what the API now
 returns. The operator closes it, having done that work.
 
+**A probe red for a cause nobody has established is known-blocked, so that a new
+red still shows (owner's ruling of 2026-11-19, `.prawduct/owner-rulings.md` item
+5).** `.github/known-blocked.json` lists each such probe with its issue, the
+reason (or "not established"), and an expiry no more than 60 days out;
+`.github/scripts/judge_drift_probes.py`, not pytest's exit code, decides whether
+the job fails. A red probe that is listed is excused and named in the job summary
+with its expiry, so the excuse is visible on every run; a red probe that is not
+listed fails the job and opens or comments on its issue as above; a listed probe
+that is green fails the job ("delete the row"); an expired row fails by name. A
+probe that never ran is never excused. While a probe is excused the weekly run
+no longer comments on its issue (#109 and #110 were being commented on every
+week with nothing new): the issue is where the cause is worked, and the
+expiry is what brings the question back.
+
 *Why an issue rather than email.* GitHub's default Actions email for a scheduled
 run goes to whoever last edited the cron file, is silently absent for anyone whose
 Actions notifications are off, and breaks the moment somebody else touches the
@@ -789,7 +813,10 @@ signal is a successful run, and its *absence* over an interval is the fault.
 succeeded — **free after 21 days, paid after 75** — reading the tiers apart,
 because a healthy monthly run would otherwise vouch for three missed Mondays.
 Both known routes land here: a workflow not on the default branch has never run,
-and a schedule GitHub disabled for repository inactivity stops refreshing.
+and a schedule GitHub disabled for repository inactivity stops refreshing. A tier whose only red probes are unexpired known-blocked rows counts fresh, by the
+job's own conclusion; what this check owns of the file is its age, since a row that
+expired fails nothing on a day no probe job runs, so on every push to `main` each
+row is checked and an expired one fails by name.
 
 *Its limit, stated rather than implied.* That job runs only on a push to `main`,
 so absence is detected at the next push, not continuously. A pull request cannot
@@ -913,6 +940,6 @@ signal exists:
 | A work silently absent from a theme | **The manifest build reports exclusions** with a per-work reason — see `architecture.md`. Not a log line: a first-class UI surface |
 | Mat colour degraded to the dominant-colour fallback | Recorded on the record itself (`MatColor.method`), not merely logged. The 2024 code degrades invisibly |
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
-| A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. See § The one surface the panel does not cover |
+| A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. A probe listed in `.github/known-blocked.json` (cause not established, expiry within 60 days) is excused and named in the summary instead, and only a probe that is red and not listed opens one. See § The one surface the panel does not cover |
 | The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
-| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
+| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request, after a lint step that includes the type check; when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, never the browser suite, and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |

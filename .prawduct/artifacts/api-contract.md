@@ -2067,7 +2067,7 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
-## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
+## The Server↔Player surface — BUILT 2026-09-30, since reshaped (clients 2026-10-02; major 2 alone 2026-10-10)
 
 > **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
 > `arrt/src/arrt/http/player.py` mounts them at the root beside `/api`,
