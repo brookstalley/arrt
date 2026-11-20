@@ -596,7 +596,11 @@ def test_the_image_suite_builds_what_image_yml_builds():
 
 
 @pytest.mark.parametrize(
-    "old,new", [("test-report", "app"), ("linux/amd64", "linux/arm64"), (f"repo={REPO}", f"repo={REPO / 'arrt'}")]
+    "old,new",
+    [("test-report", "app"), ("linux/amd64", "linux/arm64"), (f"repo={REPO}", f"repo={REPO / 'arrt'}")],
+    # Named, never derived: the third case's values hold the checkout's path, which differs
+    # between the pool's workspace slots, so a derived id is not the same test on each.
+    ids=["another-target", "another-platform", "another-repo-context"],
 )
 def test_an_image_suite_building_something_else_is_refused(old, new):
     command = [word.replace(old, new) for word in _image_stage_module().build_command(pathlib.Path("/out"))]
