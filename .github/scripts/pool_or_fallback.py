@@ -19,8 +19,10 @@ a pass:
   `verdict: unavailable` with exit 75, or the pool did not accept the run; or the
   pool accepted the run and gave no verdict by the step's deadline. The workflow
   then runs lint and every suite `.testament.toml` declares that needs no labelled
-  runner on GitHub's runner, directly with uv; the suites that `require` a label (the
-  browser suite needs Chrome) are not run, and the summary and the second job say so.
+  runner and is not the pool's alone on GitHub's runner, directly with uv; the
+  suites that `require` a label (the browser suite needs Chrome) and those in
+  `POOL_ONLY` (the real-Player suite) are not run, and the summary and the second
+  job say so by name.
 - **none**: nothing ran, and the job fails: no key (a pull request from a fork), the
   console refused the key or the address, the wheel did not match its digest, the
   client could not be installed, `testament run` ended in a way the contract does not
@@ -29,8 +31,9 @@ a pass:
   ran out of time (a red is a result, never a fallback).
 
 **Time.** No attempt outlives the step. The whole pool step has `DEADLINE_S`, twenty
-minutes, about three times a healthy full run of the four suites on the pool (six to
-seven). A run the pool has not accepted within `ACCEPT_S` is stopped and retried as
+minutes, about three times a healthy full run of the suites on the pool (six to
+seven minutes for four of them, 2026-11-19; the fifth, the real-Player suite, runs
+beside them). A run the pool has not accepted within `ACCEPT_S` is stopped and retried as
 "could not answer"; a run the pool accepted and still holds at the deadline is
 stopped and sent to the fallback. The client prints nothing between "collected" and
 the first failure, so a run whose tests are running cannot be told from one gone
@@ -73,7 +76,8 @@ from typing import IO, Protocol
 BUDGET_S = 600
 BACKOFF_S = (15, 30, 60, 120)
 #: The whole pool step's time, installs and every run included: about three times a
-#: healthy full run on the pool (six to seven minutes for the four suites, 2026-11-19).
+#: healthy full run on the pool (six to seven minutes for four suites, 2026-11-19; the
+#: real-Player suite runs beside them).
 #: `tests.yml` gives the step two minutes more than this, and the job room for this,
 #: every other step and the fallback's (`tests/test_ci_fallback.py` holds the sums).
 DEADLINE_S = 1200
@@ -93,10 +97,28 @@ _CURL_UNREACHABLE = {5, 6, 7, 18, 28, 35, 52, 55, 56, 92}
 #: are a refused key or a wrong address, which the fallback must not paper over.
 _HTTP_UNAVAILABLE = {408, 429}
 
+#: Suites the fallback never runs on GitHub's runner though they need no labelled runner,
+#: each with why. The owner, 2026-11-20 (`.prawduct/owner-rulings.md`): "We should
+#: minimize CI and prioritize local tests. We are almost out of ci minutes." The
+#: real-Player suite installs Arrt Player from GitHub and runs it for a minute or more,
+#: so it is the pool's alone, and an outage of the pool leaves it out by name, as the
+#: browser suite is left out for want of Chrome.
+POOL_ONLY = {
+    "player": "is the pool's alone, so GitHub's minutes are not spent on it (the owner's ruling of 2026-11-20)",
+}
+
+#: Every suite a fallback leaves out, by its name in `.testament.toml`, in the words the
+#: summary and the second job use for it. Which suites they are is the manifest's (a
+#: `requires`) and `POOL_ONLY`'s; this quotes them, and `tests/test_ci_fallback.py` fails
+#: when the two differ, so no headline names a suite the fallback runs or omits one it
+#: leaves out. The second job reads no manifest: its checkout is this directory alone.
+LEFT_OUT = {"browser": "browser", "player": "real-Player"}
+_LEFT_OUT = " and ".join(LEFT_OUT.values()) + (" suites" if len(LEFT_OUT) > 1 else " suite")
+
 #: The words the summary opens with, one per mode, and the one for no record at all.
 HEADLINES = {
-    "pool": "Ran on the pool: every suite, the browser suite included.",
-    "fallback": "The pool was unavailable; ran here, on GitHub's runner, without the browser suite.",
+    "pool": f"Ran on the pool: every suite, the {_LEFT_OUT} included.",
+    "fallback": f"The pool was unavailable; ran here, on GitHub's runner, without the {_LEFT_OUT}.",
     "none": "Nothing ran.",
 }
 NO_RECORD = "Nothing ran: the pool step recorded no decision (lint failed before it, or the job was cancelled)."
@@ -111,12 +133,15 @@ UNREADABLE = "the pool could not give a verdict I can read"
 #: The second job's name, and what it says after a fallback. Not a required check: an
 #: outage must not block a merge (ruling 4 of 2026-11-19); this is the mark, not
 #: prose, that a tree has no browser verdict.
+#: Its name still says the browser suite alone, the name every pull request shows; its
+#: message names every suite a fallback leaves out.
 BROWSER_JOB = "The browser suite ran on the pool"
 BROWSER_NO_VERDICT = (
-    "The browser suite has no verdict for this tree: the pool could not answer, and the fallback ran every "
-    "other suite on GitHub's runner without it. To get one, re-run all of this workflow's jobs once the pool "
-    "is back, or run `testament run --json=summary --suite browser` on this branch's head and put its "
-    "request id on the pull request."
+    f"The {_LEFT_OUT} have no verdict for this tree: the pool could not answer, and the fallback ran every "
+    "other suite on GitHub's runner without them. To get them, re-run all of this workflow's jobs once the "
+    "pool is back, or run `testament run --json=summary "
+    + " ".join(f"--suite {name}" for name in LEFT_OUT)
+    + "` on this branch's head and put its request ids on the pull request."
 )
 
 
@@ -277,16 +302,18 @@ def fallback_plan(manifest: dict) -> tuple[dict[str, str], dict[str, str]]:
     """The suites the fallback runs, each with its report's path under the output directory, and those it does not.
 
     Derived from `.testament.toml`: a suite that `requires` a runner label (the browser
-    suite needs `chrome`) runs only where the pool's labelled runners are, and every
-    other suite runs here. A suite added to the manifest is therefore expected of the
-    fallback the day it is added, and `assert_tests_ran.py` fails the job until the
-    workflow runs it.
+    suite needs `chrome`) runs only where the pool's labelled runners are, a suite in
+    `POOL_ONLY` runs only on the pool by ruling, and every other suite runs here. A
+    suite added to the manifest is therefore expected of the fallback the day it is
+    added, and `assert_tests_ran.py` fails the job until the workflow runs it.
     """
     reports, not_run = {}, {}
     for name, suite in manifest.get("suites", {}).items():
         needs = suite.get("requires") or []
         if needs:
             not_run[name] = f"needs a runner labelled {', '.join(needs)}, which only the pool has"
+        elif name in POOL_ONLY:
+            not_run[name] = POOL_ONLY[name]
         else:
             reports[name] = f"fallback/{name}.xml"
     return reports, not_run
@@ -669,6 +696,23 @@ def _junit_counts(path: Path) -> str:
     return f"{total['tests']} collected, {total['failures']} failed, {total['errors']} errored, {total['skipped']} skipped"
 
 
+def _pool_suite_lines(path: Path) -> list[str]:
+    """One line per suite in the pool's merged report (`tests.yml`'s `all.xml`), so a reader sees each by name."""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return ["**No merged report** (`all.xml`), so no suite's counts can be shown; the skip guard's step says why."]
+    suites = root.findall(".//testsuite") or ([root] if root.tag == "testsuite" else [])
+    lines = []
+    for s in suites:
+        counts = {k: int(s.get(k, 0)) for k in ("tests", "failures", "errors", "skipped")}
+        lines.append(
+            f"- the {s.get('name')} suite, on the pool: {counts['tests']} collected, {counts['failures']} failed, "
+            f"{counts['errors']} errored, {counts['skipped']} skipped"
+        )
+    return lines
+
+
 def _attempt_line(a: Attempt) -> str:
     if a.step == "install":
         said = f"curl exit {a.curl_exit}" + (f", HTTP {a.http_status}" if a.http_status else "")
@@ -726,6 +770,7 @@ def summary_lines(out: Path) -> tuple[list[str], list[str]]:
     if decision.mode == "pool":
         lines.append("Lint and format ran on GitHub's runner; every suite ran on the pool.")
         lines += _envelope_lines(out, notes)
+        lines += _pool_suite_lines(out / "all.xml")
         lines.append("")
     lines.append("Attempts at the pool:")
     lines += [_attempt_line(a) for a in decision.attempts] or ["- none"]
@@ -740,7 +785,7 @@ def summary_lines(out: Path) -> tuple[list[str], list[str]]:
 def browser_verdict(mode: str) -> tuple[int, str]:
     """The second job's exit and its one line, from the first job's mode."""
     if mode == "pool":
-        return 0, "The browser suite ran on the pool, in the run whose verdict the required check carries."
+        return 0, f"The {_LEFT_OUT} ran on the pool, in the run whose verdict the required check carries."
     if mode == "fallback":
         return 1, f"::error title={BROWSER_JOB}::{BROWSER_NO_VERDICT}"
     return 1, (

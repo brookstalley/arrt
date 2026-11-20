@@ -4,9 +4,9 @@
 # actions minutes" (`.prawduct/owner-rulings.md`). When the pool cannot answer, the job
 # falls back, because an outage must not block every merge (ruling 4 of 2026-11-19).
 #
-# - All four suites, governance, curation, browser and contract, run on the pool:
-#   `testament run` with no `--suite`, so a suite added to the manifest is in CI the day it
-#   is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
+# - All five suites, governance, curation, browser, player (the real-Player test: a real
+#   Arrt Player against the server) and contract, run on the pool: `testament run` with no
+#   `--suite`, so a suite added to the manifest is in CI the day it is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
 #   reads the report this run writes, with every declared suite required to run something.
 # - The type check runs there too, once per change: the governance suite's
 #   `tests/preferences/test_type_gate.py` runs mypy in `arrt/` and `contract/` with each
@@ -26,16 +26,17 @@
 #     would hide the failure. A refused key, a wrong address or a wheel that fails its
 #     digest is not an outage: nothing runs and the job fails.
 #   - It runs lint (already done, above) and, directly with uv, every suite that needs no
-#     labelled runner: governance, curation and contract. Not the browser suite, which
-#     needs Chrome and is the heavy one. That is the trade with the 2026-11-18 ruling:
-#     minutes are spent on suites only during an outage. `tests/test_ci_fallback.py` holds
-#     both.
+#     labelled runner and is not the pool's alone: governance, curation and contract. Not
+#     the browser suite, which needs Chrome and is the heavy one, nor the real-Player
+#     suite, the pool's alone by the owner's ruling of 2026-11-20 ("We are almost out of
+#     ci minutes"). That is the trade with the 2026-11-18 ruling: minutes are spent on
+#     suites only during an outage. `tests/test_ci_fallback.py` holds both.
 #   - The required check, "Lint, then every suite", is then green on what ran, so an
 #     outage blocks no merge. The second job, "The browser suite ran on the pool", is not
 #     required: it is green when the pool gave the verdict and red after a fallback, the
-#     machine-readable mark that the tree has no browser verdict. Nothing else gives it
-#     one later: no workflow runs on a push to `develop` or `main`. To get one, re-run all
-#     jobs once the pool is back, or run the browser suite on the pool by hand
+#     machine-readable mark that the tree has no browser or real-Player verdict. Nothing
+#     else gives it one later: no workflow runs on a push to `develop` or `main`. To get
+#     one, re-run all jobs once the pool is back, or run both suites on the pool by hand
 #     (`docs/testing.md` § The browser suite).
 # - Every step has a ceiling, and the ceilings add up to no more than the job's, so a hung
 #   pool leaves the fallback, the guard and the summary their time. `tests/test_ci_fallback.py`
@@ -133,7 +134,8 @@ jobs:
           OUT="$RUNNER_TEMP/$OUT_DIR"
           python3 .github/scripts/pool_or_fallback.py pool --out "$OUT" -- testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback
       # The fallback: only after `mode=fallback`, never after a verdict. Each suite
-      # `.testament.toml` declares with no `requires`, by the project's own command from
+      # `.testament.toml` declares with no `requires` and not in the driver's `POOL_ONLY`
+      # (the real-Player suite is the pool's alone), by the project's own command from
       # CLAUDE.md, scoped to the manifest's selection (a bare `cd arrt && uv run pytest`
       # collects the browser and live modules, whose skips the guard fails on) and writing a
       # report named for its suite. `!cancelled()` so one red suite does not hide the next.

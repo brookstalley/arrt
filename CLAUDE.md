@@ -39,14 +39,16 @@ Three independent projects, three suites.
 | Format | `uv run black .` | `cd arrt && uv run black .` | `cd contract && uv run black .` |
 
 **Run the suites through testament** (`AGENTS.md` § Running tests): `testament
-run --json` runs all four on the pool, the browser suite on the runners with
-Chromium; `--suite governance|curation|browser|contract` picks one, and a path
-after `--` picks tests. `.testament.toml` says how each runs. CI runs every suite
+run --json` runs all five on the pool, the browser suite on the runners with
+Chromium; `--suite governance|curation|browser|player|contract` picks one, and a
+path after `--` picks tests. `player` is the real-Player test, a real Arrt Player
+against the server (`docs/testing.md` § The real-Player test). `.testament.toml`
+says how each runs. CI's required check, "Lint, then every suite", runs all five
 on the pool (`.github/workflows/tests.yml`); when the pool cannot answer for ten
 minutes it runs lint and the governance, curation and contract suites on the
-GitHub runner instead, never the browser suite; its summary says so, and the
-non-required check "The browser suite ran on the pool" goes red (`docs/testing.md`
-§ The browser suite). The commands above are the local
+GitHub runner instead, never the browser or real-Player suite; its summary says
+so, and the non-required check "The browser suite ran on the pool" goes red
+(`docs/testing.md` § The browser suite). The commands above are the local
 equivalents, and testament's own fallback runs `.testament.toml`'s commands here. The live suites
 (`live_*`, `llm_eval`) are not on the pool and stay on this machine.
 

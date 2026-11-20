@@ -51,6 +51,31 @@ command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/p
 default_selection = ["arrt/tests/browser"]
 requires = ["chrome"]
 
+# The real-Player test: a real Arrt Player, installed from GitHub at the commit
+# `arrt/tests/system/player-ref.txt` names, against the server as a process
+# (`docs/testing.md` § The real-Player test). A suite of its own so that `tests.yml`,
+# which runs every suite this file declares, runs it on every pull request inside
+# the required check (build-plan-audit-wave-2b.md, Chunk 29's DECISION). It is the
+# curation suite's command with `-m player_e2e`: the curation plane's addopts
+# deselect it from every other run, and this `-m` replaces theirs.
+#
+# No `requires`: every runner may take it. It runs in this project's container, which
+# carries `git` and `uv` (`.devcontainer/Dockerfile`), and needs from the host only the
+# network to GitHub and to uv's Python downloads (the Player's 3.13). It passed on five
+# of the pool's six runners, x86_64 and arm64, on 2026-11-19 and -20; the sixth was
+# draining. No fact testament detects stands for "reaches GitHub": if a runner without
+# the network joins, its operator labels the ones that have it, and the label goes here.
+#
+# It is the pool's alone: CI's fallback never runs it on GitHub's runner and says so by
+# name (`POOL_ONLY` in `.github/scripts/pool_or_fallback.py`; the owner's ruling of
+# 2026-11-20). Cost: about 65-80 s warm and 210 s cold (the first run after
+# `player-ref.txt` moves) beside the other suites, and a pin that will not install, or
+# a fetch from GitHub that fails, turns the required check red rather than falling back.
+[suites.player]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/pyproject.toml", "--rootdir=.", "-n", "0", "-q", "-m", "player_e2e"]
+default_selection = ["arrt/tests/system/test_a_real_player.py"]
+
 # The contract package Arrt Player pins.
 [suites.contract]
 adapter = "pytest"

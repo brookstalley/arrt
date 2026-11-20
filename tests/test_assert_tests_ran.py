@@ -527,7 +527,13 @@ _EARNED = [
     {**_UNREACHABLE, "started_s": 0, "ended_s": 1, "waited_s": 599},
     {**_UNREACHABLE, "started_s": 600, "ended_s": 601},
 ]
-_BROWSER_EXCUSED = {"browser": "needs a runner labelled chrome, which only the pool has"}
+#: What a fallback leaves out, as `pool_or_fallback.fallback_plan` words it for the manifest:
+#: the browser suite for want of Chrome, the real-Player suite by the owner's ruling of
+#: 2026-11-20. Named `_EXCUSED` before the real-Player suite joined it.
+_EXCUSED = {
+    "browser": "needs a runner labelled chrome, which only the pool has",
+    "player": "is the pool's alone, so GitHub's minutes are not spent on it (the owner's ruling of 2026-11-20)",
+}
 
 
 def _decision(tmp_path, mode, attempts, reports=None, not_run=None, verdict=None) -> pathlib.Path:
@@ -550,15 +556,16 @@ def _fallback_reports(tmp_path, suites=("governance", "curation", "contract"), t
         (tmp_path / "fallback" / f"{suite}.xml").write_text(_suites((suite, tests, 0)), encoding="utf-8")
 
 
-def test_an_earned_fallback_without_the_browser_suite_passes(tmp_path, capsys):
+def test_an_earned_fallback_without_the_browser_and_real_player_suites_passes(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path)
-    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 0
     printed = capsys.readouterr().out
-    assert "without the browser suite" in printed
+    assert "without the browser and real-Player suites" in printed
     assert "::warning::the browser suite did not run" in printed
+    assert "::warning::the player suite did not run: is the pool's alone" in printed
 
 
 def test_a_pool_run_missing_the_browser_suite_still_fails(tmp_path, capsys):
@@ -571,9 +578,31 @@ def test_a_pool_run_missing_the_browser_suite_still_fails(tmp_path, capsys):
     assert "browser (not in the report)" in capsys.readouterr().out
 
 
-def test_a_pool_run_with_every_suite_passes(tmp_path):
+def test_a_pool_run_without_the_real_player_suite_fails_by_name(tmp_path, capsys):
+    """A pull request whose pool run held no real-Player test must not read as one that did."""
     guard = _load()
     report = _report(tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("contract", 2, 0)))
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
+
+    assert guard.main_with_decision(report, MANIFEST, decision) == 1
+    assert "these suites ran no test: player (not in the report)" in capsys.readouterr().out
+
+
+def test_a_pool_run_whose_real_player_test_skipped_fails(tmp_path, capsys):
+    guard = _load()
+    report = _report(
+        tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("player", 1, 1), ("contract", 2, 0))
+    )
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
+
+    assert guard.main_with_decision(report, MANIFEST, decision) == 1
+
+
+def test_a_pool_run_with_every_suite_passes(tmp_path):
+    guard = _load()
+    report = _report(
+        tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("player", 1, 0), ("contract", 2, 0))
+    )
     decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
 
     assert guard.main_with_decision(report, MANIFEST, decision) == 0
@@ -582,8 +611,10 @@ def test_a_pool_run_with_every_suite_passes(tmp_path):
 def test_a_pool_record_that_excuses_a_suite_fails(tmp_path, capsys):
     """Even with every suite in the report: the excuse itself is the defect, so the per-suite check cannot rescue it."""
     guard = _load()
-    report = _report(tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("contract", 2, 0)))
-    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], not_run=_BROWSER_EXCUSED, verdict="passed")
+    report = _report(
+        tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("player", 1, 0), ("contract", 2, 0))
+    )
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], not_run=_EXCUSED, verdict="passed")
 
     assert guard.main_with_decision(report, MANIFEST, decision) == 1
     assert "a run on the pool must hold every suite" in capsys.readouterr().out
@@ -592,7 +623,7 @@ def test_a_pool_record_that_excuses_a_suite_fails(tmp_path, capsys):
 def test_a_fallback_after_a_failed_verdict_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path)
-    decision = _decision(tmp_path, "fallback", [_INSTALLED, _FAILED_RUN, _UNAVAILABLE_RUN], _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", [_INSTALLED, _FAILED_RUN, _UNAVAILABLE_RUN], _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "do not earn" in capsys.readouterr().out
@@ -603,7 +634,7 @@ def test_a_fallback_after_one_retryable_blip_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path)
     blip = [{**_INSTALLED, "started_s": 0, "ended_s": 1}, {**_UNAVAILABLE_RUN, "started_s": 1, "ended_s": 4}]
-    decision = _decision(tmp_path, "fallback", blip, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", blip, _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "do not earn" in capsys.readouterr().out
@@ -613,17 +644,17 @@ def test_a_fallback_that_excuses_more_than_the_browser_suite_fails(tmp_path, cap
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "contract"))
     reports = {k: v for k, v in _FALLBACK_REPORTS.items() if k != "curation"}
-    decision = _decision(tmp_path, "fallback", _EARNED, reports, {**_BROWSER_EXCUSED, "curation": "slow"})
+    decision = _decision(tmp_path, "fallback", _EARNED, reports, {**_EXCUSED, "curation": "slow"})
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
-    assert "excuses only ['browser']" in capsys.readouterr().out
+    assert "excuses only ['browser', 'player']" in capsys.readouterr().out
 
 
 def test_a_fallback_whose_suite_collected_nothing_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "contract"))
     _fallback_reports(tmp_path, ("curation",), tests=0)
-    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "No tests were collected" in capsys.readouterr().out
@@ -632,7 +663,7 @@ def test_a_fallback_whose_suite_collected_nothing_fails(tmp_path, capsys):
 def test_a_fallback_whose_suite_wrote_no_report_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "curation"))
-    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "contract.xml does not exist" in capsys.readouterr().out
@@ -643,7 +674,7 @@ def test_a_fallback_report_named_for_another_suite_fails(tmp_path, capsys):
     guard = _load()
     _fallback_reports(tmp_path, ("governance", "curation"))
     (tmp_path / "fallback" / "contract.xml").write_text(_suites(("pytest", 2, 0)), encoding="utf-8")
-    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _BROWSER_EXCUSED)
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _EXCUSED)
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "contract (not in the report)" in capsys.readouterr().out
