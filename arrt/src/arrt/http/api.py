@@ -2087,15 +2087,17 @@ def _matches(header: str | None, etag: str) -> bool:
 # -- shaping ------------------------------------------------------------------
 
 
-def service_error_response(message: str) -> JSONResponse:
-    """The one error shape this surface returns.
+def service_error_response(message: str, *, not_found: bool = False) -> JSONResponse:
+    """The one error shape this surface returns: `404` for a thing named that is not there, `400` for every other refusal.
 
-    A single status for every refusal, because the service layer raises a single
-    type by design and a per-error translation table here is what turns a thin
-    binding into a thick one. The message is written to be shown: it names what
-    was wrong and, where there is one, the thing to do instead.
+    Two statuses and no more, because the service layer draws one distinction
+    (`NotFound`, a `ServiceError` naming a thing that does not exist) and a
+    per-error translation table here is what turns a thin binding into a thick
+    one. The message is written to be shown either way: it names what was wrong
+    and, where there is one, the thing to do instead. The caller says which it
+    is (`app.py`), since only `/api` tells the two apart.
     """
-    return JSONResponse(status_code=400, content={"error": message})
+    return JSONResponse(status_code=404 if not_found else 400, content={"error": message})
 
 
 def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:

@@ -785,7 +785,7 @@ function getAll(control, works, slot) {
       } catch (failure) {
         // A refusal is the server's sentence for the curator; anything else
         // (the network, a fault) is not ours to swallow.
-        if (failure.status !== 400) throw failure;
+        if (failure.status !== 400 && failure.status !== 404) throw failure;
         refused.push(failure.message);
       }
     }

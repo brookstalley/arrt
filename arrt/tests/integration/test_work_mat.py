@@ -136,10 +136,10 @@ def test_a_work_with_no_master_on_disk_offers_no_derivation(http, held):
 
 
 def test_an_unknown_work_is_refused_by_name(http):
-    """As every work route refuses one: 400, naming the id. Without the check, the
+    """As every work route refuses one: 404, naming the id. Without the check, the
     read would answer an empty control for a work that does not exist."""
     for answer in (http.get("/api/works/no-such-work/mat"), http.post("/api/works/no-such-work/mat", json={"preset": "dark"})):
-        assert answer.status_code == 400
+        assert answer.status_code == 404
         assert "no-such-work" in answer.json()["error"]
 
 

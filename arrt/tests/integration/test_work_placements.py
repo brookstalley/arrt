@@ -91,5 +91,5 @@ def test_a_work_kept_off_every_wall_says_since_when_and_the_undo_clears_it(http,
 def test_a_work_the_catalogue_does_not_hold_is_refused(http):
     response = http.get("/api/works/no-such-work/placements")
 
-    assert response.status_code == 400
+    assert response.status_code == 404
     assert "no-such-work" in response.json()["error"]

@@ -126,7 +126,7 @@ def test_a_work_the_catalogue_no_longer_holds_is_excluded_and_named_by_its_id(
     assert [(exclusion.work_id, exclusion.title, exclusion.reason) for exclusion in build.exclusions] == [
         (gone.id, gone.id, UnplayableReason.NOT_IN_CATALOGUE)
     ]
-    assert build.exclusions[0].detail == f"No artwork with id {gone.id!r} is in the catalogue."
+    assert build.exclusions[0].detail == f"No artwork with id {gone.id!r} is in the Library."
     assert build.summarise().startswith("1 of 2 works")
 
 

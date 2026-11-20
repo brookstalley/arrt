@@ -108,7 +108,7 @@ class TestSteppingAWall:
         """The service's own message reaches whoever asked, as every refusal does."""
         response = http.post("/api/walls/no-such-wall/next")
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert "no-such-wall" in response.json()["error"]
 
 

@@ -888,7 +888,7 @@ export async function viewCollection(generation) {
   try {
     first = await fetchWorksPage(query, chosen, sort, narrowing(theme));
   } catch (failure) {
-    if (!theme || failure.status !== 400) throw failure;
+    if (!theme || (failure.status !== 400 && failure.status !== 404)) throw failure;
     first = await fetchWorksPage(query, chosen, sort, narrowing(null));
     theme = null;
     themeGone = true;

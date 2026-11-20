@@ -37,7 +37,7 @@ from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.folding import search_fold
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
 from arrt.persistence.records import Artist, ArtworkStatus, IdentitySetBy
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound
 
 log = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ class ArtistService:
         """One artist, and how many of their works are in circulation (which may be none)."""
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         held, pictured = next(
             ((count, first) for found, count, first in self._store.held_artists() if found.id == artist_id), (0, None)
         )

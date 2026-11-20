@@ -34,7 +34,7 @@ from arrt.library.discovery.dedup import artist_key, artist_prefix
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment, Verdict
 from arrt.persistence.records import VocabularyKind
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
@@ -364,7 +364,7 @@ class TasteService:
     def get_affinity(self, affinity_id: str) -> Affinity:
         found = self._store.get_affinity(affinity_id)
         if found is None:
-            raise ServiceError(f"No affinity with id {affinity_id!r}.")
+            raise NotFound(f"No affinity with id {affinity_id!r}.")
         return found
 
     # -- writes ---------------------------------------------------------------

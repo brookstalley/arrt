@@ -25,6 +25,7 @@ from payloads import (
     a_listing,
 )
 
+from arrt.library.readiness import not_in_catalogue
 from arrt.persistence.records import FacetDerivation, VocabularyKind
 
 # At import time, not in a fixture. A marker deselection still *collects* this
@@ -978,13 +979,15 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     other.
     """
     theme, works = a_theme_holding_one_work
-    refusal = f"No artwork with id {works[2].id!r} is in the catalogue."
+    # What the server answers for a work it does not hold (Chunk 37): 404, in the
+    # sentence `themes.py` raises, which is readiness's own.
+    refusal = not_in_catalogue(works[2].id).detail
     writes = []
 
     def refuse_the_second_write(route):
         writes.append(json.loads(route.request.post_data)["artwork_id"])
         if len(writes) == 2:
-            route.fulfill(status=400, content_type="application/json", body=json.dumps({"error": refusal}))
+            route.fulfill(status=404, content_type="application/json", body=json.dumps({"error": refusal}))
         else:
             route.continue_()
 
