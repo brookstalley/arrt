@@ -372,7 +372,7 @@ def _reject(lib: Library) -> Act:
 
 
 def _reject_the_fifth_work_of_an_artist(lib: Library) -> Act:
-    """The verdict that makes the artist's rejections a taste: the act also writes the observed affinity (`taste.observe_artist`)."""
+    """The verdict that makes an artist's rejections a taste: the act also writes the observed affinity."""
     for _ in range(4):
         lib.discovery.set_verdict(_found_work(lib, artist="Edward Hopper"), Verdict.REJECTED)
     fifth = _found_work(lib, artist="Edward Hopper")
