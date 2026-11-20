@@ -19,7 +19,7 @@ import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.j
 import { el, guard, render } from "../core/render.js";
 import { museumName } from "../core/providers.js";
 import { placeNow, reviewSection, rowPicture } from "../core/reviewing.js";
-import { backLink, link, refresh, setTitle } from "../core/router.js";
+import { backLink, link, notFound, refresh, setTitle } from "../core/router.js";
 import { FOUND_BY_WATCH, runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
@@ -354,9 +354,14 @@ export async function viewRun(runId, generation) {
     // stayed open — bounded only by navigation, with nothing on screen saying
     // the watch was still retrying.
     // A refusal is the server saying there is no such Get, not a blip: nothing
-    // is re-armed, and the router paints the page an address naming nothing
-    // gets (`core/router.js`, `notFound`), with no watch left behind it.
-    if (failure.status === 400 || failure.status === 404) throw failure;
+    // is re-armed, and the page an address naming nothing gets
+    // (`core/router.js`, `notFound`) is painted with no watch left behind it.
+    // Its second line is the server's own sentence, which says why this Get is
+    // not here, where the router's general line could only guess.
+    if (failure.status === 400 || failure.status === 404) {
+      render(generation, ...notFound(null, failure.message));
+      return;
+    }
     if (noteWatchFailure(runId) >= RUN_POLL_MAX_FAILURES) {
       // Say the watch stopped, not only what failed. The two are different
       // facts and only one of them tells the curator what to do next: a message

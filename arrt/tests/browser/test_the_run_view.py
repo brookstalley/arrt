@@ -526,6 +526,9 @@ def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
     ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))  # sleep: proves a gone run is asked for once and not again
 
     expect(ui.page.locator("#view h1")).to_have_text("That Get is not here", use_inner_text=True)
+    # Under the heading, the server's own sentence for why, as text: the
+    # router's general line guessed the Get "was most likely removed".
+    expect(ui.page.locator("#view .not-found h1 + p")).to_have_text(answer.json()["error"], use_inner_text=True)
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == 1
     expect(ui.page.locator("#error")).to_be_hidden()
 
