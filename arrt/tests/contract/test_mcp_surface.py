@@ -84,9 +84,7 @@ async def test_the_registry_and_the_wire_agree_on_the_tool_list(tools):
 
 def oversized(descriptions: dict[str, str]) -> dict[str, int]:
     """Each description past the client's budget, by its size in bytes (UTF-8, as the client counts)."""
-    return {
-        name: len(text.encode()) for name, text in descriptions.items() if len(text.encode()) > DESCRIPTION_BUDGET_BYTES
-    }
+    return {name: len(text.encode()) for name, text in descriptions.items() if len(text.encode()) > DESCRIPTION_BUDGET_BYTES}
 
 
 async def test_every_description_fits_the_clients_budget(tools):
