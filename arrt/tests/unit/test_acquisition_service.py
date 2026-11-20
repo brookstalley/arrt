@@ -574,9 +574,7 @@ class TestTiledAcquisition:
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is FetchStatus.PARTIAL_TILES
 
-    def test_a_tile_fetch_onto_a_full_disk_pauses_the_queue_saying_the_disk_is_full(
-        self, service, store, acq_settings, tmp_path
-    ):
+    def test_a_tile_fetch_onto_a_full_disk_pauses_the_queue_saying_the_disk_is_full(self, service, store, acq_settings, tmp_path):
         """Through the queue, as a household meets it: a pause whose detail says the disk is full, no failure counted.
 
         The stand-in writes the truncated file and the two last lines
@@ -612,7 +610,8 @@ class TestTiledAcquisition:
         assert isinstance(passed.paused, QueuePause)
         assert passed.paused.condition == "ENOSPC"
         assert "the disk is full" in passed.paused.detail
-        assert passed.paused.remedy is not None and "is full" in passed.paused.remedy
+        assert passed.paused.remedy is not None
+        assert "is full" in passed.paused.remedy
         assert (passed.failed, passed.gave_up) == (0, 0), "the disk's fault was counted against the work"
         assert service.get_original(work.id) is None
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)

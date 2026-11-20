@@ -292,7 +292,7 @@ class TestClassification:
         assert raised.value.errno == errno.ENOSPC
         assert raised.value.errno in atomic.DISK_FAULT_ERRNOS, "the queue pauses only on these"
         assert "No space left on device" in str(raised.value)
-        assert not [p for p in (tmp_path / "out").iterdir()], "the truncated file was left to be found"
+        assert not list((tmp_path / "out").iterdir()), "the truncated file was left to be found"
 
     def test_a_tile_cache_that_could_not_be_written_is_no_fault_when_the_image_was(self, tmp_path):
         script = _fake_binary(tmp_path, CACHE_FULL_ONLY)

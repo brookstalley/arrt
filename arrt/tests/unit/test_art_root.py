@@ -80,7 +80,7 @@ def test_init_creates_the_root_and_marks_it(root):
 
 
 def test_the_marker_names_the_product_and_not_a_plane(root):
-    """The one sentence of this module a person reads in the art root: "the curation plane" named an architecture this server no longer has."""
+    """What a person reads in the art root: "the curation plane" named an architecture this server no longer has."""
     art_root, catalogue = root
 
     prepare(art_root, catalogue, initialise=True)
