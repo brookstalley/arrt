@@ -9,6 +9,12 @@ copies; the guide for writing one is `docs/source-plugins.md`.
 
 The contracts each type carries are in its own docstring, not here: a copy here
 would be a second statement free to disagree with the first.
+
+**Testing a plugin as the host runs it** is `arrt.library.sources.testing`, a
+helper for a plugin's own tests, imported by them on its own and never by a
+plugin. It is deliberately not exported here: it drives the host's phase two,
+pool and acquisition, which a plugin must not reach, and importing this package
+does not import it (`source-plugins.md` § Testing).
 """
 
 from arrt.library.discovery.browse import (
