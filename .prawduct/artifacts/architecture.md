@@ -335,7 +335,8 @@ convenience would otherwise make that split a migration.
 > (`test_seam_imports.py`): the job is the container's adapter and reads Programming
 > through `DisplayService`. A reconciliation is one publishing transaction under the
 > store's lock, so an act that arrives during one waits for it. Measured in-process on
-> one machine with nothing to fix: 0.4 s a pass at 2,000 works and 1.1 to 2.5 s at
+> one machine, seven passes after a warm one, with nothing to fix: about 0.4 s a pass at
+> 2,000 works and 1.1 to 2.5 s at
 > 5,000, most of it the per-work lookups, whose batching is left to a later part. A
 > lost event now delays an update by at most about half an hour, not until the next
 > start.)*
