@@ -136,8 +136,21 @@ async function showingTitles(walls) {
 
 /* The wall's display state in a glyph and a word (`core/states.js`, the
  * contract's), as Walls' badge says it. A setup step is drawn as one, with no
- * fault's colour or class. */
-function wallStateLine(shown) {
+ * fault's colour or class.
+ *
+ * **A wall waiting for its Player** (`waiting_for`, the server's: the Player
+ * that shows it has no token or no report yet) is drawn as the step it is,
+ * with a setup step's mark and the server's words linking to that Player,
+ * never as its `silent`: it has not reported because its Player cannot yet,
+ * and that Player's step under "Still to set up" names it (wave 2b, Chunk 62). */
+function wallStateLine(shown, waiting) {
+  if (waiting) {
+    return el("p", { class: "wall-state setup", "data-state": waiting.state }, [
+      el("span", { class: "glyph", text: GLYPHS.none, "aria-hidden": true }),
+      " ",
+      link({ view: "clients", params: { client: waiting.client_id } }, { class: "link wall-waits", text: waiting.words }),
+    ]);
+  }
   const stateName = shown ? shown.state : "unreachable";
   return el("p", { class: `wall-state${isDisplaySetup(stateName) ? " setup" : ""}`, "data-state": stateName }, [
     el("span", { class: "glyph", text: displayStateGlyph(stateName), "aria-hidden": true }),
@@ -148,7 +161,9 @@ function wallStateLine(shown) {
 /* What the wall's state means for its report, in a sentence, where the state's
  * word alone does not say it: a wall no Player shows has no report to read, and
  * a wall a Player shows that has never readably reported is waiting on it. */
-function stateSentence(shown, reading) {
+function stateSentence(shown, reading, waiting) {
+  // The wait's own line says why there is no report; a second would say it again.
+  if (waiting) return null;
   if (shown && shown.state === "unassigned") {
     return el("p", {
       class: "muted",
@@ -165,6 +180,7 @@ function heartbeatPanel(wall, titles) {
   const name = wall.wall_name ? wallLink(wall.wall_id, wall.wall_name) : "An unnamed wall";
   const reading = wall.heartbeat;
   const shown = wall.display_state || null;
+  const waiting = wall.waiting_for || null;
   if (!reading && !shown) {
     return el("div", { class: "panel wall-reading" }, [
       el("h2", {}, [name]),
@@ -183,13 +199,13 @@ function heartbeatPanel(wall, titles) {
     // there was one of it, and is a sentence that silently becomes wrong.
     el("h2", {}, [name]),
     // The server's state for the wall, the same one Walls draws its badge from.
-    wallStateLine(shown),
+    wallStateLine(shown, waiting),
     // An observation with its age, never a verdict. Said once, in the curator's
     // words: the server's own sentence names the file it read, and is debug's
     // (ruling 1). A wall no Player shows says that alone.
     !unassigned && reading && reading.reported_at ? el("p", { class: "reading-sentence", text: `Last heard from ${dated(reading.reported_at)}.` }) : null,
     DEBUG && reading ? el("p", { class: "muted raw-sentence", text: reading.description }) : null,
-    stateSentence(shown, reading),
+    stateSentence(shown, reading, waiting),
     unassigned
       ? null
       : facts([

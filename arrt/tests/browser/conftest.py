@@ -85,7 +85,7 @@ from arrt.programming.client_heartbeat import ClientHeartbeatReading, ReportedLa
 from arrt.programming.clients import PlacementSurvey, view_of
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.reports import WallHeartbeat
-from arrt.services.health import HealthReading, PicturesReading, SourceHealth, failed_fetches
+from arrt.services.health import HealthReading, PicturesReading, SourceHealth, failed_fetches, walls_waiting
 
 BROWSER_DIR = pathlib.Path(__file__).parent
 
@@ -239,8 +239,8 @@ def a_health_reading():
     observation is wrong.
 
     **The one health model's fields are derived, never written here**
-    (`_served`): each wall's `display_state`, the `players`, `failed_fetches`
-    and `troubles` come from the server's own functions over the readings
+    (`_served`): each wall's `display_state` and `waiting_for`, the `players`, `failed_fetches`,
+    `troubles` and `setup_steps` come from the server's own functions over the readings
     above, so a reading with a silent wall carries that wall's trouble and one
     with nothing wrong carries none. `player` overrides the Player that shows
     the walls (`_a_player`'s keys); `failed` is the queue's failed works, as
@@ -272,12 +272,17 @@ def a_health_reading():
         watches = {"overdue": [], "allowance_spent": False} if watches is None else watches
         chosen = _a_player(**(player or {}))
         served = _served(walls, backup=backup, sources=sources, watches=watches, player=chosen, failed=failed)
+        waiting = walls_waiting(served.walls, served.players)
         return HealthOut(
             watches=WatchesHealthOut(**watches),
             pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
             sources=[SourcePluginOut(**source) for source in sources],
             walls=[
-                WallHeartbeatOut(**_without_placement(wall), display_state=http_api._display_state(seen.state))
+                WallHeartbeatOut(
+                    **_without_placement(wall),
+                    display_state=http_api._display_state(seen.state),
+                    waiting_for=http_api._wall_wait(waiting.get(seen.wall.id)),
+                )
                 for wall, seen in zip(walls, served.walls, strict=True)
             ],
             description=served.describe() if description is None else description,

@@ -77,7 +77,7 @@ import { hangTheme, shownByAPlayer } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenName, screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
-import { DISPLAY_STATES, displayStateGlyph, displayStateWord, isDisplaySetup } from "../core/states.js";
+import { DISPLAY_STATES, displayStateGlyph, displayStateWord, isDisplaySetup, playerStateWord } from "../core/states.js";
 import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -349,7 +349,8 @@ function listedParts(items) {
  */
 async function heartbeats() {
   try {
-    return { byWall: readings(await api("/api/health")) };
+    const health = await api("/api/health");
+    return { byWall: readings(health), waits: waits(health) };
   } catch (failure) {
     return { failure: failure.message };
   }
@@ -362,6 +363,18 @@ async function heartbeats() {
 function readings(health) {
   const rows = Array.isArray(health.walls) ? health.walls : [];
   return new Map(rows.map((reading) => [reading.wall_id, reading.heartbeat]));
+}
+
+/* The Player each wall waits for while that Player is being set up, as the
+ * server states it (`waiting_for`, wave 2b Chunk 62): only walls that wait. */
+function waits(health) {
+  const rows = Array.isArray(health.walls) ? health.walls : [];
+  return new Map(rows.filter((reading) => reading.waiting_for).map((reading) => [reading.wall_id, reading.waiting_for]));
+}
+
+/* The wait the server states for this wall, or null. */
+function waitOf(wall, beats) {
+  return beats && beats.waits ? beats.waits.get(wall.wall_id) || null : null;
 }
 
 /* The work a wall's display state names, or null where it names none: the
@@ -475,7 +488,7 @@ function cardNotice(wall, reason, build, beats, shownBy, dark) {
     ["fault", () => (wall.display && wall.display.fault ? [faultNotice(wall)] : null)],
     ["unreachable", () => (reason === "unreachable" ? unreachable(cannotReach(wall, build, beats)) : null)],
     ["feed", () => (wall.feed_notice ? [el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })])] : null)],
-    ["silent", () => (reason === "silent" ? notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark) : null)],
+    ["silent", () => (reason === "silent" ? notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark, waitOf(wall, beats)) : null)],
     ["empty-theme", () => (reason === "empty-theme" ? emptyTheme(wall, build.manifest) : null)],
     ["dark", () => (dark ? [summaryLine(dark)] : null)],
   ];
@@ -510,7 +523,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
     // work inside it. The badge beside it is the screen's state in one word.
     el("header", { class: "wall-head" }, [
       el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
-      stateBadge(wall, now, live),
+      stateBadge(wall, now, live, waitOf(wall, beats)),
       // The wall's settings, one step away (the page rules of 2026-10-27).
       el("button", {
         class: "action quiet wall-edit",
@@ -545,10 +558,15 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
  * wall no Player shows yet) is `wall-badge-setup`, which the stylesheet gives
  * no fault's colour; every other state is `wall-badge-<state>`. `data-state`
  * carries the state as the server sent it, so it is legible to a test and to a
- * reader who cannot see the hue. */
-function stateBadge(wall, now, live) {
+ * reader who cannot see the hue.
+ *
+ * A wall waiting for its Player (`waiting_for`, the server's, Chunk 62) is a
+ * setup step too: its badge is the Player's state in the contract's word, with
+ * a setup step's mark, never its `silent`, as Status draws the wall's panel. */
+function stateBadge(wall, now, live, wait = null) {
   const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
   if (entry && entry.reached) return badge(GLYPHS.putForward, "Scene", "wall-badge-scene", "scene");
+  if (wait) return badge(GLYPHS.none, playerStateWord(wait.state), "wall-badge-setup", wait.state);
   const stateName = now && now.shown ? now.shown.state : shownByAPlayer(wall) ? null : "unassigned";
   if (!stateName) return null;
   const known = Object.hasOwn(DISPLAY_STATES, stateName) ? stateName : "unreachable";
@@ -1145,9 +1163,24 @@ function emptyTheme(wall, manifest) {
  * **One notice, said once** (audit 2026-11-19, finding 6). A wall no Player
  * shows has its *No Player* line, which already says nothing can show it, so
  * nothing is added here. When none of the theme reaches the wall either, that
- * sentence leads this one in the same notice rather than stacking a second. */
-function notReported(wall, beat, shownBy, dark) {
+ * sentence leads this one in the same notice rather than stacking a second.
+ *
+ * **A wall waiting for its Player is no notice** (`waiting_for`, Chunk 62): it
+ * is a step of setting that Player up, so it is a muted line in the server's
+ * words linking to the Player, as Status says it, and no fault's notice. */
+function notReported(wall, beat, shownBy, dark, wait = null) {
   if (!shownByAPlayer(wall)) return dark ? [summaryLine(dark)] : [];
+  if (wait) {
+    // The dark theme's notice, when there is one, is the card's one notice and leads.
+    return [
+      dark ? summaryLine(dark) : null,
+      el("p", { class: "muted wall-waits", "data-state": wait.state }, [
+        link({ view: "clients", params: { client: wait.client_id } }, { class: "link", text: wait.words }),
+        // What happens next, where the step is one the Player takes by itself.
+        wait.state === "awaiting_report" ? ". Once it is running with its token, it reports within a minute or so." : ".",
+      ]),
+    ].filter(Boolean);
+  }
   const player = shownBy && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return [
     el("p", { class: `note wall-unreported${dark ? " wall-dark" : ""}` }, [

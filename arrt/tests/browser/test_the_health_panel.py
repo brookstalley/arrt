@@ -76,11 +76,21 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
 
 
 def _on_a_player(services, *walls) -> None:
-    """Put each wall on one of a Player's screens, as Walls › Edit… does: only then is a report expected of it."""
+    """Put each wall on one of a reporting Player's screens, as Walls › Edit… does: only then is a report expected of it.
+
+    The Player has reported (Chunk 62): one that has not, or has no token, is
+    still being set up, and a wall it shows that has never reported waits for
+    it rather than being called quiet (`test_a_wall_waiting_for_its_player_…`).
+    """
     player = services.clients.add_client(name="The Pi in the hall")
     services.access.issue(player.id)
     for index, wall in enumerate(walls, start=1):
         services.clients.assign_wall(wall.id, client_id=player.id, output=f"hdmi-a-{index}")
+    outputs = [
+        {"name": f"hdmi-a-{index}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}
+        for index in range(1, len(walls) + 1)
+    ]
+    services.clients.record_heartbeat(player.id, {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs})
 
 
 def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, services, two_walls):
@@ -160,6 +170,63 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     # purpose, which this plane does not know.
     # As words: a whitespace-separated word that is one of them, which is what splitting the page found.
     expect(ui.view).not_to_contain_text(re.compile(r"(?<!\S)(?:healthy|degraded|OK)(?!\S)"), use_inner_text=True)
+
+
+@pytest.mark.parametrize(
+    ("player", "state"),
+    [({"token_issued": False}, "no_token"), ({"absent": True}, "awaiting_report")],
+    ids=["no_token", "awaiting_report"],
+)
+def test_a_player_being_set_up_that_shows_two_walls_reads_as_one_step_everywhere(
+    ui, a_health_reading, a_wall_reading, player, state
+):
+    """Chunk 62's acceptance on the screens: one step naming both walls, each wall's panel waiting, and no problem anywhere.
+
+    Before, this household read three steps on the top bar ("System: 3 steps
+    to finish") and each wall's panel read "▲ Not reporting" beside "Nothing
+    needs attention". Every word here is the server's (`a_health_reading`
+    builds through its functions); the page decides nothing.
+    """
+    reading = a_health_reading(
+        walls=[
+            a_wall_reading(wall_id="wall-1", name="The hall", absent=True),
+            a_wall_reading(wall_id="wall-2", name="The study", absent=True),
+        ],
+        player=player,
+    )
+    assert reading["troubles"] == []
+    [step] = reading["setup_steps"]
+    assert (step["about"], step["state"]) == ("player", state)
+    assert "The hall and The study" in step["words"]
+    waits = {wall["wall_name"]: wall["waiting_for"] for wall in reading["walls"]}
+    ui.serve("**/api/health", reading)
+    ui.open("#health")
+    ui.page.wait_for_selector("#view .setup-steps li")
+
+    # The top bar and the System link: setting up, one step, no problem.
+    expect(ui.page.locator("#status")).to_have_attribute("data-state", "setup")
+    expect(ui.page.locator("#status .status-words")).to_have_text(step["words"], use_inner_text=True)
+    system = ui.page.locator("nav.sidebar a.section-link[data-view='health']")
+    expect(system).to_have_attribute("aria-label", "System: 1 step to finish")
+    expect(system.locator(".status-count")).to_have_count(0)
+    # Status: the one step, linked to the Player; nothing needs attention.
+    expect(ui.page.locator("#view .setup-steps li .step-words")).to_have_text([step["words"]], use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps li a")).to_have_attribute("href", "#clients?client=player-1")
+    expect(ui.page.locator("#view .troubles")).to_contain_text("Nothing needs attention.", use_inner_text=True)
+    # Each wall's panel says it waits, with a step's mark, in the server's words, linking to its Player.
+    for name in ("The hall", "The study"):
+        panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{name}')"))
+        line = panel.locator(".wall-state")
+        expect(line).to_have_text(re.compile(rf"^○\s*{re.escape(waits[name]['words'])}$"), use_inner_text=True)
+        expect(line).to_have_class(re.compile(r"\bsetup\b"))
+        expect(line).to_have_attribute("data-state", state)
+        expect(line.locator("a")).to_have_attribute("href", "#clients?client=player-1")
+        expect(panel).not_to_contain_text("Not reporting", use_inner_text=True)
+        expect(panel).not_to_contain_text("No Player has ever reported", use_inner_text=True)
+    # Nothing on the page is drawn as a problem, and its sentence says the walls wait.
+    expect(ui.view, "a problem's mark somewhere on the page").not_to_contain_text("▲", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("has not reported", use_inner_text=True)
+    expect(ui.view).to_contain_text(reading["description"], use_inner_text=True)
 
 
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):

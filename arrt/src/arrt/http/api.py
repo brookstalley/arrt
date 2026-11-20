@@ -198,6 +198,7 @@ from arrt.http.models import (
     WallListOut,
     WallOut,
     WallRefOut,
+    WallWaitOut,
     WantedListingOut,
     WantedWorkOut,
     WantWork,
@@ -267,7 +268,7 @@ from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth
+from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth, WallWait, walls_waiting
 from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
@@ -2896,6 +2897,7 @@ def _spend_history(history: spend_history.SpendHistory) -> SpendHistoryOut:
 
 
 def _health(reading: HealthReading) -> HealthOut:
+    waiting = walls_waiting(reading.walls, reading.players)
     return HealthOut(
         walls=[
             WallHeartbeatOut(
@@ -2903,6 +2905,7 @@ def _health(reading: HealthReading) -> HealthOut:
                 wall_name=seen.wall.name,
                 heartbeat=_heartbeat(seen.heartbeat),
                 display_state=_display_state(seen.state),
+                waiting_for=_wall_wait(waiting.get(seen.wall.id)),
             )
             for seen in reading.walls
         ],
@@ -2924,6 +2927,12 @@ def _health(reading: HealthReading) -> HealthOut:
             SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
             for step in reading.setup_steps()
         ],
+    )
+
+
+def _wall_wait(wait: WallWait | None) -> WallWaitOut | None:
+    return (
+        None if wait is None else WallWaitOut(client_id=wait.client_id, name=wait.name, state=str(wait.state), words=wait.words)
     )
 
 

@@ -308,7 +308,10 @@ class SetupKind(StrEnum):
 
     #: The catalogue holds no wall at all: nothing can be hung, and nothing reports.
     NO_WALL = "no_wall"
+    #: A wall no Player shows (`display_state.SETUP`).
     WALL = "wall"
+    #: A Player with no token or no report yet (`player_state.SETUP`), naming
+    #: the walls that wait for it, which make no step of their own.
     PLAYER = "player"
 
 
@@ -324,12 +327,60 @@ class SetupStep:
     #: The wall's or Player's id; null for `no_wall`.
     subject: str | None
     #: A setup state, never a fault's; null for `no_wall`: the Player's state for
-    #: a Player; for a wall, `unassigned` (no Player shows it) or the state of
-    #: the Player that shows it and is still being set up (`no_token`,
-    #: `awaiting_report`).
+    #: a Player (`no_token`, `awaiting_report`); `unassigned` for a wall.
     state: str | None
     #: A short phrase, in the household's words, for the top bar's list.
     words: str
+
+
+@dataclass(frozen=True, slots=True)
+class WallWait:
+    """A wall that has not reported because the Player that shows it is still being set up.
+
+    **Not a state of the wall's own.** Its display state stays `silent`, the
+    contract's word for a wall with no readable report (`vocabulary.json`,
+    `label.v1`), which is true of it and which a Player captioning it reads; what
+    the household is told is why, in the Player's setup state, so the wall's
+    panel says it waits, with a setup step's mark, rather than that it is not
+    reporting. One cause is one step, and it is the Player's
+    (`HealthReading.setup_steps`).
+    """
+
+    #: The Player that shows the wall.
+    client_id: str
+    name: str
+    #: The Player's setup state: `no_token` or `awaiting_report`.
+    state: PlayerState
+    #: The wall's wait, in the household's words, for the wall's own panel.
+    words: str
+
+
+def walls_waiting(walls: Sequence[WallHeartbeat], players: Sequence[ClientView]) -> dict[str, WallWait]:
+    """Every wall not reporting because its Player is being set up, by wall id: the one rule every surface reads.
+
+    A wall is waiting when its display state is a fault's (`silent`) and the
+    Player that shows it is in a setup state (`player_state.SETUP`) that
+    explains the silence: it has no token, so it can report nothing; or it has
+    one and has not yet reported, and nothing was ever written for this wall
+    either. A wall such a Player shows that reads anything else (a report left
+    from before its token was withdrawn, still young) is not waiting, and says
+    what it reports; nor is a wall whose own reports have arrived and stopped
+    while its Player has sent none of its own, which is a wall gone quiet, the
+    trouble it always was.
+    """
+    by_wall = {shown.wall.id: view for view in players if view.player.state in player_state.SETUP for shown in view.walls}
+    return {
+        seen.wall.id: WallWait(
+            client_id=view.client.id,
+            name=view.client.name,
+            state=view.player.state,
+            words=_waiting_words([seen.wall.name], view),
+        )
+        for seen in walls
+        if seen.state.state in display_state.TROUBLES
+        and (view := by_wall.get(seen.wall.id)) is not None
+        and (view.player.state is PlayerState.NO_TOKEN or seen.heartbeat.absent)
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,7 +419,7 @@ class HealthReading:
         **Derived only from states whose setup flag is false** (`display_state.SETUP`,
         `player_state.SETUP`): a wall with no Player, and a Player with no token or
         no report yet, are steps not yet taken and never a trouble, nor is a wall
-        such a Player shows (it is a setup step). A wall is one
+        waiting for such a Player (`walls_waiting`: its Player's step names it). A wall is one
         when its state is in `display_state.TROUBLES`, a Player when its state is
         in `player_state.TROUBLES`. A display two Players report is one too,
         though its wall reads `unassigned`: that is a configuration fault, not a
@@ -382,10 +433,10 @@ class HealthReading:
         """
         states = {seen.wall.id: seen.state.state for seen in self.walls}
         found: list[Trouble] = []
-        # A wall whose Player is still being set up is a setup step of that
-        # Player's (`setup_steps`), never a trouble of its own: it has not
+        # A wall whose Player is still being set up is named by that Player's
+        # setup step (`setup_steps`), never a trouble of its own: it has not
         # reported because its Player has not yet been able to.
-        with_their_player: set[str] = set(_waiting_on_their_player(self.players))
+        with_their_player: set[str] = set(walls_waiting(self.walls, self.players))
         faults: dict[str, DisplayFault] = {}
         for view in self.players:
             if view.player.state in player_state.TROUBLES:
@@ -423,29 +474,28 @@ class HealthReading:
         **A household with no wall is never all well**: it is told that no wall
         is recorded. Then each wall no Player shows (`display_state.SETUP`),
         but not one whose display two Players report, which is a trouble
-        (`clients.DisplayFault`), and each wall not reporting because the
-        Player that shows it is being set up, with that Player's state; then
-        each Player whose state is a setup state (`player_state.SETUP`): no
-        token yet, or no report yet.
+        (`clients.DisplayFault`); then each Player whose state is a setup state
+        (`player_state.SETUP`): no token yet, or no report yet.
+
+        **One step for one cause.** A wall that has not reported because its
+        Player is being set up (`walls_waiting`) is no step of its own: the
+        Player's step names it, so a Player with no token that shows two walls
+        is one step, not three.
         """
+        waiting = walls_waiting(self.walls, self.players)
         if not self.walls:
             found = [SetupStep(SetupKind.NO_WALL, None, None, "No wall is recorded yet")]
         else:
             in_fault = {fault.wall.id for view in self.players for fault in view.faults if fault.wall is not None}
-            waiting = _waiting_on_their_player(self.players)
-            found = []
-            for seen in self.walls:
-                if seen.state.state in display_state.SETUP and seen.wall.id not in in_fault:
-                    found.append(
-                        SetupStep(SetupKind.WALL, seen.wall.id, str(seen.state.state), f"{seen.wall.name} has no Player yet")
-                    )
-                elif seen.state.state in display_state.TROUBLES and (view := waiting.get(seen.wall.id)) is not None:
-                    # Its Player's setup state, not the wall's `silent`: the step
-                    # is the Player's, and a setup step carries a setup state.
-                    found.append(SetupStep(SetupKind.WALL, seen.wall.id, str(view.player.state), _waiting_words(seen.wall, view)))
+            found = [
+                SetupStep(SetupKind.WALL, seen.wall.id, str(seen.state.state), f"{seen.wall.name} has no Player yet")
+                for seen in self.walls
+                if seen.state.state in display_state.SETUP and seen.wall.id not in in_fault
+            ]
         for view in self.players:
             if view.player.state in player_state.SETUP:
-                found.append(SetupStep(SetupKind.PLAYER, view.client.id, str(view.player.state), _setup_words(view)))
+                names = [seen.wall.name for seen in self.walls if _waits_for(waiting.get(seen.wall.id), view)]
+                found.append(SetupStep(SetupKind.PLAYER, view.client.id, str(view.player.state), _setup_words(view, names)))
         return tuple(found)
 
     def describe(self) -> str:
@@ -455,8 +505,31 @@ class HealthReading:
         same fact from the same readings and two hand-written sentences drift —
         a caller told "the study has not reported" by one surface and "every wall
         has reported" by the other has no way to tell which is lying.
+
+        **A wall waiting for its Player is said to wait** (`walls_waiting`), and
+        never counted among the walls that have not reported: the sentence over
+        the rest is `describe_wall_status`'s, and the waiting walls follow it,
+        named with the Player each waits for.
         """
-        return describe_wall_status(self.walls)
+        waiting = walls_waiting(self.walls, self.players)
+        if not waiting:
+            return describe_wall_status(self.walls)
+        rest = [seen for seen in self.walls if seen.wall.id not in waiting]
+        waits = " ".join(
+            f"{_waiting_words([seen.wall.name for seen in self.walls if _waits_for(waiting.get(seen.wall.id), view)], view)}."
+            for view in self.players
+            if any(_waits_for(wait, view) for wait in waiting.values())
+        )
+        if all(seen.state.state in display_state.SETUP for seen in rest):
+            return waits
+        # The rest's sentence speaks only of the walls it was given, so the
+        # waiting walls are said after it as not among them.
+        return f"{describe_wall_status(rest)} {waits[:-1]}, so {'it is' if len(waiting) == 1 else 'they are'} not counted there."
+
+
+def _waits_for(wait: WallWait | None, view: ClientView) -> bool:
+    """Whether a wall's wait (`walls_waiting`) is for this Player."""
+    return wait is not None and wait.client_id == view.client.id
 
 
 def _wall_words(seen: WallHeartbeat) -> str:
@@ -480,25 +553,24 @@ def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
     return f"{said}, nor {'has' if len(quiet) == 1 else 'have'} {_listed([wall.name for wall in quiet])}"
 
 
-def _setup_words(view: ClientView) -> str:
-    """A Player being set up, as the top bar says it."""
+def _setup_words(view: ClientView, walls: Sequence[str] = ()) -> str:
+    """A Player being set up, as the top bar says it, naming the walls that wait for it."""
     name = view.client.name
+    one = len(walls) == 1
     if view.player.state is PlayerState.NO_TOKEN:
-        return f"{name} has no token yet"
-    return f"{name} is waiting for its first report"
+        said = f"{name} has no token yet"
+        return said if not walls else f"{said}, so {_listed(walls)} {'waits' if one else 'wait'} for it"
+    said = f"{name} is waiting for its first report"
+    return said if not walls else f"{said}, and so {'is' if one else 'are'} {_listed(walls)}"
 
 
-def _waiting_on_their_player(players: Sequence[ClientView]) -> dict[str, ClientView]:
-    """Every wall a Player still being set up shows (`player_state.SETUP`), by wall id, with that Player."""
-    return {shown.wall.id: view for view in players if view.player.state in player_state.SETUP for shown in view.walls}
-
-
-def _waiting_words(wall: Wall, view: ClientView) -> str:
-    """A wall that has not reported because its Player is being set up, as the top bar says it."""
+def _waiting_words(walls: Sequence[str], view: ClientView) -> str:
+    """Walls that have not reported because their Player is being set up, as the wall's panel says it."""
     name = view.client.name
+    wait = "waits" if len(walls) == 1 else "wait"
     if view.player.state is PlayerState.NO_TOKEN:
-        return f"{wall.name} waits for {name}, which has no token yet"
-    return f"{wall.name} waits for {name}'s first report"
+        return f"{_listed(walls)} {wait} for {name}, which has no token yet"
+    return f"{_listed(walls)} {wait} for {name}'s first report"
 
 
 def _listed(names: Sequence[str]) -> str:

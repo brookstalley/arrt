@@ -1387,6 +1387,18 @@ class BackupOut(BaseModel):
     reported: dict[str, Any] | None
 
 
+class WallWaitOut(BaseModel):
+    """The Player a wall waits for, while that Player is still being set up (`services.health.WallWait`)."""
+
+    client_id: str
+    name: str
+    #: The Player's setup state: `no_token` or `awaiting_report`.
+    state: str
+    #: The wait in the household's words, for the wall's own panel: "The hall
+    #: waits for The living room Pi, which has no token yet".
+    words: str
+
+
 class WallHeartbeatOut(BaseModel):
     """One wall and what the display serving it last said about itself.
 
@@ -1402,6 +1414,12 @@ class WallHeartbeatOut(BaseModel):
     #: a screen says of the wall, where `heartbeat` is the report handed through.
     #: `unassigned` (no Player shows it) is a setup step, never a trouble.
     display_state: DisplayStateOut
+    #: Set when the wall has not reported because the Player that shows it is
+    #: still being set up (`services.health.walls_waiting`): its display state
+    #: is still `silent`, and this says why, so a screen draws the wall as a
+    #: step that waits, never as a fault. That Player's setup step names the
+    #: wall; the wall is no step or trouble of its own. Null otherwise.
+    waiting_for: WallWaitOut | None
 
 
 class SourcePluginOut(BaseModel):
@@ -1528,15 +1546,14 @@ class SetupStepOut(BaseModel):
     """One step of setting up not yet taken: never a fault, and never all well (`HealthReading.setup_steps`)."""
 
     #: `no_wall` (the catalogue holds no wall), `wall` (no Player shows it) or
-    #: `player` (no token yet, or no report yet): what it is about, so a screen
-    #: links it to where the step is taken.
+    #: `player` (no token yet, or no report yet, naming in `words` the walls
+    #: that wait for it, which are no step of their own): what it is about, so
+    #: a screen links it to where the step is taken.
     about: str
     #: The wall's or Player's id; null for `no_wall`.
     subject: str | None
     #: A setup state, null for `no_wall`: a Player's own (`no_token`,
-    #: `awaiting_report`); for a wall, `unassigned` when no Player shows it, or
-    #: the state of the Player that shows it while that Player is still being
-    #: set up (`HealthReading.setup_steps`).
+    #: `awaiting_report`); `unassigned` for a wall (`HealthReading.setup_steps`).
     state: str | None
     #: A short phrase in the household's words.
     words: str
@@ -1589,7 +1606,8 @@ class HealthOut(BaseModel):
     troubles: list[TroubleOut]
     #: Every step of setting up not yet taken, which the top bar states beside
     #: the troubles and never counts as one: no wall recorded, a wall no Player
-    #: shows, a Player with no token or no report yet. A household with no wall
+    #: shows, a Player with no token or no report yet (one step, naming the walls
+    #: that wait for it). A household with no wall
     #: carries `no_wall` here, so it is never read as all well.
     setup_steps: list[SetupStepOut]
 
