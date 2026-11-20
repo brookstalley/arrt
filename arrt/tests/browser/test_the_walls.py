@@ -414,9 +414,10 @@ def test_a_wall_waiting_on_several_players_names_them_a_b_and_c(ui, services, a_
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     waiting = ui.page.locator("section.wall p.wall-waiting")
+    one = "Hall Pi|Study Pi|Landing Pi"
     expect(waiting).to_have_text(
         re.compile(
-            r"^(?:Hall Pi|Study Pi|Landing Pi), (?:Hall Pi|Study Pi|Landing Pi) and (?:Hall Pi|Study Pi|Landing Pi) have not reported yet\. "
+            rf"^(?:{one}), (?:{one}) and (?:{one}) have not reported yet\. "
             r"Their screens can be chosen here once they are running with their tokens and report\.$"
         ),
         use_inner_text=True,

@@ -191,7 +191,9 @@ def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
     expect(consequence).to_contain_text(second.name, use_inner_text=True)
     # Joined as the one joiner joins two (`listed`, `core/counting.js`), in either wall order.
     expect(consequence).to_contain_text(
-        re.compile(rf"^(?:{first.name} and {second.name}|{second.name} and {first.name}) are showing this work, and lose it now\."),
+        re.compile(
+            rf"^(?:{first.name} and {second.name}|{second.name} and {first.name}) are showing this work, and lose it now\."
+        ),
         use_inner_text=True,
     )
 
@@ -199,7 +201,11 @@ def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
 def test_a_work_hanging_in_three_rooms_lists_them_a_b_and_c(ui, ready_work, hang):
     """Three rooms read "A, B and C": the joiner is a list's, not "and" between every pair."""
     work = ready_work(title="Nighthawks")
-    walls = [hang(work), hang(work, wall_name="Study", theme_name="Small hours"), hang(work, wall_name="Hall", theme_name="Mornings")]
+    walls = [
+        hang(work),
+        hang(work, wall_name="Study", theme_name="Small hours"),
+        hang(work, wall_name="Hall", theme_name="Mornings"),
+    ]
 
     open_work(ui, work)
     ask(ui, "Archive")

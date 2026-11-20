@@ -763,12 +763,18 @@ def test_a_work_accepted_from_a_get_links_to_it_and_every_work_links_to_its_hist
     ui.open(f"#work/{brought}")
     ui.page.wait_for_selector("#view h1")
     came = ui.page.locator(".work-label dt:text-is('Came from') + dd")
-    expect(came.get_by_role("link", name="Open the Get The Elephants came from")).to_have_attribute("href", re.compile(rf"^#get/{candidate.discovery_run_id}(\?|$)"))
+    expect(came.get_by_role("link", name="Open the Get The Elephants came from")).to_have_attribute(
+        "href", re.compile(rf"^#get/{candidate.discovery_run_id}(\?|$)")
+    )
     expect(came).to_contain_text("accepted", use_inner_text=True)
-    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute("href", re.compile(rf"^#history\?(.*&)?artwork_id={brought}(&|$)"))
+    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute(
+        "href", re.compile(rf"^#history\?(.*&)?artwork_id={brought}(&|$)")
+    )
 
     open_work(ui, by_hand)
-    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute("href", re.compile(rf"^#history\?(.*&)?artwork_id={by_hand.id}(&|$)"))
+    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute(
+        "href", re.compile(rf"^#history\?(.*&)?artwork_id={by_hand.id}(&|$)")
+    )
     expect(ui.page.locator(".work-label dt:text-is('Came from')"), "a work that came another way named a Get").to_have_count(0)
 
 

@@ -227,7 +227,9 @@ def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall)
     views = ui.page.evaluate("() => [...document.querySelectorAll('nav.sidebar a[data-view]')].map((link) => link.dataset.view)")
     assert "clients" in views
     assert "walls" in views
-    assert set(views) <= set(PAINTED), f"sidebar pages with nothing to wait for before reading them: {sorted(set(views) - set(PAINTED))}"
+    assert set(views) <= set(
+        PAINTED
+    ), f"sidebar pages with nothing to wait for before reading them: {sorted(set(views) - set(PAINTED))}"
     for view in views:
         ui.open(f"#{view}")
         ui.page.locator(PAINTED[view]).first.wait_for()

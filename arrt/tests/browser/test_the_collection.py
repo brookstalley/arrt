@@ -1087,7 +1087,7 @@ def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
 
 
 def test_a_count_of_two_thousand_reads_two_thousand_with_its_comma_everywhere_in_artworks(ui):
-    """"2,000 works" beside "Select all 2000 works" and "Starry (2000)" was audit-6 16: four ways of writing one number.
+    """ "2,000 works" beside "Select all 2000 works" and "Starry (2000)" was audit-6 16: four ways of writing one number.
 
     One page of the 2,000 is stubbed (the client reads `total` and each option's
     `count`), with a facet that holds all of them. Every place Artworks prints

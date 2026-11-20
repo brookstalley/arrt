@@ -24,7 +24,6 @@ from fakes import FakeRegistry
 from playwright.sync_api import expect
 
 from arrt.library.registry import ItemId, RegistryArtist, RegistryHolding, RegistryPerson, RegistryText, RegistryWorkEntry
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 ROTHKO = "Q160149"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Rothko%20chapel.jpg"
@@ -219,7 +218,7 @@ class TestTheArtistPage:
         expect(_their_row(ui, "Rothko Chapel").locator("td").nth(3).locator(".work-pic-not-held img")).to_have_count(1)
 
     def test_a_held_row_whose_work_holds_no_master_asks_for_no_thumbnail(self, ui, rothko, give_a_master, pictures_load):
-        """The row's picture is the server's `pictured_artwork_id`: a held work with no master is asked for none, and one given a master is.
+        """The row's picture is the server's `pictured_artwork_id`: a work with no master is asked for none.
 
         The work the row opens is held either way; only the picture differs. Red
         when the client asks for the first held work's thumbnail whatever the

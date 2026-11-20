@@ -709,7 +709,9 @@ def test_a_player_not_yet_set_up_is_a_step_in_the_server_s_words(ui, a_health_re
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='setup']")
 
-    expect(ui.page.locator("#status .status-words")).to_have_text(" · ".join(step["words"] for step in reading["setup_steps"]), use_inner_text=True)
+    expect(ui.page.locator("#status .status-words")).to_have_text(
+        " · ".join(step["words"] for step in reading["setup_steps"]), use_inner_text=True
+    )
     expect(system_link(ui).locator(".status-count")).to_have_count(0)
 
 
@@ -761,7 +763,7 @@ def test_failed_fetches_put_a_count_on_the_badge_and_status_opens_the_queue(ui, 
 
 
 def test_the_badge_the_top_bar_and_status_say_the_same_troubles(ui, a_health_reading, a_wall_reading, a_backup_reading):
-    """Two fields, three readers: the badge, the top bar and Status say the server's `troubles` and its `setup_steps`, each list once.
+    """Two fields, three readers: the badge, the top bar and Status say `troubles` and `setup_steps`, each list once.
 
     Built so the readings hold faults of several kinds and a setup step beside
     them, so a reader that counted walls alone, or counted the setup step as a
@@ -833,7 +835,9 @@ def test_a_reading_with_no_list_of_setup_steps_is_not_read_as_well(ui, a_health_
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
     expect(ui.page.locator("#status")).to_contain_text("carries no list of what is left to set up", use_inner_text=True)
-    expect(ui.page.locator("#view .setup-steps")).to_contain_text("carries no list of what is left to set up", use_inner_text=True)
+    expect(ui.page.locator("#view .setup-steps")).to_contain_text(
+        "carries no list of what is left to set up", use_inner_text=True
+    )
 
 
 def test_a_reading_with_no_list_of_troubles_is_not_read_as_well(ui, a_health_reading):
