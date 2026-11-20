@@ -25,9 +25,12 @@ word 1.2.0 published. 1.3.0 adds a Player's five states and their words to
 `vocabulary.json` (`player_states`), 170 must-refuse fixtures (counted against
 `contract-v1.2.0`'s index), each invalid row's `constraint` and `refused_because`, two
 semantic rules of the client heartbeat (no two outputs of one name; at most
-`MAX_OUTPUTS_PER_REPORT`, 32, of each), and **one corrected answer**: the wall heartbeat's
-body that is not a JSON object is `400` in the error shape, as the client heartbeat's is,
-where 1.2.0's table recorded the framework's `422` (47). The package ships `py.typed`, and
+`MAX_OUTPUTS_PER_REPORT`, 32, of each), and **two answers that are not additive**, each a
+bounded exception recorded in the plan's § Decisions made mid-build: one **corrected**, the
+wall heartbeat's body that is not a JSON object is `400` in the error shape, as the client
+heartbeat's is, where 1.2.0's table recorded the framework's `422` (47); and one
+**narrowed**, the cap of 32 outputs and 32 label outputs, since a report past it was valid
+under 1.2.0, whose schema bounds no list of outputs (40, 60). The package ships `py.typed`, and
 `contract/tools/freeze_release.py` writes a frozen copy from a tag (59).
 `player-contract.md` § Releases and "What a Player does at 1.3.0" have the detail.
 
@@ -48,9 +51,18 @@ which has no token yet.") and still says everyone sees a wall a Player shows cha
 A wall waits only while nothing was ever written for it; one whose reports came and
 stopped is a trouble. For one repaint the question before a hang could say a wall waits
 while its badge showed a work, because one answer read the wall's report twice and a
-first report could land between the reads; each walls answer now states a wall's state
-and its wait from one reading (`HealthService.observe_walls`), which a deterministic
-interleaving test holds (`arrt/tests/integration/test_client_tools.py`, 66). Works the queue holds as failed are a
+first report could land between the reads. **Every walls answer now says everything it
+says of a wall from one reading** (`HealthService.observe_walls`, `WallsReading` in
+`arrt/src/arrt/programming/clients.py`): its state, its wait, who shows it, its display
+and labels, and whether its Player reads the feed, from one survey of the placements and
+one read of each report file, in one store scope. Before it, a Player assigned between
+two reads could make one answer say `unassigned` beside the Player showing the wall, and a
+wall deleted while the list was being built refused the whole answer. With four walls and
+two Players a list of walls read each wall's report three times and each Player's ten;
+now each once, and one wall's answer reads its own report and each Player's, once
+(`test_a_walls_or_health_answer_reads_each_report_file_once_however_many_walls_and_players`
+and the interleaving test beside it, `arrt/tests/integration/test_client_tools.py`).
+`HealthService.observe_waiting`, the shape of the second read, is deleted (66, 55). Works the queue holds as failed are a
 trouble too, with their count and the newest's age, linking to Queue (`failed_fetches`;
 the instant is the queue's new `failed_at`, and a failure from before it reads "not
 known", never guessed). `GET /api/clients` serves each Player's state and its settings
@@ -69,8 +81,20 @@ durable search record (`source_searches`), read on the work's next pass; the cou
 asked counts survive a restart. Within one pass (the acquisition queue's, or phase 2's
 over one run's works), a plugin that could not be asked three times in a row is not asked
 again that pass (`HOLD_BACK_AFTER`), and the works it was not asked about are left exactly
-as they were (33). `arrt.library.sources.testing`
-is a supported helper that drives the real host code for a plugin's own tests (44).
+as they were (33). **A plugin still owing one work's answer is not asked about the next**
+(55, from the boundary review): while one of its calls is owed (`OWED_CALLS_PER_PLUGIN`, 1,
+`arrt/src/arrt/library/sources/loading.py`), neither a run nor a queue pass starts another
+there, and the work is not asked at that source, as a hold-back leaves it
+(`image_pool.still_asking`, `source.plugin_still_asking`); before, a run going from work to
+work started one call per work at a slow source. The queue's `failures` counts the
+failures in a row under the retry rule of the last one, so could-not-be-asked passes no
+longer use up the schedule's four tries (55; `data-model.md`, the queue's table). Its two
+statements of when a work falls due are one (`_standing`), and a failure cause's sentence
+names the museum its `museum` field names (`HealthService.museum_of`, 55).
+`arrt.library.sources.testing` is a supported helper that drives the real host code for a
+plugin's own tests (44); it stops before either fetch, a direct image's or tiles', through
+the seams `AcquisitionService` takes (`open_stream`, `fetch_tiles`), not by overriding its
+private methods (55).
 
 **Hang on any selection, and from a wall (34, 57).** *Hang…* is in the selection toolbar of
 Artworks, an Artist's works, Search and a Topic; it sends one `hang_selection` and says how
@@ -168,6 +192,26 @@ changed in the plan in the plan's § Decisions made mid-build.
 `docs/ux-walkthrough.md` and `deploy/README.md` say what this part built, each against
 the code it describes; the 2a plan's § Wave 2b points here.
 
+**The boundary review (55).** The Critic's cumulative review of the whole branch
+(`rev-20261120T181428Z-637817e0`) found nothing blocking, six warnings and twelve
+observations, and a paired native review found eight more. The warnings: the 1.3.0 cap
+narrows a minor the records called additive but for one answer; the no-paid-call guard read
+only `.yml` workflows; the plugin-testing helper kept its no-network promise by overriding
+two private methods, the tiled one untested; `HealthService.observe_waiting` had no caller
+and was the shape of a double read; new server sentences hand-roll count agreement beside
+`arrt.counting`; and a slow source's owed asks overlapped without bound. The native
+review's: the queue's schedule counted failures of other rules; a walls answer still took
+who shows a wall from a second reading, and read each report several times; a pass read a
+settled work's item again; the queue had two statements of when a work falls due; and a
+failure cause's museum came from another owner than its field's. **Fixed before the
+merge**: all of these but the counting (left below), each in a commit naming Chunk 55; the
+cap is recorded as the plan's DECISION and put to the owner. Three of the observations
+are records corrected here (two governed-by dispositions' lists of chunks, the `/api`
+inference the plan still carried, and the System link's words in
+`operator-verification.md`); the comments the branch added that carried chunk numbers and
+review ids now carry their reasons instead; those that ask for an edit and are not made are
+left below, and the rest asked for none.
+
 ### What is left open, and why
 
 **Issues the plan named, none closed here:**
@@ -228,20 +272,52 @@ whether the Library's capital belongs there too); the run's not-found page drawi
 router's words; `walls.js` joining `waiting_for` from `/api/health` rather than reading it
 on the walls answer, which carries it since 66; a guard for the fixtures that write a
 wall's report, which chunk 63 measured (about thirty lines, two exemptions and a marker)
-and did not add; `WallView` (`arrt/src/arrt/programming/walls.py`), which reads a wall's
-report file once for its display state and again for whether it reads its feed, so the
-wall's feed notice could in principle disagree with its state; the cost words, which say a
+and did not add; the cost words, which say a
 spend under a hundredth of a cent two ways ("under $0.0001" alone, "more than $0.00, and
 N calls whose cost is unknown" beside unknown calls), both true and left so; and the route
 inventory, which pairs a read route with an MCP action by name only, so whether the twin
 answers the same is left to the record-parity tests, which pair only some records (a
 different gap from the write routes it does not read).
 
+**Found by the boundary review, and left** (each checked at the merged head):
+- **The Players answers pair a survey with a second one.** `GET /api/clients` (`_clients`,
+  `arrt/src/arrt/http/api.py`), MCP's `clients` (`_list_clients`,
+  `arrt/src/arrt/mcp/bindings.py`), and the answers to adding and renaming a Player
+  (`http/api.py`) each take `placements.survey()` beside a `list_clients()` or
+  `get_client_view()` that took its own: the two-readings shape the walls answers lost, unfixed.
+- **Count agreement and digit grouping are hand-rolled beside `arrt.counting`.** The branch
+  adds about a dozen server sentences that choose a noun or a verb by `== 1 else` (20 such
+  lines in `arrt/src/arrt` at the head, 9 at the base), and two of them group digits
+  (`f"{count:,} works"`, `arrt/src/arrt/services/health.py`) where `counted` does not, so the
+  server writes a count of thousands two ways ("2,000 works", "2000 works"). Accepted for a
+  third part (Critic R-5): give `counted` the grouping and route them through it.
+- **A wall whose feed would exceed the size bound stops rolling forward**, and only a
+  one-time journal line says so (`feed.over_bound`, `arrt/src/arrt/programming/feeds.py`):
+  no trouble on Status, while the wall keeps its old feed until its horizon runs out.
+- **`SourceSearch.images` is written and nothing reads it**
+  (`arrt/src/arrt/persistence/discovery_records.py`): the yields question its docstring lists
+  is not answered yet (#313's remainder, below).
+- **Every top-bar health read scans every owed work to count the failed ones**
+  (`AcquisitionQueue.failed_states`, read by `GET /api/health`): bounded and measured at
+  2,000 failed works, but growing with the works owed an image rather than with the count
+  and one age the top bar uses.
+- **A Wikidata item changed while the queue sleeps** is caught only at the queue's next
+  pass: a settled work falls due by an event no clock marks, the queue is nudged by a work
+  accepted and by a Retry, and the identity service announces no change of item, so such a
+  work waits for the next nudge or for `IDLE_SECONDS` (a day).
+- **Two latent couplings.** `dezoomify.py`'s disk-fault words are keyed by hand against
+  `atomic.DISK_FAULT_ERRNOS` (two members today), so an errno added to the set would raise
+  `KeyError` where the queue pauses on `OSError`; and the health model works out a failure's
+  instant for a row older than `failed_at` by inverting the queue's `RETRY_AFTER`
+  (`failure_instant`, `arrt/src/arrt/services/health.py`), outside the queue that owns it.
+
 **No workflow holds a model key** (66), as the owner's ruling of 2026-11-20 says: CI makes
 no paid call. `api-drift.yml` has no paid job, no monthly schedule and no input that asks
 for one; `drift-freshness.yml` watches the free tier alone; and
 `tests/test_ci_makes_no_paid_call.py` allows CI exactly the secrets it names (the pool's
-client key) and fails by name for any other a workflow reads, on any event. The paid
+client key) and fails by name for any other a workflow reads, on any event, in a `.yml`
+or a `.yaml` workflow alike, as `tests/test_actions_pinned.py`'s check of the jobs that
+write issues does (55). The paid
 probe is run by hand, `cd arrt && uv run pytest tests/live -m live_api -n0`. That answers
 the standing question of #150 as the ruling answered it; the issue, opened by the drift
 job, asks to be closed once someone has reconciled the findings against what the API
@@ -251,7 +327,9 @@ holds no model key to delete: its secrets list names `TESTAMENT_KEY` alone (read
 
 **For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`): Q1 (the four norm texts in `project-preferences.md`, and with it the
 forbidden-columns check in `test_catalogue_store.py`), Q3 (which household settings are set
-where), and the delegate-verification norm (`project-preferences.md` `## Workflow`,
+where), **the 1.3.0 cap as an exception to "a minor is additive"** (`player-contract.md`
+§ Versioning; the plan's DECISION, from the boundary review: ratify it, or have the cap
+wait for a major), and the delegate-verification norm (`project-preferences.md` `## Workflow`,
 `Delegate verification`), which says a change to `contract/` "runs all five" where there
 are six suites: the owner is asked whether five, the suites that read the contract, is
 what it should say. The host executor and the one scratch pull request were ruled (rulings 1 and 3 of
@@ -262,7 +340,7 @@ has it), not on a run in GitHub's runner.
 
 **For the operator's hands** (the plan's Chunk 55 checklist): close by hand what this
 record settles; cut `contract-v1.3.0` on the merge commit and freeze it in the next plan's
-first commit; tell the Player's coordinator about 1.3.0 and the sources' coordinator about
+first commit; tell the Player's coordinator about 1.3.0, including its two answers that are not additive, and the sources' coordinator about
 interface 1.6 and the testing helper; branch protection, knowing the required check now
 waits for the real-Player pair and that a fork's pull request can never pass it; the
 `live_binary` dezoomify probe on this machine; one manual `drift-freshness.yml` dispatch
@@ -335,7 +413,11 @@ Library, not the catalogue.
 is cut after this merges. When the Player moves its pin it must give a reason to each new
 must-refuse fixture its table reads (170, and four client-heartbeat fixtures that pass the
 schema and break a rule), and may quote `player_states` and replay the corrected heartbeat
-row (`player-contract.md`, "What a Player does at 1.3.0"). Nothing a Player reads, writes or
+row (`player-contract.md`, "What a Player does at 1.3.0"). **Two answers are not additive**,
+and the Player's coordinator is told both: the corrected `not_an_object` row, to which a
+Player reacts as before, and the narrowed cap, a client heartbeat of more than 32 outputs
+or 32 label outputs refused whole, which the server has done since 2026-11-19 and which no
+Player reaches (its writer should keep under it). Otherwise nothing a Player reads, writes or
 requests changes: the integration compared every refusal row of `transport.json` and the
 Player routes' unknown and retired cases (35 in all) before and after not-found became
 404, and the answers were identical. Separately, for its next plan: the Player prints one

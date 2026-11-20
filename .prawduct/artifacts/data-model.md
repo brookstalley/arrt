@@ -333,7 +333,13 @@ no `Original`, or with a queue row, whose row is absent, or has no
 `next_try_at`, or one that has passed, and whose `failures` is under the limit.
 Q32 is `failures` and `next_try_at`; Q33 is `detail`; Q35 is `source_id`. Q34 is
 `failures` reaching four (the first try and three retries), read rather than
-stored, so a "gave up" flag cannot disagree with the count. What is being fetched
+stored, so a "gave up" flag cannot disagree with the count. *Since wave 2b
+(2026-11-20) both read the row's retry rule first* (`outcome`, below;
+`AcquisitionQueue._standing`, `arrt/src/arrt/library/acquisition/queue.py`): only
+the schedule's rule gives up at four, and `failures` counts the failures in a row
+under one rule, so failures under the rules that never give up do not use up the
+schedule's tries. A settled outcome also waits for a Retry, or for another
+Wikidata item. What is being fetched
 right now, and why the queue is paused, are not stored: both are facts about the
 running process, and a restart finds them out again by trying.
 
@@ -680,7 +686,7 @@ prepared. So the table holds only the works still owing something:
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `artwork_id` | UUID | PK, FK → Artwork | One row per work. |
-| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry. The retry schedule and "gave up" (four) are read from it (Q32, Q34). |
+| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry, **under the retry rule of the last one** (since wave 2b, 2026-11-20): a failure under a different rule than the one before starts it again at 1 (`AcquisitionQueue._record_failure`). The retry schedule and "gave up" (four) are read from it (Q32, Q34). No migration: a row an older release wrote reads by the `outcome` it carries, and one already given up by a count that other rules raised stays given up until a Retry, since nothing recorded tells it apart. Failures that alternate between could-not-be-asked and a scheduled failure are never given up: each scheduled one is retried after an hour. |
 | `next_try_at` | datetime | nullable | When the work may next be tried (Q32). Null means now, or never once the queue has given up; `failures` says which. |
 | `detail` | string | nullable | Why the last attempt failed, in the words acquisition or preparation gave (Q33). |
 | `source_id` | UUID | FK → Source, nullable | The source the next fetch must use, when a Retry named one (Q35). Cleared once a fetch from it has been made. |

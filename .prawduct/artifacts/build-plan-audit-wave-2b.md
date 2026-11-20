@@ -26,13 +26,13 @@ governed_by:
       - "rule 2, the facade written as if remote → conforms: no chunk widens LibraryFacade"
       - "rule 3, two stores → inapplicable because ruling 9 of 2026-11-19 took the store split out (no wave, not built toward); 32, 33 and 35 add columns and one table inside the catalogue file, none a cross-seam foreign key (test_seam_foreign_keys holds the count)"
       - "rule 4, Library changes reach Programming as events → conforms: 30's failed-fetch count is read through the queue, not by Programming"
-      - "the operation logic lives in the service layer, MCP and HTTP thin → conforms: every new field is a service value both surfaces render; 45 and 53 are the only chunks that edit arrt/src/arrt/mcp/"
+      - "the operation logic lives in the service layer, MCP and HTTP thin → conforms: every new field is a service value both surfaces render; the chunks that edit arrt/src/arrt/mcp/ (45's break, 53's twins, and the later chunks that carried their own fields to MCP) map service values onto fields and slice pages, and add no cross-seam import"
       - "Direction norm 1's home → ruling needed: question 1(d) of decisions-arrt-wave-2.md; no chunk rewords it"
       - "the 2026-07-27 Decision Log entry (each binding formats its own results) → conforms: the view-model chunk that would reverse it (draft 38) leaves this plan for a third part, with the reversal named as its first question"
   - artifact: player-contract
     dispositions:
-      - "a minor is additive, a released tag is not moved → conforms: 28 freezes 1.2.0 as the package says; everything 2b changes in contract/ lands in 1.3.0 (47 and the vocabulary); one answer is corrected, not added (47's not_an_object row, 422 to 400), recorded as a DECISION because a Player's reaction to it does not change"
-      - "the contract's text is the package's → conforms: 47 edits player-contract.md § Transport, 54 writes § Releases' 1.3.0 entry; no other chunk edits it"
+      - "a minor is additive, a released tag is not moved → conforms but for two bounded exceptions: 28 freezes 1.2.0 as the package says; everything 2b changes in contract/ lands in 1.3.0 (47 and the vocabulary); two answers are not additive, each recorded as a DECISION: one corrected (47's not_an_object row, 422 to 400), because a Player's reaction to it does not change, and one narrowed (40 and 60's cap of 32 outputs and 32 label outputs per client heartbeat, a document 1.2.0 accepted), a bounded exception put to the owner (§ Decisions made mid-build, the boundary review)"
+      - "the contract's text is the package's → conforms: each chunk that changes contract/ edits player-contract.md with it, and 54 writes § Releases' 1.3.0 entry from what they built"
   - artifact: api-contract
     dispositions:
       - "the MCP surface's names are frozen → amended once by ruling 3 of 2026-11-19: 45 makes the break, announced in the change record; 53 adds fields only"
@@ -153,7 +153,8 @@ gitignored files: the coordinator pastes the cited findings into each brief.
 - **Architecture, what must hold:** the four seam rules as built and guarded (ruling 9: no
   split is prepared); `DisplayService`'s public surface unchanged (48 moves its internals and
   keeps every name; the facade's removal is the third part's); the contract moves to 1.3.0
-  additively but for one corrected answer; the MCP surface breaks once, in 45, and only
+  additively but for one corrected answer (and, as built, one narrowed: § Decisions made
+  mid-build); the MCP surface breaks once, in 45, and only
   grows after it (53).
 - **What must stay possible (ruling 8):** several label outputs on one Player, a Player with
   labels and no display. 30's Player state is per output; its acceptance includes that shape.
@@ -201,7 +202,9 @@ gitignored files: the coordinator pastes the cited findings into each brief.
   - `[DECISION: the system tests are type-checked: arrt/pyproject.toml's [tool.mypy] files gains tests/system, and only that | 2a's integration found 18 "may be None" indexings in test_a_real_player.py and nothing checking them; the rest of the test tree is not in scope (several thousand annotations for little); cost: the type gate runs a little longer, and test code there needs its narrowings | user can veto/override]`
 - **Inferred, not ruled:** that `/api` has no reader but the browser (the tradeoff above rests
   on it; 54 checks `api-contract.md` for a promise to another reader before the change
-  record says so). That the pool's runners all reach GitHub (true of every run of
+  record says so). *Checked by 54, so no longer an inference:* `api-contract.md` § The HTTP
+  surface, as built 2026-08-01, says nothing outside this repository may bind to those
+  routes, and the change record's note for a reader of `/api` says so. That the pool's runners all reach GitHub (true of every run of
   2026-11-19; if a runner without the network joins, 29's suite needs a label, which 29
   records how to add).
 - **Level:** High for 28, 34, 36, 40, 41, 42, 44, 54 (fully specified). Medium for the rest:
@@ -503,6 +506,24 @@ left as planned and this section is the later word.
   screens said "under $0.01" or rounded to the cent.
 - **2026-11-20 (Chunk 66 added):** the two things Chunk 62 left, two edges of the cost
   words, and the paid probe the records chunk found on a schedule.
+- **2026-11-20 (Chunk 55, the boundary review), a second answer of 1.3.0 that is not additive:**
+  `[DECISION: contract 1.3.0 refuses a client heartbeat that carries more than 32 outputs or more than 32 label outputs (MAX_OUTPUTS_PER_REPORT, contract/src/arrt_contract/__init__.py, a semantic rule with two must-refuse fixtures; the server quotes it, programming/client_heartbeat.py MAX_OUTPUTS), recorded as a bounded exception to "a minor is additive" (player-contract.md § Versioning), the second beside the corrected not_an_object answer | the server has refused such a report since Chunk 40 (e3c34db2, 2026-11-19) and Chunk 60 made the cap the package's (65b29f88); a report of that size was valid under 1.2.0: its schema bounds no list of outputs (only a screen's pair), its one rule a schema cannot state is that no two outputs share a name, and 33 outputs and 33 label outputs are 5,533 bytes, inside the Player routes' 256 KiB body (BODY_LIMIT_BYTES, http/player.py; measured 2026-11-20 against contract-v1.2.0's schema); safe because each output a report names can become a row the server keeps (programming/clients.py), so without a cap one token holder could make the server keep as many as 256 KiB holds, while a real Player drives two screens and a handful of panels, far below 32 of either (ruling 8 of 2026-11-19, several label outputs on one Player, is not closed off); rulings checked: ruling 8 of 2026-11-19, the 2026-11-13 ruling on cutting a contract tag; none bears otherwise; cost: a Player pinned to 1.2.0 that sent more than 32 outputs, or more than 32 label outputs, would be refused whole by a server it believes it conforms to; none exists, and the change record asks the owner to ratify the exception, since the norm is the owner's and is not amended here | user can veto/override]`
+  The governed-by disposition above, `player-contract.md` § Releases and the change record
+  now name both answers.
+- **2026-11-20 (Chunk 55, the boundary review), the window's cost, as Chunk 33 did not record it:**
+  the decision that phase two answers at its window (§ Goals, *corrected*) recorded one cost, that
+  a work may settle on fewer sources than will answer. It had a second: a source still asking
+  at the window is owed, its call running on to the plugin's own deadline, and nothing bounded
+  how many such calls one plugin had, so a run going from work to work started one per work
+  (measured on the branch before the fix by `arrt/tests/unit/test_one_owed_ask_per_source.py`:
+  a run over 8 works had all 8 searches under way at one source at once, and a queue pass read
+  at a source a run still owed). Fixed before the merge: while a plugin owes one call
+  (`OWED_CALLS_PER_PLUGIN = 1`, `arrt/src/arrt/library/sources/loading.py`), neither a run nor a
+  queue pass starts another there; the work is not asked at that source, the outcome a pass's
+  hold-back gives (`StillAsking`, a `NotAskedThisPass`: no search written, the queue row as it
+  was, nothing counted against the plugin), journalled as `image_pool.still_asking` and
+  `source.plugin_still_asking`. The bound's own cost: such a work waits for a later pass to be
+  asked at that source, where before it was asked and its answer owed.
 
 ## The items 2a carried forward, and where each went
 
@@ -2071,7 +2092,8 @@ Each is whole and nothing in 2b begins it, so moving it leaves nothing half buil
   2. Cut `contract-v1.3.0` (an annotated tag on the merge commit), the way the 2026-11-13
      ruling records the owner approving a contract tag; the next plan's first commit copies
      the 1.3.0 release into `contract/released/` (28's guard demands it when the version next moves).
-  3. Tell the Player's coordinator: 1.3.0's additions, each new must-refuse fixture needing a
+  3. Tell the Player's coordinator: 1.3.0's additions, its two answers that are not additive
+     (the corrected `not_an_object` row and the cap of 32 outputs), each new must-refuse fixture needing a
      reason, C37. Tell the sources' coordinator: interface 1.6 and `link_gone`, the testing helper.
   4. Put Q4 (and #150) to the owner again; then branch protection, if not on yet, requiring
      "Lint, then every suite" only (never "The browser suite ran on the pool"), knowing it now
