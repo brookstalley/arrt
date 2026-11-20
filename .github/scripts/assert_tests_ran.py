@@ -10,7 +10,7 @@ only the live suites, so the guard read as narrower than the workflows that
 actually call it.
 
 **The whole opt-in-probe design depends on this.** Every test in those suites skips
-itself cleanly when its dependency is absent — `skipif(not OPENROUTER_API_KEY)`,
+itself cleanly when its dependency is absent — a `skipif` on a missing key,
 `pytest.skip("dezoomify-rs is not installed")` — which is right for a developer's
 machine and is a trap in CI. An expired secret, a rename, a failed binary install:
 each gives a completely green pytest run that made no request and verified

@@ -17,13 +17,11 @@ due*, precisely so that absence over an interval is itself the fault. This is
 that idea applied to a workflow: a successful run is the positive signal, and its
 age is the thing measured.
 
-**Per tier, because only one tier runs on a clock.** The free probes are weekly;
-the paid one runs only when a person dispatches the workflow and asks for it (the
-owner's ruling of 2026-11-20 that CI makes no paid call; wave 2b, Chunk 66), so its
-age measures how long since somebody chose to spend, never a schedule that stopped.
-It is reported and never fails this check (`BY_HAND`). The tiers are told apart by
-which *jobs* actually ran in each workflow run — a weekly run skips the paid job,
-so a run's mere existence says nothing about which tier it refreshed.
+**One tier, the free probes, weekly.** There was a paid tier, monthly, until the
+owner's ruling of 2026-11-20 that CI makes no paid call took the paid probe out of
+CI altogether (wave 2b, Chunk 66): it is run by hand on a person's machine, and
+nothing here can observe it. The tier is read from which *jobs* succeeded in each
+run, so a run whose free jobs failed or were skipped refreshes nothing.
 
 **A known-blocked probe is not a stale one.** `.github/known-blocked.json` lists the
 probes whose red is excused until a date (`known_blocked.py` says why the file exists
@@ -67,22 +65,10 @@ import known_blocked  # noqa: E402 -- a sibling script, importable only once its
 STALE_AFTER = {"free": timedelta(days=21)}
 
 #: Which job in `api-drift.yml` stands for which scheduled tier. A run refreshed a
-#: tier only if that tier's job actually *succeeded* in it — `skipped` is the
-#: normal state for the paid job in any scheduled run, and `failure` is a run that
-#: told us something but re-verified nothing.
+#: tier only if that tier's job actually *succeeded* in it: `skipped`, `cancelled`
+#: and `failure` are runs that re-verified nothing.
 TIER_JOBS = {
     "free": ("Museum APIs (free)", "dezoomify-rs (free)"),
-}
-
-#: The tiers no schedule runs, and the jobs that stand for them: the paid probe,
-#: run only when a person dispatches the workflow and ticks `include_paid` (the
-#: owner's ruling of 2026-11-20, CI makes no paid call). Its last success is
-#: said, and its age, or its absence, never fails this check: no schedule exists
-#: to have stopped, and a check whose green costs money is a check that gets
-#: ignored, taking the free tier's finding down with it (the first version of
-#: this file failed on a paid tier that had never run, which only spending could clear).
-BY_HAND = {
-    "paid": ("OpenRouter (spends money)",),
 }
 
 
@@ -125,7 +111,7 @@ def main(runs: list[dict], now: datetime, blocked: Path | None = None) -> int:
                 "what a drift workflow that has not yet been merged — or one whose first run "
                 "failed — looks like. Dispatch it by hand once (Actions -> API drift -> Run "
                 "workflow) to prove the wiring, rather than waiting a week to find a typo. "
-                "That dispatch is free: leave 'Also run the OpenRouter probes' unticked."
+                "That dispatch is free."
             )
             worst = 1
             continue
@@ -143,16 +129,6 @@ def main(runs: list[dict], now: datetime, blocked: Path | None = None) -> int:
             worst = 1
         else:
             print(f"{tier}: last succeeded {age.days} days ago ({last.date().isoformat()}), within {limit.days} days")
-
-    for tier, job_names in BY_HAND.items():
-        last = newest_success(runs, job_names)
-        if last is None:
-            print(f"{tier}: has never run, which is not reported as a fault: it runs only when dispatched by hand (BY_HAND).")
-        else:
-            print(
-                f"{tier}: last succeeded {(now - last).days} days ago ({last.date().isoformat()}); it runs only when "
-                "dispatched by hand, so its age is said, never measured against a limit (BY_HAND)."
-            )
 
     return worst
 

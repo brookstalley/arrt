@@ -1,5 +1,5 @@
-# Re-run the free live probes on a schedule, and the paid one when a person asks, so a
-# foreign API changing under us is something we are told rather than something a curator discovers.
+# Re-run the free live probes on a schedule, so a foreign API changing under us is
+# something we are told rather than something a curator discovers.
 #
 # HOW WE ARE TOLD, since that sentence is only true if something makes it true.
 # A failing job opens — or comments on — an issue in this repo's backlog, via
@@ -20,20 +20,20 @@
 # for a listed probe that is red, and says in the job's summary which and until when.
 # That is the owner's ruling of 2026-11-19: an alarm that was red for seven weeks on
 # every run could not show a real drift, so the probes known to be red are marked and
-# a new red shows again. The OpenRouter job is not covered, on purpose: its probes
-# are skipped for want of a key (#150), which is a job that verified nothing, not a
-# probe that is red, and a row excuses only the latter.
+# a new red shows again.
 #
 # The *absence* of a run is a different fault and has a different mechanism —
 # `drift-freshness.yml`, which measures how long since the free tier
 # last succeeded. A schedule that stops firing leaves nothing here to fail.
 #
-# NO SCHEDULE SPENDS MONEY. The owner's ruling of 2026-11-20 (`.prawduct/
-# owner-rulings.md`: CI makes no paid call) took the paid OpenRouter probe off
-# the monthly cron it had: it runs only when a person dispatches this workflow
-# and ticks `include_paid`. `tests/test_no_schedule_spends.py` reads every
-# workflow and fails by name for a schedule that can reach a job holding a paid
-# model key.
+# THE PAID PROBE IS NOT HERE. The owner's ruling of 2026-11-20 (`.prawduct/
+# owner-rulings.md`: CI makes no paid call; no workflow holds a model key) took it
+# out of CI altogether: it ran monthly until then, and is now run by hand, on a
+# person's machine with their own key, as `CLAUDE.md` and `docs/testing.md` § the
+# live markers say: `cd arrt && uv run pytest tests/live -m live_api -n0`, which
+# spends real money. `tests/test_ci_makes_no_paid_call.py` fails by name for any
+# job, in any workflow, that takes a secret this repository does not name as one
+# CI may hold.
 #
 # WHAT THIS IS FOR. The `live_*` suites are the durable form of the
 # `*-api-findings.md` documents: each records a measurement the product is
@@ -61,17 +61,12 @@ on:
   schedule:
     # The free probes weekly, Mondays. Deliberately not on the hour: GitHub's
     # scheduler is heavily contended at :00 and delays runs, and nothing here is
-    # time-critical. The only schedule: the paid probe has none (header above).
+    # time-critical.
     - cron: "17 6 * * 1"
   workflow_dispatch:
-    inputs:
-      include_paid:
-        description: "Also run the OpenRouter probes (spends real money)"
-        type: boolean
-        default: false
 
-# Two dispatches that ask for the paid tier, overlapping, would double its spend
-# for no extra information; a scheduled run waits for a dispatched one likewise.
+# A scheduled run overlapping a dispatched one would ask the same museums the same
+# questions twice for no extra information; the second waits for the first.
 concurrency:
   group: api-drift
   cancel-in-progress: false
@@ -80,11 +75,9 @@ concurrency:
 # failure route: without it the only notification is the default Actions email,
 # whose limits are in the header above. Nothing here reads an issue's contents;
 # the scripts only list titles, create, and comment. It is granted per job, to
-# the two free probes that report their own failure, and never to the job that
-# holds the OpenRouter key: that job reads its secret in a step that runs a test
-# suite, and a job able to write issues should not be the one running code with a
-# key in reach. `tests/test_actions_pinned.py` holds that no job with a secret of
-# the repository's can write issues.
+# the two free probes that report their own failure; neither holds a secret of the
+# repository's, and `tests/test_actions_pinned.py` holds that no job with one can
+# write issues.
 permissions:
   contents: read
 
@@ -224,38 +217,3 @@ jobs:
           "dezoomify-rs (free)"
           "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           --verdict "$RUNNER_TEMP/drift-verdict.json"
-
-  openrouter:
-    name: "OpenRouter (spends money)"
-    # Only on a dispatch that explicitly opts in, never on a schedule (the owner's
-    # ruling of 2026-11-20, header above). A manual run must not spend by surprise
-    # just because someone wanted to check the museum probes.
-    if: github.event_name == 'workflow_dispatch' && inputs.include_paid
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Read-only on purpose: this job holds the OpenRouter key, so it cannot write
-    # issues. It files none: it runs only when a person dispatches it, and that
-    # person is watching its output, as the free jobs file only on a schedule.
-    # (`report-openrouter`, which filed for it, ran only on the monthly schedule
-    # and went with it.)
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          version: "0.11.32"
-          enable-cache: true
-      - name: Run the OpenRouter probes
-        working-directory: arrt
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: uv run pytest tests/live -m live_api -n0 -v --junitxml=results.xml
-      - name: Fail if nothing actually ran
-        # THE LOAD-BEARING STEP FOR THIS JOB. Every test here is
-        # `skipif(not OPENROUTER_API_KEY)`, so an absent or expired secret gives a
-        # completely green run that made no API call and verified nothing —
-        # precisely the green-suite-that-means-nothing this repo refuses. A skip
-        # in CI is a provisioning failure, not a legitimate absence.
-        if: always()
-        run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
