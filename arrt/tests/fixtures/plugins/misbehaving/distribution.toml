@@ -1,0 +1,30 @@
+# A source plugin distribution that misbehaves on purpose, for
+# `tests/integration/test_a_misbehaving_plugin.py`. Never built or published:
+# that test installs it into a directory of its own, as an installer would (its
+# package beside a `.dist-info` written from this file), and puts that directory
+# on the path, so the loader finds these entry points the way it finds any
+# installed plugin's.
+#
+# Not named `pyproject.toml`: a tracked one makes a directory one of the
+# repository's projects (`tests/repository.py`, `projects()`), which every
+# root scan then walks, and a fixture is not a project. The `[project]` table
+# keeps pyproject's shape, so it reads as the metadata a build would carry.
+#
+# Four plugins in one distribution, because a deadline is declared on the
+# `SourcePlugin` itself, at import, and one plugin cannot declare two:
+#   misbehaving  the plugin the test steers, call by call (`arrt_misbehaving.CONTROL`)
+#   steady       a well-behaved plugin beside it, whose answers must still arrive
+#   patient      declares the ceiling and takes all of it
+#   overdue      declares more than the ceiling, and is refused at load
+[project]
+name = "arrt-misbehaving"
+version = "0.1.0"
+requires-python = ">=3.14"
+# No `arrt`: the server provides it (docs/source-plugins.md).
+dependencies = []
+
+[project.entry-points."arrt.sources"]
+misbehaving = "arrt_misbehaving:MISBEHAVING"
+steady = "arrt_misbehaving:STEADY"
+patient = "arrt_misbehaving:PATIENT"
+overdue = "arrt_misbehaving:OVERDUE"

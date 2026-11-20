@@ -223,3 +223,76 @@ def test_the_contract_names_are_the_workflow_s_own_job_names():
 
     for name in reported:
         assert f'name: "{name}"' in workflow, f"{name!r} is reported as a contract but names no job"
+
+
+# -- known-blocked probes: the comment says which are excused and until when ---------------------
+
+
+VERDICT = {
+    "contract": "Museum APIs (free)",
+    "failures": ["tests/live/test_met.py::test_new is red and is not in .github/known-blocked.json"],
+    "excused": [{"test": "tests/live/test_artic.py::test_old", "issue": 110, "expires": "2027-01-18"}],
+}
+
+
+def _comment_body(gh: FakeGh) -> str:
+    commented = gh.call_named("issue", "comment")
+    assert commented is not None
+    return commented[commented.index("--body") + 1]
+
+
+def test_a_repeat_failure_with_a_verdict_names_the_new_red_and_says_known_blocked_until_not_still_failing():
+    script = _load()
+    gh = FakeGh(open_issues=[{"number": 77, "title": script.title_for("Museum APIs (free)")}])
+
+    script.main("Museum APIs (free)", RUN_URL, gh=gh, verdict=VERDICT)
+
+    body = _comment_body(gh)
+    assert RUN_URL in body
+    assert "tests/live/test_met.py::test_new is red" in body
+    assert "`tests/live/test_artic.py::test_old` (#110): known-blocked until 2027-01-18" in body
+    assert "Still failing" not in body, "an excused probe must never be called still failing"
+
+
+def test_a_failure_with_no_verdict_comments_as_it_always_did():
+    """No verdict file means the judge never ran or wrote nothing; the old words are the honest ones."""
+    script = _load()
+    gh = FakeGh(open_issues=[{"number": 77, "title": script.title_for("Museum APIs (free)")}])
+
+    script.main("Museum APIs (free)", RUN_URL, gh=gh, verdict=None)
+
+    assert _comment_body(gh) == f"Still failing, as of {RUN_URL}"
+
+
+def test_a_verdict_with_only_excused_probes_says_the_failure_was_outside_the_probes():
+    script = _load()
+    gh = FakeGh(open_issues=[{"number": 77, "title": script.title_for("Museum APIs (free)")}])
+
+    script.main("Museum APIs (free)", RUN_URL, gh=gh, verdict={**VERDICT, "failures": []})
+
+    body = _comment_body(gh)
+    assert "outside the probes" in body and "known-blocked until 2027-01-18" in body
+
+
+def test_a_first_failure_with_a_verdict_puts_it_in_the_issue_body():
+    script = _load()
+    gh = FakeGh()
+
+    script.main("Museum APIs (free)", RUN_URL, gh=gh, verdict=VERDICT)
+
+    created = gh.call_named("issue", "create")
+    body = created[created.index("--body") + 1]
+    assert "tests/live/test_met.py::test_new is red" in body and "known-blocked until 2027-01-18" in body
+
+
+def test_the_verdict_file_is_read_and_a_missing_or_broken_one_is_no_verdict(tmp_path):
+    script = _load()
+    good = tmp_path / "v.json"
+    good.write_text('{"failures": ["x"], "excused": []}')
+    broken = tmp_path / "broken.json"
+    broken.write_text("{nope")
+
+    assert script.read_verdict(str(good)) == {"failures": ["x"], "excused": []}
+    assert script.read_verdict(str(broken)) is None
+    assert script.read_verdict(str(tmp_path / "absent.json")) is None
+    assert script.read_verdict(None) is None

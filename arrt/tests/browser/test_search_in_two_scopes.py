@@ -16,6 +16,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
 from scripted_model import ScriptedModel
 
 LISTBOX = "#search-suggestions"
@@ -36,8 +37,9 @@ def type_into_search(ui, words: str) -> None:
     ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
-def options(ui) -> list[str]:
-    return ui.page.locator(f"{LISTBOX} [role='option']").all_inner_texts()
+def options(ui):
+    """Every row of the dropdown, for `to_have_text([...])`."""
+    return ui.page.locator(f"{LISTBOX} [role='option']")
 
 
 def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_service):
@@ -48,25 +50,30 @@ def test_typing_offers_library_matches_then_a_search_of_everything(ui, seeded_se
 
     # The artist first (ruling 4's hub, the IA's Artists-first ranking), then
     # the library's works, then the search of everything.
-    assert options(ui) == [
-        "Salvador Dalí — artist",
-        "The Persistence of Memory — Salvador Dalí",
-        "Ask about “Dalí”",
-        "All results for “Dalí”",
-    ]
+    expect(options(ui)).to_have_text(
+        [
+            "Salvador Dalí — artist",
+            "The Persistence of Memory — Salvador Dalí",
+            "Ask about “Dalí”",
+            "All results for “Dalí”",
+        ],
+        use_inner_text=True,
+    )
     # The groups are named through `aria-labelledby`, so a screen reader says
     # which scope an option is in: asserted by role and accessible name, which
     # visible text alone cannot prove.
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
     held_artists = listbox.get_by_role("group", name="Held: artists", exact=True)
-    assert held_artists.get_by_role("option").all_inner_texts() == ["Salvador Dalí — artist"]
-    assert listbox.get_by_role("group", name="Held: works", exact=True).get_by_role("option").count() == 1
-    assert listbox.get_by_role("group", name="Ask", exact=True).get_by_role("option").all_inner_texts() == ["Ask about “Dalí”"]
+    expect(held_artists.get_by_role("option")).to_have_text(["Salvador Dalí — artist"], use_inner_text=True)
+    expect(listbox.get_by_role("group", name="Held: works", exact=True).get_by_role("option")).to_have_count(1)
+    expect(listbox.get_by_role("group", name="Ask", exact=True).get_by_role("option")).to_have_text(
+        ["Ask about “Dalí”"], use_inner_text=True
+    )
     # Each half is drawn once, above its groups, and hidden from a screen reader,
     # which hears it in each group's name instead. With no registry configured,
     # Not held holds only the note saying so.
     halves = ui.page.locator(f"{LISTBOX} .search-suggestions-half")
-    assert halves.all_inner_texts() == ["Held", "Not held"]
+    expect(halves).to_have_text(["Held", "Not held"], use_inner_text=True)
     assert halves.evaluate_all("nodes => nodes.map(node => node.getAttribute('aria-hidden'))") == ["true", "true"]
 
 
@@ -78,12 +85,15 @@ def test_typing_without_the_accent_still_offers_the_library_match(ui, seeded_ser
 
     type_into_search(ui, "dali")
 
-    assert options(ui) == [
-        "Salvador Dalí — artist",
-        "The Persistence of Memory — Salvador Dalí",
-        "Ask about “dali”",
-        "All results for “dali”",
-    ]
+    expect(options(ui)).to_have_text(
+        [
+            "Salvador Dalí — artist",
+            "The Persistence of Memory — Salvador Dalí",
+            "Ask about “dali”",
+            "All results for “dali”",
+        ],
+        use_inner_text=True,
+    )
 
 
 def test_with_no_library_match_held_is_one_line_and_only_the_search_of_everything_is_offered(ui, seeded_service):
@@ -95,11 +105,13 @@ def test_with_no_library_match_held_is_one_line_and_only_the_search_of_everythin
 
     type_into_search(ui, "Vermeer")
 
-    assert options(ui) == ["Ask about “Vermeer”", "All results for “Vermeer”"]
-    assert ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents() == ["Ask", "Search"]
-    assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").all_inner_texts()[0] == "Nothing you hold matches."
+    expect(options(ui)).to_have_text(["Ask about “Vermeer”", "All results for “Vermeer”"], use_inner_text=True)
+    expect(ui.page.locator(f"{LISTBOX} .search-suggestions-label")).to_have_text(["Ask", "Search"])
+    expect(ui.page.locator(f"{LISTBOX} .search-suggestions-none").first).to_have_text(
+        "Nothing you hold matches.", use_inner_text=True
+    )
     # Not an option: arrow keys pass over it.
-    assert ui.page.locator(f"{LISTBOX} .search-suggestions-none").first.get_attribute("role") == "presentation"
+    expect(ui.page.locator(f"{LISTBOX} .search-suggestions-none").first).to_have_attribute("role", "presentation")
 
 
 def test_a_library_match_leaves_out_the_nothing_held_line(ui, seeded_service):
@@ -109,27 +121,29 @@ def test_a_library_match_leaves_out_the_nothing_held_line(ui, seeded_service):
 
     type_into_search(ui, "Dalí")
 
-    assert "Nothing you hold matches." not in ui.page.inner_text(LISTBOX)
+    # Anchored by `type_into_search`, which waited for the answer to all the words.
+    expect(ui.page.locator(LISTBOX)).not_to_contain_text("Nothing you hold matches.", use_inner_text=True)
 
 
 def test_the_field_is_a_combobox_the_keyboard_can_drive(ui, seeded_service):
     ui.open("#walls")
     ui.page.wait_for_selector("#view h1")
     field = ui.page.locator("#search")
-    assert field.get_attribute("role") == "combobox"
-    assert field.get_attribute("aria-expanded") == "false"
+    expect(field).to_have_attribute("role", "combobox")
+    expect(field).to_have_attribute("aria-expanded", "false")
 
     type_into_search(ui, "Dalí")
-    assert field.get_attribute("aria-expanded") == "true"
+    expect(field).to_have_attribute("aria-expanded", "true")
 
     ui.page.keyboard.press("ArrowDown")
     first = ui.page.locator(f"{LISTBOX} [role='option']").first
-    assert field.get_attribute("aria-activedescendant") == first.get_attribute("id")
-    assert first.get_attribute("aria-selected") == "true"
+    first_id = first.get_attribute("id")  # one-shot: the row's own id, which the highlight is then asserted to name
+    expect(field).to_have_attribute("aria-activedescendant", first_id)
+    expect(first).to_have_attribute("aria-selected", "true")
 
     ui.page.keyboard.press("Escape")
-    assert field.get_attribute("aria-expanded") == "false"
-    assert not ui.page.locator(LISTBOX).is_visible()
+    expect(field).to_have_attribute("aria-expanded", "false")
+    expect(ui.page.locator(LISTBOX)).to_be_hidden()
 
 
 def test_choosing_a_library_match_opens_that_work(ui, seeded_service):
@@ -154,8 +168,10 @@ def test_a_failed_artist_lookup_keeps_the_work_matches(ui, seeded_service):
 
     type_into_search(ui, "dali")
 
-    assert options(ui) == ["The Persistence of Memory — Salvador Dalí", "Ask about “dali”", "All results for “dali”"]
-    assert ui.page.locator(".search-suggestions-note").count() == 0
+    expect(options(ui)).to_have_text(
+        ["The Persistence of Memory — Salvador Dalí", "Ask about “dali”", "All results for “dali”"], use_inner_text=True
+    )
+    expect(ui.page.locator(".search-suggestions-note")).to_have_count(0)
 
 
 def test_choosing_an_artist_opens_their_page(ui, seeded_service):
@@ -180,7 +196,7 @@ def test_searching_museums_hands_the_words_to_add_new_and_spends_nothing(ui, ser
     ui.page.click(f"{LISTBOX} [role='option']:has-text('Ask about')")
 
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
-    assert ui.page.input_value("#ask-words") == "Vermeer interiors"
+    expect(ui.page.locator("#ask-words")).to_have_value("Vermeer interiors")
     assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Vermeer%20interiors"
     # Nothing was asked of any museum or model: no run exists.
     assert ui.page.evaluate("async () => (await (await fetch('/api/runs')).json()).total") == 0
@@ -191,7 +207,7 @@ def test_add_new_reached_without_a_term_starts_empty(ui, seeded_service):
     ui.open("#discover")
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
-    assert ui.page.input_value("#ask-words") == ""
+    expect(ui.page.locator("#ask-words")).to_have_value("")
 
 
 def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, seeded_service):
@@ -203,15 +219,15 @@ def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, see
 
     type_into_search(ui, "the")
     library = ui.page.get_by_role("listbox", name="Suggestions").get_by_role("group", name="Held: works", exact=True)
-    assert (
-        library.get_by_role("option").count() == 2
-    ), "the fixture must match more than one work, or this cannot tell first from all"
+    expect(
+        library.get_by_role("option"), "the fixture must match more than one work, or this cannot tell first from all"
+    ).to_have_count(2)
     ui.page.keyboard.press("Enter")
 
     ui.page.wait_for_selector("#view h1:text-is('Results for “the”')")
     # Opened from Artworks, the results page's own default return, so no `from`.
     assert ui.page.evaluate("() => window.location.hash") == "#search?q=the"
-    assert ui.page.locator("section[aria-labelledby='results-held-works'] li").count() == 2
+    expect(ui.page.locator("section[aria-labelledby='results-held-works'] li")).to_have_count(2)
 
 
 def test_enter_with_no_match_opens_the_results_page_saying_so(ui, seeded_service):
@@ -223,8 +239,8 @@ def test_enter_with_no_match_opens_the_results_page_saying_so(ui, seeded_service
 
     ui.page.wait_for_selector("#view .results-none")
     assert ui.page.evaluate("() => window.location.hash") == "#search?from=walls&q=Vermeer"
-    assert ui.page.locator("#view .results-none").inner_text() == "Nothing you hold matches."
-    assert not ui.page.locator(LISTBOX).is_visible()
+    expect(ui.page.locator("#view .results-none")).to_have_text("Nothing you hold matches.", use_inner_text=True)
+    expect(ui.page.locator(LISTBOX)).to_be_hidden()
 
 
 def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seeded_service):
@@ -241,8 +257,10 @@ def test_a_failed_library_lookup_still_offers_the_search_of_everything(ui, seede
 
     # The artist lookup is a separate request and answered, so the artist is still
     # offered; only the works could not be searched, and the dropdown says so.
-    assert options(ui) == ["Salvador Dalí — artist", "Ask about “Dalí”", "All results for “Dalí”"]
-    assert "could not be searched" in ui.page.inner_text(LISTBOX)
+    expect(options(ui)).to_have_text(
+        ["Salvador Dalí — artist", "Ask about “Dalí”", "All results for “Dalí”"], use_inner_text=True
+    )
+    expect(ui.page.locator(LISTBOX)).to_contain_text("could not be searched", use_inner_text=True)
 
 
 def test_a_lookup_that_found_nothing_does_not_claim_it_failed(ui, seeded_service):
@@ -251,7 +269,8 @@ def test_a_lookup_that_found_nothing_does_not_claim_it_failed(ui, seeded_service
 
     type_into_search(ui, "Vermeer")
 
-    assert "could not be searched" not in ui.page.inner_text(LISTBOX)
+    # Anchored by `type_into_search`, which waited for the answer to all the words.
+    expect(ui.page.locator(LISTBOX)).not_to_contain_text("could not be searched", use_inner_text=True)
 
 
 def test_a_slow_answer_to_an_earlier_keystroke_does_not_replace_a_later_one(ui, seeded_service):
@@ -269,17 +288,22 @@ def test_a_slow_answer_to_an_earlier_keystroke_does_not_replace_a_later_one(ui, 
     ui.page.wait_for_selector("#view h1")
 
     ui.page.click("#search")
-    ui.page.keyboard.type("Nig")
-    ui.page.wait_for_timeout(400)
+    # The earlier lookup is made, and held, before the next keystroke: that is
+    # what the test is about, so it is waited on by its request.
+    with ui.page.expect_request(lambda request: "/api/works" in request.url and "q=Nig&" in request.url):
+        ui.page.keyboard.type("Nig")
     ui.page.keyboard.type("hthawks")
     ui.page.wait_for_selector(f"{LISTBOX} [role='option']:has-text('Nighthawks')")
     assert held, "the earlier lookup was never made, so this test cannot say anything"
 
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body='{"works": [], "total": 0, "limit": 6, "offset": 0, "truncated": false, "facets": []}',
-    )
-    ui.page.wait_for_timeout(300)
+    with ui.page.expect_response(lambda response: "/api/works" in response.url and "q=Nig&" in response.url):
+        held[0].fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"works": [], "total": 0, "limit": 6, "offset": 0, "truncated": false, "facets": []}',
+        )
+    # The answer is in; if it were taken for the latest, the rows would go with it. Nothing
+    # changes on a page that ignores it, so there is no condition to wait on.
+    ui.page.wait_for_timeout(300)  # sleep: proves the late, emptier answer, once in, replaces nothing
 
-    assert "Nighthawks" in " ".join(options(ui)), "the earlier, emptier answer replaced the later one"
+    expect(options(ui), "the earlier, emptier answer replaced the later one").to_contain_text(["Nighthawks"], use_inner_text=True)

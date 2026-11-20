@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from arrt_contract import root, routes
+from arrt_contract import released, root, routes
 from feed_guard import problems
 from scenarios import connect
 
@@ -289,6 +289,21 @@ def test_every_valid_heartbeat_in_the_contract_is_accepted(server_url, token, wa
     response = httpx.post(server_url + _path("heartbeat", wall_id=wall_id), json=document, headers=_bearer(token))
 
     assert response.status_code == 204
+
+
+_RELEASED_HEARTBEATS = [
+    path for release in released().values() for path in sorted((release / "fixtures" / "heartbeat.v1" / "valid").glob("*.json"))
+]
+
+
+@pytest.mark.parametrize("fixture", _RELEASED_HEARTBEATS, ids=lambda path: f"{path.parents[3].name}:{path.name}")
+def test_every_valid_heartbeat_of_a_released_contract_is_accepted(server_url, token, wall_id, fixture):
+    """What a Player pinned to an older tag writes, this server still takes (audit-7 M6)."""
+    document = json.loads(fixture.read_text(encoding="utf-8"))
+
+    response = httpx.post(server_url + _path("heartbeat", wall_id=wall_id), json=document, headers=_bearer(token))
+
+    assert response.status_code == 204, response.text
 
 
 def test_a_heartbeat_the_panel_could_not_read_is_refused_and_not_written(server_url, services, token, wall_id):

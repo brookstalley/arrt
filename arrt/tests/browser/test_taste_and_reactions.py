@@ -14,6 +14,7 @@ the screen's own and visible only to a browser:
 """
 
 import json
+import re
 
 import pytest
 from payloads import a_taste, an_affinity
@@ -25,6 +26,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
 
 # -- the Taste screen ---------------------------------------------------------
 
@@ -40,9 +42,9 @@ def test_taste_is_a_page_under_settings(ui):
     ui.page.wait_for_selector(".affinity")
 
     settings = ui.page.locator("nav.sidebar li.section[data-section='settings']")
-    assert settings.locator("ul.pages a[aria-current='page']").inner_text() == "Taste"
-    sections = ui.page.locator("nav.sidebar a.section-link .label").all_text_contents()
-    assert "Taste" not in sections
+    expect(settings.locator("ul.pages a[aria-current='page']")).to_have_text("Taste", use_inner_text=True)
+    # No section is labelled Taste: `:text-is` is the whole label, as a list's membership was.
+    expect(ui.page.locator("nav.sidebar a.section-link .label:text-is('Taste')")).to_have_count(0)
 
 
 def test_every_judgment_shows_where_it_came_from(ui):
@@ -69,9 +71,9 @@ def test_every_judgment_shows_where_it_came_from(ui):
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity")
 
-    assert "You said this" in ui.text()
-    assert "Read out of something you said" in ui.text()
-    assert "they asked for stillness, and said the room is pale" in ui.text()
+    expect(ui.view).to_contain_text("You said this", use_inner_text=True)
+    expect(ui.view).to_contain_text("Read out of something you said", use_inner_text=True)
+    expect(ui.view).to_contain_text("they asked for stillness, and said the room is pale", use_inner_text=True)
 
 
 def test_an_inferred_judgment_renders_with_its_rationale_and_no_way_back(ui):
@@ -96,10 +98,10 @@ def test_an_inferred_judgment_renders_with_its_rationale_and_no_way_back(ui):
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity")
 
-    assert "Kandinsky" in ui.text()
-    assert "Read out of something you said" in ui.text()
-    assert "they asked for stillness" in ui.text()
-    assert ui.page.locator(".affinity-provenance a").count() == 0
+    expect(ui.view).to_contain_text("Kandinsky", use_inner_text=True)
+    expect(ui.view).to_contain_text("Read out of something you said", use_inner_text=True)
+    expect(ui.view).to_contain_text("they asked for stillness", use_inner_text=True)
+    expect(ui.page.locator(".affinity-provenance a")).to_have_count(0)
 
 
 def test_correcting_a_judgment_writes_it_as_the_curators_own_words(ui):
@@ -185,10 +187,11 @@ def test_forgetting_a_judgment_asks_first_and_says_what_is_lost(ui):
     ui.page.click("button:has-text('Forget this')")
     ui.page.wait_for_selector("dialog.confirm")
 
-    assert "Forget Kandinsky?" in ui.page.inner_text("dialog.confirm")
-    assert "stop knowing anything about Kandinsky" in ui.page.inner_text("dialog.confirm")
-    assert "“Not this”" in ui.page.inner_text("dialog.confirm")
-    assert "Arrt next starts" not in ui.page.inner_text("dialog.confirm"), "a stated judgment is gone for good"
+    dialog = ui.page.locator("dialog.confirm")
+    expect(dialog).to_contain_text("Forget Kandinsky?", use_inner_text=True)
+    expect(dialog).to_contain_text("stop knowing anything about Kandinsky", use_inner_text=True)
+    expect(dialog).to_contain_text("“Not this”", use_inner_text=True)
+    expect(dialog, "a stated judgment is gone for good").not_to_contain_text("Arrt next starts", use_inner_text=True)
 
 
 def test_forgetting_an_observed_judgment_says_review_will_read_it_again(ui):
@@ -207,9 +210,11 @@ def test_forgetting_an_observed_judgment_says_review_will_read_it_again(ui):
     ui.page.click("button:has-text('Forget this')")
     ui.page.wait_for_selector("dialog.confirm")
 
-    said = ui.page.inner_text("dialog.confirm")
-    assert "until you next accept or turn down one of their works in review, or Arrt next starts" in said
-    assert "nothing brings the judgment back" not in said
+    said = ui.page.locator("dialog.confirm")
+    expect(said).to_contain_text(
+        "until you next accept or turn down one of their works in review, or Arrt next starts", use_inner_text=True
+    )
+    expect(said).not_to_contain_text("nothing brings the judgment back", use_inner_text=True)
 
 
 def test_declining_the_forget_destroys_nothing(ui):
@@ -234,7 +239,7 @@ def test_declining_the_forget_destroys_nothing(ui):
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert deleted == []
-    assert "Kandinsky" in ui.text()
+    expect(ui.view).to_contain_text("Kandinsky", use_inner_text=True)
 
 
 def test_a_taste_nobody_has_expressed_says_what_would_create_one(ui):
@@ -247,8 +252,8 @@ def test_a_taste_nobody_has_expressed_says_what_would_create_one(ui):
     ui.open("#taste")
     ui.page.wait_for_selector(".empty")
 
-    assert "Nothing is known about your taste yet." in ui.text()
-    assert ui.page.locator("a:has-text('Ask for something')").count() == 1
+    expect(ui.view).to_contain_text("Nothing is known about your taste yet.", use_inner_text=True)
+    expect(ui.page.locator("a:has-text('Ask for something')")).to_have_count(1)
 
 
 def _capture(route, written):
@@ -286,6 +291,7 @@ def test_the_help_names_review_and_telling_ask_among_the_ways_a_judgment_is_reco
     ui.open("#taste")
     ui.page.wait_for_selector(".taste-help li")
 
-    ways = ui.page.locator(".taste-help li").all_text_contents()
-    assert any(way.startswith("or tell Ask") for way in ways), ways
-    assert any(way.startswith("accept, or turn down, at least five of an artist's works in review") for way in ways), ways
+    # Each is the start of one of the help's lines, as the raw text of the line (`has_text` is the raw text).
+    for start in ("or tell Ask", "accept, or turn down, at least five of an artist's works in review"):
+        ways = ui.page.locator(".taste-help li").filter(has_text=re.compile("^" + re.escape(start)))
+        expect(ways.first, f"no line of the help starts {start!r}").to_be_attached()

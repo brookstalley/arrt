@@ -1,0 +1,25 @@
+{
+  "reported_at": "2026-10-08T16:40:00Z",
+  "outputs": [
+    {
+      "name": "frame",
+      "kind": "frame",
+      "connected": true,
+      "screen": [
+        3840,
+        2160
+      ]
+    }
+  ],
+  "label_outputs": [
+    {
+      "name": "epd-0",
+      "kind": "lcd",
+      "connected": true,
+      "size": [
+        800,
+        480
+      ]
+    }
+  ]
+}

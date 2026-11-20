@@ -59,6 +59,34 @@ Five nouns. Each owns one thing, and nothing else decides it.
 | **Wall controller** | The Player, one per assigned display output | Drives the screen to match the wall's manifest, and is the **only** thing that knows what the screen is doing. Reports the wall's **display state**. |
 | **Label renderer** | Wherever the label surface is | Turns *(display state, label text)* into pixels for one surface. Two kinds: a **panel renderer** (today's `EpaperSurface`, on any client) and, later, a **caption renderer** inside a display's compositor. |
 
+### The recorded limit
+
+The owner, 2026-11-19 (`.prawduct/owner-rulings.md`, ruling 8): *"I'm fine
+recording one label panel per player right now, but we shouldn't design anything
+that precludes having multiple labels, just as we don't prevent having multiple
+displays per player. In the future, there may be players that only do labels and
+might have multiple."*
+
+- **What is built today:** Arrt Player drives one label panel, the label output
+  `epd-0`. That is the limit, recorded, and it belongs to the Player's
+  configuration alone.
+- **What nothing assumes:** a label is an output a Player has zero or more of,
+  as a display is. The contract describes several label outputs on one Player
+  and a Player with labels and no display: the client heartbeat's `outputs` may
+  be empty and its `label_outputs` lists any number
+  (`fixtures/client-heartbeat.v1/valid/panels-and-no-display.json`); the client
+  document's `walls` may be empty and its `labels` lists any number, on as many
+  outputs (`fixtures/client.v1/valid/several-labels-and-no-walls.json`). The
+  server's records allow it: a label output is keyed by its client and its name,
+  so a client holds as many as it reports, and Arrt's suite serves both fixtures'
+  shapes over real HTTP (`arrt/tests/contract/test_client_surface.py`).
+- **The one singular shape left** was the wall heartbeat's `has_label_surface`
+  and `label_surface_working`, which a reader could take for "the Player's one
+  label". Since contract 1.2.0 both are described as superseded by the client
+  heartbeat's per-output `label_outputs`, and say only whether one wall's
+  controller drives a surface (`player-contract.md` § The heartbeat). They stay
+  required until heartbeat major 2.
+
 ### Display state
 
 What the controller reports, whenever it changes:

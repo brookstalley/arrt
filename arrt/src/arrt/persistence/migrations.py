@@ -27,9 +27,10 @@ import logging
 import sqlite3
 import uuid
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
 log = logging.getLogger(__name__)
 
@@ -471,8 +472,23 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
     and removing a directory of the operator's files is the operator's act;
     `deploy/README.md` names it as safe to delete. The line says how many rows
     went, 0 included, so the operator has one line to look for either way.
+
+    **A file from before `mat_hex` still has canvases** (v0.1.0's: the column
+    arrived in v0.2.0, the `tv_display` rows long before). Opened by today's code
+    without a release between, it has no column to key the pass on, and its
+    canvas rows name a kind `RenditionKind` no longer has, so reading the work's
+    renditions failed (`tests/system/test_migration_chain.py`, found 2026-11-19).
+    Such a file loses its `tv_display` rows, and only those: it never held a
+    `wall_preview`, the kind came later, and a preview on a file without the
+    column is one this code drew from a master. Keyed on the rows, so a second
+    open finds none.
     """
     if not _canvas_leftovers(connection):
+        return
+    if not _has_column(connection, "renditions", "mat_hex"):
+        gone = connection.execute("DELETE FROM renditions WHERE kind = 'tv_display'").rowcount
+        connection.commit()
+        log.info("Forgot %d television canvases from before renditions.mat_hex; ART_ROOT/ready/ can be deleted.", gone)
         return
     gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
     connection.commit()
@@ -487,10 +503,17 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
 
 
 def _canvas_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
-    """What `retire_television_canvases` would take from this file: the column, and the rows with it."""
-    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+    """What `retire_television_canvases` would take from this file: the column, and the rows with it.
+
+    Or, on a file from before the column, its canvas rows alone.
+    """
+    if not _has_table(connection, "renditions"):
         return ()
-    return ("renditions.mat_hex", "the television canvases and wall previews in renditions")
+    if _has_column(connection, "renditions", "mat_hex"):
+        return ("renditions.mat_hex", "the television canvases and wall previews in renditions")
+    if connection.execute("SELECT 1 FROM renditions WHERE kind = 'tv_display' LIMIT 1").fetchone() is not None:
+        return ("the television canvases in renditions",)
+    return ()
 
 
 #: The theme's two playing settings, which became the wall's: the order is the
@@ -628,3 +651,122 @@ def open_existing(path: Path | str) -> sqlite3.Connection:
     connection = sqlite3.connect(str(path))
     connection.row_factory = sqlite3.Row
     return connection
+
+
+# -- the file's record of which release last opened it ------------------------------
+#
+# The record is `file.py`'s (`OPENED_SCHEMA`, `SCHEMA_GENERATION`, and the guard
+# that reads it before anything else touches the file). Its reads and writes are
+# here, beside `file_had_table` and `open_existing`, because this module is where
+# the open's work on the file as a file reaches the driver: `file.py` asks, and
+# imports no driver of its own (`tests/unit/test_persistence_boundary.py`).
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogueOpened:
+    """What the file's record says of the last open."""
+
+    release: str
+    opened_at: str
+    migrations_completed: bool
+    #: The catalogue shape generation the opening code expects (`file.SCHEMA_GENERATION`).
+    #: None on a row written before the record carried one (a build from before
+    #: 2026-11-19's amendment, which records a release and no shape), and the
+    #: stored text when it is not a whole number, which no release writes.
+    schema_generation: int | str | None
+
+
+def last_opened(connection: sqlite3.Connection) -> CatalogueOpened | None:
+    """The file's record of its last open, or None when it has none (a new file, or one no release carrying it opened).
+
+    Reads a row that predates the generation column too: the guard asks before
+    the store has widened the file, so the column may not be there yet.
+    """
+    if not _has_table(connection, "catalogue_opened"):
+        return None
+    generation = "schema_generation" if _has_column(connection, "catalogue_opened", "schema_generation") else "NULL"
+    row = connection.execute(
+        f"SELECT release, opened_at, migrations_completed, {generation} FROM catalogue_opened WHERE id = 1"  # noqa: S608 -- one of two fixed words
+    ).fetchone()
+    if row is None:
+        return None
+    stored = row[3]
+    return CatalogueOpened(
+        release=str(row[0]),
+        opened_at=str(row[1]),
+        migrations_completed=bool(row[2]),
+        schema_generation=stored if stored is None or type(stored) is int else str(stored),
+    )
+
+
+def record_of_a_copy(path: Path) -> CatalogueOpened | Literal["unreadable"] | None:
+    """What a copy of the catalogue (a pre-migration copy, a backup generation) says of its last open.
+
+    **Read-only, unlike `open_existing`**: a copy is never written by anything
+    but the copy that made it, so it has no journal to roll back, and asking it
+    must not change it. A file that is not a catalogue this code can read (not a
+    database, a journal beside it, a record of another shape) answers
+    "unreadable" rather than raising, because the caller is listing copies for a
+    person and one bad file must not hide the rest.
+    """
+    try:
+        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return "unreadable"
+    try:
+        connection.row_factory = sqlite3.Row
+        return last_opened(connection)
+    except sqlite3.Error:
+        return "unreadable"
+    finally:
+        connection.close()
+
+
+def generation_rise(connection: sqlite3.Connection, *, generation: int) -> tuple[str, ...]:
+    """What this open replaces beyond the migrations' drops: the shape generation a release of `generation` moves the file off.
+
+    Empty unless the file records a generation, and a lower one. A file with no
+    record, or a record from before generations, answers empty, so the first
+    release carrying them copies nothing for them (`pending_drops` decides as
+    before); every rise after it is copied first, so the release it leaves
+    behind, which refuses the file from then on, has a copy it opens.
+    """
+    recorded = last_opened(connection)
+    if recorded is None or type(recorded.schema_generation) is not int or recorded.schema_generation >= generation:
+        return ()
+    return (f"catalogue shape generation {recorded.schema_generation} (this release writes {generation})",)
+
+
+def what_an_open_replaces(connection: sqlite3.Connection, *, generation: int) -> tuple[str, ...]:
+    """The pre-migration copy's question: what the migrations would drop, and a shape generation the open would raise.
+
+    `pending_drops` as before, so every file it copied is still copied and none
+    it did not copy is, until a file recording a generation meets a release of
+    a higher one (`generation_rise`).
+    """
+    return pending_drops(connection) + generation_rise(connection, generation=generation)
+
+
+def begin_the_open(
+    connection: sqlite3.Connection, *, release: str, generation: int, now: Callable[[], datetime] = system_now
+) -> None:
+    """Write this open into the file's record as begun: this release, its shape generation, the instant, not completed.
+
+    The first step of every open, before any migration, so that a start killed
+    in the middle of migrating leaves the file saying so: this release opened
+    it, and did not finish. The next start rewrites the row and finishes.
+    Every column is set, so a row an earlier build left keeps nothing of it.
+    """
+    connection.execute(
+        "INSERT INTO catalogue_opened (id, release, opened_at, migrations_completed, schema_generation) "
+        "VALUES (1, ?, ?, 0, ?) ON CONFLICT (id) DO UPDATE SET release = excluded.release, "
+        "opened_at = excluded.opened_at, migrations_completed = 0, schema_generation = excluded.schema_generation",
+        (release, now().isoformat(), generation),
+    )
+    connection.commit()
+
+
+def complete_the_open(connection: sqlite3.Connection) -> None:
+    """Mark the open `begin_the_open` recorded as completed: the last step of every open, after every migration."""
+    connection.execute("UPDATE catalogue_opened SET migrations_completed = 1 WHERE id = 1")
+    connection.commit()

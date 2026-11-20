@@ -5,6 +5,7 @@ surface's tools, the stream, and the client drawing it as it arrives.
 """
 
 import json
+import re
 import threading
 
 import pytest
@@ -134,21 +135,21 @@ def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, a
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
 
     turn = ui.page.locator(".ask-turn").last
-    assert turn.locator(".ask-asked").inner_text() == "You: Something wintry"
+    expect(turn.locator(".ask-asked")).to_have_text("You: Something wintry", use_inner_text=True)
     step = turn.locator(".ask-step")
-    assert step.locator(".glyph").inner_text() == "●"
-    assert step.inner_text().endswith("Searching Wikidata for “bruegel”")
-    answer = turn.locator(".ask-answer").inner_text()
-    assert "Bruegel's winter is the obvious place to start." in answer
-    assert "[Q" not in answer, "the cited items are cards, not identifiers in the words"
-    assert turn.locator(".ask-answer li").count() == 2
+    expect(step.locator(".glyph")).to_have_text("●", use_inner_text=True)
+    expect(step).to_have_text(re.compile(re.escape("Searching Wikidata for “bruegel”") + r"\s*$"), use_inner_text=True)
+    answer = turn.locator(".ask-answer")
+    expect(answer).to_contain_text("Bruegel's winter is the obvious place to start.", use_inner_text=True)
+    expect(answer, "the cited items are cards, not identifiers in the words").not_to_contain_text("[Q", use_inner_text=True)
+    expect(turn.locator(".ask-answer li")).to_have_count(2)
     cards = turn.locator(".ask-card")
-    assert cards.count() == 2
-    assert "The Hunters in the Snow" in cards.nth(0).inner_text()
-    assert cards.nth(0).get_by_role("button", name="Get this work").count() == 1
-    assert "Pieter Brueghel the Elder" in cards.nth(1).inner_text()
-    assert cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder").count() == 1
-    assert turn.locator(".ask-ending").inner_text() == "This reply cost under $0.01."
+    expect(cards).to_have_count(2)
+    expect(cards.nth(0)).to_contain_text("The Hunters in the Snow", use_inner_text=True)
+    expect(cards.nth(0).get_by_role("button", name="Get this work")).to_have_count(1)
+    expect(cards.nth(1)).to_contain_text("Pieter Brueghel the Elder", use_inner_text=True)
+    expect(cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder")).to_have_count(1)
+    expect(turn.locator(".ask-ending")).to_have_text("This reply cost under $0.01.", use_inner_text=True)
 
 
 def test_a_work_card_gets_into_the_default_theme_with_nothing_beside_its_get(ui, services, ask_model):
@@ -173,15 +174,15 @@ def test_a_work_card_gets_into_the_default_theme_with_nothing_beside_its_get(ui,
     card = ui.page.locator(".ask-card[data-ask-card='work']")
     card.get_by_role("button", name="Get this work").wait_for()
 
-    assert card.locator("select").count() == 0
-    assert "Add to" not in card.inner_text()
-    assert card.locator(".badge-tier").count() == 0
-    assert "Cost" not in card.inner_text()
+    expect(card.locator("select")).to_have_count(0)
+    expect(card).not_to_contain_text("Add to", use_inner_text=True)
+    expect(card.locator(".badge-tier")).to_have_count(0)
+    expect(card).not_to_contain_text("Cost", use_inner_text=True)
 
     card.get_by_role("button", name="Get this work").click()
     card.locator(".get-status a:text-is('Open the Get')").wait_for()
     assert bodies == [{"qids": [HUNTERS]}], "the default is the absence of a theme_id"
-    assert " ".join(card.locator(".get-status").inner_text().split()) == "Getting 1 work into Everyday. Open the Get"
+    expect(card.locator(".get-status")).to_have_text("Getting 1 work into Everyday. Open the Get", use_inner_text=True)
 
 
 def test_a_work_card_whose_themes_cannot_be_read_starts_nothing_and_says_why(ui, ask_model):
@@ -210,9 +211,8 @@ def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
 
-    assert (
-        ui.page.locator(".ask-turn").last.locator(".ask-ending").inner_text()
-        == "This reply cost under $0.01, and 1 of its steps reported no cost."
+    expect(ui.page.locator(".ask-turn").last.locator(".ask-ending")).to_have_text(
+        "This reply cost under $0.01, and 1 of its steps reported no cost.", use_inner_text=True
     )
 
 
@@ -232,15 +232,15 @@ def test_each_card_is_a_poster_pictured_by_what_it_names(pictures_load, ask_mode
     for kind in ("work", "artist", "topic"):
         ui.page.wait_for_selector(f".ask-card[data-ask-card='{kind}'] .card-image img")
 
-    def src(kind):
-        return ui.page.locator(f".ask-card[data-ask-card='{kind}'] .card-image img").get_attribute("src")
+    def picture(kind):
+        return ui.page.locator(f".ask-card[data-ask-card='{kind}'] .card-image img")
 
-    assert src("work") == "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg?width=330"
-    assert src("artist") == f"{HARVESTERS_FILE}?width=330"
-    assert src("topic") == f"{MENINAS_FILE}?width=330"
+    expect(picture("work")).to_have_attribute("src", "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg?width=330")
+    expect(picture("artist")).to_have_attribute("src", f"{HARVESTERS_FILE}?width=330")
+    expect(picture("topic")).to_have_attribute("src", f"{MENINAS_FILE}?width=330")
     # Nothing is said of what the library does not hold.
-    assert "Not held" not in ui.page.locator(".ask-cards").inner_text()
-    assert "In your library" not in ui.page.locator(".ask-cards").inner_text()
+    expect(ui.page.locator(".ask-cards")).not_to_contain_text("Not held", use_inner_text=True)
+    expect(ui.page.locator(".ask-cards")).not_to_contain_text("In your library", use_inner_text=True)
 
 
 def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_load, services, service, ready_work, ask_model):
@@ -261,8 +261,8 @@ def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_loa
     ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image img")
 
     card = ui.page.locator(".ask-card[data-ask-card='artist']")
-    assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
-    assert "In your library" in card.inner_text()
+    expect(card.locator(".card-image img")).to_have_attribute("src", f"/api/works/{work.id}/thumbnail")
+    expect(card).to_contain_text("In your library", use_inner_text=True)
 
 
 def test_a_held_work_is_pictured_by_its_thumbnail_marked_and_not_offered_for_get(pictures_load, services, service, ask_model):
@@ -281,9 +281,9 @@ def test_a_held_work_is_pictured_by_its_thumbnail_marked_and_not_offered_for_get
     ui.page.wait_for_selector(".ask-card[data-ask-card='work'] .card-image img")
 
     card = ui.page.locator(".ask-card[data-ask-card='work']")
-    assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
-    assert "In your library" in card.inner_text()
-    assert card.get_by_role("button", name="Get this work").count() == 0
+    expect(card.locator(".card-image img")).to_have_attribute("src", f"/api/works/{work.id}/thumbnail")
+    expect(card).to_contain_text("In your library", use_inner_text=True)
+    expect(card.get_by_role("button", name="Get this work")).to_have_count(0)
 
 
 def test_a_picture_that_cannot_be_had_is_said_apart_from_one_that_does_not_exist(ui, ask_model):
@@ -296,7 +296,9 @@ def test_a_picture_that_cannot_be_had_is_said_apart_from_one_that_does_not_exist
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image-absent")
 
-    assert ui.page.locator(".ask-card[data-ask-card='artist'] .card-image-absent").inner_text() == "Picture unavailable"
+    expect(ui.page.locator(".ask-card[data-ask-card='artist'] .card-image-absent")).to_have_text(
+        "Picture unavailable", use_inner_text=True
+    )
 
 
 def test_the_cards_ask_wikidata_three_at_a_time(ui, ask_model):
@@ -315,12 +317,17 @@ def test_the_cards_ask_wikidata_three_at_a_time(ui, ask_model):
 
     ask(ui, "Some painters")
     ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] >> nth=4")
-    ui.page.wait_for_timeout(500)
+    ui.page.wait_for_timeout(500)  # sleep: proves a fourth lookup does not go while three are held
     assert len(held) == 3
 
-    held.pop(0).abort()
+    # The next lookup going is a request the page makes: wait for it, then
+    # for a moment more, which proves it is one and not two.
+    with ui.page.expect_request("**/api/registry/artists/*"):
+        held.pop(0).abort()
     ui.page.wait_for_selector(".card-image-absent")
-    ui.page.wait_for_timeout(300)
+    ui.page.wait_for_timeout(
+        300
+    )  # sleep: proves a finished lookup lets one go, not two; `held` is the test's own list, which no page condition reads
     assert len(held) == 3, "a finished lookup did not let the next one go"
     for route in held:
         route.abort()
@@ -335,8 +342,8 @@ def test_a_card_with_nothing_to_picture_says_so(ui, ask_model):
     ask(ui, "Colour fields")
     ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image-absent")
 
-    assert ui.page.locator(".ask-card .card-image-absent").inner_text() == "No picture"
-    assert ui.page.locator(".ask-card .card-title").inner_text() == "Mark Rothko"
+    expect(ui.page.locator(".ask-card .card-image-absent")).to_have_text("No picture", use_inner_text=True)
+    expect(ui.page.locator(".ask-card .card-title")).to_have_text("Mark Rothko", use_inner_text=True)
 
 
 def test_a_step_that_could_not_answer_is_marked_as_gone_wrong(ui, ask_model):
@@ -348,9 +355,11 @@ def test_a_step_that_could_not_answer_is_marked_as_gone_wrong(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
 
     step = ui.page.locator(".ask-step")
-    assert step.locator(".glyph").inner_text() == "▲"
-    assert step.inner_text().endswith("Trying art_discovery start — it could not answer")
-    assert ui.page.locator(".ask-status").inner_text() == "This reply cost under $0.01."
+    expect(step.locator(".glyph")).to_have_text("▲", use_inner_text=True)
+    expect(step).to_have_text(
+        re.compile(re.escape("Trying art_discovery start — it could not answer") + r"\s*$"), use_inner_text=True
+    )
+    expect(ui.page.locator(".ask-status")).to_have_text("This reply cost under $0.01.", use_inner_text=True)
 
 
 class TestEnter:
@@ -368,16 +377,16 @@ class TestEnter:
         ui.page.fill("#ask-words", "Not Bruegel")
         ui.page.press("#ask-words", "Enter")
 
-        assert ui.page.locator(".ask-turn").count() == 1, "Enter sent while a reply was streaming"
+        expect(ui.page.locator(".ask-turn"), "Enter sent while a reply was streaming").to_have_count(1)
         ask_model.release.set()
         ui.page.wait_for_selector(".ask-turn .ask-ending:has-text('cost')")
-        assert ui.page.locator("#view .act-failure, #view .error-text, #error:not([hidden])").count() == 0
+        expect(ui.page.locator("#view .act-failure, #view .error-text, #error:not([hidden])")).to_have_count(0)
         assert len(ask_model.seen) == 1
 
         # Nothing streaming now: Enter sends what is in the box.
         ui.page.press("#ask-words", "Enter")
         ui.page.wait_for_selector(".ask-turn:nth-child(2) .ask-ending:has-text('cost')")
-        assert ui.page.locator(".ask-asked").all_inner_texts() == ["You: Something wintry", "You: Not Bruegel"]
+        expect(ui.page.locator(".ask-asked")).to_have_text(["You: Something wintry", "You: Not Bruegel"], use_inner_text=True)
 
     def test_a_page_opened_mid_reply_waits_for_it_and_fills_in_when_it_ends(self, ui, ask_model):
         """Leaving Ask mid-reply and coming back: the server refuses a second send until the reply ends, so the page waits too."""
@@ -389,11 +398,11 @@ class TestEnter:
         away_and_back(ui)
         ui.page.wait_for_selector(".ask-waiting")
 
-        assert ui.page.locator("#view button:text-is('Ask')").is_disabled()
+        expect(ui.page.locator("#view button:text-is('Ask')")).to_be_disabled()
         ask_model.release.set()
         ui.page.wait_for_selector(".ask-turn .ask-ending:has-text('cost')", timeout=15_000)
-        assert ui.page.locator(".ask-waiting").count() == 0
-        assert ui.page.locator("#view button:text-is('Ask')").is_enabled()
+        expect(ui.page.locator(".ask-waiting")).to_have_count(0)
+        expect(ui.page.locator("#view button:text-is('Ask')")).to_be_enabled()
 
 
 def test_an_empty_ask_offers_examples_that_fill_the_box_and_send_nothing(ui, ask_model):
@@ -404,12 +413,12 @@ def test_an_empty_ask_offers_examples_that_fill_the_box_and_send_nothing(ui, ask
     # The shipped module's own list, so the test cannot drift from it.
     examples = ui.page.evaluate('async () => (await import("/static/core/asking.js")).EXAMPLES')
     assert len(examples) >= 2
-    assert ui.page.locator(".ask-examples button").all_inner_texts() == examples
+    expect(ui.page.locator(".ask-examples button")).to_have_text(examples, use_inner_text=True)
     ui.page.locator(".ask-examples button").first.click()
 
-    assert ui.page.input_value("#ask-words") == examples[0]
+    expect(ui.page.locator("#ask-words")).to_have_value(examples[0])
     assert ask_model.seen == [], "an example fills the box; it does not ask"
-    assert ui.page.locator(".ask-examples").count() == 0
+    expect(ui.page.locator(".ask-examples")).to_have_count(0)
 
 
 def test_a_thread_with_something_said_offers_no_examples(ui, ask_model):
@@ -419,10 +428,10 @@ def test_a_thread_with_something_said_offers_no_examples(ui, ask_model):
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-ending:has-text('cost')")
 
-    assert ui.page.locator(".ask-examples").count() == 0
+    expect(ui.page.locator(".ask-examples")).to_have_count(0)
     away_and_back(ui)
     ui.page.wait_for_selector(".ask-turn")
-    assert ui.page.locator(".ask-examples").count() == 0
+    expect(ui.page.locator(".ask-examples")).to_have_count(0)
 
 
 def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
@@ -436,7 +445,10 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     away_and_back(ui)
     ui.page.wait_for_selector(".ask-turn")
 
-    assert _settled_turn(ui) == live
+    # Whole and as written, line breaks and all: a pattern, since a string is
+    # compared with its whitespace folded.
+    _settle(ui)
+    expect(ui.page.locator(".ask-turn")).to_have_text(re.compile("^" + re.escape(live) + "$"), use_inner_text=True)
 
 
 def test_the_thread_s_pictures_are_not_fetched_from_commons_under_test(ui, ask_model):
@@ -453,15 +465,17 @@ def test_the_thread_s_pictures_are_not_fetched_from_commons_under_test(ui, ask_m
     ui.page.wait_for_selector("#ask-words")
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
-    _settled_turn(ui)
+    _settle(ui)
 
     assert any("commons.wikimedia.org" in url for url in ui.requests), "no card asked Commons, so nothing here was guarded"
     assert [url for url in answered if not url.startswith(f"{ui.base_url}/")] == []
-    assert ui.page.locator(".ask-turn .card-image-absent").all_inner_texts() == ["Picture unavailable", "Picture unavailable"]
+    expect(ui.page.locator(".ask-turn .card-image-absent")).to_have_text(
+        ["Picture unavailable", "Picture unavailable"], use_inner_text=True
+    )
 
 
-def _settled_turn(ui) -> str:
-    """The turn's text once everything a card fills in after it is drawn has arrived.
+def _settle(ui) -> None:
+    """Wait until everything a card fills in after it is drawn has arrived.
 
     Two things do: a work card's theme picker reads the themes, and each
     picture box is filled when its picture answers — with the picture, or with
@@ -474,7 +488,14 @@ def _settled_turn(ui) -> str:
         " box.querySelector('.card-image-absent')"
         " || [...box.querySelectorAll('img')].some((img) => img.complete && img.naturalWidth > 0))"
     )
-    return ui.page.locator(".ask-turn").inner_text()
+
+
+def _settled_turn(ui) -> str:
+    """The turn's text once it has settled, for a test that compares it with the page's later one."""
+    _settle(ui)
+    return ui.page.locator(
+        ".ask-turn"
+    ).inner_text()  # one-shot: the value a later `expect` compares, read once `_settle` has waited
 
 
 def test_a_second_turn_follows_the_first_and_start_over_clears_them(ui, ask_model):
@@ -487,7 +508,7 @@ def test_a_second_turn_follows_the_first_and_start_over_clears_them(ui, ask_mode
     ask(ui, "Not Bruegel")
     ui.page.wait_for_selector(".ask-turn:nth-child(2) .ask-ending:has-text('cost')")
 
-    assert ui.page.locator(".ask-asked").all_inner_texts() == ["You: Something wintry", "You: Not Bruegel"]
+    expect(ui.page.locator(".ask-asked")).to_have_text(["You: Something wintry", "You: Not Bruegel"], use_inner_text=True)
     ui.page.click("#view button:text-is('Start over')")
     ui.page.wait_for_function("() => document.querySelectorAll('.ask-turn').length === 0")
 
@@ -500,9 +521,10 @@ def test_a_reply_that_reaches_the_step_limit_says_so_in_the_thread(ui, ask_model
     ask(ui, "Everything by everyone")
     ui.page.wait_for_selector(".ask-ending .error-text")
 
-    ending = ui.page.locator(".ask-ending").inner_text()
-    assert f"Ask stopped after {DEFAULT_ASK_STEP_LIMIT} steps without finishing an answer" in ending
-    assert ui.page.locator(".ask-step").count() == DEFAULT_ASK_STEP_LIMIT
+    expect(ui.page.locator(".ask-ending")).to_contain_text(
+        f"Ask stopped after {DEFAULT_ASK_STEP_LIMIT} steps without finishing an answer", use_inner_text=True
+    )
+    expect(ui.page.locator(".ask-step")).to_have_count(DEFAULT_ASK_STEP_LIMIT)
 
 
 def test_reacting_to_an_artist_records_it_as_the_curators_own(ui, ask_model, discovery):
@@ -566,7 +588,7 @@ def test_reacting_does_not_redraw_the_thread_under_the_curator(ui, ask_model):
     ui.page.wait_for_selector(".ask-card button:has-text('more like this — recorded')")
 
     assert ui.page.evaluate("() => document.querySelector('.ask-answer').dataset.seen") == "before"
-    assert "Bruegel's winter is the obvious place to start." in ui.page.locator(".ask-answer").inner_text()
+    expect(ui.page.locator(".ask-answer")).to_contain_text("Bruegel's winter is the obvious place to start.", use_inner_text=True)
 
 
 def test_reacting_to_a_topic_records_it_under_taste_s_kind_for_it(ui, ask_model):
@@ -606,8 +628,8 @@ def test_a_thread_the_server_forgot_is_replaced_and_the_words_still_go(ui, ask_m
     ask(ui, "Two")
     ui.page.wait_for_selector(".ask-turn:nth-child(2) .ask-ending:has-text('cost')")
 
-    assert "Second." in ui.page.locator(".ask-turn").nth(1).inner_text()
-    assert "That thread has gone." not in ui.page.inner_text("#view")
+    expect(ui.page.locator(".ask-turn").nth(1)).to_contain_text("Second.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("That thread has gone.", use_inner_text=True)
 
 
 class TestWithNoKey:

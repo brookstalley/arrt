@@ -21,20 +21,14 @@ surface, and no backends.** No metrics store, no tracing collector, no dashboard
 Naming what is deliberately absent matters as much as what is present — a future
 reader should not conclude these were forgotten.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** The defining
-> constraint is unchanged, and so is the single panel in the curation UI. What
-> moves:
-> - **The heartbeat becomes an HTTP POST** from each Player to the server (waves
->   2–3). It stops being a file in a shared directory.
-> - **Logs live on two machines.** The server's are in the NAS container's log,
->   and each Player's are in its Pi's journal.
-> - **The server gains scheduled work** (Watches and upgrade re-searches, wave
->   6). Its failures happen with no curator in the session, which fires the
->   push-notification revisit trigger recorded under § Accepted detection
->   latency. *(Revisited 2026-11-09: panel-only holds, see there.)*
->
-> The dated notes below mark each place. As-built content is unchanged, because
-> it describes the running Pi.
+> **Landed (waves 2, 3 and 6).** The defining constraint is unchanged, and so is
+> the single panel in the curation UI. The heartbeat is an HTTP POST from each
+> Player to the server and no longer a file in a shared directory; logs live on two
+> machines (the server's in the NAS container's log, each Player's in its Pi's
+> journal); and the server has scheduled work (Watches, built 2026-11-09), whose
+> failures happen with no curator in the session and fire the push-notification
+> revisit trigger recorded under § Accepted detection latency (*revisited
+> 2026-11-09: panel-only holds, see there*).
 
 ## Signals
 
@@ -325,7 +319,7 @@ between planes.
 > then says the store could not be read in full rather than "no pictures yet": an
 > unreadable store must never read as an empty one.
 
-> **What each wall has shown, added 2026-10-15** (`programming/display.py`,
+> **What each wall has shown, added 2026-10-15** (now `programming/reports.py`, behind the `programming/display.py` facade,
 > `build-plan-shown-record.md`). Written on each heartbeat; neither refuses the
 > heartbeat, which is the Player's.
 >
@@ -408,18 +402,14 @@ there is no budget signal to log and none is invented.
 
 ## The Health Surface
 
-> **Direction changed 2026-09-30. See `re-architecture.md` § Seam 2.** The
-> heartbeat's *transport* changes and its *contract* does not. In wave 2 each
-> Player sends the same document as `POST /walls/{wall_id}/heartbeat`, and the
-> file channel retires in wave 3. The one named key, `reported_at`, stays the
-> contract for the same reason it is one today. The wall id moves from the
-> filename into the path. Both copies of the name are still checked against each
-> other, because the Player and server must agree on the route exactly as they
-> agree on the filename today. Wave 1's contract pins the key: both planes are
-> tested against `contract/schemas/heartbeat.v1.schema.json`. The route's
-> spelling is pinned when wave 2 builds it, by a `contract/routes.json` that the
-> server's route tests and the Player's client tests both assert against. After
-> the repo split, `contract/` is the only thing both repos share.
+> **Landed (waves 2 and 3, `re-architecture.md` § Seam 2).** The heartbeat's
+> *transport* changed and its *contract* did not: each Player sends the same document
+> as `POST /walls/{wall_id}/heartbeat`, the file channel is retired, and the one named
+> key, `reported_at`, stays the contract. The wall id is in the path, and both
+> copies of the name are checked against each other. Both sides are tested against
+> `contract/schemas/heartbeat.v1.schema.json` and the spelling of the route against
+> `contract/routes.json`, and `contract/` is the only thing the two repositories
+> share.
 >
 > What changes with the transport:
 > - **The 60-second interval stops being a wear budget.** It remains bounded by
@@ -432,8 +422,8 @@ there is no budget signal to log and none is invented.
 > - **The Player may add its screen geometry** as an observation, so the panel
 >   can say a work is below the floor *on that wall*. The Library never reads it.
 > - **The Player's cache state becomes worth reporting**: how many of the
->   playlist's media it holds, and whether any are missing. That is the new way
->   "down looks like up": a newly hung playlist whose media never arrived.
+>   theme's media it holds, and whether any are missing. That is the new way
+>   "down looks like up": a newly hung theme whose media never arrived.
 
 **Display writes a heartbeat; curation reads and displays it.**
 
@@ -593,7 +583,26 @@ copies pruned; INFO `catalogue.snapshot_kept` that an earlier copy stands, taken
 the same second or before the migrations a failed start left unfinished; WARNING
 `catalogue.snapshot_prune_failed` that an older copy could not be removed, which
 stops nothing; and ERROR `catalogue.snapshot_failed` that the copy could
-not be written, which stops the start with the catalogue as it was. The receipt
+not be written, which stops the start with the catalogue as it was. Every open
+of the catalogue records which release opened it (`catalogue_opened`,
+`data-model.md`): ERROR `catalogue.newer_release_refused` says the file expects a
+catalogue shape generation this release does not know (`recorded_generation` against
+this release's `generation`; a newer release number alone refuses nothing), names both
+releases, the path and the instant, and stops the start before anything is copied or
+changed, at every entry point; WARNING `catalogue.unreadable_release_recorded` says the
+recorded release is one this code cannot read (`recorded_release`), which no longer
+stops a start; WARNING
+`catalogue.migrations_unfinished` says the last open began its migrations and did
+not finish them, and this open finishes them. The refusal protects only a
+downgrade to a release that itself carries the record (`operational-spec.md`
+§ Backup and Restore): v0.11.0's code, measured, opens a file a newer release
+migrated without a word. Each pass
+that succeeds logs INFO `backup.completed` with the generation's `path`, its
+`bytes`, the generations `kept` and how many were `removed`, and, since
+2026-11-19, `copy_seconds`: the monotonic time its `VACUUM INTO` took, which is
+how long the server's commits could have waited on the copy's lock, and the
+figure that would reopen the rollback-journal-over-WAL decision
+(`build-plan-audit-wave-2.md`, Goals). The receipt
 and the panel's age are the generations' alone: a copy before a migration is not a
 backup and does not move the age.
 
@@ -778,6 +787,20 @@ the probe goes green**, and that is deliberate: a green run proves the probe
 passed, not that anyone reconciled the findings document against what the API now
 returns. The operator closes it, having done that work.
 
+**A probe red for a cause nobody has established is known-blocked, so that a new
+red still shows (owner's ruling of 2026-11-19, `.prawduct/owner-rulings.md` item
+5).** `.github/known-blocked.json` lists each such probe with its issue, the
+reason (or "not established"), and an expiry no more than 60 days out;
+`.github/scripts/judge_drift_probes.py`, not pytest's exit code, decides whether
+the job fails. A red probe that is listed is excused and named in the job summary
+with its expiry, so the excuse is visible on every run; a red probe that is not
+listed fails the job and opens or comments on its issue as above; a listed probe
+that is green fails the job ("delete the row"); an expired row fails by name. A
+probe that never ran is never excused. While a probe is excused the weekly run
+no longer comments on its issue (#109 and #110 were being commented on every
+week with nothing new): the issue is where the cause is worked, and the
+expiry is what brings the question back.
+
 *Why an issue rather than email.* GitHub's default Actions email for a scheduled
 run goes to whoever last edited the cron file, is silently absent for anyone whose
 Actions notifications are off, and breaks the moment somebody else touches the
@@ -793,7 +816,10 @@ signal is a successful run, and its *absence* over an interval is the fault.
 succeeded — **free after 21 days, paid after 75** — reading the tiers apart,
 because a healthy monthly run would otherwise vouch for three missed Mondays.
 Both known routes land here: a workflow not on the default branch has never run,
-and a schedule GitHub disabled for repository inactivity stops refreshing.
+and a schedule GitHub disabled for repository inactivity stops refreshing. A tier whose only red probes are unexpired known-blocked rows counts fresh, by the
+job's own conclusion; what this check owns of the file is its age, since a row that
+expired fails nothing on a day no probe job runs, so on every push to `main` each
+row is checked and an expired one fails by name.
 
 *Its limit, stated rather than implied.* That job runs only on a push to `main`,
 so absence is detected at the next push, not continuously. A pull request cannot
@@ -917,6 +943,6 @@ signal exists:
 | A work silently absent from a theme | **The manifest build reports exclusions** with a per-work reason — see `architecture.md`. Not a log line: a first-class UI surface |
 | Mat colour degraded to the dominant-colour fallback | Recorded on the record itself (`MatColor.method`), not merely logged. The 2024 code degrades invisibly |
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
-| A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. See § The one surface the panel does not cover |
+| A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. A probe listed in `.github/known-blocked.json` (cause not established, expiry within 60 days) is excused and named in the summary instead, and only a probe that is red and not listed opens one. See § The one surface the panel does not cover |
 | The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
-| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
+| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request, after a lint step of ruff and black (the type check runs on the pool, in the governance suite's type gate); when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, never the browser suite, and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |

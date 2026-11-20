@@ -9,20 +9,13 @@ last_validated: null
 
 # API Contract
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
-> becoming a **server** (Library + Programming, on the operator's NAS) and a
-> **player** (one per wall). In this file, that affects:
-> - the **curation↔display contract**, which becomes a network surface: an HTTP
->   manifest per wall, immutable media and a heartbeat POST;
-> - the review surface's **fit verdict**, which becomes an observation the
->   player reports;
-> - the **transport and trust paragraphs**, because the server moves off the Pi.
->
-> The MCP tool surface, the HTTP API for the curation UI, the error model and
-> the versioning rules for tools are **unchanged**. The server keeps all three.
-> The planned surface is specified in § The Server↔Player surface, below. It is
-> PLANNED and not built. Everything else here still describes the code as it
-> stands.
+> **Landed (waves 2 to 5, `re-architecture.md`).** The product is a **server**
+> (Library and Programming, on the operator's NAS) and a **Player** per wall, and
+> the curation-to-display contract is a network surface: an HTTP manifest per
+> wall, immutable media and a heartbeat POST (§ The Server↔Player surface, and
+> `player-contract.md`, the `arrt-contract` package). The MCP tool surface, the
+> HTTP API for the curation UI, the error model and the versioning rules for tools
+> are unchanged.
 
 > **Status: operations decided 2026-07-19.** This artifact was deliberately
 > incomplete on first authoring — the operations table was left empty because a tool
@@ -60,17 +53,13 @@ Three surfaces, and they are not the same kind of thing:
 > loop blanking the wall; with one, it is a logged refusal and yesterday's theme
 > still on the wall.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The third row's
-> *kind* changes: "a versioned JSON document on a shared filesystem" becomes a
-> versioned JSON document served over HTTP per wall, plus content-addressed media
-> and a heartbeat POST. The Player pulls both into a local cache.
-> - **The stability obligation carries over unchanged**, and it gets heavier
->   rather than lighter. Once the player repo splits off (wave 5), "deployed
->   together" stops being true even in practice, and the major-refusal rule is
->   all that stands between a new server and an old player.
-> - The row's consumer is renamed the **Player**. The two build steps each have
->   a schema bump: the channel change is a minor bump and moving compositing is
->   major 2. See § The Server↔Player surface.
+> **Landed (waves 2 to 5, `re-architecture.md`).** The third row is a versioned JSON
+> document served over HTTP per wall, plus content-addressed media and a heartbeat
+> POST, which the Player pulls into a local cache; its consumer is the **Player**,
+> in its own repository since wave 5, so "deployed together" no longer holds even
+> in practice and the major-refusal rule is what stands between a new server and
+> an old Player. The stability obligation is unchanged. See § The Server↔Player
+> surface.
 
 ### Transport: streamable HTTP, not stdio
 
@@ -89,15 +78,12 @@ exists to prevent. The cost accepted: the MCP surface goes down when the UI proc
 does. That is tolerable because both live on the curation plane, whose downtime is
 already defined as invisible to the household (`product-brief.md` → Platform).
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** "The curation
-> host" becomes the operator's NAS, running the server as a container (wave 3).
-> The reasoning above holds as it stands: stdio still cannot cross the boundary,
-> and the MCP surface still mounts in the same application as the HTTP API.
-> From wave 3 that one application also serves the Player surface.
->
-> Its downtime is invisible to the household for the same reason: the Player
-> plays from its local cache, not from the server. That is now a property of
-> the Player's design rather than of two processes sharing a disk.
+> **Landed (wave 3, `re-architecture.md`).** "The curation host" is the operator's
+> NAS, running the server as a container. The reasoning above holds: stdio still
+> cannot cross the boundary, and the MCP surface still mounts in the same
+> application as the HTTP API, which also serves the Player surface. The server's
+> downtime is invisible to the household because the Player plays from its local
+> cache.
 
 ### The in-UI agent is an MCP client
 
@@ -218,19 +204,12 @@ computed by the service layer rather than stored (`data-model.md` → Original):
   review grid, which is exactly why the review gate ("a human saw the artwork")
   does not by itself protect against hanging a postage stamp.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md` § Compositing moves
-> to the Player.** "The configured panel geometry and mat width" are server
-> settings today (`TV_PANEL_*`, `MAT_*`), and wave 4 removes them from the
-> server. After that there is no single panel, because every Player has its own.
-> - The fit verdict and the rendered size become something **Programming works
->   out from the geometry each Player reports in its heartbeat**, one answer per
->   wall ("too small for the living room"). The Library stores only
->   panel-independent width and height, as `data-model.md` already requires.
-> - The requirement survives unchanged: a curator must be able to see that an
->   image is too small before it hangs. The open design question for wave 4 is
->   what a review card shows before any wall has hung the work.
->
-> Until then, these two fields describe the code as built.
+> **Landed (waves 4b, 4e and 4g, `re-architecture.md` § Compositing moves to the
+> Player).** The server holds no panel geometry or mat width. The fit is judged
+> against the Library's quality profile (`QUALITY_MINIMUM_PX`, in pixels, naming no
+> device) and, per wall, against the screens each Player reported; the Library
+> stores only panel-independent width and height. These two fields describe the
+> code as built.
 >
 > *(Wave 4g, 2026-10-10: the server reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
 > `MAT_BOTTOM_WEIGHT` now; those are the Player's settings under the same names.
@@ -310,20 +289,11 @@ names are frozen, so it was cheap to settle now and expensive later.
 Every action resolves against the manifest. **The curation plane never sends the
 display plane a command; it writes desired state, and display converges on it.**
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The mechanism
-> changes and the principle does not.
-> - `sync` stops writing `theme-manifest-{wall_id}.json` and instead republishes
->   the document `GET /walls/{wall_id}/manifest` serves. Its ETag changes, and
->   the Player notices on its next poll.
-> - `status` stops reading `display-heartbeat-{wall_id}.json` and instead reads
->   the last heartbeat each wall POSTed.
-> - `show_now` and `next` are unchanged: they still advance a sequence in a
->   document the Player polls.
->
-> "Desired state, never a command" is exactly what makes the network hop safe.
-> A directive issued while a Player is unreachable is still just state, waiting
-> to be read. After the internal split, these actions belong to **Programming**.
-> The tool names are frozen and stay as they are.
+> **Landed (waves 2 and 4g, `re-architecture.md`).** The mechanism changed and the
+> principle did not: "desired state, never a command" is what makes the network hop
+> safe, since an act issued while a Player is unreachable is still just state,
+> waiting to be read. These actions belong to **Programming**. The tool names are
+> frozen and stay as they are.
 >
 > **Wave 4g, 2026-10-10: the directive is retired.** Manifest major 1, the only
 > document that carried it, is no longer published, and the `directives` table
@@ -1376,16 +1346,11 @@ keeps the manifest it has. *(Corrected 2026-07-20 — this sentence previously s
 both internal surfaces "ship with their only consumers", which is the retired
 exemption's reasoning and must not be cited for the manifest contract.)*
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The manifest
-> contract keeps its one rule, and gains **a written schema as its authority**.
-> A JSON Schema plus example manifests, owned by the server, is written in wave 1
-> before the HTTP channel is built. After the repo split the Player's tests pin a
-> copy.
->
-> That closes the residual `boundary-patterns.md` records: today each plane is
-> tested against its own reading of the contract, and nothing checks the two
-> readings agree. Once the two sides live in different repositories, a shared
-> fixture is the only thing that can.
+> **Landed (wave 1, and wave 5 closed 2026-10-27).** The manifest contract keeps
+> its one rule and has **a written schema as its authority**: JSON Schemas and
+> example manifests, owned by this repository in `contract/` and released as the
+> `arrt-contract` package, which Arrt Player pins by tag, so the two sides are
+> tested against the same fixtures and not each its own reading.
 
 | Element | Tier | Meaning |
 |---|---|---|
@@ -2102,7 +2067,7 @@ omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, whi
 costs the operator a confirmation prompt on every call. Each tool declares `title`
 plus honest `readOnlyHint` / `destructiveHint`.
 
-## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
+## The Server↔Player surface — BUILT 2026-09-30, since reshaped (clients 2026-10-02; major 2 alone 2026-10-10)
 
 > **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
 > `arrt/src/arrt/http/player.py` mounts them at the root beside `/api`,
@@ -2408,24 +2373,13 @@ authority. Agent-initiated runs queue candidates for the same reason UI-initiate
 runs do — the review gate is universal, not a restriction on agents. Branching
 authority on the caller would reintroduce the parity split MCP exists to prevent.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The server moves
-> to the operator's NAS and gains a **LAN listener for Players**, whose clients
-> are devices, not the curator. "Anyone on the network is the curator" was
-> sound when every inbound caller was a person. It needs restating once a Pi at
-> a wall holds a write route: the heartbeat POST can make a wall's health read
-> green or red.
->
-> Whether the Player surface authenticates is open, and `security-model.md`
-> § Trust Boundary owns the answer. Two more things apply:
-> - **Watches** are standing, scheduled searches, and can auto-accept. They fire
->   the "unattended discovery" trigger that `security-model.md` § Prompt Injection
->   names. That section must be re-derived before Watches are built.
-> - **`initiated_by`** will need a value for a Watch.
->
-> *(Both answered 2026-11-09, `build-plan-watches.md`: Watches do not auto-accept,
-> because the owner ruled every find stops in To review. The section is re-derived
-> as `security-model.md` § The unattended trigger fired. A Watch's run is
-> `initiated_by` `unattended`, with the Watch on the run's `watch_id`.)*
+> **Landed (2026-09-30 to 2026-11-09).** The server runs on the operator's NAS with
+> a LAN listener for Players, whose clients are devices and not the curator, and
+> the Player surface authenticates with a client token (`security-model.md`
+> § Trust Boundary and § Credentials and Secrets). Watches do not auto-accept,
+> because the owner ruled every find stops in To review; the unattended trigger is
+> re-derived as `security-model.md` § The unattended trigger fired, and a Watch's
+> run is `initiated_by` `unattended`, with the Watch on the run's `watch_id`.
 
 **The real exposure is prompt injection, and it is bounded — but less tightly than
 this artifact previously claimed.**

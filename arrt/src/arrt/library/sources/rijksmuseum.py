@@ -39,6 +39,7 @@ certainly the master's.
 are fetched as tiles, which `TILE_MAX_PIXELS` bounds; the rest in one request.
 """
 
+import builtins
 import logging
 import re
 import unicodedata
@@ -207,7 +208,8 @@ class _Rijksmuseum:
             raise ImageSearchFailure(f"The Rijksmuseum's record {number} is not an object.")
         return record
 
-    def linked(self, url: object, *, kind: str) -> Mapping[str, Any]:
+    # `builtins.object`: the method above is named `object`, which hides the type in this class body.
+    def linked(self, url: builtins.object, *, kind: str) -> Mapping[str, Any]:
         """A record another record links to, on the museum's ID host only, of the type expected."""
         if not isinstance(url, str) or _RECORD.fullmatch(url) is None:
             raise ImageSearchFailure(f"The Rijksmuseum names a {kind} off its ID host ({url!r}).")

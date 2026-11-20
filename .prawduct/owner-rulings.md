@@ -4,6 +4,66 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-19: after wave 1 of the audit fixes, ten rulings
+
+Asked at the end of wave 1 (`build-plan-audit-wave-1.md`, merged as #445), each with
+the advisor's recommendation. The owner: "Yes to all of your recommendations except
+the root ownership in number 7", and a qualification on number 8. As ruled:
+
+1. **Theme, not playlist, wherever a person reads.** The contract's `playlist`
+   field keeps its name until the contract's next breaking version.
+2. **The household's holdings are the Library; the screen is Artworks.** The other
+   names (collection, catalogue) leave what a person reads.
+3. **The MCP surface may break, once.** `work_id` becomes `artwork_id` in wall
+   outputs and the acts on a wall are gathered into one tool, in one release,
+   announced in the change record.
+4. **CI is required to merge on `develop` and `main`, in all three repositories,
+   once the pool has a fallback.** The fallback comes first: an outage of the pool
+   must not block every merge.
+5. **The API-drift alarm's blocked probes are marked known-blocked**, so a real
+   drift shows again. They are not each investigated by hand.
+6. **Five calls made in wave 1 are confirmed:** "copy for the walls" is the
+   household's word for the presentation master; Select stands last on a list
+   screen's toolbar, on the right; the `.local` name the Player's settings page and
+   its tests use is an example, not a real host; a guesser with
+   two addresses can hold a device that has never signed in out of a Player's
+   settings page for as long as the guessing continues; a "database is locked"
+   error pauses the acquisition queue and is not counted against the work.
+7. **Not now: the Player's code owned by root with `ProtectSystem=strict`.**
+   "That's just too heavy for right now. We may do that eventually, but not yet."
+   mpv goes on running as the service account, able to read its settings; the
+   sandboxing wave 1 added stands as it is.
+8. **One label panel per Player is the recorded limit for now, and nothing may be
+   designed that closes off several.** "I'm fine recording one label panel per
+   player right now, but we shouldn't design anything that precludes having
+   multiple labels, just as we don't prevent having multiple displays per player.
+   In the future, there may be players that only do labels and might have multiple.
+   We don't have to build that right now, but let's make sure we aren't closing off
+   that path." So: a label is an output a Player has zero or more of, as a display
+   is; a Player with labels and no display is a shape the contract, the server's
+   records and the Player's configuration must be able to describe; what is built
+   today may assume one.
+
+9. **A Library/Programming split is not a requirement now.** Asked how media would
+   be authorised after such a split (the contract promises a Player would not
+   change; media is authorised by Programming's client tokens today), the owner:
+   "Let's not worry about library and programming split. Right now, it's not a
+   requirement." So the store split (`re-architecture.md` § Seam 1, rule 3; #216)
+   has no wave and is not built toward; the seam rules already built and guarded
+   (one-way imports through the facade, events after commit, reconciliation at
+   start, the count of foreign keys crossing the seam) stand as they are, because
+   they cost nothing to keep; and a sentence that promises what a split would or
+   would not require of a Player describes a future nobody is building.
+10. **WAL mode for the catalogue is the builder's judgement.** "For WAL, please use
+    your judgment." The judgement, the coordinator's and not the owner's: stay on
+    the rollback journal for now (`build-plan-audit-wave-2.md` records it and what
+    would reopen it).
+
+Earlier the same day, at the audit's close: the provider keys are temporary and
+are not rotated ("don't sweat the keys"); the commits in public history that carry
+private addresses are left alone for now ("leave commits alone, later we can get
+that").
+
 ## 2026-11-18: CI runs on testament's pool, and no heavy builds on GitHub's runners
 
 The owner, asked whether CI does too much: "please also check that we're not doing

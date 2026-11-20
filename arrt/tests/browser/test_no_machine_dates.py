@@ -24,6 +24,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 
 #: The page's text, as a reader meets it, with every Details disclosure taken
@@ -83,7 +85,7 @@ def test_no_screen_shows_an_iso_timestamp_outside_details(ui, records, a_health_
         ui.page.wait_for_selector("#view h1")
         # Every request a screen makes after its heading, settled.
         ui.page.wait_for_load_state("networkidle")
-        ui.page.wait_for_timeout(300)
+        ui.page.wait_for_timeout(300)  # sleep: lets a late paint land, since no one condition stands for twelve screens
         text = ui.page.evaluate(READ_OUTSIDE_DETAILS)
         found = ISO.findall(text)
         if found:
@@ -109,5 +111,6 @@ def test_status_keeps_the_raw_instant_behind_details(ui, records, a_health_readi
     ui.page.wait_for_selector("#view h1:text-is('Status')")
 
     raw = ui.page.locator("details.raw-details").first
-    assert ISO.search(raw.text_content())
-    assert raw.locator("summary").inner_text() == "Details"
+    # The text content, which a closed disclosure still holds and its inner text does not.
+    expect(raw).to_contain_text(ISO)
+    expect(raw.locator("summary")).to_have_text("Details", use_inner_text=True)

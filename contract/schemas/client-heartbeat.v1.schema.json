@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/brookstalley/arrt/contract/schemas/client-heartbeat.v1.schema.json",
   "title": "Client heartbeat, major 1",
-  "description": "What a client reports about its outputs to POST /client/heartbeat, as facts rather than a verdict: which outputs exist, of what kind, whether each is connected and at what size, and for a display that can say who it is, its identity; and separately, which label outputs it holds. The server keeps it as a file beside the wall heartbeats so a curator can place a wall on an output by name; it stores nothing else about the device. Additive keys are allowed. One rule a schema cannot state: no two outputs share a name, and no two label outputs share a name, because the name is how a wall or a label is placed on one. Semantics are in .prawduct/artifacts/player-contract.md § Transport.",
+  "description": "What a client reports about its outputs to POST /client/heartbeat, as facts rather than a verdict: which outputs exist, of what kind, whether each is connected and at what size, and for a display that can say who it is, its identity; and separately, which label outputs it holds; and, since contract 1.2.0, where its own settings page can be reached. The server keeps it as a file beside the wall heartbeats so a curator can place a wall on an output by name; it stores nothing else about the device. Additive keys are allowed. One rule a schema cannot state: no two outputs share a name, and no two label outputs share a name, because the name is how a wall or a label is placed on one. Semantics are in .prawduct/artifacts/player-contract.md § Transport.",
   "type": "object",
   "required": [
     "reported_at",
@@ -106,6 +106,12 @@
           }
         }
       }
+    },
+    "settings_url": {
+      "description": "Added in contract 1.2.0, optional. The address of this Player's own settings page, as the Player can be reached on the network it reaches the server from: an absolute http or https URL with a host, an optional port and an optional path, and no user information, query or fragment. Absent when the page is bound to loopback or the Player cannot tell; never null. The pattern is the check, and meeting it is the writer's obligation. The server's obligation: it shows the address as a link only after checking it against this same pattern, and only ever as a link's address set as text, never as markup. A value that fails the check is shown as no link at all and the rest of the report is kept (server_must_refuse: false in the fixture index), because a Player's wrong guess at its own address must not cost it its outputs.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[A-Za-z0-9._~%!$&'()*+,;=:\\[\\]-]+(/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?$"
     }
   }
 }

@@ -7,6 +7,8 @@ is paired with the assertion that would fail if it stopped doing the thing at
 all.
 """
 
+import re
+
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate, an_instance
 
@@ -21,12 +23,35 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 RUN_ID = "run-under-test"
 
 #: The client polls every two seconds. Windows below are expressed in whole
 #: polls so they survive a change to that interval being read here rather than
 #: recomputed by hand at each call site.
 POLL_MS = 2000
+
+
+def _text_is(text: str, *, trimmed: bool = False):
+    """A pattern for `has_text=` that is the element's whole text content, as `==` was.
+
+    `has_text` sees the raw text content, so a heading whose words are `text`
+    is found only by a pattern that anchors both ends; `trimmed` allows the
+    whitespace a `.strip()` dropped.
+    """
+    flank = r"\s*" if trimmed else ""
+    return re.compile(f"^{flank}{re.escape(text)}{flank}$")
+
+
+def _headings(ui):
+    """Every section heading on a Get's page."""
+    return ui.page.locator("#view section h3")
+
+
+def _has_heading(ui, text: str):
+    """The headings whose words are `text`, a membership the list read answered with `in`."""
+    return _headings(ui).filter(has_text=_text_is(text, trimmed=True)).first
 
 
 @pytest.fixture
@@ -64,7 +89,8 @@ def test_a_poll_that_changes_nothing_leaves_the_focus_alone(at_the_gate):
     # Half a poll of slack on top of the two being waited for: the second tick
     # lands at the very edge of a tighter window, and on a loaded CI runner an
     # edge is a flake.
-    ui.page.wait_for_timeout(POLL_MS * 2 + POLL_MS // 2)
+    # What is claimed is that focus survives two polls, which only time passing shows.
+    ui.page.wait_for_timeout(POLL_MS * 2 + POLL_MS // 2)  # sleep: focus must survive two polls
 
     # Two polls have been and gone. The button is still under the keyboard.
     assert ui.focused() == "Approve the list"
@@ -96,7 +122,9 @@ def test_a_poll_that_changes_something_does_repaint(ui):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("td:has-text('First')")
 
-    assert "Second arrival" not in ui.text()
+    # Not yet: the first answer is on screen and the second has not been asked
+    # for, anchored on the first's row above.
+    expect(ui.view).not_to_contain_text("Second arrival", use_inner_text=True)
     ui.page.wait_for_selector("td:has-text('Second arrival')", timeout=POLL_MS * 3)
 
 
@@ -126,7 +154,7 @@ def test_two_concurrent_paints_leave_only_one_poll_chain(at_the_gate):
     # dependence of actually racing a click against one.
     ui.page.evaluate("() => { refresh(); refresh(); }")
 
-    ui.page.wait_for_timeout(POLL_MS * 3 + 500)
+    ui.page.wait_for_timeout(POLL_MS * 3 + 500)  # sleep: a rate is a count over a window, and the window is the measure
     polls = len(ui.requests_matching(f"/api/runs/{RUN_ID}")) - before
 
     # Two immediate paints, then one chain ticking three times. A second chain
@@ -162,8 +190,8 @@ def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
     # is what navigating away does, expressed without the timing.
     ui.page.evaluate("() => { const painting = viewRun('left-behind'); state.poll += 1; return painting; }")
 
-    assert "A run left behind" not in ui.text()
-    assert "Something by Dalí" in ui.text()
+    expect(ui.view).to_contain_text("Something by Dalí", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("A run left behind", use_inner_text=True)
 
 
 def test_leaving_the_run_view_stops_its_polling(at_the_gate):
@@ -179,7 +207,7 @@ def test_leaving_the_run_view_stops_its_polling(at_the_gate):
     ui.page.wait_for_selector("h1:has-text('Status')")
 
     settled = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
-    ui.page.wait_for_timeout(POLL_MS * 2 + 500)
+    ui.page.wait_for_timeout(POLL_MS * 2 + 500)  # sleep: proves a left page makes no further request for two polls' time
 
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == settled
 
@@ -221,15 +249,14 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
-    shown = ui.text()
-    assert "What it cost with the Gets that retried it could not be read" in shown
+    expect(ui.view).to_contain_text("What it cost with the Gets that retried it could not be read", use_inner_text=True)
     # The panel survives the failure: the Get's own cost is read off the run
     # record and is still true, so losing the rollup must not cost it.
     # *(Since 2026-10-14, #359: one Cost row where "Spent by this Get alone"
     # was one of four.)*
     cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
-    assert cost.locator("dt").all_inner_texts() == ["Cost"]
-    assert cost.locator("dd").inner_text() == "$0.01"
+    expect(cost.locator("dt")).to_have_text(["Cost"], use_inner_text=True)
+    expect(cost.locator("dd")).to_have_text("$0.01", use_inner_text=True)
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -256,7 +283,7 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
     # below and prove nothing about when it stops.
     assert settled >= 1
 
-    ui.page.wait_for_timeout(POLL_MS * 2 + 500)
+    ui.page.wait_for_timeout(POLL_MS * 2 + 500)  # sleep: proves a finished run is not asked about again for two polls' time
 
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == settled
 
@@ -274,9 +301,8 @@ def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
-    shown = ui.text()
-    assert "could not be read" not in shown
-    assert "$0.01, $0.25 with the Gets that retried it" in shown
+    expect(ui.view).to_contain_text("$0.01, $0.25 with the Gets that retried it", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("could not be read", use_inner_text=True)
 
 
 @pytest.fixture
@@ -299,7 +325,7 @@ def a_finished_run_with_nothing_of_its_own(ui):
 
 
 def _cost(ui):
-    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd").inner_text()
+    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd")
 
 
 def test_a_finished_get_with_nothing_recorded_says_so(a_finished_run_with_nothing_of_its_own):
@@ -307,7 +333,7 @@ def test_a_finished_get_with_nothing_recorded_says_so(a_finished_run_with_nothin
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0"))
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
-    assert _cost(ui) == "None recorded"
+    expect(_cost(ui)).to_have_text("None recorded", use_inner_text=True)
 
 
 def test_a_get_with_nothing_of_its_own_keeps_what_its_retries_cost(a_finished_run_with_nothing_of_its_own):
@@ -316,7 +342,7 @@ def test_a_get_with_nothing_of_its_own_keeps_what_its_retries_cost(a_finished_ru
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
-    assert _cost(ui) == "None recorded for this Get, $0.25 with the Gets that retried it"
+    expect(_cost(ui)).to_have_text("None recorded for this Get, $0.25 with the Gets that retried it", use_inner_text=True)
 
 
 def test_a_family_total_equal_to_the_gets_own_is_not_said_twice(a_finished_run):
@@ -326,9 +352,9 @@ def test_a_family_total_equal_to_the_gets_own_is_not_said_twice(a_finished_run):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
-    assert "retried" not in ui.text()
     cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
-    assert cost.locator("dt").all_inner_texts() == ["Cost"]
+    expect(cost.locator("dt")).to_have_text(["Cost"], use_inner_text=True)
+    expect(ui.view).not_to_contain_text("retried", use_inner_text=True)
 
 
 # -- which kind of nothing --------------------------------------------------
@@ -360,20 +386,19 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
-    shown = ui.text()
-    assert reason.value not in shown, f"the raw token {reason.value!r} reached the page"
-
     # Both halves of the badge, read off the one element: the short phrase it
     # shows, and the sentence behind it saying what that phrase means. A badge
     # with an empty title looks correct in a screenshot and tells a curator
     # nothing about which kind of nothing they are looking at.
     badge = ui.page.locator("#view span.badge[title]").filter(has=ui.page.locator("span.glyph", has_text="▲"))
-    assert badge.count() == 1
-    assert badge.inner_text().strip(), f"{reason.value} reached the page with no words"
+    expect(badge).to_have_count(1)
+    expect(ui.view, f"the raw token {reason.value!r} reached the page").not_to_contain_text(reason.value, use_inner_text=True)
+    expect(badge, f"{reason.value} reached the page with no words").to_have_text(re.compile(r"\S"), use_inner_text=True)
 
-    sentence = badge.get_attribute("title")
-    assert sentence, f"{reason.value} reached the page with no sentence behind it"
-    assert sentence.endswith("."), f"the sentence for {reason.value} is not one: {sentence!r}"
+    # A sentence: it has words and its last is full-stopped.
+    expect(badge, f"{reason.value} reached the page with no sentence behind it, or not one").to_have_attribute(
+        "title", re.compile(r"\.$")
+    )
 
     # The *resolution* badge beside it, which is a different element and was the
     # untested third of the reword. `RESOLUTION_WORDS` was changed from
@@ -385,11 +410,12 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
     # Both halves, because only the pair says the reword happened: the new
     # wording present proves it renders, and the old wording absent proves it is
     # gone rather than sitting beside it.
-    assert "the Get found none" in shown
-    assert "no image" not in shown, (
+    expect(ui.view).to_contain_text("the Get found none", use_inner_text=True)
+    expect(
+        ui.view,
         "a present-tense claim about the work is what the reword removed — `resolution_status` "
-        "records what the run found, and only a resolution attempt recomputes it"
-    )
+        "records what the run found, and only a resolution attempt recomputes it",
+    ).not_to_contain_text("no image", use_inner_text=True)
 
 
 # -- a watch that cannot recover --------------------------------------------
@@ -446,7 +472,7 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
 
     # Long enough for several more polls than the limit allows, so a loop that
     # merely slowed down would still be caught.
-    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 3))
+    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 3))  # sleep: proves the watch stopped, as no more requests come
     attempts = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
 
     assert attempts == MAX_FAILURES, f"{attempts} requests for a run that will never answer — the watch did not stop"
@@ -458,11 +484,11 @@ def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view .not-found")
-    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
+    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))  # sleep: proves a gone run is asked for once and not again
 
-    assert ui.page.locator("#view h1").inner_text() == "That Get is not here"
+    expect(ui.page.locator("#view h1")).to_have_text("That Get is not here", use_inner_text=True)
     assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == 1
-    assert ui.page.locator("#error").is_hidden()
+    expect(ui.page.locator("#error")).to_be_hidden()
 
 
 def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
@@ -476,12 +502,17 @@ def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
-    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
 
-    message = ui.page.inner_text("#error")
-    assert "Gave up watching this Get" in message
-    assert "reload" in message, "saying it stopped without saying how to resume leaves the curator stuck"
-    assert "The server answered 502." in message, "the original fault must survive; it is the diagnosis"
+    # The message changes as the watch gives up: the fifth failure is what
+    # says so, which the wait is for.
+    message = ui.page.locator("#error")
+    expect(message).to_contain_text("Gave up watching this Get", use_inner_text=True)
+    expect(message, "saying it stopped without saying how to resume leaves the curator stuck").to_contain_text(
+        "reload", use_inner_text=True
+    )
+    expect(message, "the original fault must survive; it is the diagnosis").to_contain_text(
+        "The server answered 502.", use_inner_text=True
+    )
 
 
 def test_one_blip_does_not_end_the_watch(ui):
@@ -506,8 +537,8 @@ def test_one_blip_does_not_end_the_watch(ui):
     # The run's own content arriving is the recovery: it can only be painted by
     # a poll that the blip did not stop.
     ui.page.wait_for_selector("#view p.note")
-    assert "Something by Dalí" in ui.text()
-    assert ui.page.is_hidden("#error"), "a recovered watch must clear the message, not leave it accusing"
+    expect(ui.view).to_contain_text("Something by Dalí", use_inner_text=True)
+    expect(ui.page.locator("#error"), "a recovered watch must clear the message, not leave it accusing").to_be_hidden()
 
 
 def test_a_success_clears_the_failure_count(ui):
@@ -552,14 +583,15 @@ def test_failures_with_a_success_between_them_never_end_the_watch(ui):
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
-    ui.page.wait_for_timeout(POLL_MS * 4 + 500)
 
-    attempts = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
+    # The seventh request is the claim: one the watch would never make were it
+    # ended at the sixth. Waited for as the request is made, and bounded by the
+    # page's own default wait.
+    def the_seventh(_request) -> bool:
+        return len(ui.requests_matching(f"/api/runs/{RUN_ID}")) > 6
 
-    assert attempts > 6, (
-        f"only {attempts} requests — a cumulative count gives up on the sixth, so the watch "
-        "was ended by failures that had a success between them"
-    )
+    with ui.page.expect_event("request", the_seventh):
+        pass
 
 
 # -- the discovery listing's own truncation ---------------------------------
@@ -591,9 +623,10 @@ def test_a_truncated_search_list_says_how_much_history_it_is_not_showing(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
 
-    text = ui.text()
-    assert "50 most recent of 407" in text
-    assert "does not page" in text, "a note implying paging sends a curator to an affordance that does not exist"
+    expect(ui.view).to_contain_text("50 most recent of 407", use_inner_text=True)
+    expect(ui.view, "a note implying paging sends a curator to an affordance that does not exist").to_contain_text(
+        "does not page", use_inner_text=True
+    )
 
 
 def test_a_complete_search_list_says_nothing_about_truncation(ui):
@@ -603,10 +636,9 @@ def test_a_complete_search_list_says_nothing_about_truncation(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
 
-    text = ui.text()
-    assert "In flight (4)" in text
-    assert "of 4" not in text, "a complete list must not be dressed as a partial one"
-    assert "does not page" not in text
+    expect(ui.view).to_contain_text("In flight (4)", use_inner_text=True)
+    expect(ui.view, "a complete list must not be dressed as a partial one").not_to_contain_text("of 4", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("does not page", use_inner_text=True)
 
 
 def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
@@ -635,15 +667,13 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
-    text = ui.text()
-    assert "Where it came from" not in text
     why = (
         "the offered/asked-for distinction must survive its per-row copy being removed — "
         "it is what tells a curator the list is longer than the one they authorised"
     )
-    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
-    assert "Asked for (1)" in headings, why
-    assert "Also offered by Art Institute of Chicago (1)" in headings, why
+    expect(_has_heading(ui, "Asked for (1)"), why).to_be_attached()
+    expect(_has_heading(ui, "Also offered by Art Institute of Chicago (1)"), why).to_be_attached()
+    expect(ui.view).not_to_contain_text("Where it came from", use_inner_text=True)
 
 
 def test_the_review_card_still_says_which_works_were_offered(ui):
@@ -663,7 +693,7 @@ def test_the_review_card_still_says_which_works_were_offered(ui):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector(".card")
 
-    assert "offered" in ui.text()
+    expect(ui.view).to_contain_text("offered", use_inner_text=True)
 
 
 def test_the_run_sentence_agrees_with_itself_at_a_count_of_one(ui):
@@ -691,9 +721,8 @@ def test_the_run_sentence_agrees_with_itself_at_a_count_of_one(ui):
     # Said as counts now, which carry no agreement to get wrong; the plural
     # spellings stay asserted absent so a sentence creeping back is caught.
     assert _counts(ui) == {"Asked for": "1", "Found with an image": "0", "Not matched": "1"}
-    shown = ui.text()
-    assert "1 works" not in shown
-    assert "and are reported" not in shown
+    expect(ui.view).not_to_contain_text("1 works", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("and are reported", use_inner_text=True)
 
 
 def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
@@ -711,7 +740,7 @@ def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
     ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=The work list of 1 work is settled")
-    assert "1 works" not in ui.text()
+    expect(ui.view).not_to_contain_text("1 works", use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -750,11 +779,10 @@ def test_one_of_several_works_takes_the_singular_verb(ui, kind, expected):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
-    shown = ui.text()
-    assert expected in shown
+    expect(ui.view).to_contain_text(expected, use_inner_text=True)
     # The spelling that shipped, so this fails on the agreement rather than on
     # the sentence merely being present.
-    assert "have an image" not in shown
+    expect(ui.view).not_to_contain_text("have an image", use_inner_text=True)
 
 
 def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
@@ -788,8 +816,8 @@ def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
     ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=There is 1 work to find images for")
-    assert "1 works" not in ui.text()
-    assert "There are 1" not in ui.text()
+    expect(ui.view).not_to_contain_text("1 works", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("There are 1", use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -830,7 +858,7 @@ def test_a_re_search_over_one_work_says_so_in_the_singular(ui):
     ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=Looking again for images of the 1 work this Get covers")
-    assert "1 works" not in ui.text()
+    expect(ui.view).not_to_contain_text("1 works", use_inner_text=True)
 
 
 def test_one_work_the_provider_could_not_be_asked_about_reads_in_the_singular(ui):
@@ -849,13 +877,12 @@ def test_one_work_the_provider_could_not_be_asked_about_reads_in_the_singular(ui
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
-    shown = ui.text()
-    assert "the image provider was unreachable for it" in shown
-    assert "says nothing about whether it exists" in shown
+    expect(ui.view).to_contain_text("the image provider was unreachable for it", use_inner_text=True)
+    expect(ui.view).to_contain_text("says nothing about whether it exists", use_inner_text=True)
     # The plural spellings of the same clause, so a partial fix fails here rather
     # than passing on the sentence merely being present.
-    assert "unreachable for them" not in shown
-    assert "whether they exist" not in shown
+    expect(ui.view).not_to_contain_text("unreachable for them", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("whether they exist", use_inner_text=True)
 
 
 def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
@@ -888,12 +915,13 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     )
     _a_finished_discovery(ui, [named, offered], [a_card(work=named, shown=None), a_card(work=offered)])
 
-    shown = ui.text()
     # The offered work is said by its section's heading, which names the museum
     # and denies nothing about the works asked for.
-    assert "Also offered by Art Institute of Chicago (1)" in shown
-    assert "1 more works" not in shown
-    assert "could not confirm" not in shown, "the run view still denies work it lists directly below"
+    expect(ui.view).to_contain_text("Also offered by Art Institute of Chicago (1)", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("1 more works", use_inner_text=True)
+    expect(ui.view, "the run view still denies work it lists directly below").not_to_contain_text(
+        "could not confirm", use_inner_text=True
+    )
 
     # The column heading, over the cell that answers it. The run named none of
     # the offered works and that cell says so, so a heading asserting naming is
@@ -901,9 +929,11 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     # `all_text_contents`, not `all_inner_texts`: the header cells carry
     # `text-transform: uppercase`, and inner_text returns what the transform
     # renders rather than what the client wrote.
-    headings = ui.page.locator("#view section.asked-for table th").all_text_contents()
-    assert "Why it is here" in headings, headings
-    assert "Why the run named it" not in ui.page.locator("table th").all_text_contents()
+    expect(ui.page.locator("#view section.asked-for table th").filter(has_text=_text_is("Why it is here")).first).to_be_attached()
+    # A membership claim has no retrying form (`docs/testing.md`, hazard 10): the
+    # headings are read once, after the heading above has shown the table drawn.
+    headings = ui.page.locator("table th").all_text_contents()  # one-shot: a membership, read once the table is drawn
+    assert "Why the run named it" not in headings
 
 
 # -- why a run ended ----------------------------------------------------------------
@@ -916,7 +946,7 @@ def _ended(ui, *, status: RunStatus, end_reason: str | None):
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
-    return ui.text()
+    return ui.view
 
 
 @pytest.mark.parametrize(
@@ -936,16 +966,18 @@ def test_a_run_that_ended_badly_says_why_beside_what_happened(ui, status, senten
 
     shown = _ended(ui, status=status, end_reason=reason)
 
-    assert sentence in shown
-    assert f"Why it stopped: {reason}" in shown
-    assert "The server log has the details" not in shown, "the log pointer is the fallback for a run with no reason"
+    expect(shown).to_contain_text(sentence, use_inner_text=True)
+    expect(shown).to_contain_text(f"Why it stopped: {reason}", use_inner_text=True)
+    expect(shown, "the log pointer is the fallback for a run with no reason").not_to_contain_text(
+        "The server log has the details", use_inner_text=True
+    )
 
 
 def test_a_failed_run_from_before_reasons_were_kept_still_points_at_the_log(ui):
     shown = _ended(ui, status=RunStatus.FAILED, end_reason=None)
 
-    assert "This Get hit an error and stopped. The server log has the details." in shown
-    assert "Why it stopped" not in shown
+    expect(shown).to_contain_text("This Get hit an error and stopped. The server log has the details.", use_inner_text=True)
+    expect(shown).not_to_contain_text("Why it stopped", use_inner_text=True)
 
 
 @pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.CANCELLED, RunStatus.INTERRUPTED])
@@ -953,15 +985,15 @@ def test_a_run_with_no_reason_shows_no_reason_line(ui, status):
     """The paired negative: the line appears when there is a reason, and not otherwise."""
     shown = _ended(ui, status=status, end_reason=None)
 
-    assert "Why it stopped" not in shown
+    expect(shown).not_to_contain_text("Why it stopped", use_inner_text=True)
 
 
 def test_a_reason_quoting_the_provider_reaches_the_page_as_text(ui):
     """A halt's reason quotes the provider's own words, so it is outside text and never markup."""
     shown = _ended(ui, status=RunStatus.HALTED_BY_BUDGET, end_reason="OpenRouter refused the call: <b>Key</b> limit exceeded.")
 
-    assert "Why it stopped: OpenRouter refused the call: <b>Key</b> limit exceeded." in shown
-    assert ui.page.locator("#view b").count() == 0
+    expect(shown).to_contain_text("Why it stopped: OpenRouter refused the call: <b>Key</b> limit exceeded.", use_inner_text=True)
+    expect(ui.page.locator("#view b")).to_have_count(0)
 
 
 # -- a Get's page: asked for, and offered by whom ----------------------------------
@@ -1018,8 +1050,8 @@ def test_a_finished_get_says_three_counts_rather_than_a_paragraph(ui):
 
     # Distinct figures, so a count read from the wrong tally field cannot pass.
     assert _counts(ui) == {"Asked for": "3", "Found with an image": "1", "Not matched": "2"}
-    assert "it was asked for has an image" not in ui.text()
-    assert "Separately, the collection offered" not in ui.text()
+    expect(ui.view).not_to_contain_text("it was asked for has an image", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Separately, the collection offered", use_inner_text=True)
 
 
 def test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason(ui):
@@ -1048,22 +1080,24 @@ def test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason(u
     ]
     _a_finished_discovery(ui, [asked, by_artic, by_met], cards)
 
-    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
-    assert headings == [
-        "Asked for (1)",
-        "Also offered by Art Institute of Chicago (1)",
-        "Also offered by Metropolitan Museum of Art (1)",
-    ]
+    expect(_headings(ui)).to_have_text(
+        [
+            "Asked for (1)",
+            "Also offered by Art Institute of Chicago (1)",
+            "Also offered by Metropolitan Museum of Art (1)",
+        ]
+    )
     asked_section = ui.page.locator("#view section.asked-for")
-    assert "Why it is here" in asked_section.locator("th").all_text_contents()
-    assert "The intent names melting clocks." in asked_section.inner_text()
-    for offered_section in ui.page.locator("#view section.offered").all():
-        assert "Why it is here" not in offered_section.locator("th").all_text_contents()
+    expect(asked_section.locator("th").filter(has_text=_text_is("Why it is here")).first).to_be_attached()
+    expect(asked_section).to_contain_text("The intent names melting clocks.", use_inner_text=True)
+    offered_sections = ui.page.locator("#view section.offered")
+    expect(offered_sections).to_have_count(2)
+    expect(offered_sections.locator("th").filter(has_text=_text_is("Why it is here"))).to_have_count(0)
     # The stored per-row sentence is gone with its column: the heading says it once.
-    assert "not proposed by the model" not in ui.text()
+    expect(ui.view).not_to_contain_text("not proposed by the model", use_inner_text=True)
     met = ui.page.locator("#view section.offered", has_text="Metropolitan Museum of Art")
-    assert "Mae West Lips Sofa" in met.inner_text()
-    assert "Lobster Telephone" not in met.inner_text()
+    expect(met).to_contain_text("Mae West Lips Sofa", use_inner_text=True)
+    expect(met).not_to_contain_text("Lobster Telephone", use_inner_text=True)
 
 
 def test_each_row_shows_the_picture_found_for_it(ui):
@@ -1080,11 +1114,12 @@ def test_each_row_shows_the_picture_found_for_it(ui):
     rows = ui.page.locator("#view section.asked-for tbody tr")
     first = rows.filter(has_text="The Persistence of Memory")
     first.locator("img").wait_for()
-    assert "/api/candidate-images/img-found/preview" in first.locator("img").get_attribute("src")
-    assert first.locator("img").evaluate("(i) => i.complete && i.naturalWidth") > 0
+    expect(first.locator("img")).to_have_attribute("src", re.compile(re.escape("/api/candidate-images/img-found/preview")))
+    # Loaded, not merely present: waited for, since an image arrives after its element.
+    ui.page.wait_for_function("(i) => i.complete && i.naturalWidth > 0", arg=first.locator("img").element_handle())
     lost = rows.filter(has_text="Lost")
-    assert lost.locator("img").count() == 0
-    assert "No image found" in lost.inner_text()
+    expect(lost).to_contain_text("No image found", use_inner_text=True)
+    expect(lost.locator("img")).to_have_count(0)
 
 
 @pytest.mark.parametrize(
@@ -1107,8 +1142,8 @@ def test_a_row_without_a_picture_says_which_kind_of_nothing(ui, cards_answer, st
     ui.page.wait_for_selector("#view section.asked-for")
 
     row = ui.page.locator("#view section.asked-for tbody tr")
-    assert said in row.inner_text()
-    assert "No image found" not in row.inner_text()
+    expect(row).to_contain_text(said, use_inner_text=True)
+    expect(row).not_to_contain_text("No image found", use_inner_text=True)
 
 
 def test_a_row_s_picture_stays_small_on_a_phone(ui):
@@ -1138,9 +1173,8 @@ def test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture
     cards = [a_card(work=asked), a_card(work=gift, shown=an_instance(work_id="gift", image_id="img-met", provider="met"))]
     _a_finished_discovery(ui, [asked, gift], cards)
 
-    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
-    assert "Also offered by Art Institute of Chicago (1)" in headings
-    assert not any("Metropolitan" in heading for heading in headings)
+    expect(_has_heading(ui, "Also offered by Art Institute of Chicago (1)")).to_be_attached()
+    expect(_headings(ui).filter(has_text=re.compile("Metropolitan"))).to_have_count(0)
 
 
 def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection(ui):
@@ -1154,8 +1188,7 @@ def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection
     asked = a_candidate(work_id="asked")
     _a_finished_discovery(ui, [asked, gift], [a_card(work=asked), a_card(work=gift)])
 
-    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
-    assert "Also offered by the collection (1)" in headings
+    expect(_has_heading(ui, "Also offered by the collection (1)")).to_be_attached()
 
 
 # -- the Get page shows pictures, links, and only acts that lead somewhere (#363) --
@@ -1182,8 +1215,8 @@ def test_a_row_whose_picture_is_not_kept_shows_a_placeholder_not_the_server_s_ex
     _a_finished_discovery(ui, [asked, offered], [a_card(work=asked), a_card(work=offered, shown=gone)])
 
     cell = ui.page.locator("#view section.offered tbody tr .row-picture")
-    assert cell.inner_text().strip() == "No picture kept"
-    assert "cannot be shown here" not in ui.text()
+    expect(cell).to_have_text("No picture kept", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("cannot be shown here", use_inner_text=True)
 
 
 def _review_links(ui):
@@ -1195,7 +1228,7 @@ def test_review_these_works_is_offered_while_a_card_is_left_to_judge(ui):
     decided = a_candidate(work_id="decided", title="Saint-Séverin", verdict="accepted", artwork_id="art-9")
     _a_finished_discovery(ui, [waiting, decided], [a_card(work=waiting), a_card(work=decided)])
 
-    assert _review_links(ui).all_inner_texts() == ["Review these works"]
+    expect(_review_links(ui)).to_have_text(["Review these works"], use_inner_text=True)
 
 
 def test_nothing_left_to_judge_offers_no_way_into_an_empty_review(ui):
@@ -1203,8 +1236,10 @@ def test_nothing_left_to_judge_offers_no_way_into_an_empty_review(ui):
     works = [a_candidate(work_id=f"d{n}", title=f"Decided {n}", verdict="rejected") for n in range(2)]
     _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
 
-    assert _review_links(ui).count() == 0
-    assert "Review these works" not in ui.text()
+    # The decided works are listed, so the page has drawn when no way into Review is found on it.
+    expect(ui.view).to_contain_text("Decided 1", use_inner_text=True)
+    expect(_review_links(ui)).to_have_count(0)
+    expect(ui.view).not_to_contain_text("Review these works", use_inner_text=True)
 
 
 def test_only_works_found_with_no_image_left_says_what_there_is_to_decide(ui):
@@ -1220,7 +1255,7 @@ def test_only_works_found_with_no_image_left_says_what_there_is_to_decide(ui):
     ]
     _a_finished_discovery(ui, lost, [a_card(work=w, shown=None) for w in lost])
 
-    assert _review_links(ui).all_inner_texts() == ["Want or forget the 2 works it found no image for"]
+    expect(_review_links(ui)).to_have_text(["Want or forget the 2 works it found no image for"], use_inner_text=True)
 
 
 def test_each_work_s_title_links_to_the_page_it_has(ui):
@@ -1237,16 +1272,16 @@ def test_each_work_s_title_links_to_the_page_it_has(ui):
     ]
     _a_finished_discovery(ui, [accepted, twin, chosen, plain], cards)
 
-    def title_href(title):
+    def title_link(title):
         row = ui.page.locator("#view section.asked-for tbody tr", has_text=title)
-        anchors = row.get_by_role("link", name=title, exact=True)
-        return anchors.first.get_attribute("href") if anchors.count() else None
+        return row.get_by_role("link", name=title, exact=True)
 
-    assert title_href("Champs de Mars").startswith("#work/art-accepted")
-    assert title_href("The Persistence of Memory").startswith("#work/art-held")
-    assert title_href("Rhythm").startswith("#work/Q20166468")
+    expect(title_link("Champs de Mars")).to_have_attribute("href", re.compile("^" + re.escape("#work/art-accepted")))
+    expect(title_link("The Persistence of Memory")).to_have_attribute("href", re.compile("^" + re.escape("#work/art-held")))
+    expect(title_link("Rhythm")).to_have_attribute("href", re.compile("^" + re.escape("#work/Q20166468")))
     # Nothing to open: proposed, never accepted, no copy in the library, no item.
-    assert title_href("Rhythm No. 2") is None
+    # The other titles' links are there, so the rows have drawn.
+    expect(title_link("Rhythm No. 2")).to_have_count(0)
 
 
 def test_a_work_the_library_holds_says_so_rather_than_not_held(ui):
@@ -1261,10 +1296,10 @@ def test_a_work_the_library_holds_says_so_rather_than_not_held(ui):
 
     row = ui.page.locator("#view section.asked-for tbody tr")
     held = row.get_by_role("link", name="In your library")
-    assert held.get_attribute("href").startswith("#work/art-held")
-    assert "not held" not in row.inner_text()
+    expect(held).to_have_attribute("href", re.compile("^" + re.escape("#work/art-held")))
     # What the run found is still said, in words that cannot be read as the library's.
-    assert "in no collection" in row.inner_text()
+    expect(row).to_contain_text("in no collection", use_inner_text=True)
+    expect(row).not_to_contain_text("not held", use_inner_text=True)
 
 
 def test_an_accepted_work_with_a_library_copy_is_not_told_twice(ui):
@@ -1273,5 +1308,7 @@ def test_an_accepted_work_with_a_library_copy_is_not_told_twice(ui):
     _a_finished_discovery(ui, [accepted], [a_card(work=accepted, held_artwork_id="art-held")])
 
     row = ui.page.locator("#view section.asked-for tbody tr")
-    assert row.get_by_role("link", name="In your library").count() == 0
-    assert row.get_by_role("link", name="Champs de Mars").get_attribute("href").startswith("#work/art-accepted")
+    expect(row.get_by_role("link", name="Champs de Mars")).to_have_attribute(
+        "href", re.compile("^" + re.escape("#work/art-accepted"))
+    )
+    expect(row.get_by_role("link", name="In your library")).to_have_count(0)

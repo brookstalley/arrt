@@ -11,12 +11,16 @@ the unattributed work last — so a sort that did nothing, or did the wrong thin
 fails rather than passing on a fixture that could not tell.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 BY_TITLE = ["I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory"]
 BY_ARTIST = ["I Saw the Figure 5 in Gold", "The Persistence of Memory", "Nighthawks"]
@@ -27,8 +31,9 @@ def choose(ui, menu: str, item: str) -> None:
     ui.page.click(f"[role='menuitemradio']:has-text('{item}')")
 
 
-def table_titles(ui) -> list[str]:
-    return ui.page.locator("table.work-table tbody .row-title").all_inner_texts()
+def table_titles(ui):
+    """The table's title cells, for `expect(...).to_have_text([...], use_inner_text=True)`."""
+    return ui.page.locator("table.work-table tbody .row-title")
 
 
 def wait_for_table(ui, expected: list[str]) -> None:
@@ -49,12 +54,12 @@ def test_artworks_has_view_sort_and_filter_on_its_toolbar(ui, seeded_service):
     ui.page.wait_for_selector("ul.grid")
 
     controls = ui.page.locator(".page-toolbar-controls")
-    assert controls.locator("button", has_text="View:").count() == 1
-    assert controls.locator("button", has_text="Sort:").count() == 1
+    expect(controls.locator("button", has_text="View:")).to_have_count(1)
+    expect(controls.locator("button", has_text="Sort:")).to_have_count(1)
     # Named for what pressing it does (#288), where it was a *Filter* toggle
     # read by its pressed state; with the rails out, it puts them away.
-    assert controls.locator("button", has_text="Hide filters").count() == 1
-    assert controls.locator("button", has_text="Show filters").count() == 0
+    expect(controls.locator("button", has_text="Hide filters")).to_have_count(1)
+    expect(controls.locator("button", has_text="Show filters")).to_have_count(0)
 
 
 def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
@@ -64,9 +69,12 @@ def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
     choose(ui, "View", "Table")
     ui.page.wait_for_selector("table.work-table")
 
-    assert "density=table" in ui.page.url
-    assert sorted(table_titles(ui)) == sorted(BY_TITLE)
-    assert ui.page.locator("ul.grid").count() == 0
+    expect(ui.page).to_have_url(re.compile("density=table"))
+    expect(table_titles(ui)).to_have_count(len(BY_TITLE))
+    # The claim is the set of works, not the order the default sort gives them,
+    # and a set has no retrying form: read once the table holds all its rows.
+    assert sorted(table_titles(ui).all_inner_texts()) == sorted(BY_TITLE)  # one-shot: set equality, after the rows are all drawn
+    expect(ui.page.locator("ul.grid")).to_have_count(0)
     ui.page.click("table.work-table .row-title:has-text('Nighthawks')")
     ui.page.wait_for_selector("#view h1:has-text('Nighthawks')")
 
@@ -75,35 +83,35 @@ def test_the_view_menu_names_its_choice_and_is_keyboard_driven(ui, seeded_servic
     ui.open("#collection?density=catalogue")
     ui.page.wait_for_selector("ul.grid")
     trigger = ui.page.locator("button.menu-button-trigger", has_text="View")
-    assert trigger.inner_text().startswith("View: Overview")
+    expect(trigger).to_have_text(re.compile("^View: Overview"), use_inner_text=True)
 
     trigger.focus()
     ui.page.keyboard.press("ArrowDown")
     menu = ui.page.get_by_role("menu", name="View")
-    assert trigger.get_attribute("aria-expanded") == "true"
-    assert menu.get_by_role("menuitemradio", name="Overview").get_attribute("aria-checked") == "true"
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    expect(menu.get_by_role("menuitemradio", name="Overview")).to_have_attribute("aria-checked", "true")
 
     ui.page.keyboard.press("Escape")
-    assert trigger.get_attribute("aria-expanded") == "false"
+    expect(trigger).to_have_attribute("aria-expanded", "false")
     assert ui.page.evaluate("() => document.activeElement.classList.contains('menu-button-trigger')")
 
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("ArrowDown")
     ui.page.keyboard.press("Enter")
     ui.page.wait_for_selector("table.work-table")
-    assert "density=table" in ui.page.url
+    expect(ui.page).to_have_url(re.compile("density=table"))
 
 
 def test_sorting_by_artist_orders_the_works_and_is_in_the_address(ui, seeded_service):
     ui.open("#collection?density=table")
     ui.page.wait_for_selector("table.work-table")
-    assert table_titles(ui) == BY_TITLE
+    expect(table_titles(ui)).to_have_text(BY_TITLE, use_inner_text=True)
 
     choose(ui, "Sort", "Artist")
     wait_for_table(ui, BY_ARTIST)
 
     assert "sort=artist" in ui.page.evaluate("() => window.location.hash")
-    assert table_titles(ui) == BY_ARTIST, "unattributed works go last, after the named ones"
+    expect(table_titles(ui), "unattributed works go last, after the named ones").to_have_text(BY_ARTIST, use_inner_text=True)
 
 
 def test_sorting_by_title_again_leaves_the_default_out_of_the_address(ui, seeded_service):
@@ -125,7 +133,7 @@ def test_filter_puts_the_rails_away_and_brings_them_back(ui, seeded_service):
     # The rails going is the repaint; waiting on the grid would find the old one.
     ui.page.wait_for_selector("aside.rails", state="detached")
     ui.page.wait_for_selector("ul.grid")
-    assert ui.page.locator(".page-toolbar-controls button:has-text('Hide filters')").count() == 0
+    expect(ui.page.locator(".page-toolbar-controls button:has-text('Hide filters')")).to_have_count(0)
 
     ui.page.click(".page-toolbar-controls button:has-text('Show filters')")
     ui.page.wait_for_selector("aside.rails")
@@ -136,9 +144,11 @@ def test_view_sort_and_filter_survive_a_reload(ui, seeded_service):
     ui.open("#collection?density=table&sort=artist&filters=hidden")
     ui.page.wait_for_selector("table.work-table")
 
-    assert table_titles(ui) == BY_ARTIST
-    assert ui.page.locator("aside.rails").count() == 0
-    assert ui.page.locator("button.menu-button-trigger", has_text="Sort").inner_text().startswith("Sort: Artist")
+    expect(table_titles(ui)).to_have_text(BY_ARTIST, use_inner_text=True)
+    expect(ui.page.locator("aside.rails")).to_have_count(0)
+    expect(ui.page.locator("button.menu-button-trigger", has_text="Sort")).to_have_text(
+        re.compile("^Sort: Artist"), use_inner_text=True
+    )
 
 
 def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
@@ -184,11 +194,14 @@ def test_the_table_carries_the_tick_in_select_mode_only(ui, services, seeded_ser
     ui.open("#collection?density=table")
     ui.page.wait_for_selector("button.select-toggle")
     # Drawn, and out of sight until *Select* is pressed — the tick column too.
-    assert ui.page.locator("table.work-table input.tile-select:visible").count() == 0
-    assert ui.page.locator("table.work-table th.row-select:visible").count() == 0
+    # The ticks being there, all three, is what makes their being out of sight
+    # a claim about a drawn table rather than an unpainted one.
+    expect(ui.page.locator("table.work-table input.tile-select")).to_have_count(3)
+    expect(ui.page.locator("table.work-table input.tile-select:visible")).to_have_count(0)
+    expect(ui.page.locator("table.work-table th.row-select:visible")).to_have_count(0)
 
     ui.page.click("button.select-toggle")
-    assert ui.page.locator("table.work-table input.tile-select:visible").count() == 3
+    expect(ui.page.locator("table.work-table input.tile-select:visible")).to_have_count(3)
 
 
 def test_a_rail_with_nothing_to_filter_by_says_so(ui, seeded_service):
@@ -196,7 +209,7 @@ def test_a_rail_with_nothing_to_filter_by_says_so(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("aside.rails .rail-note")
 
-    assert ui.page.inner_text("aside.rails").startswith("Nothing to filter by yet.")
+    expect(ui.page.locator("aside.rails")).to_have_text(re.compile(r"^Nothing to filter by yet\."), use_inner_text=True)
 
 
 def test_hidden_rails_say_so_when_they_are_still_narrowing(ui, services, seeded_service):
@@ -215,7 +228,7 @@ def test_hidden_rails_with_nothing_narrowing_say_nothing(ui, seeded_service):
     ui.open("#collection?filters=hidden")
     ui.page.wait_for_selector("ul.grid")
 
-    assert ui.page.locator(".filters-hidden-note").count() == 0
+    expect(ui.page.locator(".filters-hidden-note")).to_have_count(0)
 
 
 def test_view_sort_and_filter_are_undone_by_browser_back(ui, seeded_service):
@@ -236,8 +249,8 @@ def test_a_sort_this_client_does_not_offer_falls_back_rather_than_failing(ui, se
     ui.open("#collection?density=table&sort=colour")
     ui.page.wait_for_selector("table.work-table")
 
-    assert table_titles(ui) == BY_TITLE
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    expect(table_titles(ui)).to_have_text(BY_TITLE, use_inner_text=True)
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 def test_hidden_rails_say_so_when_a_facet_is_still_narrowing(ui, service, seeded_service):
@@ -248,5 +261,5 @@ def test_hidden_rails_say_so_when_a_facet_is_still_narrowing(ui, service, seeded
     ui.open("#collection?movement=Realism&filters=hidden")
     ui.page.wait_for_selector("ul.grid")
 
-    assert ui.page.locator("ul.grid li.card").count() == 1, "the facet must actually narrow, or this tests nothing"
-    assert ui.page.locator(".filters-hidden-note").count() == 1
+    expect(ui.page.locator("ul.grid li.card"), "the facet must actually narrow, or this tests nothing").to_have_count(1)
+    expect(ui.page.locator(".filters-hidden-note")).to_have_count(1)

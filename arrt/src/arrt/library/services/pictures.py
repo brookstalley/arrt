@@ -344,7 +344,8 @@ class PictureStore:
             with self._held(key):
                 kept = self._kept_or_fetched(key, provider, preview_url)
         except _NotKept as exc:
-            return self._absent(url, str(exc), event=exc.event)
+            self._absent(url, str(exc), event=exc.event)
+            return None
         return self.relative(kept)
 
     def _kept_or_fetched(self, key: str, provider: str, preview_url: str) -> Path:
@@ -620,7 +621,11 @@ def _import_row(store: PictureStore, discovery: DiscoveryService, image: Candida
     try:
         kept = store.find_for(image.provider, image.url, max_edge=TIERS[-1])
         if kept is None:
-            source = store.art_root / image.preview_path
+            preview_path = image.preview_path
+            # `import_previews` hands over only rows that name a preview; inside this
+            # `try` a row that did not would count as `failed`, as it always would have.
+            assert preview_path is not None  # noqa: S101 -- narrows for mypy; inside the try a None still counts as failed
+            source = store.art_root / preview_path
             if not source.is_file():
                 return "missing"
             kept = store.put(image.provider, image.url, source.read_bytes())

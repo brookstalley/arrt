@@ -15,18 +15,14 @@ boring, and this document exists mostly to make sure the two things that are *no
 boring — getting Python 3.14 onto a Pi, and having a restore path that actually
 works — are decided rather than discovered.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** This specification
-> describes the deployment that is **live today** and stays correct for it until
-> wave 3. At that point the **server** (curation, with its catalogue and art
-> tree) moves to the operator's NAS (TrueNAS SCALE) as a container, and the Pi
-> keeps only the **Player** (today's display plane) with a local media cache.
-> The NAS deployment is recorded in the operator's homelab repository, not here.
->
-> This file will then describe the Player's host, plus whatever the server image
-> needs that is product-side: the container build, its configuration contract
-> and its backup. Sections below carry dated notes where their target moves.
-> Nothing written here about the running Pi should be removed before wave 3
-> lands.
+> **Landed (wave 3, 2026-10-02; `re-architecture.md`).** The **server** (curation, with
+> its catalogue and art tree) runs on the operator's NAS (TrueNAS SCALE) as a
+> container, and the Pi keeps only the **Player** (today's display plane), whose
+> code is in Arrt Player's repository. The NAS deployment is recorded in the
+> operator's homelab repository, not here. This file describes the Player's host
+> as it was while the two planes shared one Pi, plus what the server image needs
+> that is product-side: the container build, its configuration contract and its
+> backup. Sections below carry dated notes where they moved.
 
 ## Deployment Target
 
@@ -140,13 +136,13 @@ things that carry the other two, and they are version-controlled.
 
 ## The Curation Interpreter — decided
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** This section solves
-> "3.14 on a Pi", a problem that ends in wave 3, when curation runs from a
-> container image on the NAS. There the interpreter is whatever the image's base
-> provides, and uv-in-the-image is the natural carry-over. It stays authoritative
-> for the running Pi until then. The Player keeps the Pi's system 3.13 for the
-> e-paper driver's reasons (`architecture.md` § Overview & Topology), so the
-> two-interpreter split survives, now across two machines instead of within one.
+> **Landed (wave 3, `re-architecture.md`).** This section solved "3.14 on a Pi",
+> a problem that ended when curation moved to a container image on the NAS. There
+> the image installs exactly the version in `.python-version`, uv-managed only
+> (`tests/test_one_python.py` holds it, 2026-11-08). The Player keeps the Pi's
+> system 3.13 for the e-paper driver's reasons (`architecture.md` § Overview &
+> Topology), so the two-interpreter split survives, across two machines instead of
+> within one.
 
 **Raspberry Pi OS Trixie ships Python 3.13. The curation plane gets its 3.14 from
 a uv-managed standalone build.** Since 2026-11-08 that build is the exact release
@@ -240,11 +236,10 @@ not be able to invoke the OOM killer against the display plane. Capping curation
 converts a shared-fate failure into a contained one, which is most of what the
 process split is for on a single box.
 
-> **Direction changed 2026-09-30.** The `curation` unit and its `MemoryMax`
-> exist because of co-location, and both retire in wave 3, when the server leaves
-> the Pi. Memory containment for a gigapixel acquisition is still needed on the
-> NAS, and becomes the container's memory limit, so a runaway fetch cannot
-> starve the operator's other apps. *(The curation unit's file was deleted from `deploy/`
+> **Landed (wave 3, 2026-10-02).** The `curation` unit and its `MemoryMax` existed
+> because of co-location, and retired when the server left the Pi. Memory
+> containment for a gigapixel acquisition is the container's memory limit, so a
+> runaway fetch cannot starve the operator's other apps. *(The curation unit's file was deleted from `deploy/`
 > on 2026-11-19: nothing had run it since the server moved to the NAS
 > on 2026-10-02, and a file nothing ran was a second place for the paths and the
 > memory bound to be wrong, and the five tests that held its environment file, its
@@ -436,19 +431,14 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   reason: a wrong size gives a label that looks wrong, a refusal gives no label at
   all, and the label may never be a reason the wall stops.)*
 
-> **Direction changed 2026-09-30. See `re-architecture.md` § Compositing moves
-> to the Player.** In wave 4 the **TV panel geometry and the mat settings**
-> (`TV_PANEL_*`, `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT`) leave curation's
-> configuration, and they split along "settings flow down, capabilities flow up"
-> (`re-architecture.md` § What is showing, and how it is shown). `TV_PANEL_*`
-> is a physical fact about the device, so it becomes Player configuration next to
-> the `EPD_*` values, and the Player reports it in its heartbeat. `MAT_*` is how
-> the operator wants a wall presented, so it becomes a **wall setting** in
-> Programming, sent in the manifest. The server then holds no screen geometry.
-> The **label mode** (e-ink panel, caption in the mat, or none) is a wall setting
-> too, chosen from what the Player reports. Caption mode arrives in wave 6+. A
-> Player running it is exactly the "device drawing its label into the mat area"
-> the `EPD_MARGIN_PX` note above anticipated.
+> **Landed (wave 4g, 2026-10-10; `re-architecture.md` § Compositing moves to the
+> Player).** `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT` left curation's
+> configuration and are the Player's, split along "settings flow down,
+> capabilities flow up" (`re-architecture.md` § What is showing, and how it is
+> shown). The label mode (e-ink panel, caption in the mat, or none) is a wall
+> setting, chosen from what the Player reports. **Still open:** the caption mode,
+> Player work in wave 6+ (#217), which is exactly the "device drawing its label
+> into the mat area" the `EPD_MARGIN_PX` note above anticipated.
 >
 > *(Wave 4g, 2026-10-10: built. The server holds no screen geometry. The Player
 > reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`.
@@ -563,18 +553,18 @@ The system self-heals **visibly**. Verifying a restore therefore does not requir
 staging gigabytes of imagery — which is exactly what makes the exercise something
 that will actually get run rather than skipped.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** The rule is the
-> same: back up the curatorial layer, not the images. Its setting changes:
-> - **The source moves to the NAS in wave 3.** The backup then runs on the NAS,
->   beside the server's storage, and "the destination is awake" stops being the
->   limitation it is from a Pi.
-> - **Wave 3 splits the catalogue**, before it moves, into a Library file and a Programming file,
->   with no foreign keys between them. Both are curatorial and both are backed up,
->   using the same SQLite backup API, taken together. The restore exercise has to
->   cover the pair, including what a restored Programming file does with a work
->   id the restored Library does not hold. It is designed to tolerate such
->   references (`re-architecture.md` § Seam 1), and the restore is where that
->   claim gets tested.
+> **Landed (wave 3, `re-architecture.md`).** The rule is the same: back up the
+> curatorial layer, not the images. The source is the NAS, where the backup runs
+> beside the server's storage, and "the destination is awake" is no longer the
+> limitation it was from a Pi.
+> - **The catalogue is one file**, holding both the Library's and Programming's
+>   tables, so the backup takes one and a restore restores both halves together.
+>   The split into two files, which would have the backup take the pair, is not
+>   built and not a requirement now (the owner, ruling 9 of 2026-11-19). What a
+>   Programming reference to a work the Library does not hold does after a restore
+>   is the restore exercise's to test: Programming holds work ids as opaque
+>   references and tolerates ones that no longer resolve
+>   (`re-architecture.md` § Seam 1).
 > - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
 >   are rebuilt by reconciliation against the set, as today.
 > - **`presentation/` holds one master per work from wave 4b (2026-10-08)**,
@@ -632,7 +622,105 @@ that will actually get run rather than skipped.
 > library: the backup at start wrote its generation and receipt (the panel read
 > "last backed up 2 seconds ago"); the restored server answered 404 for the
 > wall's manifest until the theme was re-hung, then served 40 works, all 40 with
-> media.
+> media. *(Superseded 2026-11-19: no re-hang is needed today, and the restore
+> has a step this omitted. See the next note.)*
+
+> **The restore, as `arrt/tests/system/test_restore.py` runs it (2026-11-19,
+> `build-plan-audit-wave-2.md` Chunk 06).** The test starts `python -m arrt` as
+> a process over a seeded art root, lets its start-up pass write a generation,
+> changes the household after it (a theme added, another hung), stops the
+> server, restores, starts it again, and reads the works, the themes, each
+> wall's hang and each wall's feed back over HTTP, as the wall's Player fetches
+> it. It restores to two places: the same art root, over a catalogue a writer
+> killed mid-transaction left with a hot journal; and a new art root given only
+> the image tree. The steps (`restore` in that file is these, as code):
+>
+> 1. **Stop the server.**
+> 2. **Remove what SQLite keeps beside the catalogue:** `catalogue.sqlite-journal`,
+>    and a `-wal` and `-shm` if anything left them. *This step is new, and it is
+>    the one that matters.* A server killed mid-write leaves a hot journal, and
+>    the next open plays it into whatever file is then at the catalogue's path:
+>    measured on SQLite 3.53.1, a generation copied in beside one opens as the
+>    dead server's last commit, with `PRAGMA integrity_check` saying `ok`, so the
+>    restore is silently undone (`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`).
+> 3. **Copy the newest `catalogue-*Z.sqlite` from `BACKUP_DIR` in beside the
+>    catalogue, then rename it over `catalogue.sqlite`**, so the path holds the
+>    old file or the whole generation, never half of one.
+> 4. **On a new machine, restore the image tree** (`raw/`, `presentation/`,
+>    `thumbs/`) from the art root's own snapshot. No feed file is needed.
+> 5. **Start the server. Nothing needs re-hanging:** at every start
+>    `services.reconcile()` publishes each wall's hung theme where the wall has
+>    no feed on disk, and replaces a feed of another theme than the one hung, so
+>    both a new art root and a stale feed left beside the restored catalogue are
+>    answered with the restored hang's feed before the first request. Its
+>    start-up backup is skipped while the newest generation is younger than
+>    `BACKUP_INTERVAL_SECONDS`, so the generation restored from is not pruned.
+>
+> The exercise into a scratch art root is the same steps with `ART_ROOT` the
+> scratch directory and `BACKUP_DIR` emptied, as in the block above. **Not
+> measured:** a feed left beside the restored catalogue that names the theme
+> hung but a work the generation does not hold (a work added after the backup);
+> start-up `reconcile` asks the Library about every work a feed carries, and
+> what it answers for an id it has never held is not exercised here. **A
+> generation is refused by a release that carries the guard** when the release
+> that took it expects a higher catalogue shape generation (below): restore it
+> with that release or a newer one.
+
+> **The catalogue records which release last opened it, and the shape that
+> release expects (2026-11-19, `build-plan-audit-wave-2.md` Chunk 06; the shape
+> generation since the boundary review the same day).** One row in the file's
+> `catalogue_opened` table (`data-model.md` § CatalogueOpened): the release, the
+> instant, the catalogue shape generation its code expects
+> (`persistence/file.py` `SCHEMA_GENERATION`), and whether that open finished its
+> migrations, written false before the first migration and true after the last.
+> So before a rollback the operator can read which release last opened the file,
+> when, and at which generation (`sqlite3 catalogue.sqlite 'SELECT * FROM
+> catalogue_opened'`), and after a failed upgrade whether its migrations
+> finished. **A release meeting a file recorded at a higher shape generation than
+> its own refuses to start**, before it copies, widens or records anything, with a
+> message naming both releases and both generations (journal: ERROR
+> `catalogue.newer_release_refused`). **Release numbers are not compared**: a file
+> recorded at the release's own generation or a lower one opens whatever release
+> wrote it, so a rollback across no change to the shape (a bad patch release to
+> the one before it) is the previous image alone. The generation is raised by
+> hand at every migration and at any table, column or index taken away or
+> redeclared, and `arrt/tests/unit/test_schema_generation.py` fails when the
+> shape or the open's steps move that far without it; an addition alone leaves
+> it. The open that raises it copies the file first (`pre-migration-*Z.sqlite`,
+> as before a drop), so the release left behind has a copy it opens. **The
+> refusal names the ways back that exist**: each `pre-migration-*Z.sqlite` and
+> backup generation `catalogue-*Z.sqlite` in `BACKUP_DIR` and beside the
+> catalogue whose own record that release would open, newest first, to be
+> restored by the numbered steps above, journal step included; or, when there is
+> none, says so, counts the copies it would refuse too, and names the newer
+> release as the way on. A row from before generations (a release, no
+> generation, written by a build of the audit's second wave before the boundary
+> review) opens unless its release is numbered later than this one's, the one
+> refusal the earlier guard made; a recorded release this code cannot read no
+> longer stops a start (WARNING `catalogue.unreadable_release_recorded`). **This
+> code's own release is checked before anything is written**: one that is not a
+> version of three numbers stops the start by name (`UnreadableRelease`), because
+> a build from before generations would refuse the file it was written into.
+> **The guard protects a downgrade only to a release that carries it.** Measured
+> once, 2026-11-19: v0.11.0's own code (`git archive v0.11.0`), opening a v0.1.0
+> catalogue today's code had migrated and recorded as opened by 0.12.0, opened it
+> without a word, read its four works and two walls, and left the row as it was;
+> measured again after the generation was added, with the same result, the
+> `schema_generation` column ignored. The build before the generation
+> (`6e4faae5`) opens a file this code recorded under the same version string,
+> keeping its generation, and refuses one recorded under a later version string,
+> by release number, across no change to the shape. So a rollback to v0.11.0 or
+> older across a migration is still the restore of the copy taken before it
+> (§ Routine Operations, Rollback), never the image alone. **`PRAGMA
+> user_version` is not this record**: it marks a migration in progress, from its
+> copy until its last step.
+
+> **Each generation says how long its copy took (2026-11-19).** `backup.completed`
+> carries `copy_seconds`, the monotonic time `VACUUM INTO` took. The copy holds a
+> SHARED lock the server's commits wait on, so this is the figure that would
+> reopen the decision to stay on the rollback journal rather than WAL
+> (`build-plan-audit-wave-2.md`, Goals): a copy measured long enough that commits
+> wait on it.
 
 > **A crash loop no longer takes the generations with it, and a destructive
 > migration is copied first (2026-11-19,
@@ -670,7 +758,7 @@ that will actually get run rather than skipped.
 | Operation | Procedure |
 |---|---|
 | Deploy | `git pull`, then `systemctl restart` each unit. No migration spans the planes — the manifest is regenerated, never migrated. **One-off after the 2026-08-12 upgrade: delete `theme-manifest.json` and `display-heartbeat.json` from `ART_ROOT`.** Both files became per-wall (`theme-manifest-{wall_id}.json`), nothing writes or reads the old paths any more, and nothing deletes them either — so they sit there holding whatever they held at the moment of the upgrade. Harmless to the running planes and *not* harmless to a person: a `jq` at the old path answers, with a document that will never change again, and looks exactly like a current one. Delete them and the ambiguity goes with them |
-| Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the copy taken before the migration ran, then restart both. **The backup is the rollback plan.** Since 2026-11-19 the server takes that copy itself before any migration that drops a column or a table: the newest `pre-migration-*Z.sqlite` in `BACKUP_DIR`, or beside the catalogue when `BACKUP_DIR` is unset (§ Backup and Restore); a backup taken by hand before the deploy serves too. A migration that drops nothing writes no copy, and needs none. A rollback that crosses no migration is still the old two-step |
+| Rollback | **The previous image alone, when the rollback crosses no change to the catalogue's shape** (2026-11-19): point the server's container at the image it ran before (`arrt:<commit>`, as `deploy/README.md` § The server on the NAS builds it; the compose file that names it is in the operator's homelab repository) and recreate the container. A release that carries the `catalogue_opened` record opens a file recorded at its own catalogue shape generation or a lower one, whatever release last opened it (§ Backup and Restore, the note on that record). **Across a raised generation it is a restore**: the older release refuses the file by name, changing nothing, and names the copies beside it that it opens (the `pre-migration-*Z.sqlite` the newer release's first start wrote, and any backup generation from before that start), or says there are none. Restore one by the numbered steps in § Backup and Restore, which `deploy/README.md` § The way back across such a migration gives too: they remove the journal before the copy goes in, without which the restore is silently undone. Then start the previous image. **A release from before the record (v0.11.0 and older) checks nothing**: it opens a file a newer release migrated without a word, so a rollback to one across a migration restores the copy first, every time. *(Until 2026-11-19 this row said `git checkout` the previous commit, restore, and restart both planes: a checkout is not how a container is rolled back, and its restore had no journal step. Until 2026-08-12 it was `git checkout` plus two restarts, which stopped being true the first time the schema dropped something.)* |
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
 | Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`pictures/` is never reclaimed, by norm** (`data-model.md` § Direction, 2026-10-06): every picture fetched from outside is kept, two files each, and the store has no ceiling. Its files and bytes are on the health panel, counted at most ten minutes ago, so its growth is a figure to watch rather than a chore. **`previews/` is debris since the same day**: the startup import moves every file a row names into the store, logging `pictures.imported` with its counts; once that line reports `done`, `rm -rf previews/` loses nothing, including files no row ever named (#62). It matters here because § Risks opens with the SD card as the top operational risk |
 | **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
@@ -680,14 +768,13 @@ that will actually get run rather than skipped.
 | Patch curation's CPython | Raise `.python-version` to the fixed release, at the root and in `arrt/` (`tests/test_one_python.py` holds the two equal), and land it. Then rebuild the image and redeploy it on the NAS; a checkout's next `uv sync` moves its venv onto the new pin. **Neither `uv python upgrade` nor `apt upgrade` does this:** the pin names an exact release, so uv reinstalls it, and `apt` patches only a system Python, which uv no longer takes. *(Changed 2026-11-08; until then this row read `uv python upgrade 3.14`, then rebuild the venv.)* |
 | Re-pair the TV | Rotates the pairing token. Nothing to untrack first — `token_file` was untracked 2026-07-27 and the token now resolves under `ART_ROOT`, outside the checkout, so a `git pull` no longer deletes it and re-pairing needs no repo work at all. Just re-pair at the hardware. *(Updated 2026-08-01: this row still ordered an untracking step that is done, and carried a `git pull` hazard `security-model.md` withdrew on 2026-07-27.)* See `security-model.md` |
 
-> **Direction changed 2026-09-30.** After wave 3, "Deploy" and "Rollback" split
-> in two. The server deploys as a new container image on the NAS, following the
-> operator's homelab procedure. The Player deploys as today, with `git pull` and a
-> restart, until the wave-5 repo split gives it its own repo. "No migration spans
-> the planes" stays true, because the manifest document is still regenerated,
-> never migrated. The HTTP contract adds a new skew case: a Player older than the
-> server's manifest major. It is handled the way the file channel handles it
-> today: refuse the unknown major and keep the last manifest.
+> **Landed (waves 3 and 5).** "Deploy" and "Rollback" are two: the server deploys as
+> a new container image on the NAS, following the operator's homelab procedure, and
+> the Player is deployed from its own repository (`arrt-player`), outside this
+> file. "No migration spans the planes" stays true, because the manifest document is
+> regenerated, never migrated. The HTTP contract's skew case, a Player older than
+> the server's manifest major, is handled the way the file channel handled it:
+> refuse the unknown major and keep the last manifest.
 >
 > *(Wave 4g, 2026-10-10: that case is now visible. The server publishes major 2
 > only, and a wall whose Player's heartbeat does not list 2 (or lists no
@@ -769,22 +856,16 @@ manifest and reads the image tree continuously, and it would rest the manifest a
 heartbeat channels' atomic write-and-rename on semantics a network filesystem
 decides rather than the kernel.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`. Read this against
-> the rejection above, which it does not overturn.** In wave 3 the catalogue
-> moves to the NAS, but not onto a network filesystem. The server process
-> moves with it and opens SQLite on storage **local to its own host**, so
-> locking and WAL behave exactly as they do on the Pi today. What was rejected on
-> 2026-08-04 was the Pi reaching its catalogue over the network, and that stays
-> rejected. The second objection (the wall's uptime behind a second machine)
-> is answered by the Player's local cache, not ignored: the Player renders only
-> from what it has already pulled (`nonfunctional-requirements.md` § Direction,
-> amended 2026-09-30).
->
-> After wave 3 the card carries no irreplaceable asset. It holds the Player's
-> cache and device state, both rebuildable, and its continuous-write path is still
-> the heartbeat, which becomes an HTTP POST and stops writing to the card at all.
-> The SD card stops being the top operational risk. The backup gap (issue #14)
-> moves with the catalogue to the NAS and remains open until it is built.
+> **Landed (wave 3, `re-architecture.md`).** Read this against the rejection above,
+> which it does not overturn. The catalogue is on the NAS, but not on a network
+> filesystem: the server process opens SQLite on storage **local to its own host**,
+> so locking behaves as it did on the Pi. What was rejected on 2026-08-04 was the Pi
+> reaching its catalogue over the network, and that stays rejected. The second
+> objection (the wall's uptime behind a second machine) is answered by the Player's
+> local cache, not ignored: the Player renders only from what it has already pulled
+> (`nonfunctional-requirements.md` § Direction, amended 2026-09-30). The Pi's card
+> holds no irreplaceable asset: the Player's cache and device state are both
+> rebuildable, and the heartbeat is an HTTP POST that writes nothing to the card.
 
 *The trade-off, stated plainly.* Card death costs a rebuild plus whatever curation
 happened since the last backup, at an accepted frequency of once every few years.

@@ -30,7 +30,7 @@ need spend to travel back across this seam, and that is a change to make when on
 arrives rather than scaffolding for one that has not.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Final, Protocol, runtime_checkable
 
@@ -197,7 +197,7 @@ class Finder(Protocol):
         copy nobody would think to check.
         """
 
-    def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
+    def find_images(self, query: ImageQuery) -> Iterable[FoundImage | FoundPage]:
         """Every instance this provider holds for the work, unjudged and unranked, and any page it found and cannot read.
 
         Raises `ImageSearchFailure` when the provider could not be asked, and

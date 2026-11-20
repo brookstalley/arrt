@@ -13,7 +13,7 @@ import json
 
 import httpx
 import pytest
-from arrt_contract import fixtures, root, routes, validator
+from arrt_contract import fixtures, released, root, routes, validator
 from jsonschema import Draft202012Validator
 
 from arrt.programming import client_heartbeat
@@ -23,6 +23,10 @@ CONTRACT = root()
 ROUTES = routes()
 INDEX = fixtures()
 HEARTBEATS = [row for row in INDEX if row["schema"] == "schemas/client-heartbeat.v1.schema.json"]
+#: The invalid client heartbeats the server refuses whole, and those it keeps,
+#: ignoring what breaks the rule: the index's `server_must_refuse` says which.
+REFUSED = [row for row in HEARTBEATS if not row["valid"] and row["server_must_refuse"]]
+TOLERATED = [row for row in HEARTBEATS if not row["valid"] and not row["server_must_refuse"]]
 
 
 def _schema(name: str) -> Draft202012Validator:
@@ -139,8 +143,8 @@ def test_a_client_heartbeat_is_written_beside_the_wall_heartbeats(heartbeat_url,
     assert listed["heartbeat"]["age_seconds"] is not None
 
 
-@pytest.mark.parametrize("row", [row for row in HEARTBEATS if not row["valid"]], ids=lambda row: row["path"])
-def test_every_invalid_client_heartbeat_in_the_contract_is_refused_with_400_and_not_written(
+@pytest.mark.parametrize("row", REFUSED, ids=lambda row: row["path"])
+def test_every_invalid_client_heartbeat_the_server_must_refuse_is_refused_with_400_and_not_written(
     heartbeat_url, token, hall_pi, wall_settings, row
 ):
     response = httpx.post(heartbeat_url, json=_fixture(row["path"]), headers=_bearer(token))
@@ -148,6 +152,52 @@ def test_every_invalid_client_heartbeat_in_the_contract_is_refused_with_400_and_
     assert response.status_code == 400
     assert response.json()["error"].startswith("That is not a client heartbeat this server can read: ")
     assert not client_heartbeat_path_in(wall_settings.art_root, hall_pi.id).exists()
+
+
+def test_the_index_holds_client_heartbeats_the_server_refuses_and_ones_it_keeps():
+    """The vacuity check: the parametrised tests either side of this one pass trivially over an empty list."""
+    assert REFUSED
+    assert TOLERATED
+
+
+@pytest.mark.parametrize("row", TOLERATED, ids=lambda row: row["path"])
+def test_an_invalid_client_heartbeat_the_server_tolerates_is_kept_with_its_outputs(
+    heartbeat_url, token, hall_pi, wall_settings, server_url, row
+):
+    """A report whose `settings_url` fails the schema's check still records the Player's outputs.
+
+    The contract makes the server the tolerant reader of `settings_url`: it links
+    the address only after its own check, so a Player's wrong guess at its address
+    must not cost it its outputs (`player-contract.md` § Transport).
+    """
+    document = _fixture(row["path"])
+
+    response = httpx.post(heartbeat_url, json=document, headers=_bearer(token))
+
+    assert response.status_code == 204, response.text
+    assert json.loads(client_heartbeat_path_in(wall_settings.art_root, hall_pi.id).read_text(encoding="utf-8")) == document
+    listed = next(entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == hall_pi.id)
+    assert listed["heartbeat"]["problem"] is None
+    assert [output["name"] for output in listed["heartbeat"]["outputs"]] == [output["name"] for output in document["outputs"]]
+
+
+RELEASED_HEARTBEATS = [
+    (version, row)
+    for version, release in released().items()
+    for row in json.loads((release / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
+    if row["schema"] == "schemas/client-heartbeat.v1.schema.json" and row["valid"]
+]
+
+
+@pytest.mark.parametrize("case", RELEASED_HEARTBEATS, ids=lambda case: f"{case[0]}:{case[1]['path']}")
+def test_every_valid_client_heartbeat_of_a_released_contract_is_accepted(heartbeat_url, token, case):
+    """What a Player pinned to an older tag writes, this server still takes (audit-7 M6)."""
+    version, row = case
+    document = json.loads((released()[version] / row["path"]).read_text(encoding="utf-8"))
+
+    response = httpx.post(heartbeat_url, json=document, headers=_bearer(token))
+
+    assert response.status_code == 204, (version, row["path"], response.text)
 
 
 @pytest.mark.parametrize(
@@ -209,8 +259,54 @@ def test_the_client_heartbeat_refuses_without_a_valid_client_token(heartbeat_url
 
 @pytest.mark.parametrize("row", HEARTBEATS, ids=lambda row: row["path"])
 def test_the_servers_reader_agrees_with_the_contract_about_every_client_heartbeat(row):
-    """Every fixture the schema accepts, the server accepts; every one it refuses, the server refuses."""
-    assert (client_heartbeat.problem_with(_fixture(row["path"])) is None) is row["valid"], row["path"]
+    """Every fixture the schema accepts, the server accepts; it refuses exactly those the index says it must."""
+    must_refuse = not row["valid"] and row["server_must_refuse"]
+
+    assert (client_heartbeat.problem_with(_fixture(row["path"])) is not None) is must_refuse, row["path"]
+
+
+# -- a Player with several labels and no display (ruling 8 of 2026-11-19) ----------------
+
+
+def test_a_player_with_several_labels_and_no_display_is_served_each_of_its_labels(server_url, services, heartbeat_url):
+    """The shape the owner ruled must stay open: label outputs only, more than one, each captioning its own wall."""
+    door = services.clients.add_client(name="The Pi by the door")
+    token = services.access.issue(door.id).token
+    report = _fixture("fixtures/client-heartbeat.v1/valid/panels-and-no-display.json")
+    assert report["outputs"] == []
+    assert len(report["label_outputs"]) > 1
+
+    assert httpx.post(heartbeat_url, json=report, headers=_bearer(token)).status_code == 204
+    [listed] = [entry for entry in httpx.get(server_url + "/api/clients").json()["clients"] if entry["client_id"] == door.id]
+    assert listed["heartbeat"]["problem"] is None
+    walls = [services.display.add_wall(name=f"Wall for {output['name']}").id for output in report["label_outputs"]]
+    labels = [
+        services.clients.add_label(wall, client_id=door.id, output=output["name"]).label.id
+        for wall, output in zip(walls, report["label_outputs"], strict=True)
+    ]
+
+    response = httpx.get(server_url + ROUTES["client"]["path"], headers=_bearer(token))
+
+    assert response.status_code == 200
+    document = response.json()
+    assert _schema("client.v1.schema.json").is_valid(document)
+    assert document["walls"] == []
+    assert sorted(document["labels"], key=lambda label: label["output"]) == [
+        {"label_id": label_id, "output": output["name"], "wall_id": wall}
+        for label_id, output, wall in zip(labels, report["label_outputs"], walls, strict=True)
+    ]
+    for label_id in labels:
+        label = httpx.get(server_url + ROUTES["label"]["path"].format(label_id=label_id), headers=_bearer(token))
+        assert label.status_code == 200, label.text
+
+
+def test_the_contracts_several_labels_document_is_one_the_schema_accepts_with_no_walls():
+    """The fixture a Player reads for ruling 8's shape: no walls, and more than one label on as many outputs."""
+    document = _fixture("fixtures/client.v1/valid/several-labels-and-no-walls.json")
+
+    assert _schema("client.v1.schema.json").is_valid(document)
+    assert document["walls"] == []
+    assert len({label["output"] for label in document["labels"]}) == len(document["labels"]) > 1
 
 
 # -- the curator's routes ---------------------------------------------------------------

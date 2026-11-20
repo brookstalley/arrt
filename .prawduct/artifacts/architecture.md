@@ -10,29 +10,24 @@ last_validated: null
 
 # Architecture
 
-Two processes, one machine, one shared directory, and exactly one file between
-them. That is the whole system, and the shape is deliberate: the split exists so
-the wall keeps showing art while the curation process is restarted, upgraded, or
-crashing — not because the work is too big for one box.
+A server on the household's NAS and a Player at each wall, joined by HTTP on
+the LAN. The server, Arrt, is this repository: one process holding the Library
+(what exists and what to go and get) and Programming (what hangs where, and
+when). Each Player, Arrt Player, lives in its own repository, pulls what the
+server publishes into a local cache, and renders only from that cache. The split
+exists so a wall keeps showing art while the server is restarted, upgraded or
+crashing, and so the hardware at a wall stays with the host that drives it.
 
-> **Direction changed 2026-09-30. Read `re-architecture.md` first.** Everything
-> below describes the system **as built**, and it stays accurate until the wave
-> that changes each part lands. The **target** is different in three ways:
-> - **Three roles in two deployables:** a server (Library plus Programming) on
->   the operator's NAS, and a Player at each wall.
-> - **The channel between them** is an HTTP manifest plus immutable media, which
->   the Player pulls into a local cache. It replaces the shared directory.
-> - **The Player composes the mat** for its own screen.
->
-> The first Direction norm below is amended and `in-transition`. The second and
-> third gain rulings. Four new norms for the Library/Programming seam are born
-> `in-transition` at the end of § Direction. The Decision Log's 2026-09-30
-> entries record the reversal of the 2026-07-20 co-location decision.
->
-> **Since wave 5 (2026-10-27) this repository holds the server only.** Where a
-> norm below binds the Player's code, its guard runs in Arrt Player's own
-> repository, and a path written `arrt-player:<path>` names a file there. The
-> norm statements stay here, beside the contract they constrain.
+> **History.** Until 2026-10-02 the product was two processes on one Raspberry
+> Pi sharing one directory, with one file between them (Decision Log,
+> 2026-07-20). The owner's direction of 2026-09-30 (`re-architecture.md`) moved
+> the server to the NAS, the channel to HTTP, and composing the mat to the
+> Player; wave 5 (2026-10-27) moved the Player to its own repository. Where a
+> norm below binds the Player's code, its guard runs there, and a path written
+> `arrt-player:<path>` names a file there. The norm statements stay here, beside
+> the contract they constrain. Each norm's own dated notes are kept as written;
+> where one says a wave is still to come, § Overview & Topology and the sections
+> after it say what is built.
 
 ## Direction
 
@@ -259,8 +254,10 @@ convenience would otherwise make that split a migration.
    repoint at the split, with no code change on the consuming side.
 
 > **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work,
-> and for rule 3 by #216 (filed 2026-10-05, after wave 3 shipped without the store
-> split). **Interim rule:** new code that touches themes,
+> except rule 3, which has no wave and is not being built toward: a
+> Library/Programming split is not a requirement now (ruling 9 of 2026-11-19,
+> `.prawduct/owner-rulings.md`), so its store split (#216) is not scheduled.
+> **Interim rule:** new code that touches themes,
 > walls, directives (until wave 4g) or manifests is written against the rules above wherever it
 > can be without the package split: no new cross-seam foreign keys, no new direct
 > reads of catalogue tables from `programming/display.py`'s domain.
@@ -355,120 +352,102 @@ convenience would otherwise make that split a migration.
 > the Library's or Programming's, and holds the keys that cross to exactly
 > `theme_memberships.artwork_id`. It reads `REFERENCES` clauses and so cannot see a
 > Library id kept as text and joined in SQL.)*
+>
+> **2026-11-19, ruling 9 (`owner-rulings.md`): rule 3 has no wave and is not
+> built toward.** The owner: "Let's not worry about library and programming
+> split. Right now, it's not a requirement." So the store split (#216), and with
+> it the two SQLite files, Programming's records leaving `persistence/records.py`
+> and the `mark_the_default_theme` migration's read of `artworks` becoming a read
+> through the facade, is not scheduled and no work prepares for it. The rules
+> already built and guarded stand as they are, because they cost nothing to
+> keep: one-way imports through the facade (rule 1), the facade's
+> remote-shaped answers (rule 2), the count of foreign keys crossing the seam,
+> held at `theme_memberships.artwork_id` (rule 3's tested half), and events after
+> commit with reconciliation at start (rule 4). The interim rule above, no new
+> cross-seam foreign keys, still binds new code.
 
 ## Overview & Topology
 
-**One host.** Raspberry Pi 4 Model B, 8 GB, Raspberry Pi OS Trixie, booting from
-SD card. Both processes run here. This is a **2026-07-20 change** from the
-recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
+**Two deployables on separate hosts, joined by HTTP on the LAN.** This is the
+system as built since 2026-10-02, when the server moved to the NAS; the Player
+left this repository on 2026-10-27. The single-Pi topology this section
+described before then is in the Decision Log, under 2026-07-20.
+
+- **The server, Arrt** (this repository's `arrt/`), runs as one container on the
+  operator's NAS (x86_64). `arrt/Dockerfile` builds it from a commit: Python
+  3.14 from uv (`.python-version`), an unprivileged user, port 8770, and a
+  healthcheck on `/healthz`. `deploy/nas/compose.example.yaml` is the shape it
+  is deployed in: a memory limit, `ART_ROOT` and `BACKUP_DIR` mounted from NAS
+  storage, and the port published only to the address the reverse proxy
+  reaches. It is **one process**: uvicorn serving the browser interface, its
+  JSON API under `/api`, MCP at `/mcp`, and the Player surface at the root, with
+  the acquisition queue, the scheduler and the backup job working inside it.
+  It holds both server roles, the Library (`arrt.library`) and Programming
+  (`arrt.programming`), over one catalogue file.
+- **Players, Arrt Player**
+  ([brookstalley/arrt-player](https://github.com/brookstalley/arrt-player)),
+  run on their own hosts at the walls. Each is a **client** with one token
+  (`clients.md`): it asks `GET /client` which walls and label outputs are its,
+  pulls each wall's manifest and the media it names into a local cache,
+  renders only from that cache, and posts its heartbeats. Everything that
+  drives hardware (the television, the e-paper panel, composing the mat) is the
+  Player's, in its repository. **Nothing in this repository reaches a
+  television or a panel.**
 
 ```
-                    ┌──────────────────── Raspberry Pi 4 (8 GB) ───────────────────┐
-                    │                                                              │
-  MCP clients ─────►│  ┌─────────────────────────┐                                 │
-  (Claude Code,     │  │  curation                │  writes                        │
-   in-UI agent)     │  │  Python 3.14 venv        ├───────────┐                    │
-                    │  │  FastAPI + uvicorn       │           │                    │
-  Browser ─────────►│  │    /        web UI       │           ▼                    │
-  (curation UI)     │  │    /api/*   HTTP API     │   ┌──────────────────────────┐ │
-                    │  │    /mcp     MCP (SHTTP)  │   │  ART_ROOT (shared dir)   │ │
-                    │  │                          │   │                          │ │
-                    │  │  discovery · acquisition │   │   catalogue.sqlite  (C)  │ │
-                    │  │  image prep · mat colour │   │  theme-manifest-<wall>(C)│ │
-                    │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
-                    │              │                  │   tv-thumbs/ tile-cache/ │ │
-                    │              │                  │   pictures/ sources/     │ │
-                    │              │                  │   kept-answers.sqlite    │ │
-                    │              │ HTTPS            │                          │ │
-                    │              ▼                  │   display-state.sqlite(D)│ │
-                    │   OpenRouter, museum APIs,      └────────────┬─────────────┘ │
-                    │   Google Arts & Culture                      │ reads         │
-                    │                                              ▼               │
-                    │                                 ┌──────────────────────────┐ │
-                    │                                 │  display                 │ │
-                    │                                 │  Python 3.13 venv        │ │
-                    │                                 │  systemd Restart=always  │ │
-                    │                                 │  rotation · label render │ │
-                    │                                 └────┬──────────────┬──────┘ │
-                    └──────────────────────────────────────┼──────────────┼────────┘
-                                                 LAN ws    │              │ SPI
-                                                           ▼              ▼
-                                                    Samsung Frame TV   e-paper HAT
-                                                                       1448×1072
-
-  (C) = written by curation only    (D) = written by display only
+            ┌──────────── operator's NAS (container) ──────────────┐
+ Browser ──►│  arrt: one process, uvicorn, :8770                    │
+ MCP ──────►│    /  and /api   browser interface and its JSON API   │── HTTPS ──► OpenRouter,
+            │    /mcp          MCP, streamable HTTP                 │             museum APIs,
+            │    ├─ Library      works · originals · discovery ·    │             Wikidata, Commons
+            │    │               Watches · scheduler · masters      │
+            │    └─ Programming  themes · walls · clients ·         │
+            │                    displays · labels · schedule       │
+            │    ART_ROOT: catalogue.sqlite · raw/ · presentation/  │
+            │              thumbs/ · pictures/ · feeds · heartbeats │
+            │    Player surface (contract/routes.json):             │
+            │      GET /client          POST /client/heartbeat      │
+            │      GET /walls/{id}/manifest/v2                      │
+            │      POST /walls/{id}/heartbeat                       │
+            │      GET /media/sha256-{hash}   GET /labels/{id}      │
+            └────────────────────────┬──────────────────────────────┘
+                                     │ LAN HTTP, pulled, client token
+          ┌──────────────────────────┼──────────────────────────┐
+          ▼                          ▼                          ▼
+     Arrt Player                Arrt Player                Arrt Player
+     its own host               its own host               its own host
+     local cache · composes     local cache · composes     local cache · composes
+     its walls and labels       its walls and labels       its walls and labels
 ```
 
-*(Wave 4g, 2026-10-10: `ready/` in this drawing held the server's composed
-television canvases. Nothing writes it now; a deployment that has one may
-delete it. The display box's "rotation" is the schedule programme reading
-manifest major 2.)*
+**Why two deployables.** The wall must not go dark when the server restarts, is
+upgraded or crashes. A Player renders only from its cache, so a server outage or
+a NAS reboot leaves every wall showing what it has (§ Direction, the first
+norm). The hardware a wall needs (a television on the LAN, an e-paper driver
+pinned to its own Python) belongs on the host at the wall; the catalogue, the
+one irreplaceable asset, belongs on the NAS's storage beside its backups. The
+cost is a network contract, paid once as the `arrt-contract` package and the tag
+a Player pins (§ Deployment & Version Skew).
 
-**Target topology (2026-09-30, `re-architecture.md`).** None of this is built yet. *(Wave 4g, 2026-10-10: much of it is now: the HTTP feed and media routes, the heartbeat, the Library/Programming packages, and each Player composing its own wall. The drawing was updated to drop the directive and name the major 2 route; `re-architecture.md` § Order of work says what is built.)*
-
-```
-            ┌──────────── operator's NAS (container) ─────────────┐
- Browser ──►│  server                                              │
- MCP ──────►│   ├─ Library      works · originals · facets · mat   │── HTTPS ──► OpenRouter,
-            │   │               discovery · Watches · scheduler    │             museum APIs
-            │   │               presentation masters (by hash)     │
-            │   └─ Programming  playlists · walls · hanging ·      │
-            │                   tags · heartbeats                  │
-            │   GET /walls/{id}/manifest/v2   GET /media/{hash}    │
-            │   POST /walls/{id}/heartbeat                         │
-            └───────────────────────┬──────────────────────────────┘
-                                    │ LAN HTTP, pulled
-          ┌─────────────────────────┼─────────────────────────┐
-          ▼                         ▼                         ▼
-   Player (Pi, wall A)       Player (Pi, wall B)       Player (Mac, wall C)
-   local cache · composes    local cache · composes    local cache · composes
-   Samsung Frame + e-ink     HDMI LCD, caption in mat  monitor, caption in mat
-```
-
-**Why the product is split at all.** The original rationale — "it moves gigapixel
-fetching, k-means over LAB arrays, and 4K compositing off a Pi 4" — **is no longer
-true and must not be cited.** Co-location retires it. What survives:
-
-1. **The display plane's Python version is pinned by hardware.** The IT8951
-   e-paper driver compiles Cython from 2023 sources targeting 3.12/3.13, while the
-   curation plane runs 3.14. Two venvs on one host is the cheap resolution, and it
-   stays the resolution whatever the curation floor turns out to be.
-   **What holds that floor is stated once, in `project-preferences.md` §
-   Language & Runtime, and is not repeated here** — this item said the floor
-   "rests on the models package alone" and was still saying it after that package
-   moved to a test-only group. As of 2026-08-02 no default dependency requires
-   3.14, so **this leg of the split is the weakest of the three** and the two
-   below carry it: read them as the reasons, not this one.
-2. **The wall must not go blank when curation restarts.** This matters *more* on
-   one box, not less: during development the curation process is restarted
-   constantly, and a single-process design would blank the TV every time.
-3. **"E-paper behind an interface" becomes a process boundary** rather than a
-   convention someone has to respect.
-
-**What co-location removed.** The split's real cost was the distributed-systems
-tax — a network contract, sync, two deployments, two failure domains to reason
-about. A shared filesystem pays that down to near zero. The split got *cheaper*
-when it stopped being distributed.
-
-**Honest note on the classification.** `multi_process_distributed` remains the
-recorded characteristic and this artifact remains warranted — two processes that
-can fail independently is the trigger. But the product is now multi-process and
-*not* distributed, which is why the resilience section below is much shorter than
-it would otherwise be: there is no network partition between planes, because there
-is no network between planes.
+**The classification.** `multi_process_distributed` is the recorded
+characteristic, and it is literally true: two kinds of process on different
+hosts, with a network between them. § Failure Modes & Resilience covers that
+network.
 
 ## Components & Responsibilities
 
 ### curation
 
 - **Purpose:** turn curatorial intent into displayable, prepared artwork.
-- **Platform:** Python 3.14 venv on a uv-managed standalone interpreter — *not* the
-  system 3.13, and it cannot see distro site-packages (`operational-spec.md`
-  § The Curation Interpreter). FastAPI on uvicorn, systemd unit. Always-on but
-  usually idle — it is on-demand in behaviour, resident in lifecycle.
+- **Platform:** the server's container image (`arrt/Dockerfile`): Python 3.14
+  installed by uv, FastAPI on uvicorn, one process, restarted by the container
+  runtime (`restart: unless-stopped`). Always-on but usually idle — on-demand in
+  behaviour, resident in lifecycle. *(Until 2026-10-02 a venv on the Pi under a
+  systemd unit.)*
 - **Owned state (sole writer):** the entire catalogue — works, image instances,
   verdicts, suppression scopes, mat colours, themes and their membership,
-  discovery runs. Plus the whole image tree and the theme manifest.
+  discovery runs. Plus the whole image tree, each wall's feed, and the Players'
+  heartbeats as the server keeps them from their POSTs.
 - **Serves three surfaces from one ASGI app:** the web UI, its HTTP API, and the
   MCP streamable-HTTP endpoint. All three are thin bindings over one service layer
   (`project-preferences.md`, Critic-enforced). **Ask's agent is a fourth binding
@@ -485,6 +464,46 @@ is no network between planes.
   the divergence the shared service layer exists to prevent, reappearing one
   layer up. No framework and no build step: a Node toolchain on the Pi buys
   nothing a single operator on a private network can see.)*
+- **`arrt.services` is the surfaces' composition tier, and it spans both server
+  roles** (recorded 2026-11-19). The package holds two kinds of module
+  (`arrt/src/arrt/services/__init__.py`). A **shared kernel** either side may
+  import: `errors.py`, `store.py`, `fields.py`. And **compositions over both
+  sides**, which neither side imports: `container.py` wires every service;
+  `health.py` states the health panel from Library and Programming readings;
+  `works_filter.py` joins the Library's narrowings with Programming's theme
+  members, walls and showings, as sets of opaque ids. The compositions are how
+  the thin-binding norm's "a composition both surfaces need lives in a service"
+  is met without either role importing the other: they stand on the surfaces'
+  side of the seam, with `arrt.http` and `arrt.mcp`, and the seam's rule that
+  only the surfaces span both roles (`re-architecture.md` § Seam 1, rule 6)
+  reads them as surface. Only `arrt.http`, `arrt.mcp`, `app.py` and
+  `__main__.py` import them. The seam's import guard
+  (`tests/preferences/test_seam_imports.py`) reports either role importing any of
+  the three, because each reaches the other role: `works_filter.py` through its
+  type-checking import of `container.py`, which the guard follows. Measured
+  2026-11-19 by planting `works_filter` imports in a Programming module and in a
+  Library module: both runs failed, naming the path.
+- **`DisplayService` is a composition facade over five collaborators** (built
+  2026-11-19, Chunks 20 and 21 of `build-plan-audit-wave-2.md`). `programming/display.py`
+  builds one of each over one store, and each public method is a one-line delegation, so
+  every surface still calls `services.display.<method>`. `programming/feeds.py`
+  (`FeedPublisher`) builds, stages and publishes each wall's feed and keeps every
+  published feed true to the Library; `themes.py` (`Themes`) holds themes, their
+  membership, what hangs on each wall and *Not this one again*; `walls.py` (`Walls`),
+  walls and their settings; `scenes.py` (`Scenes`), scenes from draft to released;
+  `reports.py` (`Reports`), what each wall's Player reports and what is answered from
+  it. Each calls only the publisher and the collaborators before it in that list, and
+  every one publishes through the one publisher, so an act has one transaction and one
+  set of feeds staged (`FeedPublisher.publishing`). The facade keeps one rule itself,
+  `on_work_changed`. All of them log as `arrt.programming.display`, which
+  `arrt/tests/unit/test_display_facade.py` holds beside the facade's signatures, its
+  delegations and its one shared store and publisher. The rule that a feed is checked
+  against the contract wherever it is built is held by the suite-wide feed guard
+  (`arrt/tests/conftest.py`, `every_feed_keeps_the_contract`), which patches the
+  builder where it now lives (`feeds.as_v2_document`); it checks feeds built in the
+  test's own process, so a feed a server *process* publishes (the system tests') is not
+  checked by it. This is cohesion, not the Library/Programming split, which is not a
+  requirement (ruling 9 of 2026-11-19).
 - **A fourth binding is not a surface:** `arrt/seed/` is a hand-run command
   that reads the 2024 index and mints its works through `CatalogueService`. It is
   bound by the same rule for the same reason — it enforces no catalogue
@@ -891,105 +910,63 @@ is no network between planes.
   Note the TV panel's *physical* geometry is not a device fact in this sense and
   is curation's — see § Configuration; the two were conflated until 2026-07-20.
 
-### display
+### The Player surface
 
-- **Purpose:** make the physical world match the manifest.
-- **Platform:** Python 3.13 venv, systemd `Restart=always`. Genuinely always-on.
-- **Owned state (sole writer):** `display-state.sqlite` — TV content-id bindings,
-  per-work upload status, last selected work, whether this device has already
-  switched the set's own slideshow off, and the last-acted-on directive sequence
-  (see § The theme manifest). *(Wave 4g, 2026-10-10: the directive sequence is
-  gone with manifest major 1; the Player reads only major 2.)*
+The display plane left this repository on 2026-10-27: it is Arrt Player, and its
+architecture is `arrt-player:.prawduct/artifacts/architecture.md`. What it was
+while it lived here is in the Decision Log, under 2026-07-20. **What this
+repository holds for Players** is the routes they call and the records behind
+them, all in the server process:
 
-  *(**Two corrections from building it, 2026-08-06.** "Brightness state" was
-  listed here and is deliberately **not** persisted: it is recomputed from the sun
-  and the clock on a timer, so a stored copy could only ever be a value that has
-  gone stale — including after somebody moves the brightness with the remote —
-  and the cost of not having it is one idempotent call on restart. The slideshow
-  flag replaced it, and that one genuinely must survive a restart: `Restart=always`
-  makes restarts routine and the call is only correct to make once.)* **Panel geometry
-  is deliberately not listed** (corrected 2026-07-20 — it appeared here while
-  every other artifact makes it *configuration* both planes read): a copy held as
-  device state could drift from the value curation judges sources against, which
-  is exactly the quiet mismatch `operational-spec.md` § Configuration warns
-  about. Beyond `TvBinding`, this store's schema is display-internal and
-  deliberately deferred (`data-model.md` § Deliberately not modelled).
-  This is the ratified data-model norm ("per-device runtime state never lives in
-  the catalogue") given a process to live in.
-- **Reconciliation loop, as built (2026-08-06/07):** poll the manifest's mtime
-  (~1 s) → adopt a new one, refusing an unrecognised major and keeping the last
-  good document → reconcile the binding table against the set, removing what it
-  holds that nothing accounts for → apply sun-position brightness → act on at most
-  one directive → rotate when the interval is up. *(Wave 4g, 2026-10-10: the
-  Player now pulls its feed over HTTP and reads only major 2: no directive, and
-  the schedule programme (`programmes/schedule.py`) decides what is on the wall
-  from the schedule's times rather than an interval timer.)* **Uploads are carried one per
-  pass rather than batched on adoption**, so a fresh install shows something in
-  seconds instead of blanking the wall for the five minutes forty uploads take.
-  **A selection is confirmed by the set's own `image_selected` announcement**
-  before anything is logged or recorded (§ Failure Modes). That callback is
-  registered by the television seam, per connection. **The library keeps one
-  handler per event rather than a list**, so a second subscriber registered
-  directly would replace the confirmation handler rather than join it — silently,
-  after which every rotation falls to its timeout and reports a wall that will not
-  move while the newcomer works perfectly. That hazard is closed as of 2026-08-07:
-  the seam fans the announcement out through `TvClient.observe_selections`, which
-  resolves the pending selection first and then hands the announcement to every
-  observer, isolating each so one that raises costs neither another observer nor
-  the socket's reader task. Adding a listener is therefore safe; registering one
-  with the library directly is still not, and nothing should.
-- **Renders the e-paper label** (decided 2026-07-20 — see Decision Log). The
-  **e-paper panel's** geometry (1448×1072) stays with the plane that owns that
-  panel. Display does *not* render the mat — the mat is composed by curation into
-  the `tv_display` rendition, so display never needs the TV's physical size.
-  **The label follows what the set says is on the wall, not what this plane put
-  there** — those differ whenever somebody picks a work with the remote, and a
-  label driven only from the rotation would then name the previous picture for up
-  to a full interval. It is the person standing in front of the wall who cannot
-  tell a confident wrong label from a right one, so a picture the manifest cannot
-  name gets an empty label rather than a stale one.
-- **Direction changed 2026-09-30:** the sentence above ("display does *not*
-  render the mat") is true of the built code and is reversed in wave 4
-  (`re-architecture.md` § Compositing moves to the Player). The Player will
-  compose for its own geometry and gain a framebuffer backend beside the
-  Samsung one. *(Reversed in the code by wave 4g, 2026-10-10: the server no
-  longer makes a `tv_display` rendition, and each Player composes its own mat
-  from the presentation master, reading `TV_PANEL_*`, `MAT_WIDTH_INCHES` and
-  `MAT_BOTTOM_WEIGHT` itself.)*
-- **Must never:** write the catalogue, write the manifest, call the curation
-  process, or import curation code.
+- **The routes,** in `arrt/src/arrt/http/player.py`, at the root beside `/api`,
+  spelled by `contract/routes.json` and specified by `player-contract.md` §
+  Transport: `GET /client`, `POST /client/heartbeat`,
+  `GET /walls/{wall_id}/manifest/v{major}` (major 2 only; any other answers
+  `404`), `POST /walls/{wall_id}/heartbeat`, `GET /labels/{label_id}` and
+  `GET /media/sha256-{sha256}`. They are bindings like every route: admission is
+  a dependency that asks the access service (`programming/access.py`).
+- **Admission is by client token.** A client's token opens `GET /client` and
+  its heartbeat, the wall routes of the walls assigned to it, and the label
+  documents of the label outputs it holds; media, named by the hash of its
+  bytes, is opened by any client's token. The server keeps only each token's
+  verifier. A refusal is `401` (no valid token) or `403` (not this client's).
+- **What the server keeps of what a Player says:** each wall's heartbeat as
+  `display-heartbeat-{wall_id}.json` and each client's as
+  `client-heartbeat-{client_id}.json` under `ART_ROOT`, written by the server
+  from the POST (`DisplayService.record_heartbeat` for a wall's), with the
+  showings, screen sizes and display records derived from them in the
+  catalogue.
+- **Must never:** drive a device, store a device's network address, or know a
+  panel's geometry. A display's identity and its client are server records
+  (`displays`); its address is configuration on the client's host.
 
 ## Communication & Boundaries
 
 | # | Channel | Transport | Direction | Sync | Contract lives in |
 |---|---|---|---|---|---|
-| 1 | Theme manifest | File in ART_ROOT, atomic write + rename | curation → display | async | Below, and `boundary-patterns.md` |
-| 2 | Image tree | Files in ART_ROOT | curation → display | async | Path convention, below |
-| 2b | **Heartbeat / display status** | File in ART_ROOT, atomic write + rename | **display → curation** | async | `observability-strategy.md` § The Health Surface |
-| 3 | MCP tool surface | Streamable HTTP at `/mcp` | external client → curation | sync | `api-contract.md` |
-| 4 | UI HTTP API | HTTP JSON at `/api/*` | browser → curation | sync | `api-contract.md` |
-| 5 | TV control | LAN websocket (`samsungtvws`) | display ↔ TV | async both ways | Foreign API |
-| 6 | E-paper | SPI | display → panel | sync | Foreign API |
-| 7 | Model + search | HTTPS | curation → OpenRouter | sync | Foreign API |
-| 8 | Sources | HTTPS | curation → museum APIs, GA&C | sync | Foreign API |
-| 9 | **Registry** *(2026-10-01)* | HTTPS to two constant endpoints, no redirects followed: POST to the query service, and since 2026-10-05 GET to the Commons API for a picture's pixel size | curation → Wikidata's query service; Commons | sync | `wikidata-findings.md`; `library/registry/` |
+| 1 | **Player surface**: the client document, each wall's manifest (major 2), label documents, media by hash | HTTP on the LAN, `GET`, with ETags; media immutable | server → Player, pulled by the Player | async (polled: the client document about every 30 s, a manifest and a label about once a second) | `player-contract.md` § Transport; `contract/routes.json` and `contract/schemas/` |
+| 2 | **Heartbeats**: the client's and each wall's | HTTP on the LAN, `POST` | Player → server | async | `player-contract.md`; `contract/schemas/heartbeat.v1.schema.json`, `contract/schemas/client-heartbeat.v1.schema.json` |
+| 3 | MCP tool surface | Streamable HTTP at `/mcp` | external client → server | sync | `api-contract.md` |
+| 4 | UI HTTP API | HTTP JSON at `/api/*` | browser → server | sync | `api-contract.md` |
+| 5 | Model + search | HTTPS | server → OpenRouter | sync | Foreign API |
+| 6 | Sources | HTTPS | server → museum APIs | sync | Foreign API |
+| 7 | **Registry** *(2026-10-01)* | HTTPS to two constant endpoints, no redirects followed: POST to the query service, and since 2026-10-05 GET to the Commons API for a picture's pixel size | server → Wikidata's query service; Commons | sync | `wikidata-findings.md`; `library/registry/` |
 
-**Trust boundaries.** Channels 3 and 4 are the only inbound ones, and both are
-reached over an overlay network (Tailscale/VPN) rather than public exposure — the
-network layer carries the trust boundary, which is what keeps
-`security-model.md` short. Channel 5 crosses onto the LAN. Channels 7 and 8 reach
-the open internet and are where prompt-injection content enters; bounds are in
-`security-model.md`. Channel 9 reaches it too, and what comes back is
-anyone-editable text shown in the curator's browser rather than read by a
-model: `security-model.md` § Registry text records what bounds it.
+*(Renumbered 2026-11-19. The table before then numbered the file channels 1, 2
+and 2b and the television and e-paper links 5 and 6; it is in the Decision Log,
+under 2026-07-20. The television and the panel are Arrt Player's links now.)*
 
-**Channels 1 and 2 are not trust boundaries** — same host, same user, same
-filesystem. They are *coordination* boundaries.
-
-> **Direction changed 2026-09-30.** Channels 1, 2 and 2b become LAN HTTP in waves
-> 2–3: a manifest GET, a media GET by hash, and a heartbeat POST. At that point
-> they **are** trust boundaries (a listener on the LAN), which `security-model.md`
-> takes up. Channel 5 moves with the Player, and a framebuffer output joins it.
+**Trust boundaries.** Every channel into the server arrives over the network:
+1 and 2 from Players, 3 and 4 from browsers and MCP clients. **Channels 1 and 2
+are a trust boundary**, a listener on the LAN, and a client's token is what
+admits each request (§ The Player surface). Channels 3 and 4 ask no one who they
+are (`security-model.md` § Trust Boundary): what bounds them is where the port is
+published, which is why the compose file publishes it to the reverse proxy's
+address alone (`deploy/README.md` § What is reachable, and what is logged).
+Channels 5 and 6 reach the open internet and are where prompt-injection content
+enters; bounds are in `security-model.md`. Channel 7 reaches it too, and what
+comes back is anyone-editable text shown in the curator's browser rather than
+read by a model: `security-model.md` § Registry text records what bounds it.
 
 ### The theme manifest
 
@@ -1017,7 +994,7 @@ read by display.
   missing or empty, a thumbnail or a kept picture's tier, is staged and renamed
   the same way but not synced. The feeds one act decides are staged first
   and renamed as the last step of the transaction that decided them, so a feed
-  changes only with what recorded it: `DisplayService._publishing`.)*
+  changes only with what recorded it: `FeedPublisher.publishing`, `programming/feeds.py`.)*
 - **Contents:** a schema version, the active theme's identity, the **rotation
   settings** that drive the display timer (`rotation_interval_seconds`, `shuffle`),
   a **directive block** (below), and an ordered list of entries — for each, the
@@ -1162,10 +1139,15 @@ wave 5 each plane holds its heartbeat key to the contract's `instant_key`
 | `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
 | `pictures/` — every picture fetched from outside, kept for good (`library/services/pictures.py`), since 2026-10-06 | curation | curation |
 | `sources/<plugin>/` — each source plugin's own copy of what it can fetch again (`SourceContext.data_dir`, interface 1.2); `sources/nga/` holds the NGA's open data, since 2026-10-06 | curation (that plugin) | curation (that plugin) |
-| `theme-manifest-{wall_id}.v2.json` — the wall's feed (major 2), **one file per wall**, since 2026-10-09 (wave 4e); served at `/walls/{wall_id}/manifest/v2`. *(The major 1 file, `theme-manifest-{wall_id}.json`, was written beside it from 2026-08-12 until wave 4g, 2026-10-10.)* | curation | display (over HTTP) |
-| image tree (`raw/`, …); presentation masters served by hash at `/media/sha256-{sha256}`. *(`ready/`, the composed canvases, until wave 4g.)* | curation | display (masters, over HTTP) |
-| `display-state.sqlite` | display | display |
-| `display-heartbeat-{wall_id}.json` (heartbeat) — **likewise one per wall** | display | curation |
+| `theme-manifest-{wall_id}.v2.json` — the wall's feed (major 2), **one file per wall**, since 2026-10-09 (wave 4e); served at `/walls/{wall_id}/manifest/v2`. *(The major 1 file, `theme-manifest-{wall_id}.json`, was written beside it from 2026-08-12 until wave 4g, 2026-10-10.)* | curation | Players (over HTTP) |
+| image tree (`raw/`, …); presentation masters served by hash at `/media/sha256-{sha256}`. *(`ready/`, the composed canvases, until wave 4g.)* | curation | Players (masters, over HTTP) |
+| `display-heartbeat-{wall_id}.json` (a wall's last heartbeat) — **likewise one per wall** | curation, from what the wall's Player POSTs | curation |
+| `client-heartbeat-{client_id}.json` (a client's last heartbeat), since 2026-10-02 | curation, from what the client POSTs | curation |
+
+*(Until 2026-11-19 this table listed `display-state.sqlite`, the display plane's
+own store, written and read by display alone. It is Arrt Player's now, on the
+Player's host, and the heartbeat row named display as the file's writer, which it
+was while the planes shared a directory.)*
 
 There is no entity written by both planes, so there is no coordination protocol,
 no conflict resolution, and no distributed-transaction problem. That is the payoff
@@ -1173,11 +1155,10 @@ of taking the manifest as the only channel: **the hard part of two-writer system
 is designed out rather than solved.**
 
 > **On the heartbeat and the ratified norm.** The Direction norm governs the
-> **curation → display** direction: display must never need curation reachable. The
-> heartbeat runs the other way, and creates no dependency in the protected
-> direction — display writes it and never checks whether anyone read it, so
-> curation being absent changes nothing about display's behaviour. Single-writer
-> still holds: display is its sole writer, curation only reads.
+> **server → Player** direction: a Player must never need the server reachable.
+> The heartbeat runs the other way and creates no dependency in the protected
+> direction: a Player renders from its cache whatever its post is answered. The
+> server is the one writer of the file it keeps, from what was posted.
 >
 > Recorded explicitly because the omission was a real one — the heartbeat was
 > introduced in `observability-strategy.md` and initially reached neither of these
@@ -1220,9 +1201,11 @@ is an incomplete implementation of this design.
 `no_mat_color`, `no_rendition`, `stale_rendition`. Each is a distinct thing a
 curator would do something different about, which is the test for whether a cause
 earns its own name. **A sixth, `not_in_catalogue`, arrived with the Library's
-facade (2026-09-30)** for an id that names no work. Foreign keys make it
-unreachable today. It exists because the facade answers every id it is asked
-about, and the foreign keys go at wave 3's store split. The rule itself moved
+facade (2026-09-30)** for an id that names no work. The foreign key
+`theme_memberships.artwork_id` makes it unreachable from a theme today. It exists
+because the facade answers every id it is asked about. *(This said the foreign
+keys go at wave 3's store split; that split has no wave, ruling 9 of
+2026-11-19.)* The rule itself moved
 from the manifest builder to `library/readiness.py`, and the build asks it
 through the facade.
 
@@ -1257,12 +1240,479 @@ membership to rebuild.
 
 ### Consistency
 
-Eventually consistent, with unbounded staleness by design. Display picks up a new
-manifest within one poll interval. If curation is stopped, display keeps showing
-the last manifest **forever**, which is the correct behaviour and not a degraded
-mode — see Failure Modes.
+Eventually consistent, with unbounded staleness by design. A Player picks up a
+republished feed on its next poll of the manifest (about once a second, with an
+ETag). If the server is stopped, a Player keeps playing the feed it holds: the
+schedule runs to its horizon, and past it the contract's replay rule
+(`player-contract.md` § Time) keeps the wall rotating. That is the correct
+behaviour and not a degraded mode — see Failure Modes.
 
 ## Failure Modes & Resilience
+
+There is a network between the server and every Player, and a Player renders
+only from its cache, so the server's failures cost a wall nothing it already
+holds. Failures of the television, the panel and the Player's own process are
+Arrt Player's, in `arrt-player:.prawduct/artifacts/architecture.md`; the rows
+this table carried for them until 2026-11-19 are in the Decision Log, under
+2026-07-20.
+
+| Failure | Effect on the rest | Intended behaviour |
+|---|---|---|
+| Server down, restarting or crashed | none **on any wall**; a run actively working dies with it, while one at `awaiting_approval` survives | Each Player keeps playing the feed it holds from its cache — **normal operation, not degradation**, the norm working. But this is *not* "no effect": a run actively working is lost, and **on next start curation reconciles runs left in a process-held state (`resolving_works`, `resolving_images`) to `interrupted`** (`data-model.md` → State Machines). `awaiting_approval` is deliberately NOT reconciled — it is human-held state that must survive a restart. Without reconciliation a crash would strand the run's works as permanently un-re-searchable via constraint 14. Note the server container's memory limit (`mem_limit`, `deploy/nas/compose.example.yaml`) exists to cause exactly this kill |
+| Server unreachable from a Player (the network, a NAS reboot) | none on the wall; its feed is not refreshed | **Normal operation, not degradation.** The Player keeps rendering from its cache, as above, and its next poll that is answered brings it up to date. The server sees the wall's heartbeat age, and the health panel and Walls say which wall is silent |
+| A Player down | its walls show nothing new; none on the server | The server goes on publishing. The wall's heartbeat ages, and the health panel and Walls name the silent wall |
+| A manifest names media the server no longer holds | one work unshowable | `/media/sha256-{sha256}` answers `404`, and the Player skips that work (`player-contract.md` § Transport) |
+| A Player asks for a major the server does not publish | that wall's feed not refreshed | The server publishes major 2 alone and answers `404` for any other, and the Player steps down to a major it reads or keeps the feed it holds (`player-contract.md` § The cutover) |
+| A Player's token refused | its requests answer `401` or `403` | Nothing on the wall changes: it keeps its cache. The access service logs the refusal, at most once every ten minutes for each client and once for all unknown tokens together (`programming/access.py`, `REFUSAL_LOG_INTERVAL_SECONDS`) |
+| Budget exhausted mid-run (the provider refuses — a 403; see `openrouter-api-findings.md`) | discovery halts partially | `halted_by_budget`, a modelled outcome. Already-acquired works stay acquired |
+| The picture store grows | **curation only** | There is no ceiling (owner, 2026-10-06), so the store is watched rather than bounded: the health panel and `art_display(action='status')` state its files and bytes, from a walk at most ten minutes old. Nothing deletes a kept picture; the disk-headroom guard ahead of acquisition is unchanged. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired with the norm.)* |
+| The art root's disk full | **the server** | **Built 2026-08-03**: `library/acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not. *(Since 2026-11-19 the same rule holds for a fault of the host that surfaces in the middle of one work: a full or read-only disk (`ENOSPC`, `EROFS`) or a database error pauses the acquisition queue and counts against no work, where it used to count against each work in turn and give all of them up in about four days.)* |
+| The art root's storage lost or corrupted | catastrophic | The catalogue is the irreplaceable asset. Mitigation is the backup job's generations in `BACKUP_DIR`, a different dataset from the art root (`deploy/nas/compose.example.yaml`); see `operational-spec.md` § Backup and Restore |
+
+**Restart order does not exist**, and that is a property worth naming: neither
+the server nor a Player depends on the other being up. Either can start first,
+in any order, at any time.
+
+**No unbounded queues between them.** The buffer between the server and a
+Player is the feed document, replaced whole at each publish, and the Player's
+cache of it, so backpressure is structurally impossible.
+
+## Deployment & Version Skew
+
+**Two repositories, released and deployed separately** (since 2026-10-27). The
+server is an image built from a commit of this repository and deployed on the
+NAS, and a rollback is the previous image (`deploy/nas/compose.example.yaml`). A
+Player is deployed from Arrt Player's repository on its own host. Neither waits
+for the other, so skew between them is routine rather than a restart window.
+When a release changes both, `deploy/README.md` says which goes first.
+
+**The contract is what absorbs skew.** It is the `arrt-contract` package
+(`contract/`), which this repository owns and releases as `contract-v<version>`
+tags; Arrt Player names the tag it is built against in its `pyproject.toml`, so
+the skew between the two is a version anyone can read. A field a Player needs is
+a change to that package here, then a tag the Player takes when it is ready.
+Within a major a change is additive; a breaking change is a new major at its own
+URL (`/walls/{wall_id}/manifest/v{major}`), the server answers `404` for a major
+it does not publish, and a Player steps down to one it reads (`player-contract.md`
+§ The cutover). Since wave 4g, 2026-10-10, the server publishes major 2 alone.
+Why the manifest is versioned at all is the Decision Log's 2026-07-20 entry.
+
+**No data migration spans the server and a Player**, because no data is shared:
+the feed is regenerated, never migrated, and a Player's cache and device state
+are its own.
+
+**A migration makes the catalogue one-way.** Since 2026-08-12 some releases drop
+a column or a table when they open the catalogue, and a previous image reopening
+that file declines to start: the durable store's widening step refuses a NOT NULL
+column it cannot default, loudly and before anything is served. So a rollback
+across such a migration is a restore: the previous image together with the
+catalogue as it was before the migration. Since 2026-11-19 the server takes that
+copy itself before a migration that drops something, `pre-migration-<instant>.sqlite`
+in `BACKUP_DIR`, and refuses to migrate when it cannot write it (`deploy/README.md`
+§ Before an upgrade that drops something). **A rollback that crosses no change to
+the catalogue's shape is the previous image alone**, and the code keeps that
+promise: every open records the shape generation its code expects
+(`persistence/file.py` `SCHEMA_GENERATION`, raised by hand at each migration and
+held to the shape by `arrt/tests/unit/test_schema_generation.py`), and a release
+refuses a file only when it records a higher generation than its own, never for a
+higher release number. A rollback across a raised generation is refused by a
+release that carries the guard, and is a restore: the open that raised it copied
+the file first, and the refusal names the copies beside the file that the older
+release opens (2026-11-19, `build-plan-audit-wave-2.md` Chunk 06's amended
+DECISION). `operational-spec.md` § Backup and Restore carries the operator's
+numbered steps, the journal step among them.
+
+## Scaling Model
+
+Every component is a singleton and will remain one. Nothing scales horizontally,
+nothing is replicated, and there is no load balancer, queue, or worker pool. This
+is a recorded decision, not an oversight: the targets in
+`nonfunctional-requirements.md` are one household, one TV, thousands of works
+*(was "hundreds"; amended there 2026-08-10)*.
+
+**The amendment does not weaken this paragraph, and the distinction is the whole
+reason it survives unchanged.** Singletons are a decision about *load* — one
+curator, one run at a time — and the amendment moved only *catalogue size*, which
+no component's replication count answers. What a bigger catalogue does bite is
+retrieval and the browser client, both above this layer.
+
+**The known bottlenecks, in the order they will bite:**
+
+1. **The art root's storage.** Tile caching plus ~10 GB of artwork, holding the
+   one irreplaceable asset, on NAS storage since 2026-10-02 (on the Pi's SD card
+   before then, where it was the first thing to fix). Signal: free space, which
+   the disk-headroom guard ahead of acquisition reads.
+2. **RAM during a gigapixel acquisition.** The container's memory limit (3 GB in
+   `deploy/nas/compose.example.yaml`; the Pi's 8 GB until 2026-10-02) is
+   comfortable for the measured
+   corpus (largest work 49 MP → ~148 MB loaded; colour work is downsized to 2048²
+   first, ~100 MB). A genuine 1–2 gigapixel Google Arts & Culture scan is 20–40×
+   that and is the one input that could exhaust the limit. Signal: peak RSS of the
+   server's container. Mitigation if it bites: a cap on stored source resolution, which
+   is an open acquisition-pipeline decision anyway.
+
+   **The other memory path is a preview, and unlike an acquisition it is driven
+   by a stranger.** A preview URL comes out of a museum's JSON response and the
+   fetch follows redirects, so both its size and its final host are the
+   provider's choice, and the bytes are held whole in RAM before anything
+   reaches disk. That read is bounded at `PREVIEW_MAX_BYTES` and enforced while
+   streaming, so the ceiling — not the box — is what an endless body costs. The
+   curation process's memory bound (the retired unit's `MemoryMax`; the
+   container's `mem_limit` since the server moved) sits behind it and would contain the blast to "curation
+   dies" rather than "the wall goes dark", which is worth stating because it
+   made the unbounded read look survivable: a run lost to a thumbnail is still
+   the tail wagging the dog.
+3. **Nothing else.** SQLite at low thousands of rows, one concurrent user, and one
+   discovery run at a time are not going to be problems and should not be designed
+   for.
+
+**Deliberately not scaled for:** multiple households, concurrent discovery
+runs, and any form of high availability. These sit in the product brief's
+*accommodate* list — designed around, not built. **Several walls and several
+Players are the design** (one manifest per wall since 2026-08-12, a client per
+host since 2026-10-02); the server stays a singleton. *(Until 2026-09-30
+multiple TVs and multiple display planes were on the not-scaled-for list too.)*
+
+## Cross-Cutting Runtime Concerns
+
+**Correlation.** A discovery run id is the correlation key across the curation
+plane and is carried in structured logs. It does **not** cross into a Player,
+and should not: the manifest is a statement of current state, not a record of the run
+that produced it. Display correlates on work id. Detail belongs to
+`observability-strategy.md`.
+
+**Time.** UTC everywhere internally; local time only at render (label dates, the
+sun-position brightness loop on the Player, which is inherently local). One non-obvious
+consequence already recorded: the OpenRouter key's spend limit resets at midnight
+**UTC**, so the product's "month" is the UTC calendar month regardless of where the
+curator lives.
+
+**Configuration and secrets.** Environment variables with a `.env` file, per the
+existing preference that deployment values never live in source. The server and
+each Player read their own configuration at start, and a change restarts that
+process only. **Nothing must agree between them but what the contract carries:**
+a Player is configured with the server's address and its client's token, and
+learns its walls and label outputs from `GET /client` (`clients.md`). *(Until
+2026-10-02 `ART_ROOT` was the one value the two planes on the Pi had to agree
+on; a mismatch was a silent failure, with curation writing manifests nobody
+read.)*
+
+**"Panel geometry" was one name for two different physical panels, and separating
+them is what dissolves the shared-value problem** (2026-07-20):
+
+- **The TV panel's physical geometry** (this deployment: 50", 16:9 — the worked
+  examples elsewhere stay at 42" deliberately, as arithmetic demonstrations) is
+  **curation's alone**. The mat is specified in physical inches and the resolution
+  floor is a minimum size on the wall, so curation needs it to judge a source, to
+  show the curator what a work would look like, and to compose the mat into the
+  `tv_display` rendition. Display receives that rendition already composed and
+  never needs the TV's size. *(Reversed by wave 4g, 2026-10-10: the TV panel's
+  geometry is now the **Player's alone**. The server judges a source against
+  `QUALITY_MINIMUM_PX` (wave 4b) and a wall's reported screens (wave 4e), and
+  reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player
+  reads them under the same names and composes the mat.)*
+- **The e-paper panel's geometry** (1448×1072) is **display's alone**, for label
+  typesetting. Curation never needs it.
+
+Neither is shared, so neither can drift between planes — the quiet-mismatch risk
+this section previously described for panel geometry does not exist once the two
+are named apart. **Nothing may hardcode either panel's size**: the product must run
+on whatever Frame someone owns. See `operational-spec.md` § Configuration.
+
+API keys are the server's alone. A Player holds its client token and its own
+device credentials (the television's pairing token), which are device state and
+live on its host.
+
+**Environment parity.** The server runs unmodified on a developer Mac: it is a
+FastAPI app over a filesystem and an HTTP client, and its container image runs
+the curation suite in its test stage (`deploy/README.md` § The server on the
+NAS). A Player's parity story, with the two device interfaces that cannot be
+faked end to end (the television and the panel), is Arrt Player's.
+
+## Decision Log
+
+**2026-09-30 — Three roles, two deployables; co-location reversed.** The owner
+split the product into a Library (procure, maintain, upgrade, enhance), Programming
+(walls, playlists, hanging) and a Player (render to a screen), and collapsed the
+first two into one server "with seams to allow future separation". The server
+moves to the operator's NAS and Players stay at the walls. This **reverses
+2026-07-20's "both planes run on the Raspberry Pi"**. That decision's accepted
+trade-off, one hardware failure domain with curation competing for the Pi, no
+longer has to be carried, and its benefit (no network contract) is exchanged
+for a pull-to-cache contract that keeps the availability norm true. *Alternatives:*
+three processes now (rejected: a second server for no consumer), and a monorepo
+forever (rejected by the owner, who wants a Player that "reads that library" as
+an independent product; the repo split is sequenced last, after the contract
+settles). Full record: `re-architecture.md`.
+
+**2026-09-30 — Compositing moves to the Player.** Reverses the 2026-07-20 reading
+in `data-model.md` that a 3840×2160 matted canvas is "a property of the artwork's
+presentation, not of a device". Plural screens (an LCD, a portrait monitor, a
+caption in the mat) make that canvas device-specific. The Library keeps the
+Original, the mat colour and the label text, and publishes a device-independent
+presentation master. *Trade-off accepted:* the Pi composes, which the retired
+"move image work off a Pi 4" rationale once argued against. That rationale was
+already withdrawn (below), and a capped presentation master bounds the work.
+
+**2026-07-27 — The catalogue's durable tier is first-party code shaped to the
+`DurableStore` contract, and no framework dependency is taken.** The recorded plan
+was to adopt the operator's three-tier framework for the catalogue. Reading it
+before building against it retired the plan's target configuration and its stated
+reason at once: its L1 tier is a *named in-memory* database, so an "L1-only SQLite"
+catalogue persists nothing across a restart; it ships no SQLite durable backend, so
+the tier that actually persists is this product's own code under every
+configuration; and its collections are async throughout with no query API, which
+would convert three layers to async against the ratified "async at the I/O
+boundary, synchronous core". *Trade-off accepted:* the compatibility is structural
+rather than enforced — nothing fails if the foreign protocol changes, and the
+divergences (sync methods, no `conn` handle, no `cas` fence) are enumerated in
+`persistence/durable.py` rather than asserted as parity. *Consequence:* the
+"on-ramp to the framework's agents" rationale is retired and must not be cited;
+`3tears-models` depends on neither this contract nor that framework's core.
+
+**2026-07-20 — Both planes run on the Raspberry Pi, sharing a data directory.**
+Reverses the recorded plan that curation would run on a desktop, NAS, or second Pi.
+Operator's call. The image-processing rationale for offloading was checked and does
+not hold: the existing code downsizes to 2048² before colour work, so peak memory
+is a few hundred MB against 8 GB. Co-location removes the split's cost (network
+contract, sync, two deployments) while keeping its benefit (independent restart).
+*Trade-off accepted:* one hardware failure domain, and the curation process now
+competes for the Pi's resources with the display daemon. *Consequence:* the
+"moves work off a Pi 4" rationale is retired and must not be cited anywhere.
+
+**2026-07-20 to 2026-10-02 — Two planes on one Raspberry Pi, as built.**
+*(Moved here on 2026-11-19 from § Overview & Topology, § Components (the display
+plane), § Communication & Boundaries, § Failure Modes & Resilience and §
+Deployment & Version Skew, as those sections said it until then, when they were
+rewritten to the server on the NAS and Players on their own hosts. Kept as
+written, including its own dated notes.)*
+
+Two processes, one machine, one shared directory, and exactly one file between
+them. That is the whole system, and the shape is deliberate: the split exists so
+the wall keeps showing art while the curation process is restarted, upgraded, or
+crashing — not because the work is too big for one box.
+
+> **Direction changed 2026-09-30. Read `re-architecture.md` first.** Everything
+> below describes the system **as built**, and it stays accurate until the wave
+> that changes each part lands. The **target** is different in three ways:
+> - **Three roles in two deployables:** a server (Library plus Programming) on
+>   the operator's NAS, and a Player at each wall.
+> - **The channel between them** is an HTTP manifest plus immutable media, which
+>   the Player pulls into a local cache. It replaces the shared directory.
+> - **The Player composes the mat** for its own screen.
+>
+> The first Direction norm below is amended and `in-transition`. The second and
+> third gain rulings. Four new norms for the Library/Programming seam are born
+> `in-transition` at the end of § Direction. The Decision Log's 2026-09-30
+> entries record the reversal of the 2026-07-20 co-location decision.
+>
+> **Since wave 5 (2026-10-27) this repository holds the server only.** Where a
+> norm below binds the Player's code, its guard runs in Arrt Player's own
+> repository, and a path written `arrt-player:<path>` names a file there. The
+> norm statements stay here, beside the contract they constrain.
+
+**Overview & Topology**
+
+**One host.** Raspberry Pi 4 Model B, 8 GB, Raspberry Pi OS Trixie, booting from
+SD card. Both processes run here. This is a **2026-07-20 change** from the
+recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
+
+```
+                    ┌──────────────────── Raspberry Pi 4 (8 GB) ───────────────────┐
+                    │                                                              │
+  MCP clients ─────►│  ┌─────────────────────────┐                                 │
+  (Claude Code,     │  │  curation                │  writes                        │
+   in-UI agent)     │  │  Python 3.14 venv        ├───────────┐                    │
+                    │  │  FastAPI + uvicorn       │           │                    │
+  Browser ─────────►│  │    /        web UI       │           ▼                    │
+  (curation UI)     │  │    /api/*   HTTP API     │   ┌──────────────────────────┐ │
+                    │  │    /mcp     MCP (SHTTP)  │   │  ART_ROOT (shared dir)   │ │
+                    │  │                          │   │                          │ │
+                    │  │  discovery · acquisition │   │   catalogue.sqlite  (C)  │ │
+                    │  │  image prep · mat colour │   │  theme-manifest-<wall>(C)│ │
+                    │  └───────────┬──────────────┘   │   raw/ ready/ thumbs/    │ │
+                    │              │                  │   tv-thumbs/ tile-cache/ │ │
+                    │              │                  │   pictures/ sources/     │ │
+                    │              │                  │   kept-answers.sqlite    │ │
+                    │              │ HTTPS            │                          │ │
+                    │              ▼                  │   display-state.sqlite(D)│ │
+                    │   OpenRouter, museum APIs,      └────────────┬─────────────┘ │
+                    │   Google Arts & Culture                      │ reads         │
+                    │                                              ▼               │
+                    │                                 ┌──────────────────────────┐ │
+                    │                                 │  display                 │ │
+                    │                                 │  Python 3.13 venv        │ │
+                    │                                 │  systemd Restart=always  │ │
+                    │                                 │  rotation · label render │ │
+                    │                                 └────┬──────────────┬──────┘ │
+                    └──────────────────────────────────────┼──────────────┼────────┘
+                                                 LAN ws    │              │ SPI
+                                                           ▼              ▼
+                                                    Samsung Frame TV   e-paper HAT
+                                                                       1448×1072
+
+  (C) = written by curation only    (D) = written by display only
+```
+
+*(Wave 4g, 2026-10-10: `ready/` in this drawing held the server's composed
+television canvases. Nothing writes it now; a deployment that has one may
+delete it. The display box's "rotation" is the schedule programme reading
+manifest major 2.)*
+
+**Target topology (2026-09-30, `re-architecture.md`).** None of this is built yet. *(Wave 4g, 2026-10-10: much of it is now: the HTTP feed and media routes, the heartbeat, the Library/Programming packages, and each Player composing its own wall. The drawing was updated to drop the directive and name the major 2 route; `re-architecture.md` § Order of work says what is built.)*
+
+```
+            ┌──────────── operator's NAS (container) ─────────────┐
+ Browser ──►│  server                                              │
+ MCP ──────►│   ├─ Library      works · originals · facets · mat   │── HTTPS ──► OpenRouter,
+            │   │               discovery · Watches · scheduler    │             museum APIs
+            │   │               presentation masters (by hash)     │
+            │   └─ Programming  playlists · walls · hanging ·      │
+            │                   tags · heartbeats                  │
+            │   GET /walls/{id}/manifest/v2   GET /media/{hash}    │
+            │   POST /walls/{id}/heartbeat                         │
+            └───────────────────────┬──────────────────────────────┘
+                                    │ LAN HTTP, pulled
+          ┌─────────────────────────┼─────────────────────────┐
+          ▼                         ▼                         ▼
+   Player (Pi, wall A)       Player (Pi, wall B)       Player (Mac, wall C)
+   local cache · composes    local cache · composes    local cache · composes
+   Samsung Frame + e-ink     HDMI LCD, caption in mat  monitor, caption in mat
+```
+
+**Why the product is split at all.** The original rationale — "it moves gigapixel
+fetching, k-means over LAB arrays, and 4K compositing off a Pi 4" — **is no longer
+true and must not be cited.** Co-location retires it. What survives:
+
+1. **The display plane's Python version is pinned by hardware.** The IT8951
+   e-paper driver compiles Cython from 2023 sources targeting 3.12/3.13, while the
+   curation plane runs 3.14. Two venvs on one host is the cheap resolution, and it
+   stays the resolution whatever the curation floor turns out to be.
+   **What holds that floor is stated once, in `project-preferences.md` §
+   Language & Runtime, and is not repeated here** — this item said the floor
+   "rests on the models package alone" and was still saying it after that package
+   moved to a test-only group. As of 2026-08-02 no default dependency requires
+   3.14, so **this leg of the split is the weakest of the three** and the two
+   below carry it: read them as the reasons, not this one.
+2. **The wall must not go blank when curation restarts.** This matters *more* on
+   one box, not less: during development the curation process is restarted
+   constantly, and a single-process design would blank the TV every time.
+3. **"E-paper behind an interface" becomes a process boundary** rather than a
+   convention someone has to respect.
+
+**What co-location removed.** The split's real cost was the distributed-systems
+tax — a network contract, sync, two deployments, two failure domains to reason
+about. A shared filesystem pays that down to near zero. The split got *cheaper*
+when it stopped being distributed.
+
+**Honest note on the classification.** `multi_process_distributed` remains the
+recorded characteristic and this artifact remains warranted — two processes that
+can fail independently is the trigger. But the product is now multi-process and
+*not* distributed, which is why the resilience section below is much shorter than
+it would otherwise be: there is no network partition between planes, because there
+is no network between planes.
+
+**display**
+
+- **Purpose:** make the physical world match the manifest.
+- **Platform:** Python 3.13 venv, systemd `Restart=always`. Genuinely always-on.
+- **Owned state (sole writer):** `display-state.sqlite` — TV content-id bindings,
+  per-work upload status, last selected work, whether this device has already
+  switched the set's own slideshow off, and the last-acted-on directive sequence
+  (see § The theme manifest). *(Wave 4g, 2026-10-10: the directive sequence is
+  gone with manifest major 1; the Player reads only major 2.)*
+
+  *(**Two corrections from building it, 2026-08-06.** "Brightness state" was
+  listed here and is deliberately **not** persisted: it is recomputed from the sun
+  and the clock on a timer, so a stored copy could only ever be a value that has
+  gone stale — including after somebody moves the brightness with the remote —
+  and the cost of not having it is one idempotent call on restart. The slideshow
+  flag replaced it, and that one genuinely must survive a restart: `Restart=always`
+  makes restarts routine and the call is only correct to make once.)* **Panel geometry
+  is deliberately not listed** (corrected 2026-07-20 — it appeared here while
+  every other artifact makes it *configuration* both planes read): a copy held as
+  device state could drift from the value curation judges sources against, which
+  is exactly the quiet mismatch `operational-spec.md` § Configuration warns
+  about. Beyond `TvBinding`, this store's schema is display-internal and
+  deliberately deferred (`data-model.md` § Deliberately not modelled).
+  This is the ratified data-model norm ("per-device runtime state never lives in
+  the catalogue") given a process to live in.
+- **Reconciliation loop, as built (2026-08-06/07):** poll the manifest's mtime
+  (~1 s) → adopt a new one, refusing an unrecognised major and keeping the last
+  good document → reconcile the binding table against the set, removing what it
+  holds that nothing accounts for → apply sun-position brightness → act on at most
+  one directive → rotate when the interval is up. *(Wave 4g, 2026-10-10: the
+  Player now pulls its feed over HTTP and reads only major 2: no directive, and
+  the schedule programme (`programmes/schedule.py`) decides what is on the wall
+  from the schedule's times rather than an interval timer.)* **Uploads are carried one per
+  pass rather than batched on adoption**, so a fresh install shows something in
+  seconds instead of blanking the wall for the five minutes forty uploads take.
+  **A selection is confirmed by the set's own `image_selected` announcement**
+  before anything is logged or recorded (§ Failure Modes). That callback is
+  registered by the television seam, per connection. **The library keeps one
+  handler per event rather than a list**, so a second subscriber registered
+  directly would replace the confirmation handler rather than join it — silently,
+  after which every rotation falls to its timeout and reports a wall that will not
+  move while the newcomer works perfectly. That hazard is closed as of 2026-08-07:
+  the seam fans the announcement out through `TvClient.observe_selections`, which
+  resolves the pending selection first and then hands the announcement to every
+  observer, isolating each so one that raises costs neither another observer nor
+  the socket's reader task. Adding a listener is therefore safe; registering one
+  with the library directly is still not, and nothing should.
+- **Renders the e-paper label** (decided 2026-07-20 — see Decision Log). The
+  **e-paper panel's** geometry (1448×1072) stays with the plane that owns that
+  panel. Display does *not* render the mat — the mat is composed by curation into
+  the `tv_display` rendition, so display never needs the TV's physical size.
+  **The label follows what the set says is on the wall, not what this plane put
+  there** — those differ whenever somebody picks a work with the remote, and a
+  label driven only from the rotation would then name the previous picture for up
+  to a full interval. It is the person standing in front of the wall who cannot
+  tell a confident wrong label from a right one, so a picture the manifest cannot
+  name gets an empty label rather than a stale one.
+- **Direction changed 2026-09-30:** the sentence above ("display does *not*
+  render the mat") is true of the built code and is reversed in wave 4
+  (`re-architecture.md` § Compositing moves to the Player). The Player will
+  compose for its own geometry and gain a framebuffer backend beside the
+  Samsung one. *(Reversed in the code by wave 4g, 2026-10-10: the server no
+  longer makes a `tv_display` rendition, and each Player composes its own mat
+  from the presentation master, reading `TV_PANEL_*`, `MAT_WIDTH_INCHES` and
+  `MAT_BOTTOM_WEIGHT` itself.)*
+- **Must never:** write the catalogue, write the manifest, call the curation
+  process, or import curation code.
+
+**Communication & Boundaries**
+
+| # | Channel | Transport | Direction | Sync | Contract lives in |
+|---|---|---|---|---|---|
+| 1 | Theme manifest | File in ART_ROOT, atomic write + rename | curation → display | async | Below, and `boundary-patterns.md` |
+| 2 | Image tree | Files in ART_ROOT | curation → display | async | Path convention, below |
+| 2b | **Heartbeat / display status** | File in ART_ROOT, atomic write + rename | **display → curation** | async | `observability-strategy.md` § The Health Surface |
+| 3 | MCP tool surface | Streamable HTTP at `/mcp` | external client → curation | sync | `api-contract.md` |
+| 4 | UI HTTP API | HTTP JSON at `/api/*` | browser → curation | sync | `api-contract.md` |
+| 5 | TV control | LAN websocket (`samsungtvws`) | display ↔ TV | async both ways | Foreign API |
+| 6 | E-paper | SPI | display → panel | sync | Foreign API |
+| 7 | Model + search | HTTPS | curation → OpenRouter | sync | Foreign API |
+| 8 | Sources | HTTPS | curation → museum APIs, GA&C | sync | Foreign API |
+| 9 | **Registry** *(2026-10-01)* | HTTPS to two constant endpoints, no redirects followed: POST to the query service, and since 2026-10-05 GET to the Commons API for a picture's pixel size | curation → Wikidata's query service; Commons | sync | `wikidata-findings.md`; `library/registry/` |
+
+**Trust boundaries.** Channels 3 and 4 are the only inbound ones, and both are
+reached over an overlay network (Tailscale/VPN) rather than public exposure — the
+network layer carries the trust boundary, which is what keeps
+`security-model.md` short. Channel 5 crosses onto the LAN. Channels 7 and 8 reach
+the open internet and are where prompt-injection content enters; bounds are in
+`security-model.md`. Channel 9 reaches it too, and what comes back is
+anyone-editable text shown in the curator's browser rather than read by a
+model: `security-model.md` § Registry text records what bounds it.
+
+**Channels 1 and 2 are not trust boundaries** — same host, same user, same
+filesystem. They are *coordination* boundaries.
+
+> **Direction changed 2026-09-30.** Channels 1, 2 and 2b become LAN HTTP in waves
+> 2–3: a manifest GET, a media GET by hash, and a heartbeat POST. At that point
+> they **are** trust boundaries (a listener on the LAN), which `security-model.md`
+> takes up. Channel 5 moves with the Player, and a framebuffer output joins it.
+
+**Failure Modes & Resilience**
 
 There is no network between the planes, so most of the usual multi-runtime failure
 catalogue does not apply. *(True as built. From wave 2 there is a network
@@ -1295,7 +1745,7 @@ unnecessary. Either can start first, in any order, at any time.
 **No unbounded queues anywhere.** The only inter-plane buffer is a single file that
 is overwritten, so backpressure is structurally impossible.
 
-## Deployment & Version Skew
+**Deployment & Version Skew**
 
 > **Direction changed 2026-09-30.** "One deploy unit in practice" ends at wave 3,
 > when the server runs as a container on the NAS and the Player stays on the Pi.
@@ -1363,165 +1813,12 @@ write it), then restart both. **The backup is the rollback plan** — without on
 across this migration is not possible, and re-creating what the migration removed
 by hand would reset the directive counter it was careful to carry. A rollback
 that crosses no migration is still the old two-step. `operational-spec.md`
-§ Routine Operations carries the operator-facing form.
-
-## Scaling Model
-
-Every component is a singleton and will remain one. Nothing scales horizontally,
-nothing is replicated, and there is no load balancer, queue, or worker pool. This
-is a recorded decision, not an oversight: the targets in
-`nonfunctional-requirements.md` are one household, one TV, thousands of works
-*(was "hundreds"; amended there 2026-08-10)*.
-
-**The amendment does not weaken this paragraph, and the distinction is the whole
-reason it survives unchanged.** Singletons are a decision about *load* — one
-curator, one run at a time — and the amendment moved only *catalogue size*, which
-no component's replication count answers. What a bigger catalogue does bite is
-retrieval and the browser client, both above this layer.
-
-**The known bottlenecks, in the order they will bite:**
-
-1. **The SD card.** Write-heavy tile caching plus ~10 GB of artwork on consumer
-   flash, hosting the one irreplaceable asset. First thing to fix if anything is
-   fixed. Signal: free space, and filesystem errors in the journal.
-2. **RAM during a gigapixel acquisition.** 8 GB is comfortable for the measured
-   corpus (largest work 49 MP → ~148 MB loaded; colour work is downsized to 2048²
-   first, ~100 MB). A genuine 1–2 gigapixel Google Arts & Culture scan is 20–40×
-   that and is the one input that could exhaust the box. Signal: peak RSS of the
-   curation unit. Mitigation if it bites: a cap on stored source resolution, which
-   is an open acquisition-pipeline decision anyway.
-
-   **The other memory path is a preview, and unlike an acquisition it is driven
-   by a stranger.** A preview URL comes out of a museum's JSON response and the
-   fetch follows redirects, so both its size and its final host are the
-   provider's choice, and the bytes are held whole in RAM before anything
-   reaches disk. That read is bounded at `PREVIEW_MAX_BYTES` and enforced while
-   streaming, so the ceiling — not the box — is what an endless body costs. The
-   curation process's memory bound (the retired unit's `MemoryMax`; the
-   container's `mem_limit` since the server moved) sits behind it and would contain the blast to "curation
-   dies" rather than "the wall goes dark", which is worth stating because it
-   made the unbounded read look survivable: a run lost to a thumbnail is still
-   the tail wagging the dog.
-3. **Nothing else.** SQLite at low thousands of rows, one concurrent user, and one
-   discovery run at a time are not going to be problems and should not be designed
-   for.
-
-**Deliberately not scaled for:** multiple TVs, multiple display planes, multiple
-households, concurrent discovery runs, and any form of high availability. These sit
-in the product brief's *accommodate* list — designed around, not built.
-
-> **Direction changed 2026-09-30.** Multiple walls and multiple Players move from
-> *accommodate* to **target** (per-wall manifests have existed since 2026-08-12).
-> Components stay singletons: one server, one Player per wall. The SD-card
-> bottleneck above retires for the server when it moves to NAS storage in wave 3.
-
-## Cross-Cutting Runtime Concerns
-
-**Correlation.** A discovery run id is the correlation key across the curation
-plane and is carried in structured logs. It does **not** cross into display, and
-should not: the manifest is a statement of current state, not a record of the run
-that produced it. Display correlates on work id. Detail belongs to
-`observability-strategy.md`.
-
-**Time.** UTC everywhere internally; local time only at render (label dates, the
-sun-position brightness loop, which is inherently local). One non-obvious
-consequence already recorded: the OpenRouter key's spend limit resets at midnight
-**UTC**, so the product's "month" is the UTC calendar month regardless of where the
-curator lives.
-
-**Configuration and secrets.** Environment variables with a `.env` file, per the
-existing preference that deployment values never live in source. Each plane reads
-its own config at start; a config change means a restart of that plane only.
-**`ART_ROOT` is the one value that must agree across both planes** (corrected
-2026-07-20 — this briefly said panel geometry was a second, on the mistaken
-premise that display renders the mat). It remains the single most important thing
-to get out of source, already scoped that way in the v1 list; a mismatch is a
-silent failure, with curation writing manifests nobody reads.
-
-**"Panel geometry" was one name for two different physical panels, and separating
-them is what dissolves the shared-value problem** (2026-07-20):
-
-- **The TV panel's physical geometry** (this deployment: 50", 16:9 — the worked
-  examples elsewhere stay at 42" deliberately, as arithmetic demonstrations) is
-  **curation's alone**. The mat is specified in physical inches and the resolution
-  floor is a minimum size on the wall, so curation needs it to judge a source, to
-  show the curator what a work would look like, and to compose the mat into the
-  `tv_display` rendition. Display receives that rendition already composed and
-  never needs the TV's size. *(Reversed by wave 4g, 2026-10-10: the TV panel's
-  geometry is now the **Player's alone**. The server judges a source against
-  `QUALITY_MINIMUM_PX` (wave 4b) and a wall's reported screens (wave 4e), and
-  reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player
-  reads them under the same names and composes the mat.)*
-- **The e-paper panel's geometry** (1448×1072) is **display's alone**, for label
-  typesetting. Curation never needs it.
-
-Neither is shared, so neither can drift between planes — the quiet-mismatch risk
-this section previously described for panel geometry does not exist once the two
-are named apart. **Nothing may hardcode either panel's size**: the product must run
-on whatever Frame someone owns. See `operational-spec.md` § Configuration.
-
-API keys are curation-only; display holds no credentials except the TV pairing
-token, which is device state and lives with display.
-
-**Environment parity — the honest gap.** Curation runs unmodified on a developer
-Mac: it is a FastAPI app over a filesystem and an HTTP client. Display does not,
-and cannot — it needs SPI hardware and a TV on the LAN. The parity story is
-therefore asymmetric and should be admitted rather than papered over: curation is
-developed locally against a real ART_ROOT, display is developed on the Pi, and the
-two device interfaces (TV, e-paper) are the two things that cannot be meaningfully
-faked end-to-end. This is already recorded as the reason "verify the TV still
-works" is a gating item rather than a routine test.
-
-## Decision Log
-
-**2026-09-30 — Three roles, two deployables; co-location reversed.** The owner
-split the product into a Library (procure, maintain, upgrade, enhance), Programming
-(walls, playlists, hanging) and a Player (render to a screen), and collapsed the
-first two into one server "with seams to allow future separation". The server
-moves to the operator's NAS and Players stay at the walls. This **reverses
-2026-07-20's "both planes run on the Raspberry Pi"**. That decision's accepted
-trade-off, one hardware failure domain with curation competing for the Pi, no
-longer has to be carried, and its benefit (no network contract) is exchanged
-for a pull-to-cache contract that keeps the availability norm true. *Alternatives:*
-three processes now (rejected: a second server for no consumer), and a monorepo
-forever (rejected by the owner, who wants a Player that "reads that library" as
-an independent product; the repo split is sequenced last, after the contract
-settles). Full record: `re-architecture.md`.
-
-**2026-09-30 — Compositing moves to the Player.** Reverses the 2026-07-20 reading
-in `data-model.md` that a 3840×2160 matted canvas is "a property of the artwork's
-presentation, not of a device". Plural screens (an LCD, a portrait monitor, a
-caption in the mat) make that canvas device-specific. The Library keeps the
-Original, the mat colour and the label text, and publishes a device-independent
-presentation master. *Trade-off accepted:* the Pi composes, which the retired
-"move image work off a Pi 4" rationale once argued against. That rationale was
-already withdrawn (below), and a capped presentation master bounds the work.
-
-**2026-07-27 — The catalogue's durable tier is first-party code shaped to the
-`DurableStore` contract, and no framework dependency is taken.** The recorded plan
-was to adopt the operator's three-tier framework for the catalogue. Reading it
-before building against it retired the plan's target configuration and its stated
-reason at once: its L1 tier is a *named in-memory* database, so an "L1-only SQLite"
-catalogue persists nothing across a restart; it ships no SQLite durable backend, so
-the tier that actually persists is this product's own code under every
-configuration; and its collections are async throughout with no query API, which
-would convert three layers to async against the ratified "async at the I/O
-boundary, synchronous core". *Trade-off accepted:* the compatibility is structural
-rather than enforced — nothing fails if the foreign protocol changes, and the
-divergences (sync methods, no `conn` handle, no `cas` fence) are enumerated in
-`persistence/durable.py` rather than asserted as parity. *Consequence:* the
-"on-ramp to the framework's agents" rationale is retired and must not be cited;
-`3tears-models` depends on neither this contract nor that framework's core.
-
-**2026-07-20 — Both planes run on the Raspberry Pi, sharing a data directory.**
-Reverses the recorded plan that curation would run on a desktop, NAS, or second Pi.
-Operator's call. The image-processing rationale for offloading was checked and does
-not hold: the existing code downsizes to 2048² before colour work, so peak memory
-is a few hundred MB against 8 GB. Co-location removes the split's cost (network
-contract, sync, two deployments) while keeping its benefit (independent restart).
-*Trade-off accepted:* one hardware failure domain, and the curation process now
-competes for the Pi's resources with the display daemon. *Consequence:* the
-"moves work off a Pi 4" rationale is retired and must not be cited anywhere.
+§ Routine Operations carries the operator-facing form. *(2026-11-19: the server
+is a container now, so the "two-step" is the previous image alone, and from the
+release carrying the catalogue's shape generation the code says which rollbacks
+those are: a file recorded at the previous release's generation or a lower one
+opens, one recorded at a higher generation is refused naming the copies that
+open (§ Deployment & Version Skew above; `operational-spec.md` § Backup and Restore).)*
 
 **2026-07-20 — The theme manifest file is the only inter-plane channel.**
 Alternatives: a full local mirror on the Pi (rejected — a sync problem with a

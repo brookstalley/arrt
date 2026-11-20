@@ -278,9 +278,9 @@ def configure(level: int = logging.INFO) -> None:
     # before it propagates anywhere. Replaced, not added to, for the same reason
     # as the handler: a second call must not stack a second filter.
     access = logging.getLogger("uvicorn.access")
-    for existing in list(access.filters):
-        if getattr(existing, _INSTALLED, False):
-            access.removeFilter(existing)
+    for installed in list(access.filters):
+        if getattr(installed, _INSTALLED, False):
+            access.removeFilter(installed)
     quiet = QuietPlayerPolls()
     setattr(quiet, _INSTALLED, True)
     access.addFilter(quiet)

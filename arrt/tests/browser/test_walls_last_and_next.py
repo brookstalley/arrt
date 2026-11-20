@@ -10,6 +10,7 @@ server's log of showings (`programming/showings.py`) and the next three are the
 schedule hanging a theme published.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -18,6 +19,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 from arrt.persistence.records import MatMethod, RenditionKind
 
@@ -108,7 +111,7 @@ def setup_line(ui, wall, kind):
     """A line of the wall's Edit… dialog, opened first: which Player and screen
     show it, and which label captions it, moved off the card by ruling 4 of
     2026-10-27."""
-    if not ui.page.locator("dialog.panel-dialog[open]").count():
+    if not ui.page.locator("dialog.panel-dialog[open]").count():  # one-shot: open it only if a line before opened none
         card(ui, wall).get_by_role("button", name=f"Edit {wall.name}…").click()
     dialog = ui.page.locator("dialog.panel-dialog")
     dialog.wait_for()
@@ -128,12 +131,14 @@ def test_with_the_screen_off_the_card_shows_the_last_shown_work_large(ui, the_wa
     last.wait_for()
     # "Screen off" is the card's badge; the lead says since when (ruling 6 of
     # 2026-10-27, which also dims the work: it is not on the wall now).
-    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
-    assert "wall-dim" in lead.get_attribute("class")
-    assert last.locator(".wall-now-when").inner_text().startswith("Last on the wall, until ")
-    assert last.get_by_alt_text("Automat").count() == 1
-    assert last.get_by_role("link", name="Automat").get_attribute("href").startswith(f"#work/{went_dark.id}")
-    assert "size=large" in last.locator("img").get_attribute("src")
+    expect(lead.locator(".wall-now-state")).to_have_text(re.compile(r"^Off since "), use_inner_text=True)
+    expect(lead).to_have_attribute("class", re.compile(re.escape("wall-dim")))
+    expect(last.locator(".wall-now-when")).to_have_text(re.compile(r"^Last on the wall, until "), use_inner_text=True)
+    expect(last.get_by_alt_text("Automat")).to_have_count(1)
+    expect(last.get_by_role("link", name="Automat")).to_have_attribute(
+        "href", re.compile("^" + re.escape(f"#work/{went_dark.id}"))
+    )
+    expect(last.locator("img")).to_have_attribute("src", re.compile(re.escape("size=large")))
 
 
 def test_a_wall_that_has_shown_nothing_leads_with_the_next_work_dimmed(ui, services, the_wall, hopper):
@@ -146,14 +151,16 @@ def test_a_wall_that_has_shown_nothing_leads_with_the_next_work_dimmed(ui, servi
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for()
-    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
+    expect(lead.locator(".wall-now-state")).to_have_text(re.compile(r"^Off since "), use_inner_text=True)
     figure = lead.locator("figure.wall-last")
-    assert figure.locator(".wall-now-when").inner_text().startswith("Next, when the screen comes on")
-    assert figure.locator("a").get_attribute("href").startswith(f"#work/{upcoming[0].work_id}")
-    # The row under it starts at the second, so the first is not drawn twice.
+    expect(figure.locator(".wall-now-when")).to_have_text(re.compile(r"^Next, when the screen comes on"), use_inner_text=True)
+    expect(figure.locator("a")).to_have_attribute("href", re.compile("^" + re.escape(f"#work/{upcoming[0].work_id}")))
+    # The row under it starts at the second, so the first is not drawn twice:
+    # neither its link nor its picture, the two places the row names a work.
+    # (This read the row's markup once, and markup has no retrying form.)
     nxt = card(ui, the_wall).locator(".wall-next")
-    assert nxt.locator("h3").inner_text() == "Then"
-    assert upcoming[0].work_id not in (nxt.inner_html())
+    expect(nxt.locator("h3")).to_have_text("Then", use_inner_text=True)
+    expect(nxt.locator(f"[href*='{upcoming[0].work_id}'], [src*='{upcoming[0].work_id}']")).to_have_count(0)
 
 
 def test_a_next_work_that_cannot_be_read_leads_nothing_and_stays_in_the_row(ui, services, the_wall, hopper):
@@ -168,11 +175,11 @@ def test_a_next_work_that_cannot_be_read_leads_nothing_and_stays_in_the_row(ui, 
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for()
-    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
-    assert lead.locator("figure").count() == 0
+    expect(lead.locator(".wall-now-state")).to_have_text(re.compile(r"^Off since "), use_inner_text=True)
+    expect(lead.locator("figure")).to_have_count(0)
     nxt = card(ui, the_wall).locator(".wall-next")
-    assert nxt.locator("h3").inner_text() == "Up next"
-    assert nxt.locator("li").first.inner_text().startswith("A work that could not be read")
+    expect(nxt.locator("h3")).to_have_text("Up next", use_inner_text=True)
+    expect(nxt.locator("li").first).to_have_text(re.compile(r"^A work that could not be read"), use_inner_text=True)
 
 
 def test_a_dark_wall_with_nothing_scheduled_leads_with_its_state_alone(ui, services, the_wall):
@@ -181,20 +188,21 @@ def test_a_dark_wall_with_nothing_scheduled_leads_with_its_state_alone(ui, servi
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for()
-    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
-    assert lead.locator("figure").count() == 0
+    expect(lead.locator(".wall-now-state")).to_have_text(re.compile(r"^Off since "), use_inner_text=True)
+    expect(lead.locator("figure")).to_have_count(0)
 
 
 def test_the_screen_being_off_is_said_once(ui, the_wall, went_dark):
     open_walls(ui)
     card(ui, the_wall).locator("figure.wall-last").wait_for()
 
-    text = card(ui, the_wall).inner_text()
-    # Once, in the badge (ruling 6 of 2026-10-27 put the state there).
-    assert text.lower().count("screen off") == 1
-    assert "screen is off" not in text
-    assert "no screen is detected" not in text
-    assert setup_line(ui, the_wall, ".wall-client").inner_text() == "Assigned to Hall Pi"
+    # Once, in the badge (ruling 6 of 2026-10-27 put the state there): the
+    # card's words hold "screen off" exactly once, in any case.
+    exactly_once = re.compile(r"^(?:(?!screen off).)*screen off(?:(?!screen off).)*$", re.IGNORECASE | re.DOTALL)
+    expect(card(ui, the_wall)).to_have_text(exactly_once, use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("screen is off", use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("no screen is detected", use_inner_text=True)
+    expect(setup_line(ui, the_wall, ".wall-client")).to_have_text("Assigned to Hall Pi", use_inner_text=True)
 
 
 def test_no_port_is_named_without_debug(ui, services, the_wall, went_dark, hall):
@@ -202,10 +210,11 @@ def test_no_port_is_named_without_debug(ui, services, the_wall, went_dark, hall)
     open_walls(ui)
     card(ui, the_wall).locator("figure.wall-last").wait_for()
 
-    text = card(ui, the_wall).inner_text()
-    assert "hdmi-a-1" not in text
-    assert "epd-0" not in text
-    assert setup_line(ui, the_wall, ".wall-labels").inner_text().startswith("Captioned by a label on Hall Pi.")
+    expect(card(ui, the_wall)).not_to_contain_text("hdmi-a-1", use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("epd-0", use_inner_text=True)
+    expect(setup_line(ui, the_wall, ".wall-labels")).to_have_text(
+        re.compile("^" + re.escape("Captioned by a label on Hall Pi.")), use_inner_text=True
+    )
 
 
 def test_debug_names_the_ports(ui, services, the_wall, went_dark, hall):
@@ -213,8 +222,10 @@ def test_debug_names_the_ports(ui, services, the_wall, went_dark, hall):
     open_walls(ui, debug=True)
     card(ui, the_wall).locator("figure.wall-last").wait_for()
 
-    assert setup_line(ui, the_wall, ".wall-client").inner_text() == "Assigned to Hall Pi on hdmi-a-1"
-    assert setup_line(ui, the_wall, ".wall-labels").inner_text().startswith("Captioned by epd-0 on Hall Pi.")
+    expect(setup_line(ui, the_wall, ".wall-client")).to_have_text("Assigned to Hall Pi on hdmi-a-1", use_inner_text=True)
+    expect(setup_line(ui, the_wall, ".wall-labels")).to_have_text(
+        re.compile("^" + re.escape("Captioned by epd-0 on Hall Pi.")), use_inner_text=True
+    )
 
 
 def test_the_next_three_are_the_schedules_next_three(ui, services, the_wall, hopper, went_dark):
@@ -224,11 +235,12 @@ def test_the_next_three_are_the_schedules_next_three(ui, services, the_wall, hop
     nxt = card(ui, the_wall).locator(".wall-next")
     nxt.locator("li").first.wait_for()
     links = nxt.locator("li a")
-    assert links.count() == 3
-    assert [href.split("/")[1].split("?")[0] for href in (links.nth(at).get_attribute("href") for at in range(3))] == [
-        slot.work_id for slot in upcoming
-    ]
-    assert all(text.startswith("From ") for text in nxt.locator(".wall-next-when").all_inner_texts())
+    expect(links).to_have_count(3)
+    # Each link's second path segment, up to any query, is the slot's work:
+    # what `href.split("/")[1].split("?")[0]` read, as a pattern per link.
+    for at, slot in enumerate(upcoming):
+        expect(links.nth(at)).to_have_attribute("href", re.compile(r"^[^/]*/" + re.escape(slot.work_id) + r"(\?[^/]*)?(/|$)"))
+    expect(nxt.locator(".wall-next-when")).to_have_text([re.compile(r"^From ")] * 3, use_inner_text=True)
 
 
 def test_a_wall_with_no_feed_says_nothing_is_next(ui, the_wall):
@@ -236,10 +248,10 @@ def test_a_wall_with_no_feed_says_nothing_is_next(ui, the_wall):
 
     # The card is drawn (its controls are what `open_walls` waited for), and
     # its Next is there and empty, rather than missing because nothing drew.
-    assert card(ui, the_wall).locator(".wall-controls").count() == 1
-    assert card(ui, the_wall).locator(".wall-next").count() == 1
-    assert card(ui, the_wall).locator(".wall-next").is_hidden()
-    assert card(ui, the_wall).locator(".wall-next li").count() == 0
+    expect(card(ui, the_wall).locator(".wall-controls")).to_have_count(1)
+    expect(card(ui, the_wall).locator(".wall-next")).to_have_count(1)
+    expect(card(ui, the_wall).locator(".wall-next")).to_be_hidden()
+    expect(card(ui, the_wall).locator(".wall-next li")).to_have_count(0)
 
 
 def test_history_is_a_link_and_hanging_is_a_control(ui, the_wall, went_dark):
@@ -250,7 +262,7 @@ def test_history_is_a_link_and_hanging_is_a_control(ui, the_wall, went_dark):
     history = card(ui, the_wall).locator("footer.wall-foot").get_by_role("link", name=f"History of {the_wall.name}")
     picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
 
-    assert "action" not in (history.get_attribute("class") or "")
+    expect(history).not_to_have_attribute("class", re.compile(re.escape("action")))
 
     def border(locator):
         return locator.evaluate("node => getComputedStyle(node).borderTopStyle")
@@ -267,10 +279,13 @@ def test_a_wall_no_screen_shows_leads_with_that_and_not_with_what_it_showed(ui, 
     # the way to fix it, so the lead adds nothing (a state is worded once).
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for(state="attached")
-    assert lead.get_attribute("data-state") == "unassigned"
-    assert lead.is_hidden()
-    assert lead.locator("figure").count() == 0
-    assert card(ui, the_wall).locator("figure").count() == 0
+    expect(lead).to_have_attribute("data-state", "unassigned")
+    expect(lead).to_be_hidden()
+    # Hidden by its attribute, not merely by being empty: an empty element is
+    # "hidden" to Playwright, so the line above alone passed with `hidden` gone.
+    expect(lead).to_have_attribute("hidden", "")
+    expect(lead.locator("figure")).to_have_count(0)
+    expect(card(ui, the_wall).locator("figure")).to_have_count(0)
 
 
 @pytest.mark.parametrize(("state", "words"), [("in_use", "Somebody is using the screen"), ("unreachable", "Not known")])
@@ -283,8 +298,8 @@ def test_a_screen_showing_nothing_of_ours_leads_with_the_last_shown_work(ui, ser
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.locator("figure.wall-last").wait_for()
-    assert lead.locator(".wall-now-state").inner_text() == words
-    assert lead.locator("figure.wall-last").get_by_role("link", name="Gas").count() == 1
+    expect(lead.locator(".wall-now-state")).to_have_text(words, use_inner_text=True)
+    expect(lead.locator("figure.wall-last").get_by_role("link", name="Gas")).to_have_count(1)
 
 
 def test_a_silent_wall_whose_last_report_named_no_work_leads_with_the_last_shown_work(ui, services, the_wall, hopper, works):
@@ -298,9 +313,11 @@ def test_a_silent_wall_whose_last_report_named_no_work_leads_with_the_last_shown
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.locator("figure.wall-last").wait_for()
-    assert lead.get_attribute("data-state") == "silent"
-    assert lead.locator("figure.wall-last").get_by_role("link", name="Chop Suey").count() == 1
-    assert lead.locator("figure.wall-last .wall-now-when").inner_text().startswith("Last on the wall, until ")
+    expect(lead).to_have_attribute("data-state", "silent")
+    expect(lead.locator("figure.wall-last").get_by_role("link", name="Chop Suey")).to_have_count(1)
+    expect(lead.locator("figure.wall-last .wall-now-when")).to_have_text(
+        re.compile(r"^Last on the wall, until "), use_inner_text=True
+    )
 
 
 def test_a_wall_whose_report_cannot_be_read_says_when_its_last_work_was_last_seen(
@@ -314,8 +331,8 @@ def test_a_wall_whose_report_cannot_be_read_says_when_its_last_work_was_last_see
 
     last = card(ui, the_wall).locator(".wall-now figure.wall-last")
     last.wait_for()
-    assert last.locator(".wall-now-when").inner_text().startswith("Last seen on the wall ")
-    assert last.get_by_role("link", name="Nighthawks").count() == 1
+    expect(last.locator(".wall-now-when")).to_have_text(re.compile(r"^Last seen on the wall "), use_inner_text=True)
+    expect(last.get_by_role("link", name="Nighthawks")).to_have_count(1)
 
 
 def test_a_last_shown_work_that_cannot_be_read_is_said_to_be_one(ui, the_wall, went_dark):
@@ -324,7 +341,7 @@ def test_a_last_shown_work_that_cannot_be_read_is_said_to_be_one(ui, the_wall, w
 
     last = card(ui, the_wall).locator(".wall-now .wall-last")
     last.wait_for()
-    assert "last showed a work that could not be read — the library is busy" in last.inner_text()
+    expect(last).to_contain_text("last showed a work that could not be read — the library is busy", use_inner_text=True)
 
 
 def test_a_next_work_that_cannot_be_read_is_said_in_its_place(ui, services, the_wall, went_dark):
@@ -334,8 +351,10 @@ def test_a_next_work_that_cannot_be_read_is_said_in_its_place(ui, services, the_
 
     nxt = card(ui, the_wall).locator(".wall-next li")
     nxt.first.wait_for()
-    assert nxt.count() == 3
-    assert nxt.first.inner_text().startswith("A work that could not be read — the library is busy")
+    expect(nxt).to_have_count(3)
+    expect(nxt.first).to_have_text(
+        re.compile("^" + re.escape("A work that could not be read — the library is busy")), use_inner_text=True
+    )
 
 
 def test_after_a_skip_next_is_redrawn_from_the_new_schedule(ui, services, the_wall, hopper, works):
@@ -345,16 +364,25 @@ def test_after_a_skip_next_is_redrawn_from_the_new_schedule(ui, services, the_wa
     open_walls(ui)
     nxt = card(ui, the_wall).locator(".wall-next li a")
     nxt.first.wait_for()
-    before = nxt.all_inner_texts()
+    before = nxt.all_inner_texts()  # one-shot: Next as first drawn, which the skip must change
 
     ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
     said = card(ui, the_wall).locator(".wall-said")
-    said.filter(has_text="Skipped.").wait_for()
+    # Asserted rather than waited for, and on the whole card first, so a red
+    # prints everything the card says, a failure beside Skip included (#442).
+    expect(card(ui, the_wall)).to_contain_text("Skipped.", use_inner_text=True)
+    expect(said).to_contain_text("Skipped.", use_inner_text=True)
     up = services.display.get_wall_view(the_wall.id).upcoming
-    report_state(services, the_wall, "showing_art", works[1].id, since=datetime.now(UTC))
-    said.filter(has_text=f"{the_wall.name} now shows Automat.").wait_for(timeout=10_000)
-
-    after = nxt.all_inner_texts()
     titles = {work.id: work.title for work in works}
-    assert after == [titles[slot.work_id] for slot in up]
-    assert after != before
+    redrawn = [titles[slot.work_id] for slot in up]
+    assert redrawn != before, "the skip left Next as it was, so a redraw could not be seen"
+    report_state(services, the_wall, "showing_art", works[1].id, since=datetime.now(UTC))
+    # As long as any assertion here waits: the watch asks every two seconds and
+    # goes on for minutes, so ten seconds was a bound on the runner, not the claim.
+    expect(said).to_contain_text(f"{the_wall.name} now shows Automat.", use_inner_text=True)
+
+    # Read once, at the notice, and not retried: the claim is that Next is
+    # replaced with the lead, in the same turn, so a list that caught up a
+    # moment later must fail here. The watch writes both before the notice.
+    after = nxt.all_inner_texts()  # one-shot: read at the notice, since the claim is that Next changed with it
+    assert after == redrawn

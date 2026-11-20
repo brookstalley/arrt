@@ -11,7 +11,7 @@ for it:
   outside the transaction, it lands, and the curator's write puts the old row
   back; read inside, it waits for the store's lock and lands after.
 - **A feed is written only once the act that decided it can no longer roll back**
-  (`DisplayService._publishing`), and the walls one act changes change together.
+  (`FeedPublisher.publishing`, `programming/feeds.py`), and the walls one act changes change together.
 - **A bulk act is one announcement and one reconciliation**, so each wall's feed is
   written once for it.
 """
@@ -26,7 +26,7 @@ import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.persistence.records import ThemeAssignment
-from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.services.errors import ServiceError
 
 _OLD_REPORT_AT = "2026-10-02T14:00:05+00:00"
@@ -212,7 +212,7 @@ def test_a_hang_whose_second_wall_cannot_be_written_changes_neither_wall(
         display.add_to_theme(theme_id=second.id, artwork_id=work.id)
     paths = {wall: wall_settings.manifest_v2_path(wall) for wall in (wall_id, study)}
     before = {wall: path.read_bytes() if path.exists() else None for wall, path in paths.items()}
-    write, writes = display_module.write_atomically, []
+    write, writes = feeds_module.write_atomically, []
 
     def second_write_fails(path, document):
         writes.append(path)
@@ -220,7 +220,7 @@ def test_a_hang_whose_second_wall_cannot_be_written_changes_neither_wall(
             raise OSError("No space left on device")
         write(path, document)
 
-    monkeypatch.setattr(display_module, "write_atomically", second_write_fails)
+    monkeypatch.setattr(feeds_module, "write_atomically", second_write_fails)
     with pytest.raises(OSError, match="No space left on device"):
         display.activate_theme(second.id, wall_id=wall_id)
 
@@ -291,17 +291,17 @@ def test_a_feed_one_act_has_decided_is_not_read_by_a_request_on_another_thread(
     theme = display.add_theme(name="Late night")
     display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
     seen: list[object] = []
-    real = display._write_staged
+    real = display._feeds._write_staged
 
     def look_from_elsewhere(staged):
         assert staged, "the act decided no feed, so there is nothing for another thread to see"
-        other = threading.Thread(target=lambda: seen.append(display._published(wall_id)))
+        other = threading.Thread(target=lambda: seen.append(display._feeds.published(wall_id)))
         other.start()
         other.join()
-        seen.append(display._published(wall_id))
+        seen.append(display._feeds.published(wall_id))
         real(staged)
 
-    display._write_staged = look_from_elsewhere
+    display._feeds._write_staged = look_from_elsewhere
     display.activate_theme(theme.id, wall_id=wall_id)
 
     elsewhere, inside = seen
@@ -312,14 +312,14 @@ def test_a_feed_one_act_has_decided_is_not_read_by_a_request_on_another_thread(
 
 
 def test_a_feed_is_never_written_outside_an_act(display, ready_work, wall_id):
-    """`_publish_feed` stages; a caller outside `_publishing` would stage a feed nothing writes, so it is refused by name."""
+    """`_publish_feed` stages; a caller outside `publishing` would stage a feed nothing writes, so it is refused by name."""
     theme = display.add_theme(name="Late night")
     display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
     display.activate_theme(theme.id, wall_id=wall_id)
-    feed = display._published(wall_id)
+    feed = display._feeds.published(wall_id)
 
-    with pytest.raises(RuntimeError, match="outside `_publishing`"):
-        display._patch_v2_works(wall_id, feed, {})
+    with pytest.raises(RuntimeError, match="outside `publishing`"):
+        display._feeds.patch_v2_works(wall_id, feed, {})
 
 
 # -- S4: one bulk act, one reconciliation ---------------------------------------------------
@@ -341,14 +341,14 @@ def test_archiving_fifty_works_on_three_walls_reconciles_once_and_writes_each_fe
         asked.append(None if work_ids is None else list(work_ids))
         return reconcile(work_ids, **keywords)
 
-    write, written = display_module.write_atomically, []
+    write, written = feeds_module.write_atomically, []
 
     def counting(path, document):
         written.append(path.name)
         write(path, document)
 
     monkeypatch.setattr(display, "reconcile", counted)
-    monkeypatch.setattr(display_module, "write_atomically", counting)
+    monkeypatch.setattr(feeds_module, "write_atomically", counting)
     archived = services.catalogue.archive_artworks([work.id for work in works[:50]])
 
     assert len(archived) == 50

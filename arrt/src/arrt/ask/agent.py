@@ -33,7 +33,8 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, StructuredTool
 from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_CODE, StreamingResponse
 
@@ -112,7 +113,7 @@ class Turn:
 class Thread:
     id: str
     #: What the model is given next time: every message so far, tool results included.
-    messages: list[BaseMessage] = field(default_factory=list)
+    messages: list[AnyMessage] = field(default_factory=list)
     turns: list[Turn] = field(default_factory=list)
     #: The reply that holds the thread, while one runs: a thread answers one
     #: thing at a time. A token rather than a flag, so a reply releasing it late
@@ -219,6 +220,7 @@ class Ask:
             await stream.start()
             # On a worker thread, as every tool call is: the service layer is synchronous.
             system = ask_system(await asyncio.to_thread(self._taste))
+            assert self._model is not None  # noqa: S101 -- `reply`'s caller checked `available`, which is this
             agent = create_agent(
                 self._model,
                 self._tools,
@@ -229,8 +231,8 @@ class Ask:
             # limit is the one that binds. Each model call costs several graph steps
             # (the middleware's, the model's, the tools'), and LangGraph's default of
             # 25 stops an eight-call reply as a fault rather than at its limit.
-            config = {"recursion_limit": _GRAPH_STEPS_PER_CALL * (self._step_limit + 1)}
-            async for event in agent.astream_events({"messages": sent}, config=config, version="v2"):
+            config: RunnableConfig = {"recursion_limit": _GRAPH_STEPS_PER_CALL * (self._step_limit + 1)}
+            async for event in agent.astream_events({"messages": [*sent]}, config=config, version="v2"):
                 await tally.take(event, stream)
             answer = stream.accumulated_content
             await stream.end(
@@ -324,7 +326,7 @@ def _release(thread: Thread, claim: object) -> None:
         thread.claim = None
 
 
-def _recent(messages: list[BaseMessage], turns: int) -> list[BaseMessage]:
+def _recent(messages: list[AnyMessage], turns: int) -> list[AnyMessage]:
     """The last `turns` turns of `messages`, each from the curator's words on.
 
     Cut only where the curator spoke, so a tool result is never sent without
@@ -364,7 +366,7 @@ class _Tally:
     input_tokens: int | None = None
     output_tokens: int | None = None
     payloads: list[object] = field(default_factory=list)
-    messages: list[BaseMessage] = field(default_factory=list)
+    messages: list[AnyMessage] = field(default_factory=list)
     _started: dict[str, float] = field(default_factory=dict)
 
     async def take(self, event: Mapping[str, Any], stream: StreamingResponse) -> None:

@@ -9,12 +9,16 @@ The second UX walk (`ux-review-2026-10.md` findings 37, 38 and 34; #358) found:
 - The Work page's picture could not be enlarged.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 PLACEHOLDER = "No picture"
 WINTER = "Q1311"
@@ -34,9 +38,10 @@ def masterless(service, ekster):
 
 
 def placeholder_for(ui, work):
+    """The work's placeholder, once drawn: the locator, for the caller to assert its words on."""
     card = ui.page.locator(f"#view [data-artwork='{work.id}'] .card-image-absent").first
     card.wait_for()
-    return card.inner_text().strip()
+    return card
 
 
 @pytest.mark.parametrize(
@@ -46,7 +51,7 @@ def placeholder_for(ui, work):
 )
 def test_a_work_with_no_master_reads_the_same_on_every_screen_and_asks_for_nothing(ui, ekster, masterless, where):
     ui.open(where.format(artist=ekster.id))
-    assert placeholder_for(ui, masterless) == PLACEHOLDER
+    expect(placeholder_for(ui, masterless)).to_have_text(PLACEHOLDER, use_inner_text=True)
     ui.page.wait_for_load_state("networkidle")
     assert ui.requests_matching(f"/api/works/{masterless.id}/thumbnail") == []
 
@@ -55,7 +60,7 @@ def test_the_work_page_draws_the_same_placeholder(ui, masterless):
     ui.open(f"#work/{masterless.id}")
     hero = ui.page.locator("#view .work-hero .card-image-absent")
     hero.wait_for()
-    assert hero.inner_text().strip() == PLACEHOLDER
+    expect(hero).to_have_text(PLACEHOLDER, use_inner_text=True)
     ui.page.wait_for_load_state("networkidle")
     assert ui.requests_matching(f"/api/works/{masterless.id}/thumbnail") == []
     assert ui.requests_matching(f"/api/works/{masterless.id}/wall-preview") == []
@@ -65,7 +70,7 @@ def test_the_artists_index_pictures_an_artist_with_no_master_by_the_placeholder(
     ui.open("#artist")
     poster = ui.page.locator(f"#view li.card[data-artist='{ekster.id}'] .card-image-absent")
     poster.wait_for()
-    assert poster.inner_text().strip() == PLACEHOLDER
+    expect(poster).to_have_text(PLACEHOLDER, use_inner_text=True)
     ui.page.wait_for_load_state("networkidle")
     assert [url for url in ui.requests_matching("/thumbnail") if masterless.id in url] == []
 
@@ -73,13 +78,13 @@ def test_the_artists_index_pictures_an_artist_with_no_master_by_the_placeholder(
 def test_the_servers_reason_is_shown_only_to_debug(ui, masterless):
     ui.open("#collection")
     ui.page.locator(f"#view [data-artwork='{masterless.id}'] .card-image-absent").wait_for()
-    assert ui.page.locator(f"#view [data-artwork='{masterless.id}'] .no-picture-note").count() == 0
+    expect(ui.page.locator(f"#view [data-artwork='{masterless.id}'] .no-picture-note")).to_have_count(0)
 
     ui.page.goto(f"{ui.base_url}/?debug#collection")
     ui.page.locator(f"#view [data-artwork='{masterless.id}'] .card-image-absent").wait_for()
     note = ui.page.locator(f"#view [data-artwork='{masterless.id}'] .no-picture-note")
-    assert note.count() == 1
-    assert note.inner_text().strip()
+    expect(note).to_have_count(1)
+    expect(note).to_have_text(re.compile(r"\S"), use_inner_text=True)  # any words: the reason is the server's, not this test's
 
 
 # -- search --------------------------------------------------------------------------------
@@ -97,16 +102,16 @@ def test_a_held_work_in_the_dropdown_carries_its_picture(ui, work_with_an_image)
     option = ui.page.locator("#search-suggestions [role='option']", has_text="Nighthawks at the diner").first
     picture = option.locator("img")
     picture.wait_for()
-    assert f"/api/works/{work.id}/thumbnail" in picture.get_attribute("src")
+    expect(picture).to_have_attribute("src", re.compile(re.escape(f"/api/works/{work.id}/thumbnail")))
     # Beside the name, not inside a badge.
-    assert option.locator(".badge img").count() == 0
+    expect(option.locator(".badge img")).to_have_count(0)
 
 
 def test_a_held_work_with_no_master_in_the_dropdown_asks_for_no_picture(ui, masterless):
     type_in_search(ui, "Crak")
     option = ui.page.locator("#search-suggestions [role='option']", has_text="Crak!").first
     option.wait_for()
-    assert option.locator("img").count() == 0
+    expect(option.locator("img")).to_have_count(0)
     assert ui.requests_matching(f"/api/works/{masterless.id}/thumbnail") == []
 
 
@@ -135,13 +140,13 @@ def test_the_work_pages_picture_opens_large_and_closes_by_keyboard(ui, work_with
     ui.open(f"#work/{work.id}")
     button = ui.page.locator("#view .work-picture-button")
     button.wait_for()
-    assert button.get_attribute("aria-label") == "Enlarge Nighthawks"
+    expect(button).to_have_attribute("aria-label", "Enlarge Nighthawks")
 
     button.focus()
     ui.page.keyboard.press("Enter")
     dialog = ui.page.locator("dialog.enlarged[open]")
     dialog.wait_for()
-    assert f"/api/works/{work.id}/wall-preview" in dialog.locator("img").get_attribute("src")
+    expect(dialog.locator("img")).to_have_attribute("src", re.compile(re.escape(f"/api/works/{work.id}/wall-preview")))
 
     ui.page.keyboard.press("Escape")
     ui.page.wait_for_selector("dialog.enlarged[open]", state="detached")

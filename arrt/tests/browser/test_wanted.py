@@ -14,6 +14,7 @@ listing, the counts and Forget are the real ones.
 """
 
 import json
+import re
 
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, an_instance, an_instance_listing
@@ -26,6 +27,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 RUN_ID = "run-under-test"
 
@@ -57,8 +60,7 @@ def test_a_work_its_search_found_nothing_for_offers_want_and_forget_not_accept(u
     ui.open_folds()
     ui.page.wait_for_selector("li.card button:text-is('Want')")
 
-    buttons = ui.page.locator("li.card .row button").all_inner_texts()
-    assert buttons == ["Want", "Forget"]
+    expect(ui.page.locator("li.card .row button")).to_have_text(["Want", "Forget"], use_inner_text=True)
 
 
 def test_a_work_whose_search_is_still_running_is_not_offered_want_yet(ui):
@@ -68,7 +70,7 @@ def test_a_work_whose_search_is_still_running_is_not_offered_want_yet(ui):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
 
-    assert ui.page.locator("li.card button:text-is('Want')").count() == 0
+    expect(ui.page.locator("li.card button:text-is('Want')")).to_have_count(0)
 
 
 def test_a_work_standing_on_a_scan_is_offered_accept_and_reject_not_want(ui):
@@ -78,8 +80,8 @@ def test_a_work_standing_on_a_scan_is_offered_accept_and_reject_not_want(ui):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
 
-    assert ui.page.locator("li.card button:text-is('Want')").count() == 0
-    assert ui.page.locator("li.card button:text-is('Forget')").count() == 0
+    expect(ui.page.locator("li.card button:text-is('Want')")).to_have_count(0)
+    expect(ui.page.locator("li.card button:text-is('Forget')")).to_have_count(0)
 
 
 def test_want_records_the_verdict_and_the_card_says_where_the_work_went(ui):
@@ -96,7 +98,7 @@ def test_want_records_the_verdict_and_the_card_says_where_the_work_went(ui):
 
     assert [method for method, _, _ in requests] == ["POST"]
     # Already wanted, so Want is not offered again; Forget still is.
-    assert ui.page.locator("li.card .row button").all_inner_texts() == ["Forget"]
+    expect(ui.page.locator("li.card .row button")).to_have_text(["Forget"], use_inner_text=True)
 
 
 def test_forget_is_a_rejection(ui):
@@ -181,14 +183,16 @@ def test_a_wanted_work_is_pictured_by_its_too_small_scan_and_says_so(ui):
     ui.serve("**/api/wanted", a_wanted_listing(a_wanted(shown=TOO_SMALL)))
 
     open_wanted(ui)
-    picture = ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
+    picture = ui.page.locator(".wanted tbody tr .wanted-picture img")
 
-    assert picture.get_attribute("alt") == "Blue Green Red, by Ellsworth Kelly"
-    assert "/api/candidate-images/image-1/preview" in picture.get_attribute("src")
-    row = ui.page.locator(".wanted tbody tr").inner_text()
-    assert "below minimum" in row
-    assert "Found only too small" in row
-    assert "No scan found" not in row, "a picture never sits beside a claim that nothing was found"
+    expect(picture).to_have_attribute("alt", "Blue Green Red, by Ellsworth Kelly")
+    expect(picture).to_have_attribute("src", re.compile(re.escape("/api/candidate-images/image-1/preview")))
+    row = ui.page.locator(".wanted tbody tr")
+    expect(row).to_contain_text("below minimum", use_inner_text=True)
+    expect(row).to_contain_text("Found only too small", use_inner_text=True)
+    expect(row, "a picture never sits beside a claim that nothing was found").not_to_contain_text(
+        "No scan found", use_inner_text=True
+    )
 
 
 def test_pressing_a_wanted_work_s_picture_enlarges_it(ui):
@@ -198,8 +202,7 @@ def test_pressing_a_wanted_work_s_picture_enlarges_it(ui):
     open_wanted(ui)
     ui.page.click("button[aria-label='Enlarge the picture of Blue Green Red']")
 
-    dialog = ui.page.wait_for_selector("dialog[open] img")
-    assert "size=large" in dialog.get_attribute("src")
+    expect(ui.page.locator("dialog[open] img")).to_have_attribute("src", re.compile(re.escape("size=large")))
 
 
 def test_a_wanted_work_with_no_scan_standing_says_why_in_words_in_place_of_a_picture(ui):
@@ -214,14 +217,14 @@ def test_a_wanted_work_with_no_scan_standing_says_why_in_words_in_place_of_a_pic
     open_wanted(ui)
     ui.page.wait_for_selector(".wanted table")
 
-    assert ui.page.locator(".wanted .wanted-picture img").count() == 0
-    rows = ui.page.locator(".wanted tbody tr").all_inner_texts()
-    nothing = next(row for row in rows if "Nothing Found" in row)
-    turned = next(row for row in rows if "All Turned Down" in row)
-    assert "No scan found." in nothing
-    assert "Every scan found was turned down." in turned
-    assert "2 scans turned down" in turned
-    assert "too small" not in turned
+    expect(ui.page.locator(".wanted .wanted-picture img")).to_have_count(0)
+    rows = ui.page.locator(".wanted tbody tr")
+    nothing = rows.filter(has_text="Nothing Found")
+    turned = rows.filter(has_text="All Turned Down")
+    expect(nothing).to_contain_text("No scan found.", use_inner_text=True)
+    expect(turned).to_contain_text("Every scan found was turned down.", use_inner_text=True)
+    expect(turned).to_contain_text("2 scans turned down", use_inner_text=True)
+    expect(turned).not_to_contain_text("too small", use_inner_text=True)
 
 
 def test_a_wanted_work_holding_a_scan_on_offer_does_not_say_none_was_found(ui):
@@ -232,9 +235,9 @@ def test_a_wanted_work_holding_a_scan_on_offer_does_not_say_none_was_found(ui):
     open_wanted(ui)
     ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
 
-    row = ui.page.locator(".wanted tbody tr").inner_text()
-    assert "One still on offer" in row
-    assert "No scan found" not in row
+    row = ui.page.locator(".wanted tbody tr")
+    expect(row).to_contain_text("One still on offer", use_inner_text=True)
+    expect(row).not_to_contain_text("No scan found", use_inner_text=True)
 
 
 def test_a_wanted_work_s_unselected_scan_of_unknown_size_is_not_called_on_offer(ui):
@@ -246,47 +249,49 @@ def test_a_wanted_work_s_unselected_scan_of_unknown_size_is_not_called_on_offer(
     open_wanted(ui)
     ui.page.wait_for_selector(".wanted tbody tr .wanted-picture img")
 
-    row = ui.page.locator(".wanted tbody tr").inner_text()
-    assert "One found, not on offer" in row
-    assert "still on offer" not in row
+    row = ui.page.locator(".wanted tbody tr")
+    expect(row).to_contain_text("One found, not on offer", use_inner_text=True)
+    expect(row).not_to_contain_text("still on offer", use_inner_text=True)
 
 
 def test_wanted_lists_both_kinds_saying_which(ui, wanted):
     open_wanted(ui)
     ui.page.wait_for_selector(".wanted table")
 
-    rows = ui.page.locator(".wanted tbody tr").all_inner_texts()
-    lobster = next(row for row in rows if "Lobster Telephone" in row)
-    memory = next(row for row in rows if "The Persistence of Memory" in row)
-    assert "No scan found" in lobster
-    assert "No item" in lobster
-    assert "1 scan turned down" in memory
-    assert "Q25729" in memory
-    assert "spends nothing" in ui.text()
+    rows = ui.page.locator(".wanted tbody tr")
+    lobster = rows.filter(has_text="Lobster Telephone")
+    memory = rows.filter(has_text="The Persistence of Memory")
+    expect(lobster).to_contain_text("No scan found", use_inner_text=True)
+    expect(lobster).to_contain_text("No item", use_inner_text=True)
+    expect(memory).to_contain_text("1 scan turned down", use_inner_text=True)
+    expect(memory).to_contain_text("Q25729", use_inner_text=True)
+    expect(ui.view).to_contain_text("spends nothing", use_inner_text=True)
 
 
 def test_the_wanted_section_shows_its_count_once_something_is_wanted(ui, wanted):
     open_wanted(ui)
     ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
 
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
+    expect(ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")).to_be_visible()
 
 
 def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_says_what_wanted_is(ui):
     open_wanted(ui)
     ui.page.wait_for_selector("#view .empty")
 
-    empty = ui.page.inner_text("#view .empty")
-    assert "Nothing is wanted." in empty
+    empty = ui.page.locator("#view .empty")
+    expect(empty).to_contain_text("Nothing is wanted.", use_inner_text=True)
     # What Wanted holds, not the clicks that fill it (audit-6 finding 21: the
     # sentence used to give a click path through a review card).
-    assert "Wanted holds the works you want and have no acceptable scan of" in empty
-    assert "a Get found no scan for" in empty
-    assert "press Want" not in empty
-    assert "Scans, then" not in empty
+    expect(empty).to_contain_text("Wanted holds the works you want and have no acceptable scan of", use_inner_text=True)
+    expect(empty).to_contain_text("a Get found no scan for", use_inner_text=True)
+    expect(empty).not_to_contain_text("press Want", use_inner_text=True)
+    expect(empty).not_to_contain_text("Scans, then", use_inner_text=True)
     section = ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")
-    assert section.is_visible()
-    assert ui.page.inner_text("[data-count-slot='wanted']") == "", "a zero says nothing a curator acts on"
+    expect(section).to_be_visible()
+    expect(ui.page.locator("[data-count-slot='wanted']"), "a zero says nothing a curator acts on").to_have_text(
+        "", use_inner_text=True
+    )
 
 
 def test_the_wanted_section_is_shown_before_its_count_arrives(ui, wanted):
@@ -301,7 +306,7 @@ def test_the_wanted_section_is_shown_before_its_count_arrives(ui, wanted):
     ui.page.wait_for_selector("nav.sidebar a.section-link")
     ui.page.wait_for_function("() => document.querySelector('nav.sidebar [data-count-slot=wanted]') !== null")
 
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
+    expect(ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")).to_be_visible()
     for route in held:
         route.continue_()
     ui.page.wait_for_function("() => document.querySelector(\"[data-count-slot='wanted']\").textContent === '2'")
@@ -315,7 +320,7 @@ def test_on_wanted_its_section_is_lit_as_where_the_curator_is(ui, request, wanti
     open_wanted(ui)
     ui.page.wait_for_selector("#view h1:text-is('Wanted')")
 
-    assert ui.page.locator("nav.sidebar a[data-view='wanted'][aria-current='page']").is_visible()
+    expect(ui.page.locator("nav.sidebar a[data-view='wanted'][aria-current='page']")).to_be_visible()
 
 
 def test_a_count_that_cannot_be_read_shows_the_section_rather_than_hiding_it(ui, wanted):
@@ -325,7 +330,7 @@ def test_a_count_that_cannot_be_read_shows_the_section_rather_than_hiding_it(ui,
     ui.page.wait_for_selector("nav.sidebar a.section-link")
 
     ui.page.wait_for_function("() => !document.querySelector(\"#sidebar li.section:has([data-count-slot='wanted'])\").hidden")
-    assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
+    expect(ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")).to_be_visible()
 
 
 def test_forget_takes_a_work_off_the_list(ui, wanted, discovery):
@@ -345,15 +350,15 @@ def test_forget_waits_with_undo_and_undo_sends_nothing(ui, wanted, discovery):
 
     ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
     undo = ui.page.locator('button[aria-label="Undo: don\'t forget Lobster Telephone (1938)"]')
-    assert undo.is_visible()
-    ui.page.wait_for_timeout(1000)
+    expect(undo).to_be_visible()
+    ui.page.wait_for_timeout(1000)  # sleep: proves nothing is sent while Undo is on offer
     assert sent == [], "nothing is sent while Undo can still take it back"
     undo.click()
-    ui.page.wait_for_timeout(6000)
+    ui.page.wait_for_timeout(6000)  # sleep: proves nothing is sent once the hold's five seconds have run
 
     assert sent == []
     assert str(discovery.get_candidate_work(nothing.id).verdict) == "wanted"
-    assert ui.page.locator("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']").is_visible()
+    expect(ui.page.locator("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")).to_be_visible()
 
 
 def test_a_row_drawn_again_while_its_forget_is_held_shows_the_hold(ui, wanted, discovery):
@@ -362,14 +367,14 @@ def test_a_row_drawn_again_while_its_forget_is_held_shows_the_hold(ui, wanted, d
     open_wanted(ui)
 
     ui.page.click("button[aria-label='Forget Lobster Telephone (1938): stop proposing it']")
-    ui.page.wait_for_timeout(1500)
+    ui.page.wait_for_timeout(1500)  # sleep: staggers the two holds, so the first lands while the second is held
     ui.page.click("button[aria-label='Forget The Persistence of Memory: stop proposing it']")
     # Lobster's hold runs out and lands, and the page repaints with the other row still held.
     ui.page.wait_for_function("() => !document.querySelector('.wanted')?.innerText.includes('Lobster Telephone')", timeout=15000)
     undo = ui.page.locator('button[aria-label="Undo: don\'t forget The Persistence of Memory"]')
-    assert undo.is_visible()
+    expect(undo).to_be_visible()
     undo.click()
-    ui.page.wait_for_timeout(6000)
+    ui.page.wait_for_timeout(6000)  # sleep: proves an undone Forget is not sent when its hold would have run out
 
     assert str(discovery.get_candidate_work(turned.id).verdict) == "wanted"
 
@@ -379,7 +384,7 @@ def test_get_again_carries_its_tier(ui, wanted):
     ui.page.wait_for_selector(".wanted table")
 
     row = ui.page.locator(".wanted tbody tr", has_text="Lobster Telephone")
-    assert row.locator(".badge-tier").inner_text().endswith("Free")
+    expect(row.locator(".badge-tier")).to_have_text(re.compile(r"Free\s*$"), use_inner_text=True)
 
 
 def test_search_again_on_a_work_with_an_item_re_searches_it_and_opens_the_run(ui, wanted):
@@ -430,10 +435,10 @@ def test_search_again_on_a_work_with_no_item_offers_wikidata_s_matches_and_picks
     open_wanted(ui)
     ui.page.click("button[aria-label='Get Lobster Telephone (1938) again']")
     ui.page.wait_for_selector(".picker li")
-    picker = ui.page.inner_text(".picker")
-    assert "Which is Lobster Telephone (1938)?" in picker
-    assert "has a picture" in picker
-    assert "no picture on Wikidata" in picker
+    picker = ui.page.locator(".picker")
+    expect(picker).to_contain_text("Which is Lobster Telephone (1938)?", use_inner_text=True)
+    expect(picker).to_contain_text("has a picture", use_inner_text=True)
+    expect(picker).to_contain_text("no picture on Wikidata", use_inner_text=True)
 
     ui.page.click("button[aria-label='Pick Q2990594, Lobster Telephone by Salvador Dalí']")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-2')")
@@ -456,7 +461,7 @@ def test_search_all_starts_one_re_search_per_search_the_works_came_from_then_ope
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    assert "One Get for each of the 2 Gets" in ui.text()
+    expect(ui.view).to_contain_text("One Get for each of the 2 Gets", use_inner_text=True)
     ui.page.click("button:text-is('Get all again')")
     ui.page.wait_for_function("() => window.location.hash === '#queue'")
 
@@ -478,8 +483,8 @@ def test_with_wikidata_off_the_picker_says_why_and_still_searches_without_an_ite
     open_wanted(ui)
     ui.page.click("button[aria-label='Get Lobster Telephone (1938) again']")
     ui.page.wait_for_selector(".picker")
-    assert note in ui.page.inner_text(".picker")
-    assert ui.page.locator(".picker button:text-is('This one')").count() == 0
+    expect(ui.page.locator(".picker")).to_contain_text(note, use_inner_text=True)
+    expect(ui.page.locator(".picker button:text-is('This one')")).to_have_count(0)
     assert ui.page.evaluate("() => document.activeElement.classList.contains('picker-heading')"), "the picker took no focus"
 
     ui.page.click(".picker button:text-is('Get without an item')")
@@ -494,7 +499,10 @@ def test_search_all_over_one_search_opens_that_re_search(ui, wanted):
     requests = posted(ui, "/api/runs/resolve")
 
     open_wanted(ui)
-    assert "One Get for each" not in ui.text()
+    # The works are listed once the button over them is, so the page has said
+    # what it will say when "One Get for each" is found not to be there.
+    expect(ui.page.locator("button:text-is('Get all again')")).to_be_visible()
+    expect(ui.view).not_to_contain_text("One Get for each", use_inner_text=True)
     ui.page.click("button:text-is('Get all again')")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#get/resolve-one')")
 
@@ -516,9 +524,9 @@ def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted
     ui.page.wait_for_selector(".search-all-outcome")
 
     assert [method for method, _, _ in requests if method == "POST"] == ["POST", "POST"], "a refusal stopped the rest"
-    outcome = ui.page.inner_text(".search-all-outcome")
-    assert "Started 1 Get. 1 other could not start:" in outcome
-    assert refusal in outcome
+    outcome = ui.page.locator(".search-all-outcome")
+    expect(outcome).to_contain_text("Started 1 Get. 1 other could not start:", use_inner_text=True)
+    expect(outcome).to_contain_text(refusal, use_inner_text=True)
     assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"
 
 
@@ -545,7 +553,8 @@ def test_on_a_phone_each_wanted_work_is_a_card_rather_than_a_row_that_scrolls_si
         assert f'"{heading}"' in headings, f"a cell lost the heading that says what it is: {headings}"
     scroller = ui.page.locator(".wanted .table-scroll")
     assert scroller.evaluate("(s) => s.scrollWidth - s.clientWidth") <= 0, "Wanted's table still scrolls sideways"
-    again = row.locator("button:text-is('Get again')").bounding_box()
+    expect(row.locator("button:text-is('Get again')")).to_be_visible()
+    again = row.locator("button:text-is('Get again')").bounding_box()  # one-shot: geometry, measured once the button is drawn
     assert again["x"] + again["width"] <= PHONE["width"], "Get again is past the screen's edge"
 
 

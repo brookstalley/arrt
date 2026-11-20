@@ -12,29 +12,19 @@
 > consumer-impact check for every future chunk — which is exactly what happened
 > between 2026-07-19's two planning passes.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product
-> becomes a **server** (Library + Programming, on the operator's NAS) and a
-> **player** per wall. In this file:
-> - **curation ↔ display** becomes a network contract (Server ↔ Player): an HTTP
->   manifest, content-addressed media and a heartbeat POST, pulled into a
->   Player-local cache. It crosses a **machine** boundary from wave 3, and after
->   wave 5 it crosses a repository boundary too.
-> - **The service layer** gains a planned internal seam, Library ↔ Programming,
->   through a network-ready facade.
-> - **The catalogue schema** is planned to become two SQLite files, with no
->   foreign keys across that seam.
-> - **`ART_ROOT`** stops being read by the Player at all, and it gains the
->   presentation master.
-> - **Configuration** loses `TV_PANEL_*` and `MAT_*` from the server in wave 4.
->
-> Every "Exists" statement below still describes the code as built.
->
-> *(Wave 4g, 2026-10-10: the configuration change is done. The server reads no
-> `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player reads them
-> under the same names, and the mat-colour engine's `MAT_MODEL`,
-> `MAT_MAX_OUTPUT_TOKENS` and `MAT_IMAGE_MAX_EDGE` stay the server's. The
-> sentence above no longer holds for § curation ↔ display, whose "Exists" bullet
-> is the file channel of 2026-08; that section opens with what runs now.)*
+> **Landed (waves 2 to 5, `re-architecture.md`).** The product is a **server**
+> (Library and Programming, on the operator's NAS) and a **Player** per wall.
+> **curation ↔ display** is a network contract (Server ↔ Player): an HTTP manifest,
+> content-addressed media and a heartbeat POST, pulled into a Player-local cache,
+> across a machine boundary since wave 3 and a repository boundary since wave 5.
+> The service layer has its Library ↔ Programming seam through a facade. The Player
+> never reads `ART_ROOT`, which gained the presentation master. The server reads no
+> `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT` (the Player reads them
+> under the same names; the mat-colour engine's `MAT_MODEL`, `MAT_MAX_OUTPUT_TOKENS`
+> and `MAT_IMAGE_MAX_EDGE` stay the server's). **Not built:** the catalogue is not
+> two SQLite files (§ The catalogue schema, below). § curation ↔ display's
+> "Exists" bullet is the file channel of 2026-08, and that section opens with what
+> runs now.
 
 ## Contract Surfaces
 
@@ -111,31 +101,19 @@
   (`project-preferences.md`, Critic-enforced). A handler that validates, orders, or
   decides is the violation. A change here crosses to *two* surfaces at once, which
   is the whole point — parity is structural rather than remembered.
-- **Direction changed 2026-09-30 — a seam is planned inside this layer. See
-  `re-architecture.md` § Seam 1.**
-  - `DisplayService` is most of what becomes **Programming**: themes as
-    playlists, walls, hanging, directives (gone in wave 4g) and the manifest.
-  - `CatalogueService` and `DiscoveryService` are most of the **Library**.
-  - The dependency direction above ("discovery and display each depend on the
-    catalogue, and neither is depended on by it") is already the one the seam
-    requires.
-  - The plan turns it from a convention into a boundary. Programming imports
-    only a small Library **facade** (`playable(work_ids)`), which is
-    coarse-grained, id-based and returns plain data. Import direction
-    is guarded statically, as `test_plane_isolation.py` guards the planes.
-    Library changes reach Programming as in-process events (`work.accepted`,
-    `work.archived`, `work.image_changed`, `work.mat_changed`).
-  - Manifest readiness (`assess`) sits behind the facade, in
-    `library/readiness.py`.
-  - The UI and MCP bindings stay the only code allowed to call both sides. A
-    composition of two services' calls is still dispatch, not logic, so the
-    thin-binding norm holds.
-  - **Built 2026-09-30 (wave 2b Chunk 01): the packages and the facade.**
-    `arrt.library` and `arrt.programming`, with `library/facade.py` the
-    one Library module Programming imports, held by
-    `tests/preferences/test_seam_imports.py`. **The events were built the same
-    day (Chunk 02)**: published after commit, heard through the facade, and
-    backed by startup reconciliation. The store split is wave 3.
+- **Landed (wave 2b, 2026-09-30; `re-architecture.md` § Seam 1).** The seam inside
+  this layer is built. `arrt.library` and `arrt.programming` are packages;
+  Programming imports one Library module, `library/facade.py` (`playable(work_ids)`,
+  coarse-grained, id-based, returning plain data), held by
+  `tests/preferences/test_seam_imports.py`. Library changes reach Programming as
+  in-process events (`work.accepted`, `work.archived`, `work.image_changed`,
+  `work.mat_changed`), published after commit, heard through the facade and backed
+  by startup reconciliation. Manifest readiness (`assess`) sits behind the facade,
+  in `library/readiness.py`. `DisplayService` is most of Programming, and
+  `CatalogueService` and `DiscoveryService` are most of the Library. The UI and MCP
+  bindings stay the only code allowed to call both sides, and a composition of two
+  services' calls is still dispatch, not logic, so the thin-binding norm holds.
+  **The store split is not built** (below).
 
 ### curation ↔ display contract
 
@@ -214,27 +192,20 @@
   since 2026-08-12, so health can name *which* wall is silent. Sole writer is
   display; it never checks whether anyone read it, so it creates no dependency in
   the protected direction.
-- **Direction changed 2026-09-30 — this surface becomes the Server ↔ Player
-  contract. See `re-architecture.md` § Seam 2 and `api-contract.md` § The
-  Server↔Player surface (PLANNED).** What changes, by wave:
-  - **Wave 2 (schema minor):** the same document is also served at
-    `GET /walls/{wall_id}/manifest` with an ETag. Media is served at
-    `GET /media/{hash}`, and the heartbeat is accepted at
-    `POST /walls/{wall_id}/heartbeat`. Display gains a mode that pulls into a
-    local cache, behind configuration, and **renders only from that cache**.
-    The file channel keeps working alongside.
-  - **Wave 3:** the server moves to the NAS and the file channel is retired. The
-    bullet above that says "Crosses a process boundary — not a machine
-    boundary" stops being true. It crosses a machine boundary, over the LAN.
-  - **Wave 4 (schema major 2):** `render_path` to a composed 4K canvas is
-    replaced by a presentation-master reference plus the current mat colour. The
-    Player composes the mat for its own geometry. *(Done: major 2 published
-    beside major 1 in wave 4e, and the only major since wave 4g, 2026-10-10.)*
-  - **Wave 5:** the Player moves to its own repository. From then on the
-    **JSON Schema and example manifests written in wave 1** are the only
-    thing both sides are tested against. That closes the "exercised end to end
-    by neither plane's suite" residual above, by making the shared fixture the
-    authority instead of each side's own reading.
+- **Landed (waves 2 to 5, `re-architecture.md` § Seam 2 and `api-contract.md`
+  § The Server↔Player surface).** This surface is the Server ↔ Player contract. The
+  manifest is served per wall with an ETag, media at `GET /media/{hash}`, and the
+  heartbeat accepted at `POST /walls/{wall_id}/heartbeat`; the Player pulls into a
+  local cache and **renders only from that cache**. The file channel was retired
+  in wave 3, which made this a machine boundary over the LAN, so the bullet above
+  that says "Crosses a process boundary — not a machine boundary" no longer
+  holds. Major 2 (the presentation-master reference plus the current mat colour,
+  the Player composing for its own geometry) was published beside major 1 in wave
+  4e and is the only major since wave 4g (2026-10-10). The Player has been its own
+  repository since wave 5, so the schemas and example manifests in `contract/` (the
+  `arrt-contract` package) are the only thing both sides are tested against, which
+  closes the "exercised end to end by neither plane's suite" residual above by
+  making the shared fixture the authority instead of each side's own reading.
 
   What survives:
   - The producer resolves content decisions, and `artist_nationality` stays
@@ -306,47 +277,41 @@
 - **Producer:** the persistence layer. **Currently stdlib `sqlite3` behind a
   Protocol**, not 3tears collections — see the build plan's deferral note. The
   Protocol is what keeps that swap a one-module change.
+  **Since 2026-11-19 the Protocols are checked, not only written:** the type
+  checker is part of lint, and `arrt/src/arrt/services/conformance.py` states in
+  types that the SQLite adapters satisfy `CatalogueStore`, `ProgrammingStore`,
+  `OneCatalogueFile` and `DiscoveryStore`, so an adapter that drifts from its
+  Protocol fails `uv run mypy` (`project-preferences.md`, the type-check row).
 - **Consumer:** services, and through them both external surfaces.
 - **Contract:** entity fields, enums, and the Constraints list in `data-model.md`.
 - **A persisted format is a lock-in decision.** The questions the data must answer
   (Q1–Q12) are its requirements; adding a consumer query is a schema change, not a
   read.
-- **Direction changed 2026-09-30 — the one-file store is planned to become two.
-  See `re-architecture.md` § Seam 1, rule 3.**
-  - **Library** tables go in one SQLite file: artworks, artists, sources,
-    originals, renditions, mat colours, facets, and the discovery store's
-    tables.
-  - **Programming** tables go in another: themes, memberships, walls,
-    assignments, directives, and the planned programming tags and smart-playlist
-    rules.
-  - There are **no foreign keys across the seam**. Today two cross it:
-    `theme_memberships.artwork_id` and `directives.pinned_work_id`, both pointing
-    at `artworks`. *(Wave 4g, 2026-10-10: the directives table is dropped, so
-    one is left, `theme_memberships.artwork_id`, for #216.)* After the split, Programming holds work ids as opaque
-    references and tolerates ones that no longer resolve, the way `TvBinding`
-    already does.
-  - The single generic durable store that "acceptance writes across the two
-    halves and has to commit once" needs is a Library-internal fact. It is not
-    affected, because acceptance is entirely Library-side.
-  - This is a data migration, and so a rollback-is-a-restore change in the sense
-    `architecture.md` § Deployment & Version Skew records. Not built. Wave 3,
-    first, so the catalogue moves to the NAS once.
+- **Direction changed 2026-09-30 — the one-file store was planned to become two, and
+  is not built.** See `re-architecture.md` § Seam 1, rule 3 and `data-model.md`'s
+  header. The catalogue moved to the NAS as one file holding the Library's tables,
+  the discovery store's and Programming's. **One foreign key crosses the seam**
+  (`theme_memberships.artwork_id`, for #216; the directive's was dropped in wave 4g),
+  held at one by `tests/preferences/test_seam_foreign_keys.py`, and Programming's
+  other tables hold Library ids as opaque text, which they tolerate not resolving.
+  The split into two files, a data migration and so a rollback-is-a-restore change in
+  the sense `architecture.md` § Deployment & Version Skew records, is not a
+  requirement now (the owner, ruling 9 of 2026-11-19) and has no wave.
 
 ### `ART_ROOT` filesystem contract
 
 - **Exists:** partially — the 2024 layout exists on the Pi; the split is recorded here.
 - **Producer:** acquisition and rendering. **Consumer:** both planes.
-- **Direction changed 2026-09-30 — see `re-architecture.md`.** The contract's
-  consumers, and one of its classes, change.
-  - **From wave 3 the Player never reads `ART_ROOT`.** `ART_ROOT` lives on the
-    NAS and is reached only through the server's HTTP surface. The Player keeps
-    its own cache directory, which is Player state and not part of this contract.
-  - **Wave 4 retires `ready/`,** the composed `tv_display` canvases. It adds the
-    **presentation master**: derived from the Original, unmatted, capped, and
-    specific to no device. It is served to Players by content hash. *(Done:
-    masters since wave 4b; in wave 4g nothing writes `ready/` any more, its rows
-    are forgotten by a startup migration, and the files are left for the
-    operator to delete.)*
+- **Landed (waves 3 to 4g, `re-architecture.md`).** The contract's consumers, and
+  one of its classes, changed.
+  - **The Player never reads `ART_ROOT`** (wave 3). It lives on the NAS and is
+    reached only through the server's HTTP surface; the Player keeps its own cache
+    directory, which is Player state and not part of this contract.
+  - **`ready/` is retired** (wave 4g): nothing writes the composed `tv_display`
+    canvases any more, a startup migration forgets their rows, and the files are
+    left for the operator to delete. The **presentation master** replaced them
+    (wave 4b): derived from the Original, unmatted, capped, specific to no device,
+    and served to Players by content hash.
   - That is a derived artifact which *is* transported, and this row's rule says
     derived artifacts are "regenerated, never transported". **The rule's why is
     device-specificity:** `data-model.md` scopes the norm to anything "rendered
@@ -497,9 +462,10 @@
   stubs the library, because the daemon suite runs against `FakeTv` and proves
   nothing about this file. A mutation sweep once deleted the close-on-failure here
   with no test objecting, for exactly that reason.
-- **Direction changed 2026-09-30 — see `re-architecture.md` § Player outputs.**
-  This surface is unchanged and goes to the Player whole, moving with it to the
-  new repository in wave 5. `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays its authority.
+- **Direction changed 2026-09-30 — see `re-architecture.md` § Player outputs. The
+  surface moved (wave 5, closed 2026-10-27); the framebuffer family below is still
+  to come.** This surface is unchanged and is Arrt Player's, in its own repository.
+  `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays its authority.
   - It becomes **one of two output families** behind a higher-level "show this
     work" interface. The Frame is *push-to-appliance* (upload, select, confirm
     by announcement). The other family is **framebuffer**: an HDMI LCD on a Pi,
@@ -573,25 +539,22 @@
   value this product reads. Listing it as deployment config invited exactly the
   application-side enforcement the norm forbids. What the product *may* read is
   budget **remaining** (`GET /api/v1/key`), which is an observation, not a control.
-- **Direction changed 2026-09-30 — see `re-architecture.md`.** The values
-  change hands.
-  - **Wave 4 removes `TV_PANEL_*` and `MAT_*` from the server.** Screen
-    geometry and mat proportions become Player configuration, beside the
-    e-paper values and `TV_ADDRESS` the display plane already reads. *(Done in
-    wave 4g, 2026-10-10. `MAT_*` meant the two geometry keys,
-    `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`. The server neither reads nor
-    warns about them, because one `.env` serves both planes on a development
-    checkout. `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` went the other
-    way: they are the server's alone, and the Player no longer reads them.)*
-  - **The Player gains** the server's base URL, its local cache directory, and
-    a label mode (e-paper, caption in the mat, or none).
-  - **`WALL_ID` stays Player configuration**, as ruled on 2026-08-12. It now
-    names a URL path instead of a filename.
-  - The **server** keeps `ART_ROOT`, now on NAS storage, and every spend
-    control.
-  - "Consumer: both planes" becomes "each deployable reads its own", which is
-    what it effectively was already. The no-hardcoded-deployment-values rule
-    binds both unchanged.
+- **Landed (wave 4g, 2026-10-10; `re-architecture.md`).** The values changed hands.
+  - **`TV_PANEL_*` and `MAT_*` left the server.** Screen geometry and mat proportions
+    are Player configuration, beside the e-paper values and `TV_ADDRESS` the display
+    plane reads. `MAT_*` meant the two geometry keys, `MAT_WIDTH_INCHES` and
+    `MAT_BOTTOM_WEIGHT`. The server neither reads nor warns about them, because one
+    `.env` serves both on a development checkout. `ROTATION_INTERVAL_SECONDS` and
+    `ROTATION_SHUFFLE` went the other way: they are the server's alone, and the
+    Player no longer reads them.
+  - **The Player has** the server's base URL, its local cache directory and a label
+    mode (`none`, `caption` or `overlay`; a label on its own surface is a label
+    output), and **`WALL_ID` is no longer Player configuration**: a Player is a
+    client that learns its walls from the server (`clients.md`).
+  - The **server** keeps `ART_ROOT`, on NAS storage, and every spend control.
+  - "Consumer: both planes" is "each deployable reads its own", which is what it
+    effectively was already. The no-hardcoded-deployment-values rule binds both
+    unchanged.
 
 ## Test Levels
 

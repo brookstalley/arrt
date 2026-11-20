@@ -41,7 +41,12 @@ fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite run
 fixtures and validates the heartbeat it writes. The conformance vectors in
 `contract/vectors/` (the label rule, the mat's geometry, what a feed shows at
 an instant) are held to reference statements in the package's suite, and each
-Player's suite runs them against its own code. The label corpus
+Player's suite runs them against its own code. What each route answers, and what
+each answer means to a Player, is `contract/transport.json`; Arrt's suite drives a
+real server through every row of it (`arrt/tests/contract/test_transport_table.py`).
+Each released version's fixtures and routes are kept frozen in
+`contract/released/<version>/`, and the package's suite holds HEAD to them
+(`contract/tests/test_released.py`). The label corpus
 (`vectors/label-corpus.json`, real records chosen for the ways they break a
 label engine) is held by Arrt's suite to the name splits and nationalities it
 seeds, and each renderer's suite holds its own copy of the records to it. Every suite reads the files
@@ -97,11 +102,76 @@ field asks for it as a change to the package.
   A released tag is not moved. Nothing on GitHub prevents moving one, so what
   holds a Player to the bytes it was tested against is its `uv.lock`, which
   records the commit the tag resolved to.
+- **A release is copied into `contract/released/<version>/` when it is cut**:
+  its `fixtures/` (index included) and `routes.json` as they are at the tag, and
+  a `sha256.json` of each file's hash, written then and never again. The
+  package's suite holds HEAD to every copy (`contract/tests/test_released.py`):
+  every valid fixture of a release of this major still validates, every invalid
+  one is still refused unless the loosening is recorded with its reason, and no
+  route or fixture of it is gone. That is the mechanical form of "a minor is
+  additive". The releases before 1.2.0 were copied from their tags when 1.2.0
+  was built.
 - **Read the data through the package:** `root()` is the directory holding
   `schemas/`, `fixtures/`, `vectors/` and `routes.json`, and it refuses by name
   a build without them. `validator(path)` registers every schema, so a
   reference between schemas resolves. `specification()` is this file as
-  released.
+  released. `transport()` is what each route answers (§ Transport),
+  `vocabulary()` the household's words both sides say alike, and `released()`
+  the frozen copies, by version.
+
+### Releases
+
+- **1.0.0** (2026-10-26): the first tag; heartbeat minor 4.
+- **1.1.0** (2026-11-13): heartbeat minor 5, `capabilities.media`.
+- **1.2.0** (audit wave 2, 2026-11-19): every change additive, nothing removed,
+  no document's meaning changed.
+  - `contract/transport.json`, `transport()`: each route's answers as data, with
+    the ETag rule and its conditional-GET cases, a size bound per document, and
+    what no answer means (§ Transport).
+  - `contract/vocabulary.json`, `vocabulary()`: the word for each display state,
+    and the pairing fields' names.
+  - `client-heartbeat.v1`: optional `settings_url`, with two valid and five
+    invalid fixtures, and `server_must_refuse` on every invalid client
+    heartbeat's index row (§ Transport).
+  - `heartbeat.v1`: `television_reachable`, `television_showing_art`,
+    `has_label_surface` and `label_surface_working` described as superseded,
+    still required (§ The heartbeat).
+  - `client.v1`: a fixture of a Player with several labels and no walls, and its
+    twin.
+  - `manifest.v2`: a fixture whose `url` names another host, and its twin, an
+    empty `url`, which a Player must refuse. Its title and description no longer
+    call it a draft nothing reads.
+  - `vectors/mat-geometry.json`: `defaults.bottom_weight`, and its `_about`
+    corrected to name what holds the vectors today.
+  - `contract/released/1.0.0/` and `1.1.0/`, `released()`, and the check above.
+  - The package's source checks clean under `mypy --strict`.
+  - This file: § Transport points at the table, says what a `404` on a master
+    and the client document's tag mean, and no longer promises what a
+    Library/Programming split would require (§ Transport, media).
+
+### What a Player does at 1.2.0
+
+**Nothing a Player reads, writes or requests must change.** Every document a
+1.1.0 Player writes is still valid, every document a 1.1.0 server sends still
+is, and no route moved (`contract/tests/test_released.py`). One thing a Player's
+suite must do, if it holds every must-refuse fixture to a stated reason as Arrt
+Player's does: give one to the new must-refuse fixture,
+`manifest.v2/invalid/media-url-empty.json`, which Arrt Player's reader already
+refuses ("carries no media with a sha256 and a url"). A Player moving its pin to
+`contract-v1.2.0` may:
+
+- answer its server double from `transport()` rather than its own reading of
+  this section, and replay `conditional_get.cases` against it;
+- cap a document's read at its route's `max_bytes`, keeping what it has past it;
+- send `settings_url` in its client heartbeat, from the address its settings page
+  is bound to, and leave it out when the page is bound to loopback;
+- quote `vocabulary()` for its settings page's state words and its two pairing
+  fields' labels, with a test against the package;
+- read its default bottom weight from `vectors/mat-geometry.json`'s `defaults`;
+- stop reading the four superseded wall-heartbeat fields, which it keeps writing
+  until heartbeat major 2;
+- run its parsers and its writers over the new fixtures, and over
+  `released()`'s, to hold itself to what an older server sent.
 
 ## Major 1
 
@@ -149,8 +219,20 @@ written it since wave 2b Chunk 03, omitting `media` for a render whose file it c
   spelling is fixed for that reason: it is the schema's one required `date-time`
   property (`instant_key` in the package), and each side's suite holds its own
   constant to it.
-- **`has_label_surface` is never null.** It separates a Player with no panel from
-  a Player whose panel has not drawn yet, a distinction `null` used to blur.
+- **`has_label_surface` is never null.** It separates a wall controller with no
+  label surface from one whose surface has not drawn yet, a distinction `null`
+  used to blur.
+- **Four fields are superseded, and still required (contract 1.2.0).**
+  `television_reachable` and `television_showing_art` by `display_state`
+  (minor 3), which says what any display is doing; `has_label_surface` and
+  `label_surface_working` by the client heartbeat's `label_outputs`, which
+  reports every label output a Player holds, with `connected` for each. A wall
+  heartbeat speaks for one wall's controller, so its two label fields can never
+  say how many labels a Player has: a Player may hold several label outputs, or
+  labels and no display at all (`labels-and-surfaces.md` § The recorded limit).
+  A reader may stop reading the four; a writer keeps writing them, because a
+  required key made optional is a writer change an older reader refuses. They go
+  at heartbeat major 2, which nothing needs yet.
 - **Written every 60 seconds.** On the file channel that is an SD-card wear
   budget. Over HTTP it stays, because it sits under the shortest rotation
   interval with margin. The number, and the three intervals after which a report
@@ -164,6 +246,17 @@ always pulls, and refuses a configuration that asks otherwise. Over HTTP, a Play
 **client** (`clients.md`): an installed Player with one token, driving any number
 of walls, each on one of its outputs. It learns its walls from the server.
 
+**`contract/transport.json` is this section's statement as data** (`transport()`
+in the package, since 1.2.0): for every route in `routes.json`, each answer a
+Player may meet, with its status, its body, what the server means by it and what
+a Player does on meeting it; the ETag rule and its conditional-GET cases; a size
+bound for each document; and what no answer, or any `5xx`, means. Arrt's suite
+drives a real server through every row (`arrt/tests/contract/test_transport_table.py`),
+so where the table below and the file differ, the file is what the server
+answers, and the difference is a fault in this text. A status a route answers
+that no row names is read by its class: a `5xx` as no answer, any other `4xx` on
+a `GET` as a configuration error, and on a `POST` as that route's `400`.
+
 | Route | Body | Answers |
 |---|---|---|
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
@@ -171,7 +264,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
 | `GET /walls/{wall_id}/manifest/v{major}` | none | `200` with the wall's manifest at that major (decimal, no leading zero) and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. `404` for a major the server does not publish for this wall, which since wave 4g is every major but 2, and for a wall with nothing hung (§ The cutover). Named in `contract/routes.json` (`manifest_major`). *(Wave 4g: the unversioned `GET /walls/{wall_id}/manifest`, major 1's original spelling, is retired and answers `404`.)* |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
-| `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
+| `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204`; `400` naming the problem for a JSON object that is not a heartbeat this server can read; `422`, in the web framework's own body rather than the error shape, for a body that is not JSON or not an object (`transport.json`, `not_an_object`) |
 
 - **Every request carries the client's token** as `Authorization: Bearer <token>`.
   Arrt issues one per client, shows it once and keeps only a verifier. A
@@ -193,6 +286,25 @@ of walls, each on one of its outputs. It learns its walls from the server.
 - **A client learns its walls; the host is not told them.** Assigning a wall to
   a client, or taking one away, changes `GET /client`'s document and so its
   `ETag`; the client starts or stops showing that wall on its next poll.
+- **An `ETag` is a function of the body's bytes alone, and a document's bytes
+  change if and only if its content does** (since 1.2.0, `transport.json`
+  `conditional_get`). The server writes each document the same way every time,
+  so an unchanged client document, feed or label keeps its tag, and `304` is
+  answered only when `If-None-Match` names the tag of the very document that
+  would be sent: a changed document always answers `200` with a new tag. A
+  Player never computes a tag; it sends back the last one it was given.
+- **A `404` for a master the feed names means the server does not hold those
+  bytes, and it is final for that feed** (since 1.2.0). A Player skips the work
+  and need not ask for that hash again until it adopts a changed feed; a home
+  wall's feed changes at least once a day, when its horizon rolls.
+- **A client may say where its settings page is** (since 1.2.0): the client
+  heartbeat's optional `settings_url`, an absolute `http` or `https` URL with no
+  user information, query or fragment, as the Player can be reached on the
+  network it reaches the server from, and absent when the page is bound to
+  loopback. The schema's pattern is the check. The server shows it only as a
+  link, only after that check, and never as markup; a value that fails it is
+  shown as no link and the rest of the report is kept, which the fixture index
+  records as `server_must_refuse: false` on each of its invalid fixtures.
 - **The output is a name the client chose and reported.** A wall is placed on
   `hdmi-a-1` or `frame` by that name. The server keeps only the name; the
   output's kind, whether it is connected and its size stay on the client, which
@@ -231,7 +343,9 @@ of walls, each on one of its outputs. It learns its walls from the server.
   on it is still identified; it is asked again on each report until it answers
   and then kept, and a failure is said once per episode. A configured panel is
   the label output `epd-0`, `connected: false` when it would not open or its
-  last draw failed. While the server cannot be reached (no answer, a timeout, a
+  last draw failed; one panel per Player is the limit Arrt Player is built to
+  today, recorded by the owner's ruling of 2026-11-19, and nothing in this
+  contract assumes it (`labels-and-surfaces.md` § The recorded limit). While the server cannot be reached (no answer, a timeout, a
   `5xx`), the renderer reads its last document as `unreachable` from the last
   instant the server answered, holding a caption and nothing else; a refusal or
   an unreadable document keeps the last one as it is. It redraws only when the
@@ -240,18 +354,26 @@ of walls, each on one of its outputs. It learns its walls from the server.
   panel as it was.
 - **Media is identified by the SHA-256 of its bytes and located by its `url`.**
   The manifest gives `url`, `sha256`, `bytes` and `content_type`. The `url` is
-  a URI reference resolved against the manifest's own URL. Today it is
-  `/media/sha256-<hex>` on the same server; after a Library/Programming split it
-  may name the Library's host, and no Player changes. The Player verifies the
+  a URI reference resolved against the manifest's own URL. Arrt writes
+  `/media/sha256-<hex>`: media is served by this server, on the route above, and
+  admitted by any client's valid token. A `url` may still be absolute and name
+  another host, and a Player must read one; what it sends there is its own
+  choice (Arrt Player sends its token only to the server's own origin). Nothing
+  here promises how media would be served or admitted if the server were ever
+  split: no such split is planned (the owner, 2026-11-19,
+  `.prawduct/owner-rulings.md`). The Player verifies the
   bytes against `sha256` and discards a mismatch. So a corrupted transfer, or a
   `url` that disagrees with its hash, is never shown.
 - **`url` is an RFC 3986 URI reference, relative or absolute, and that is the
   writer's obligation.** The schemas mark it `format: uri-reference`, which no
   validator installed here checks, so a malformed `url` passes the schema. A
   pattern would either reject real references or check nothing, so the rule is
-  stated here instead. The fixture `minor-2-media-on-another-host` carries an
-  absolute `url`, which is what a manifest looks like once the Library serves
-  media from its own host.
+  stated here instead. The valid fixture `manifest.v2/valid/media-on-another-host`
+  carries an absolute `url` on another host, so every Player's reader is held to
+  reading one, and its twin `media-url-empty` an empty one, which a Player must
+  refuse. *(Since 1.2.0. Until then this named `minor-2-media-on-another-host`, a
+  major 1 fixture that retired with major 1 in wave 4g and left no major 2
+  fixture in its place.)*
 - **Every failure keeps the cache.** Transport errors, timeouts and `5xx` mean
   the server is unreachable: the Player backs off and keeps showing what it
   has. `401`, `403` and a `404` on the wall are configuration errors, stated
@@ -377,7 +499,9 @@ holds them to a reference statement of these rules
 What a Player draws for one work on one screen, as numbers. The vectors are
 `contract/vectors/mat-geometry.json`; the reference statement is in
 `contract/tests/test_vectors.py`, and Arrt Player's compositor is
-held to them in `arrt-player:tests/test_compose.py`. *(Wave 4g: Arrt's own
+held to them in `arrt-player:tests/test_compose.py`. In Arrt, the box a work is
+judged too small against (`programming/adequacy.py`) and the browser's drawing of
+a wall (`http/static/core/mat.js`) are held to them too. *(Wave 4g: Arrt's own
 compositor, which drew the `proportional` vectors with a density on the Frame
 from wave 2, retired with major 1, and its check with it.)*
 
@@ -386,7 +510,9 @@ from wave 2, retired with major 1, and its check with it.)*
   takes **6% of the screen's shorter side** (the owner, 2026-10-08), which on a
   50" Frame is within a few pixels of 1.5 inches. That is the side and top
   margin, rounded half up to whole pixels; the bottom is that rounded margin
-  times the Player's bottom weight, rounded half up again.
+  times the Player's bottom weight, **1.15 by default** (`defaults.bottom_weight`
+  in the vectors, since 1.2.0, which is also the weight the server judges a
+  work's size with), rounded half up again.
 - **The box** is the screen less the side margins, the top margin and the
   bottom margin, at least a pixel each way. The work is scaled to fit it,
   **never up**, rounded half up, and centred in the box, an odd pixel left over

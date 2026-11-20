@@ -1,0 +1,280 @@
+{
+  "_about": "What each route in routes.json answers, and what each answer means to a Player (player-contract.md § Transport, which this file states as data). One row per answer a Player may meet: its case name, its status, which body comes with it, what the server means by it, and what a Player does on meeting it. Arrt's suite drives a real server through every row (arrt/tests/contract/test_transport_table.py), so a row is what the server answers, not what it was meant to; Arrt Player's server double answers from these rows. A status a route answers that no row names is read by its class: any 5xx as unanswered, any other 4xx on a GET as a configuration error, and on a POST as the route's 400. body is one of: document (the route's schema, below), error (the error_body shape), framework (a body the server's web framework writes, not the error shape), media (the bytes a hash names), none.",
+  "size_bounds": {
+    "description": "A route's max_bytes is the largest document the server sends on it, in bytes of body. A Player may stop reading past it and treat the answer as unreadable, keeping what it has. The server's obligation, not yet a guard of its publisher: a client or label document is a few kilobytes, and a home wall's feed at the default three-minute rotation is about 1,440 slots of about 130 bytes for its three-day horizon plus about a kilobyte a work (reasoned from the fixtures' sizes, not measured on a household), so 16 MiB is reached only past 100,000 slots, a rotation of a few seconds. Media has no bound here: its length is the feed's bytes for that hash."
+  },
+  "error_body": {
+    "description": "Every refusal a row marks body: error carries a JSON object with one key, error: a sentence written for a person, which a Player may write to its journal and never parses. It never names the token that was presented.",
+    "required": ["error"]
+  },
+  "conditional_get": {
+    "routes": ["client", "label", "manifest_major"],
+    "etag": "Every 200 and 304 of these routes carries a strong ETag that is a function of the body's bytes alone: the same bytes always carry the same tag and different bytes a different one. This server sends the quoted lowercase hex SHA-256 of the body; a Player never computes a tag, it only sends back the last one it was given, in If-None-Match. The server writes each document the same way every time, so a document's tag changes if and only if its content does: an unchanged client document, feed or label keeps its tag, and an assignment, a feed or a label that changed never answers 304. Each also carries Cache-Control: no-cache.",
+    "cases": [
+      {
+        "name": "a first request sends no tag and is answered with the document",
+        "document": "A",
+        "if_none_match": null,
+        "status": 200,
+        "etag": "etag(A)"
+      },
+      {
+        "name": "the tag of the document that would be sent answers 304 with no body",
+        "document": "A",
+        "if_none_match": "etag(A)",
+        "status": 304,
+        "etag": "etag(A)"
+      },
+      {
+        "name": "a changed document answers 200 with its new tag, whatever tag was sent",
+        "document": "B",
+        "if_none_match": "etag(A)",
+        "status": 200,
+        "etag": "etag(B)"
+      },
+      {
+        "name": "a tag the server never sent for this document answers 200",
+        "document": "A",
+        "if_none_match": "\"a-tag-this-server-never-sent\"",
+        "status": 200,
+        "etag": "etag(A)"
+      }
+    ]
+  },
+  "unanswered": {
+    "status_class": "5xx",
+    "body": "framework",
+    "means": "No answer, a timeout, a dropped connection or any 5xx, on any route: the server cannot answer now. Nothing a Player sent is known to be recorded.",
+    "player": "Keep everything it has and back off: the wall goes on showing what it holds, a label renderer reads its last document as unreachable from the last instant the server answered, and a heartbeat is sent again on its next interval."
+  },
+  "routes": {
+    "client": {
+      "schema": "schemas/client.v1.schema.json",
+      "max_bytes": 1048576,
+      "answers": [
+        {
+          "case": "ok",
+          "status": 200,
+          "body": "document",
+          "means": "The client document: this client's walls, each on one of its outputs, and its labels that caption a wall, with an ETag.",
+          "player": "Adopt it: start a worker for each wall and a renderer for each label it lists, on the output it names, and stop any it no longer lists."
+        },
+        {
+          "case": "unchanged",
+          "status": 304,
+          "body": "none",
+          "means": "If-None-Match named the tag of the document that would be sent (§ conditional_get).",
+          "player": "Keep the document it holds."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold: never issued, rotated out, or its client removed.",
+          "player": "A configuration error: say so once, keep what it has, and keep asking."
+        }
+      ]
+    },
+    "client_heartbeat": {
+      "request_schema": "schemas/client-heartbeat.v1.schema.json",
+      "answers": [
+        {
+          "case": "accepted",
+          "status": 204,
+          "body": "none",
+          "means": "The report is kept, and the client's displays and label outputs brought up to it.",
+          "player": "Nothing to do until the report changes or its interval comes round."
+        },
+        {
+          "case": "not_json",
+          "status": 400,
+          "body": "error",
+          "means": "The body is not JSON. Nothing is recorded.",
+          "player": "The same bytes get the same answer: say so once, and send again when the report changes."
+        },
+        {
+          "case": "not_a_client_heartbeat",
+          "status": 400,
+          "body": "error",
+          "means": "JSON the server cannot read as a client heartbeat, including two outputs, or two label outputs, of one name; the sentence names the problem. Nothing is recorded. The index's server_must_refuse says which of the schema's invalid fixtures the server refuses this way.",
+          "player": "The same bytes get the same answer: say so once, and send again when the report changes."
+        },
+        {
+          "case": "too_large",
+          "status": 413,
+          "body": "error",
+          "means": "The body is over this server's limit, refused before it is parsed, whatever token came with it. Nothing is recorded. The limit is the server's, not the contract's, and no number is stated here.",
+          "player": "As for 400."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold. Nothing is recorded.",
+          "player": "A configuration error: say so once and keep sending on its interval."
+        }
+      ]
+    },
+    "manifest_major": {
+      "schema": "schemas/manifest.v2.schema.json",
+      "max_bytes": 16777216,
+      "answers": [
+        {
+          "case": "ok",
+          "status": 200,
+          "body": "document",
+          "means": "The wall's feed at the major asked for, with an ETag.",
+          "player": "Adopt it if it reads it (a refused feed keeps the last good one), and keep this major."
+        },
+        {
+          "case": "unchanged",
+          "status": 304,
+          "body": "none",
+          "means": "If-None-Match named the tag of the feed that would be sent (§ conditional_get).",
+          "player": "Keep the feed it holds."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold.",
+          "player": "A configuration error: say so once and keep showing what it has."
+        },
+        {
+          "case": "not_this_clients_wall",
+          "status": 403,
+          "body": "error",
+          "means": "A valid token, on a wall not assigned to its client or one the server does not hold.",
+          "player": "Not this client's wall: say so once and keep showing what it has until its client document stops listing the wall."
+        },
+        {
+          "case": "major_not_published",
+          "status": 404,
+          "body": "error",
+          "means": "No feed at this major is published for this wall: since wave 4g, every major but 2, under any spelling but the decimal one.",
+          "player": "Ask for the next major down that it reads. The wall is misconfigured only when every major it reads answers 404 (player-contract.md § The cutover)."
+        },
+        {
+          "case": "nothing_hung",
+          "status": 404,
+          "body": "error",
+          "means": "The wall has nothing hung on it, so no feed is published at any major.",
+          "player": "As for major_not_published, from which it cannot be told apart: every major answers 404, so the wall is misconfigured, and the Player keeps what it has."
+        }
+      ]
+    },
+    "media": {
+      "answers": [
+        {
+          "case": "ok",
+          "status": 200,
+          "body": "media",
+          "means": "The bytes whose SHA-256 is the name, exactly the feed's bytes long, with Cache-Control: public, max-age=31536000, immutable. A hash never serves different bytes.",
+          "player": "Check the bytes against the feed's sha256 and discard a mismatch; keep a match as long as it likes. A Player may stop reading past the feed's bytes."
+        },
+        {
+          "case": "not_held",
+          "status": 404,
+          "body": "error",
+          "means": "The server holds no bytes of that hash, or the name is not 64 lowercase hex digits.",
+          "player": "Skip the work and keep rotating. It is final for the feed that named it: a Player need not ask for that hash again until it adopts a changed feed, and a home wall's feed changes at least once a day, when its horizon rolls."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold. Any client's valid token opens any hash, whatever walls it drives.",
+          "player": "A configuration error: say so once and keep showing what it has."
+        }
+      ]
+    },
+    "heartbeat": {
+      "request_schema": "schemas/heartbeat.v1.schema.json",
+      "answers": [
+        {
+          "case": "accepted",
+          "status": 204,
+          "body": "none",
+          "means": "The wall's report is kept where Walls reads it.",
+          "player": "Nothing to do until the report changes or its interval comes round."
+        },
+        {
+          "case": "not_a_heartbeat",
+          "status": 400,
+          "body": "error",
+          "means": "A JSON object the server cannot read as a wall heartbeat; the sentence names the problem. Nothing is recorded.",
+          "player": "The same bytes get the same answer: say so once, and send again when the report changes."
+        },
+        {
+          "case": "not_an_object",
+          "status": 422,
+          "body": "framework",
+          "means": "The body is not JSON, or JSON that is not an object. The server's web framework refuses it before the route reads it, in its own body ({\"detail\": [...]}) rather than the error shape, which the client heartbeat's route answers as 400. Nothing is recorded.",
+          "player": "As for 400."
+        },
+        {
+          "case": "too_large",
+          "status": 413,
+          "body": "error",
+          "means": "The body is over this server's limit, refused before it is parsed, whatever token came with it. Nothing is recorded. The limit is the server's, not the contract's.",
+          "player": "As for 400."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold. Nothing is recorded.",
+          "player": "A configuration error: say so once and keep sending on its interval."
+        },
+        {
+          "case": "not_this_clients_wall",
+          "status": 403,
+          "body": "error",
+          "means": "A valid token, on a wall not assigned to its client or one the server does not hold. Nothing is recorded.",
+          "player": "Not this client's wall: say so once, and stop when its client document stops listing the wall."
+        }
+      ]
+    },
+    "label": {
+      "schema": "schemas/label.v1.schema.json",
+      "max_bytes": 1048576,
+      "answers": [
+        {
+          "case": "ok",
+          "status": 200,
+          "body": "document",
+          "means": "The label document: the state of the wall this label output captions, and the text it would show, with an ETag.",
+          "player": "Run the label rule over it (vectors/label-rule.json) and redraw only if the drawing would change."
+        },
+        {
+          "case": "unchanged",
+          "status": 304,
+          "body": "none",
+          "means": "If-None-Match named the tag of the document that would be sent (§ conditional_get).",
+          "player": "Keep the document it holds; the rule's 30-minute hold still runs on it."
+        },
+        {
+          "case": "no_valid_token",
+          "status": 401,
+          "body": "error",
+          "means": "No bearer token, or one this server does not hold.",
+          "player": "A refusal: keep the last document as it is and say so once."
+        },
+        {
+          "case": "not_this_clients_label",
+          "status": 403,
+          "body": "error",
+          "means": "A valid token, on a label output its client does not hold, or one the server does not.",
+          "player": "A refusal: keep the last document as it is and say so once."
+        },
+        {
+          "case": "captions_no_wall",
+          "status": 404,
+          "body": "error",
+          "means": "The client's own label output, which captions no wall. Its client document does not list it.",
+          "player": "A refusal: keep the last document as it is; the client stops the renderer when its client document no longer lists the label."
+        }
+      ]
+    }
+  }
+}

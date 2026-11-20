@@ -1,0 +1,7 @@
+# The Arrt Player commit `test_a_real_player.py` runs: one 40-hex commit of
+# https://github.com/brookstalley/arrt-player, on a line of its own.
+#
+# The merge of the Player's wave 2 into its `develop` (its pull request 51), which
+# added the file outputs the test reads. Move it to the Player's release tag's
+# commit when one is cut; a commit stays the pin, because a tag can be moved.
+aeeec7e44fe537d62ede82b125ab3d9cc47e3ab4

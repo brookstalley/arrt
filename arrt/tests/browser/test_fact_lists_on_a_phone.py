@@ -14,6 +14,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.discovery_records import RunStatus, WorkProvenance
 
 #: Every word of every fact list's labels and values whose line boxes sit on more
@@ -49,7 +51,7 @@ def at_phone_width(ui):
 
 
 def measured(ui, *, at_least):
-    assert ui.page.locator("#view dl.facts dd").count() >= at_least, "the measurement found no facts to measure"
+    expect(ui.page.locator("#view dl.facts dd").nth(at_least - 1), "the measurement found no facts to measure").to_be_attached()
     assert ui.page.evaluate(BROKEN_WORDS) == []
     assert ui.page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth") <= 0
 

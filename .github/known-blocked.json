@@ -1,0 +1,40 @@
+{
+  "blocked": [
+    {
+      "test": "tests/live/test_artic_shapes_are_still_real.py::test_the_resolved_image_service_is_really_a_iiif_endpoint",
+      "issue": 110,
+      "expires": "2027-01-18",
+      "reason": "The Art Institute's IIIF host answers 403 Forbidden to the CI runner (run 43902569784, 2026-11-16, on info.json). Whether the museum changed or is refusing the runner's address is not established; the 2026-10-02 triage on #110 calls that the research question."
+    },
+    {
+      "test": "tests/live/test_artic_shapes_are_still_real.py::test_the_search_response_still_carries_the_masters_dimensions_not_the_previews",
+      "issue": 110,
+      "expires": "2027-01-18",
+      "reason": "Red on 2026-09-28 (per the triage on its issue) and in run 43902569784, 2026-11-16: `assert None is not None`. Cause not established: #110's triage suggests the same refusal as the 403 above, an inference nobody has checked from another network."
+    },
+    {
+      "test": "tests/live/test_artic_shapes_are_still_real.py::test_every_iiif_response_is_still_843_pixels_wide",
+      "issue": 110,
+      "expires": "2027-01-18",
+      "reason": "Red on 2026-09-28 (per the triage on its issue) and in run 43902569784, 2026-11-16: `object of type 'NoneType' has no len()`. Cause not established: #110's triage suggests the same refusal as the 403 above, an inference nobody has checked from another network."
+    },
+    {
+      "test": "tests/live/test_dezoomify_contract_still_holds.py::test_a_real_tiled_fetch_produces_a_readable_image",
+      "issue": 109,
+      "expires": "2027-01-18",
+      "reason": "Red on 2026-09-28 (per the triage on its issue) and in run 43902569784, 2026-11-16: dezoomer error, no discovery candidate accepted the input. #109's triage suggests the same Art Institute IIIF refusal as #110; that is an inference, not checked: it needs the probe run from another network."
+    },
+    {
+      "test": "tests/live/test_dezoomify_contract_still_holds.py::test_the_staged_name_keeps_an_extension_the_binary_can_encode_to",
+      "issue": 109,
+      "expires": "2027-01-18",
+      "reason": "Red on 2026-09-28 (per the triage on its issue) and in run 43902569784, 2026-11-16: `assert None is not None` on the fetch's path, the same dezoomer error. #109's triage suggests the same Art Institute IIIF refusal as #110; that is an inference, not checked."
+    },
+    {
+      "test": "tests/live/test_dezoomify_contract_still_holds.py::test_the_tile_cache_is_populated_when_the_directory_exists",
+      "issue": 109,
+      "expires": "2027-01-18",
+      "reason": "Red on 2026-09-28 (per the triage on its issue) and in run 43902569784, 2026-11-16: `assert False`, the same dezoomer error behind it. #109's triage suggests the same Art Institute IIIF refusal as #110; that is an inference, not checked."
+    }
+  ]
+}

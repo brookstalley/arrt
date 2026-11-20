@@ -407,7 +407,7 @@ class SmkFinder:
                 numbered.setdefault(number.casefold(), (number, page))
         known = False
         found: list[FoundImage] = []
-        for number, page in list(numbered.values())[:_RESULT_LIMIT]:
+        for number, spelt in list(numbered.values())[:_RESULT_LIMIT]:
             record = self._api.object(number)
             if record is None:
                 log.warning(
@@ -416,7 +416,7 @@ class SmkFinder:
                 )
                 continue
             known = True
-            image = self._image(record, url=page)
+            image = self._image(record, url=spelt)
             if image is not None:
                 found.append(image)
         return found if known else None
@@ -444,7 +444,13 @@ class SmkFinder:
             page = record.get("frontend_url")
             number = object_number(page) if isinstance(page, str) else None
             answered = record.get("object_number")
-            if number is None or not isinstance(answered, str) or number.casefold() != answered.casefold():
+            # `number` is None whenever `page` is not a str: the first test only tells the checker so.
+            if (
+                not isinstance(page, str)
+                or number is None
+                or not isinstance(answered, str)
+                or number.casefold() != answered.casefold()
+            ):
                 # Reported under a page the reader could not read back to this object.
                 log.warning(
                     "skipping an SMK search hit whose page is not the shape measured",

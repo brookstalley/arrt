@@ -15,6 +15,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     RegistryArtist,
@@ -72,8 +73,9 @@ def rothko(services, service):
 
 
 def _similar(ui):
+    """The section's rows, once it has answered: `to_have_text([...])` folds each row's breaks to spaces."""
     ui.page.wait_for_selector("section[aria-labelledby='similar-artists'] ul, section[aria-labelledby='similar-artists'] p.note")
-    return [" ".join(t.split()) for t in ui.page.locator("section[aria-labelledby='similar-artists'] li").all_inner_texts()]
+    return ui.page.locator("section[aria-labelledby='similar-artists'] li")
 
 
 class TestSimilarArtists:
@@ -81,10 +83,13 @@ class TestSimilarArtists:
         artist, _work = rothko
         ui.open(f"#artist/{artist.id}")
 
-        assert _similar(ui) == [
-            "Jackson Pollock 1912–1956 · 0 works with an image ○ Not held",
-            "Barnett Newman 1905–1970 · 17 works with an image ○ Not held",
-        ]
+        expect(_similar(ui)).to_have_text(
+            [
+                "Jackson Pollock 1912–1956 · 0 works with an image ○ Not held",
+                "Barnett Newman 1905–1970 · 17 works with an image ○ Not held",
+            ],
+            use_inner_text=True,
+        )
         ui.page.click("section[aria-labelledby='similar-artists'] a:has-text('Jackson Pollock')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#artist/${qid}`", arg=POLLOCK)
 
@@ -92,7 +97,7 @@ class TestSimilarArtists:
         artist, _work = rothko
         ui.open(f"#artist/{POLLOCK}")
 
-        assert _similar(ui) == ["Mark Rothko 1903–1970 · 1 work with an image ● In your library"]
+        expect(_similar(ui)).to_have_text(["Mark Rothko 1903–1970 · 1 work with an image ● In your library"], use_inner_text=True)
         ui.page.click("section[aria-labelledby='similar-artists'] a:has-text('Mark Rothko')")
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=artist.id)
 
@@ -102,7 +107,9 @@ class TestSimilarArtists:
         ui.open(f"#artist/{artist.id}")
         _similar(ui)
 
-        assert "could not be asked" in ui.page.locator("section[aria-labelledby='similar-artists'] p.note").inner_text()
+        expect(ui.page.locator("section[aria-labelledby='similar-artists'] p.note")).to_contain_text(
+            "could not be asked", use_inner_text=True
+        )
 
     def test_an_artist_with_no_item_has_no_section(self, ui, service):
         nobody = service.add_artist(name="Unmatched Painter")
@@ -110,7 +117,8 @@ class TestSimilarArtists:
         ui.open(f"#artist/{nobody.id}")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] p.note")
 
-        assert ui.page.locator("section[aria-labelledby='similar-artists']").count() == 0
+        # Anchored by the artist's own work section, which has answered.
+        expect(ui.page.locator("section[aria-labelledby='similar-artists']")).to_have_count(0)
 
 
 # Where the control is: in place on the Artist page, and on the Work page in
@@ -132,14 +140,13 @@ def _look_up(ui, typed, at=ARTIST):
     ui.page.fill(f"{at} input", typed)
     ui.page.click(f"{at} button:has-text('Look up')")
     ui.page.wait_for_function("(at) => !document.querySelector(`${at} [aria-live]`).textContent.startsWith('Asking')", arg=at)
-    return ui.page.locator(f"{at} [aria-live]").inner_text()
+    return ui.page.locator(f"{at} [aria-live]")
 
 
 def _work_item(ui):
-    """The Wikidata item the Work page states once the dialog has closed and it repainted."""
+    """The Wikidata item the Work page states, once the dialog has closed: none stated is `to_have_count(0)`."""
     ui.page.wait_for_selector("dialog.panel-dialog[open]", state="detached")
-    item = ui.page.locator("#view .work-label dt:text-is('Wikidata') + dd")
-    return item.inner_text() if item.count() else None
+    return ui.page.locator("#view .work-label dt:text-is('Wikidata') + dd")
 
 
 class TestSettingAnItemByHand:
@@ -152,17 +159,18 @@ class TestSettingAnItemByHand:
         ui.open(f"#artist/{artist.id}")
         ui.page.wait_for_selector("#view .identity button:has-text('Edit')")
 
-        assert ui.page.locator("#view .identity button:visible").all_inner_texts() == ["Edit"]
-        assert ui.page.locator("#view .identity input").is_hidden()
-        assert ui.page.locator("#view .identity button:has-text('There is none')").is_hidden()
-        assert ui.page.get_attribute("#view .identity button:has-text('Edit')", "aria-expanded") == "false"
+        # Anchored by the wait above for the Edit button, which only the settled page has.
+        expect(ui.page.locator("#view .identity button:visible")).to_have_text(["Edit"], use_inner_text=True)
+        expect(ui.page.locator("#view .identity input")).to_be_hidden()
+        expect(ui.page.locator("#view .identity button:has-text('There is none')")).to_be_hidden()
+        expect(ui.page.locator("#view .identity button:has-text('Edit')")).to_have_attribute("aria-expanded", "false")
 
         _open_control(ui)
 
-        assert ui.page.locator("#view .identity input").is_visible()
-        assert ui.page.locator("#view .identity button:has-text('Look up')").is_visible()
-        assert ui.page.locator("#view .identity button:has-text('There is none')").is_visible()
-        assert ui.page.get_attribute("#view .identity button:has-text('Edit')", "aria-expanded") == "true"
+        expect(ui.page.locator("#view .identity input")).to_be_visible()
+        expect(ui.page.locator("#view .identity button:has-text('Look up')")).to_be_visible()
+        expect(ui.page.locator("#view .identity button:has-text('There is none')")).to_be_visible()
+        expect(ui.page.locator("#view .identity button:has-text('Edit')")).to_have_attribute("aria-expanded", "true")
 
     def test_on_a_work_the_control_is_open_in_its_dialog_and_says_the_item(self, ui, rothko):
         """Ruling 8 puts Match on Wikidata behind ⋯: the dialog was the asking, so
@@ -171,26 +179,29 @@ class TestSettingAnItemByHand:
         ui.open(f"#work/{work.id}")
         ui.page.wait_for_selector(".page-toolbar .action-menu-trigger")
 
-        assert ui.page.locator("#view .identity").count() == 0
-        assert _work_item(ui) == HELD_ROTHKO
+        expect(_work_item(ui)).to_have_text(HELD_ROTHKO, use_inner_text=True)
+        # Anchored by the work's own facts above, which have been drawn.
+        expect(ui.page.locator("#view .identity")).to_have_count(0)
         _open_control(ui, WORK)
 
-        assert "Wikidata: Q20270685 (set by you)" in ui.page.locator(WORK).inner_text()
-        assert ui.page.locator(f"{WORK} button:has-text('Edit')").count() == 0
-        assert ui.page.locator(f"{WORK} button:has-text('Look up')").is_visible()
-        assert ui.page.locator(f"{WORK} button:has-text('There is none')").is_visible()
+        expect(ui.page.locator(WORK)).to_contain_text("Wikidata: Q20270685 (set by you)", use_inner_text=True)
+        expect(ui.page.locator(f"{WORK} button:has-text('Edit')")).to_have_count(0)
+        expect(ui.page.locator(f"{WORK} button:has-text('Look up')")).to_be_visible()
+        expect(ui.page.locator(f"{WORK} button:has-text('There is none')")).to_be_visible()
 
     def test_a_work_item_is_shown_before_it_is_stored(self, ui, service, rothko):
         _artist, work = rothko
         ui.open(f"#work/{work.id}")
         _open_control(ui, WORK)
 
-        assert _look_up(ui, "q500985", WORK) == "Q500985 is “The Hunters in the Snow”, by Pieter Brueghel the Elder (1565)."
+        expect(_look_up(ui, "q500985", WORK)).to_have_text(
+            "Q500985 is “The Hunters in the Snow”, by Pieter Brueghel the Elder (1565).", use_inner_text=True
+        )
         # Shown, not yet stored.
         assert service.get_artwork(work.id).artwork.wikidata_qid == HELD_ROTHKO
         ui.page.click(f"{WORK} button:has-text('Use Q500985')")
 
-        assert _work_item(ui) == HUNTERS
+        expect(_work_item(ui)).to_have_text(HUNTERS, use_inner_text=True)
         assert service.get_artwork(work.id).artwork.wikidata_qid == HUNTERS
         # Back on ⋯, which opened the dialog the page repainted under.
         assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')").startswith("More acts on ")
@@ -207,8 +218,8 @@ class TestSettingAnItemByHand:
         ui.open(f"#work/{work.id}")
         _open_control(ui, WORK)
 
-        assert _look_up(ui, typed, WORK) == said
-        assert ui.page.locator(f"{WORK} button:has-text('Use ')").is_hidden()
+        expect(_look_up(ui, typed, WORK)).to_have_text(said, use_inner_text=True)
+        expect(ui.page.locator(f"{WORK} button:has-text('Use ')")).to_be_hidden()
 
     def test_there_is_none_is_confirmed_and_clears_the_held_mark(self, ui, service, rothko):
         artist, work = rothko
@@ -217,12 +228,13 @@ class TestSettingAnItemByHand:
         ui.page.click(f"{WORK} button:has-text('There is none')")
         ui.page.click("dialog.confirm button:has-text('There is none')")
 
-        assert _work_item(ui) is None
+        # Once the dialog is closed and the page repainted: it held an item before, so this waits for it to go.
+        expect(_work_item(ui)).to_have_count(0)
         assert service.get_artwork(work.id).artwork.wikidata_qid is None
 
         ui.open(f"#artist/{artist.id}")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
-        assert ui.page.locator("section[aria-labelledby='their-work'] .badge-held").count() == 0
+        expect(ui.page.locator("section[aria-labelledby='their-work'] .badge-held")).to_have_count(0)
 
     def test_cancelling_there_is_none_changes_nothing(self, ui, service, rothko):
         _artist, work = rothko
@@ -231,13 +243,15 @@ class TestSettingAnItemByHand:
         ui.page.click(f"{WORK} button:has-text('There is none')")
         ui.page.click("dialog.confirm button:has-text('Cancel')")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
-        ui.page.wait_for_timeout(300)
+        # Cancelling changes nothing, and nothing on the page marks a write that did not happen:
+        # the service is asked after a pause long enough for one to have landed.
+        ui.page.wait_for_timeout(300)  # sleep: proves a cancelled change is not stored for a while
 
         assert service.get_artwork(work.id).artwork.wikidata_qid == HELD_ROTHKO
-        assert "Wikidata: Q20270685 (set by you)" in ui.page.locator(WORK).inner_text()
+        expect(ui.page.locator(WORK)).to_contain_text("Wikidata: Q20270685 (set by you)", use_inner_text=True)
         # Escape closes Match on Wikidata… and nothing has changed.
         ui.page.keyboard.press("Escape")
-        assert _work_item(ui) == HELD_ROTHKO
+        expect(_work_item(ui)).to_have_text(HELD_ROTHKO, use_inner_text=True)
         assert service.get_artwork(work.id).artwork.wikidata_qid == HELD_ROTHKO
 
     def test_an_item_another_artist_holds_is_refused_with_why(self, ui, services, service, rothko):
@@ -246,8 +260,10 @@ class TestSettingAnItemByHand:
         ui.open(f"#artist/{other.id}")
         _open_control(ui)
 
-        assert _look_up(ui, ROTHKO) == f"Another artist in your library already has {ROTHKO}. Correct that one first."
-        assert ui.page.locator("#view .identity button:has-text('Use ')").is_hidden()
+        expect(_look_up(ui, ROTHKO)).to_have_text(
+            f"Another artist in your library already has {ROTHKO}. Correct that one first.", use_inner_text=True
+        )
+        expect(ui.page.locator("#view .identity button:has-text('Use ')")).to_be_hidden()
 
     def test_an_artist_item_is_shown_then_stored(self, ui, services, service):
         other = service.add_artist(name="J. Pollock")
@@ -255,7 +271,7 @@ class TestSettingAnItemByHand:
         ui.open(f"#artist/{other.id}")
         _open_control(ui)
 
-        assert _look_up(ui, POLLOCK) == f"{POLLOCK} is Jackson Pollock (1912–1956)."
+        expect(_look_up(ui, POLLOCK)).to_have_text(f"{POLLOCK} is Jackson Pollock (1912–1956).", use_inner_text=True)
         ui.page.click(f"#view .identity button:has-text('Use {POLLOCK}')")
 
         ui.page.wait_for_selector(f"#view .identity :text('Wikidata: {POLLOCK} (set by you)')")
@@ -268,7 +284,9 @@ class TestSettingAnItemByHand:
         ui.open(f"#artist/{other.id}")
         _open_control(ui)
 
-        assert _look_up(ui, "Q777") == "Wikidata gives no English name for Q777; check it is the one you mean."
+        expect(_look_up(ui, "Q777")).to_have_text(
+            "Wikidata gives no English name for Q777; check it is the one you mean.", use_inner_text=True
+        )
         ui.page.click("#view .identity button:has-text('Use Q777')")
 
         ui.page.wait_for_selector("#view .identity :text('Wikidata: Q777 (set by you)')")
@@ -285,11 +303,11 @@ class TestSettingAnItemWithNoRegistryConfigured:
         ui.open(f"#work/{work.id}")
         _open_control(ui, WORK)
 
-        assert (
-            _look_up(ui, "Q500985", WORK)
-            == "Wikidata is not configured on this server, so Q500985 cannot be checked. It can still be stored."
+        expect(_look_up(ui, "Q500985", WORK)).to_have_text(
+            "Wikidata is not configured on this server, so Q500985 cannot be checked. It can still be stored.",
+            use_inner_text=True,
         )
         ui.page.click(f"{WORK} button:has-text('Use Q500985')")
 
-        assert _work_item(ui) == "Q500985"
+        expect(_work_item(ui)).to_have_text("Q500985", use_inner_text=True)
         assert service.get_artwork(work.id).artwork.wikidata_qid == "Q500985"

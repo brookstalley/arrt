@@ -24,6 +24,7 @@ from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
+from player_e2e_header import header as player_e2e_header
 from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
@@ -88,7 +89,7 @@ from arrt.persistence.records import (
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
-from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
@@ -107,6 +108,15 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     bound_the_suites_requests()
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
+
+
+def pytest_report_header(config: pytest.Config) -> str:
+    """Say on every run whether its marker expression leaves out the real-Player test (`player_e2e_header.py`).
+
+    Under `-n auto` pytest prints no deselected count, so without this line the
+    default suite's leaving it out would be silent.
+    """
+    return player_e2e_header(config.option.markexpr)
 
 
 @pytest.fixture(autouse=True)
@@ -1097,8 +1107,47 @@ def build_catalogue(tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def every_feed_keeps_the_contract(monkeypatch):
-    """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`)."""
-    monkeypatch.setattr(display_module, "as_v2_document", feed_checked(display_module.as_v2_document))
+    """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`).
+
+    **Patched where the publisher looks the builder up**, `feeds.py`'s namespace.
+    A patch on a name the publisher no longer calls applies cleanly and checks
+    nothing, and every test stays green; until 2026-11-19 this patched
+    `display.py`, where the builder lived. So the guard also refuses to be
+    vacuous: a test in which a feed was renamed into place (the last step of
+    every publish, `atomic.promote`, which is looked up on the module and so
+    reaches every caller) while the guard checked no feed fails at teardown,
+    naming the feeds it never saw.
+    """
+    from fnmatch import fnmatch
+    from pathlib import Path
+
+    from arrt import atomic
+    from arrt.programming.manifest.v2 import MANIFEST_V2_FILENAME_TEMPLATE
+
+    checked: list[dict] = []
+    promoted: list[str] = []
+    guarded = feed_checked(feeds_module.as_v2_document)
+    real_promote = atomic.promote
+    a_feed = MANIFEST_V2_FILENAME_TEMPLATE.format(wall_id="*")
+
+    def counted(*args, **kwargs):
+        document = guarded(*args, **kwargs)
+        checked.append(document)
+        return document
+
+    def promote(staged, destination, **kwargs):
+        real_promote(staged, destination, **kwargs)
+        if fnmatch(Path(destination).name, a_feed):
+            promoted.append(Path(destination).name)
+
+    monkeypatch.setattr(feeds_module, "as_v2_document", counted)
+    monkeypatch.setattr(atomic, "promote", promote)
+    yield
+    if promoted and not checked:
+        pytest.fail(
+            f"The feed guard checked no feed, yet {len(promoted)} feed(s) were published ({', '.join(sorted(set(promoted)))}): "
+            "it patches a name the feed publisher no longer calls."
+        )
 
 
 @pytest.fixture(autouse=True)

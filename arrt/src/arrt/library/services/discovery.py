@@ -210,7 +210,7 @@ class DiscoveryService:
             raise ServiceError(f"No discovery run with id {run_id!r} exists.")
         return run
 
-    def list_runs(self, *, status: RunStatus | None = None, kind: RunKind | None = None) -> Sequence[DiscoveryRun]:
+    def list_runs(self, *, status: RunStatus | str | None = None, kind: RunKind | str | None = None) -> Sequence[DiscoveryRun]:
         """Every run, newest first, optionally narrowed to one status or kind."""
         resolved_status = None if status is None else require_member(status, enum=RunStatus, field="status")
         resolved_kind = None if kind is None else require_member(kind, enum=RunKind, field="kind")
@@ -896,7 +896,7 @@ class DiscoveryService:
             store_write(self._store.add_candidate_work, work)
         return work
 
-    def set_verdict(self, candidate_work_id: str, verdict: Verdict, *, reason: str | None = None) -> VerdictOutcome:
+    def set_verdict(self, candidate_work_id: str, verdict: Verdict | str, *, reason: str | None = None) -> VerdictOutcome:
         """Record the curator's decision about a work: accepted or rejected.
 
         **`wanted` is refused here on purpose**, and the refusal names `want`,

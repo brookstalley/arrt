@@ -27,7 +27,13 @@ from typing import Final
 #: side (`player-contract.md` § Layout; `contract/vectors/mat-geometry.json`'s
 #: `relative_width`).
 RELATIVE_MAT_WIDTH: Final[float] = 0.06
-#: The bottom margin as a multiple of the side margin, the Player's default.
+#: The bottom margin as a multiple of the side margin, a Player's default. The
+#: contract owns it (`contract/vectors/mat-geometry.json`, `defaults.bottom_weight`)
+#: and this quotes it, held to it by `tests/unit/test_adequacy.py`. Quoted rather
+#: than read through `arrt_contract` at run time because the package is a dev
+#: dependency of this project: the server's image installs without it
+#: (`arrt/Dockerfile`, `uv sync --no-dev`), and this module is imported whenever
+#: the server starts.
 BOTTOM_WEIGHT: Final[float] = 1.15
 #: Below this share of the box, along the work's longer reach, a work is too small.
 TOO_SMALL_SHARE: Final[float] = 0.5

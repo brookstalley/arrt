@@ -24,17 +24,31 @@ The tiers are told apart by which *jobs* actually ran in each workflow run — a
 weekly run skips the paid job and a monthly run skips the free ones, so a run's
 mere existence says nothing about which tier it refreshed.
 
+**A known-blocked probe is not a stale one.** `.github/known-blocked.json` lists the
+probes whose red is excused until a date (`known_blocked.py` says why the file exists
+and what a row may say). `judge_drift_probes.py` makes the job succeed when its only
+red probes are listed, so a tier whose only failures are unexpired known-blocked tests
+counts fresh here by the job's own conclusion: this file does not re-judge a run. What
+it does own is the file's age, because a row that has expired fails nothing on a day
+no probe job runs: on every push to `main` each row is checked, and a row that has
+expired, or is otherwise refused, fails by name.
+
 Reads a JSON document on stdin: a list of runs, newest first, each
 ``{"createdAt": "<ISO-8601>", "conclusion": "success", "jobs": [{"name": ..., "conclusion": ...}]}``.
 The workflow builds it from `gh`; everything that decides anything is here, where
 it can be tested without a network.
 
-Usage: check_drift_freshness.py [--now <ISO-8601>] < runs.json
+Usage: check_drift_freshness.py [--now <ISO-8601>] [--blocked <known-blocked.json>] < runs.json
 """
 
 import json
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import known_blocked  # noqa: E402 -- a sibling script, importable only once its directory is on sys.path above
 
 #: How long a tier may go unrefreshed before absence is the finding, and why each
 #: number is the number it is.
@@ -95,8 +109,18 @@ def newest_success(runs: list[dict], job_names: tuple[str, ...]) -> datetime | N
     return None
 
 
-def main(runs: list[dict], now: datetime) -> int:
-    worst = 0
+def blocked_rows(path: Path, now: datetime, tests_root: Path = known_blocked.TESTS_ROOT) -> int:
+    """Say which probes are excused and until when; 1 if any row is refused or expired."""
+    rows, problems = known_blocked.check(path, now.date(), tests_root)
+    for row in rows:
+        print(f"known-blocked: {row.test} (#{row.issue}) is excused until {row.expires.isoformat()}")
+    for problem in problems:
+        print(f"::error::{problem}")
+    return 1 if problems else 0
+
+
+def main(runs: list[dict], now: datetime, blocked: Path | None = None) -> int:
+    worst = blocked_rows(blocked, now) if blocked else 0
     for tier, job_names in TIER_JOBS.items():
         last = newest_success(runs, job_names)
         limit = STALE_AFTER[tier]
@@ -139,10 +163,14 @@ def main(runs: list[dict], now: datetime) -> int:
 if __name__ == "__main__":
     argv = sys.argv[1:]
     now = datetime.now(UTC)
-    if argv[:1] == ["--now"]:
-        now = datetime.fromisoformat(argv[1].replace("Z", "+00:00"))
+    blocked = None
+    while argv[:1] in (["--now"], ["--blocked"]) and len(argv) >= 2:
+        if argv[0] == "--now":
+            now = datetime.fromisoformat(argv[1].replace("Z", "+00:00"))
+        else:
+            blocked = Path(argv[1])
         argv = argv[2:]
     if argv:
         print(__doc__)
         raise SystemExit(2)
-    raise SystemExit(main(json.load(sys.stdin), now))
+    raise SystemExit(main(json.load(sys.stdin), now, blocked))

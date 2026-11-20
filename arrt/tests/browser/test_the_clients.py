@@ -34,6 +34,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 #: A report of two outputs. `reported_at` is stamped when `report` writes it,
@@ -86,6 +88,16 @@ def cell(ui, client, column):
     return row(ui, client).locator(f"td[data-label='{column}']")
 
 
+def starting(text):
+    """What a text begins with, as a pattern over the raw `innerText`: `startswith`'s retrying form."""
+    return re.compile("^" + re.escape(text))
+
+
+def ending(text):
+    """What a text ends with, as a pattern over the raw `innerText`: `endswith`'s retrying form."""
+    return re.compile(re.escape(text) + "$")
+
+
 def open_players(ui):
     ui.open("#clients")
     ui.page.wait_for_selector("#view h1:has-text('Players')")
@@ -115,9 +127,9 @@ def test_the_page_is_under_settings_and_answers_its_own_path(ui, seeded_service)
     ui.page.wait_for_selector("#view h1:has-text('Players')")
 
     current = ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']")
-    assert current.inner_text() == "Players"
+    expect(current).to_have_text("Players", use_inner_text=True)
     section = ui.page.locator("nav.sidebar li.section", has=ui.page.locator("a[data-view='clients']"))
-    assert section.locator("a.section-link .label").inner_text() == "Settings"
+    expect(section.locator("a.section-link .label")).to_have_text("Settings", use_inner_text=True)
 
 
 def test_the_page_opens_with_its_name_its_facts_and_its_toolbar(ui, services, settings, hall):
@@ -136,19 +148,18 @@ def test_the_page_opens_with_its_name_its_facts_and_its_toolbar(ui, services, se
     assert "table-scroll" in tags[3]
     # The one with a token and no report is waited for, and the line says so
     # (audit 2026-11-19, finding 2).
-    assert view.locator(".page-facts").inner_text() == "2 Players · 1 reporting · waiting for 1 to report"
-    headers = view.locator("thead th").all_text_contents()
-    assert headers == ["Player", "Status", "Screens", "Label panel", "Settings"]
+    expect(view.locator(".page-facts")).to_have_text("2 Players · 1 reporting · waiting for 1 to report", use_inner_text=True)
+    expect(view.locator("thead th")).to_have_text(["Player", "Status", "Screens", "Label panel", "Settings"])
 
 
 def test_with_no_player_the_page_says_so_and_offers_the_add(ui, seeded_service):
     open_players(ui)
 
-    assert "No Player is recorded yet." in ui.text()
-    assert "set in that wall's Edit…" in ui.text()
-    assert ui.page.get_by_role("button", name="Add Player…").is_visible()
-    assert ui.page.locator("tr[data-player]").count() == 0
-    assert ui.page.locator(".page-facts").inner_text() == "0 Players"
+    expect(ui.view).to_contain_text("No Player is recorded yet.", use_inner_text=True)
+    expect(ui.view).to_contain_text("set in that wall's Edit…", use_inner_text=True)
+    expect(ui.page.get_by_role("button", name="Add Player…")).to_be_visible()
+    expect(ui.page.locator("tr[data-player]")).to_have_count(0)
+    expect(ui.page.locator(".page-facts")).to_have_text("0 Players", use_inner_text=True)
 
 
 def test_a_row_offers_only_edit_and_never_assigns_or_captions(ui, services, settings, hall, the_wall):
@@ -158,13 +169,13 @@ def test_a_row_offers_only_edit_and_never_assigns_or_captions(ui, services, sett
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     open_players(ui)
 
-    assert row(ui, hall).get_by_role("button").all_inner_texts() == ["Edit…"]
-    assert ui.page.locator("#view select").count() == 0
+    expect(row(ui, hall).get_by_role("button")).to_have_text(["Edit…"], use_inner_text=True)
+    expect(ui.page.locator("#view select")).to_have_count(0)
     for word in ("Assign", "Unassign", "Caption a wall", "Stop captioning"):
-        assert word not in ui.text()
+        expect(ui.view, word).not_to_contain_text(word, use_inner_text=True)
     dialog = edit(ui, hall)
-    assert dialog.locator("select").count() == 0
-    assert dialog.get_by_role("button").all_inner_texts() == ["Rename", "Issue a token", "Remove…", "Close"]
+    expect(dialog.get_by_role("button")).to_have_text(["Rename", "Issue a token", "Remove…", "Close"], use_inner_text=True)
+    expect(dialog.locator("select")).to_have_count(0)
 
 
 def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall):
@@ -184,13 +195,14 @@ def test_no_page_calls_a_player_a_client(ui, services, settings, hall, the_wall)
     for view in views:
         ui.open(f"#{view}")
         ui.page.wait_for_selector("#view h1")
-        found = re.findall(r"\bclients?\b", ui.page.inner_text("body"), flags=re.IGNORECASE)
-        assert not found, f"#{view} says {found}"
+        expect(ui.page.locator("body"), f"#{view} calls a Player a client").not_to_contain_text(
+            re.compile(r"\bclients?\b", re.IGNORECASE), use_inner_text=True
+        )
     ui.open("#walls")
     ui.page.click("section.wall button.wall-edit")
     dialog = ui.page.locator("dialog.panel-dialog[open]")
     dialog.wait_for()
-    assert not re.findall(r"\bclients?\b", dialog.inner_text(), flags=re.IGNORECASE)
+    expect(dialog).not_to_contain_text(re.compile(r"\bclients?\b", re.IGNORECASE), use_inner_text=True)
 
 
 # -- the token, once ---------------------------------------------------------------
@@ -203,63 +215,70 @@ def test_adding_a_player_shows_its_token_once_with_what_to_do_with_it(ui, servic
     field = ui.page.get_by_label("Token for Hall Pi", exact=True)
     field.wait_for()
 
-    token = field.input_value()
-    assert field.get_attribute("readonly") is not None
+    token = field.input_value()  # one-shot: the token to look for on the page afterwards, read once the field is drawn
+    expect(field).to_have_attribute("readonly")
     assert ui.page.evaluate("() => document.activeElement.id") == "player-token"
-    note = ui.page.locator(".token-once").inner_text()
-    assert "the only time it is shown" in note
+    note = ui.page.locator(".token-once")
+    expect(note).to_contain_text("the only time it is shown", use_inner_text=True)
     # In the Player's own settings page's words, not the environment variables
     # behind them (audit 2026-11-19, F6): its fields are *Token* and *Server
     # address* (the Player renamed them from *Client token* and *Server ›
     # Address* in its own audit wave; the old names would send nobody anywhere).
-    assert "put this token in Token, and" in note
-    assert f"this server's address in Server address, as that Player reaches it — from this browser, {server_url}." in note
-    assert "Client token" not in note
-    assert "Server › Address" not in note
-    assert "CLIENT_TOKEN" not in note
-    assert "SERVER_URL" not in note
+    expect(note).to_contain_text("put this token in Token, and", use_inner_text=True)
+    expect(note).to_contain_text(
+        f"this server's address in Server address, as that Player reaches it — from this browser, {server_url}.",
+        use_inner_text=True,
+    )
+    expect(note).not_to_contain_text("Client token", use_inner_text=True)
+    expect(note).not_to_contain_text("Server › Address", use_inner_text=True)
+    expect(note).not_to_contain_text("CLIENT_TOKEN", use_inner_text=True)
+    expect(note).not_to_contain_text("SERVER_URL", use_inner_text=True)
     # One dialog, the token's: the add's own closed as it issued.
-    assert ui.page.locator("dialog.panel-dialog").count() == 1
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(1)
     [client] = services.clients.list_clients()
     assert client.client.name == "Hall Pi"
     assert admitted(server_url, token) == 200
 
     ui.page.get_by_role("button", name="Done").click()
     row(ui, client.client).wait_for()
-    assert cell(ui, client.client, "Player").inner_text() == "Hall Pi"
+    expect(cell(ui, client.client, "Player")).to_have_text("Hall Pi", use_inner_text=True)
     assert token not in ui.page.content()
     ui.page.reload()
     row(ui, client.client).wait_for()
-    assert ui.page.locator("#player-token").count() == 0
+    expect(ui.page.locator("#player-token")).to_have_count(0)
     assert token not in ui.page.content()
-    assert "Issued " in edit(ui, client.client).inner_text()
+    expect(edit(ui, client.client)).to_contain_text("Issued ", use_inner_text=True)
 
 
 def test_a_player_that_already_has_a_token_is_never_shown_one(ui, services, hall, server_url):
     token = services.access.issue(hall.id).token
     open_players(ui)
 
-    assert ui.page.locator("#player-token").count() == 0
+    # The Player's row is drawn, so the absence of a token field is of a list that has loaded.
+    expect(row(ui, hall)).to_be_visible()
+    expect(ui.page.locator("#player-token")).to_have_count(0)
     assert token not in ui.page.content()
     dialog = edit(ui, hall)
-    assert dialog.get_by_role("button", name="Rotate Hall Pi's token…").is_visible()
-    assert dialog.get_by_role("button", name="Issue a token for Hall Pi").count() == 0
+    expect(dialog.get_by_role("button", name="Rotate Hall Pi's token…")).to_be_visible()
+    expect(dialog.get_by_role("button", name="Issue a token for Hall Pi")).to_have_count(0)
     assert token not in ui.page.content()
 
 
 def test_a_player_with_no_token_says_so_and_issues_one_without_asking(ui, services, hall, server_url):
     """Issuing a first token refuses no Player, so there is nothing to confirm."""
     open_players(ui)
-    assert cell(ui, hall, "Status").inner_text().startswith("○ No token")
+    expect(cell(ui, hall, "Status")).to_have_text(starting("○ No token"), use_inner_text=True)
 
     dialog = edit(ui, hall)
-    assert "None issued yet, so it is admitted to nothing until one is." in dialog.inner_text()
+    expect(dialog).to_contain_text("None issued yet, so it is admitted to nothing until one is.", use_inner_text=True)
     dialog.get_by_role("button", name="Issue a token for Hall Pi").click()
     field = ui.page.get_by_label("Token for Hall Pi", exact=True)
     field.wait_for()
 
-    assert ui.page.locator("dialog.confirm").count() == 0
-    assert admitted(server_url, field.input_value()) == 200
+    expect(ui.page.locator("dialog.confirm")).to_have_count(0)
+    assert (
+        admitted(server_url, field.input_value()) == 200
+    )  # one-shot: the token to try at the route, read once the field is drawn
 
 
 def decline(ui, leave):
@@ -269,6 +288,10 @@ def decline(ui, leave):
     else:
         ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
     ui.page.wait_for_selector("dialog.confirm", state="detached")
+    # A No that was ignored is a request in flight by now: once the page has
+    # been quiet, what the tests read afterwards is a Player that was kept and
+    # not one whose removal or new token has yet to arrive.
+    ui.page.wait_for_load_state("networkidle")
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
@@ -278,13 +301,13 @@ def test_declining_a_rotation_leaves_the_old_token_working(ui, services, hall, s
 
     edit(ui, hall).get_by_role("button", name="Rotate Hall Pi's token…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == "Rotate Hall Pi's token?"
-    assert "Hall Pi is refused" in ui.page.inner_text("dialog.confirm .confirm-consequence")
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Rotate Hall Pi's token?", use_inner_text=True)
+    expect(ui.page.locator("dialog.confirm .confirm-consequence")).to_contain_text("Hall Pi is refused", use_inner_text=True)
     # The question is the only dialog on the page: Edit… closed as it asked.
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
     decline(ui, leave)
 
-    assert ui.page.locator("#player-token").count() == 0
+    expect(ui.page.locator("#player-token")).to_have_count(0)
     assert admitted(server_url, old) == 200
 
 
@@ -298,7 +321,7 @@ def test_confirming_a_rotation_shows_the_new_token_and_refuses_the_old(ui, servi
     field = ui.page.get_by_label("Token for Hall Pi", exact=True)
     field.wait_for()
 
-    new = field.input_value()
+    new = field.input_value()  # one-shot: the new token, to compare with the old, read once the field is drawn
     assert new != old
     assert admitted(server_url, old) == 401
     assert admitted(server_url, new) == 200
@@ -313,12 +336,20 @@ def test_a_player_that_has_not_reported_says_so_in_words(ui, services, hall):
 
     # Waiting for it, with what it waits on (audit 2026-11-19, finding 2): it
     # was "Never reported", which read as a fault on the evening it was added.
-    assert cell(ui, hall, "Status").inner_text() == (
-        "◌ Waiting for it to report\nOnce it is running with its token, it reports here within a minute or so."
+    # Two lines, the state and what it waits on: a pattern over the raw text, which a string would fold into one.
+    expect(cell(ui, hall, "Status")).to_have_text(
+        re.compile(
+            "^"
+            + re.escape("◌ Waiting for it to report")
+            + r"\n"
+            + re.escape("Once it is running with its token, it reports here within a minute or so.")
+            + "$"
+        ),
+        use_inner_text=True,
     )
-    assert ui.page.locator(".page-facts").inner_text() == "1 Player · waiting for it to report"
-    assert cell(ui, hall, "Screens").inner_text() == "Not reported yet."
-    assert cell(ui, hall, "Label panel").inner_text() == "Not known until it reports."
+    expect(ui.page.locator(".page-facts")).to_have_text("1 Player · waiting for it to report", use_inner_text=True)
+    expect(cell(ui, hall, "Screens")).to_have_text("Not reported yet.", use_inner_text=True)
+    expect(cell(ui, hall, "Label panel")).to_have_text("Not known until it reports.", use_inner_text=True)
 
 
 def test_a_report_is_listed_screen_by_screen_with_its_age(ui, services, settings, hall, the_wall):
@@ -327,22 +358,22 @@ def test_a_report_is_listed_screen_by_screen_with_its_age(ui, services, settings
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
     open_players(ui)
 
-    status = cell(ui, hall, "Status").inner_text()
-    assert status.startswith("● Reporting")
-    assert "It last reported " in status
-    screens = cell(ui, hall, "Screens").locator("li").all_inner_texts()
-    assert len(screens) == 2
+    status = cell(ui, hall, "Status")
+    expect(status).to_have_text(starting("● Reporting"), use_inner_text=True)
+    expect(status).to_contain_text("It last reported ", use_inner_text=True)
+    screens = cell(ui, hall, "Screens").locator("li")
+    expect(screens).to_have_count(2)
     # A screen as a person names it (§ Vocabulary), never its port.
-    assert screens[0].startswith("HDMI 1, 1920 × 1080 · ● detected")
-    assert screens[0].endswith("No wall")
-    assert screens[1].startswith("HDMI 2 · ○ none detected (off or unplugged)")
-    assert screens[1].endswith(f"Shows {the_wall.name}")
-    assert "hdmi-a" not in cell(ui, hall, "Screens").inner_text()
+    expect(screens.nth(0)).to_have_text(starting("HDMI 1, 1920 × 1080 · ● detected"), use_inner_text=True)
+    expect(screens.nth(0)).to_have_text(ending("No wall"), use_inner_text=True)
+    expect(screens.nth(1)).to_have_text(starting("HDMI 2 · ○ none detected (off or unplugged)"), use_inner_text=True)
+    expect(screens.nth(1)).to_have_text(ending(f"Shows {the_wall.name}"), use_inner_text=True)
+    expect(cell(ui, hall, "Screens")).not_to_contain_text("hdmi-a", use_inner_text=True)
     # "connected" read as a cable fault when the usual cause is a television
     # switched off, which drops its hotplug line exactly as an unplugged one does.
-    assert "connected" not in cell(ui, hall, "Screens").inner_text()
+    expect(cell(ui, hall, "Screens")).not_to_contain_text("connected", use_inner_text=True)
     wall = cell(ui, hall, "Screens").get_by_role("link", name=the_wall.name)
-    assert wall.get_attribute("href") == f"#walls?wall={the_wall.id}"
+    expect(wall).to_have_attribute("href", f"#walls?wall={the_wall.id}")
 
 
 def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, services, settings, hall, the_wall):
@@ -358,20 +389,23 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
 
-    status = cell(ui, hall, "Status").inner_text()
-    assert status.startswith("◌ Not heard from since ")
-    assert status.endswith("(5 days ago)")
-    screens = cell(ui, hall, "Screens").inner_text()
-    assert "◌ not known now (was detected)" in screens
-    assert "● detected" not in screens
-    assert ui.page.locator(".page-facts").inner_text() == "1 Player · 0 reporting"
+    status = cell(ui, hall, "Status")
+    expect(status).to_have_text(starting("◌ Not heard from since "), use_inner_text=True)
+    expect(status).to_have_text(ending("(5 days ago)"), use_inner_text=True)
+    screens = cell(ui, hall, "Screens")
+    expect(screens).to_contain_text("◌ not known now (was detected)", use_inner_text=True)
+    expect(screens).not_to_contain_text("● detected", use_inner_text=True)
+    expect(ui.page.locator(".page-facts")).to_have_text("1 Player · 0 reporting", use_inner_text=True)
 
     ui.open("#walls")
     # In the wall's Edit… dialog since ruling 4 of 2026-10-27, so opened first.
     ui.page.click("section.wall button.wall-edit")
-    line = ui.page.locator("dialog.panel-dialog p.wall-client").inner_text()
-    assert line == "Assigned to Hall Pi. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
-    assert "Shown by" not in line
+    line = ui.page.locator("dialog.panel-dialog p.wall-client")
+    expect(line).to_have_text(
+        "Assigned to Hall Pi. Hall Pi last reported 5 days ago, so whether a screen is there now is not known.",
+        use_inner_text=True,
+    )
+    expect(line).not_to_contain_text("Shown by", use_inner_text=True)
 
 
 def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, settings, hall, the_wall):
@@ -382,13 +416,13 @@ def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, s
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
 
-    assert cell(ui, hall, "Status").inner_text().startswith("● Reporting")
-    assert "● detected" in cell(ui, hall, "Screens").locator("li").first.inner_text()
+    expect(cell(ui, hall, "Status")).to_have_text(starting("● Reporting"), use_inner_text=True)
+    expect(cell(ui, hall, "Screens").locator("li").first).to_contain_text("● detected", use_inner_text=True)
 
     ui.open("#walls")
     # In the wall's Edit… dialog since ruling 4 of 2026-10-27, so opened first.
     ui.page.click("section.wall button.wall-edit")
-    assert ui.page.locator("dialog.panel-dialog p.wall-client").inner_text() == "Shown by Hall Pi"
+    expect(ui.page.locator("dialog.panel-dialog p.wall-client")).to_have_text("Shown by Hall Pi", use_inner_text=True)
 
 
 def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, services, settings, hall):
@@ -396,11 +430,11 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, services, settings, 
     client_heartbeat_path_in(settings.art_root, hall.id).write_text("{not json", encoding="utf-8")
     open_players(ui)
 
-    status = cell(ui, hall, "Status").inner_text()
-    assert status.startswith("▲ Report unreadable")
-    assert "Its last report could not be read: " in status
-    assert cell(ui, hall, "Screens").inner_text() == "Not known: its last report could not be read."
-    assert "Not reported yet" not in row(ui, hall).inner_text()
+    status = cell(ui, hall, "Status")
+    expect(status).to_have_text(starting("▲ Report unreadable"), use_inner_text=True)
+    expect(status).to_contain_text("Its last report could not be read: ", use_inner_text=True)
+    expect(cell(ui, hall, "Screens")).to_have_text("Not known: its last report could not be read.", use_inner_text=True)
+    expect(row(ui, hall)).not_to_contain_text("Not reported yet", use_inner_text=True)
 
 
 def test_a_report_of_no_outputs_says_so_and_lists_none(ui, services, settings, hall):
@@ -408,11 +442,11 @@ def test_a_report_of_no_outputs_says_so_and_lists_none(ui, services, settings, h
     report(settings, hall, {"outputs": []})
     open_players(ui)
 
-    assert cell(ui, hall, "Screens").inner_text() == "It reported no screen."
-    assert cell(ui, hall, "Label panel").inner_text() == "None reported."
-    assert cell(ui, hall, "Screens").locator("li").count() == 0
-    assert "Not reported yet" not in row(ui, hall).inner_text()
-    assert "could not be read" not in row(ui, hall).inner_text()
+    expect(cell(ui, hall, "Screens")).to_have_text("It reported no screen.", use_inner_text=True)
+    expect(cell(ui, hall, "Label panel")).to_have_text("None reported.", use_inner_text=True)
+    expect(cell(ui, hall, "Screens").locator("li")).to_have_count(0)
+    expect(row(ui, hall)).not_to_contain_text("Not reported yet", use_inner_text=True)
+    expect(row(ui, hall)).not_to_contain_text("could not be read", use_inner_text=True)
 
 
 def test_a_wall_set_on_a_screen_the_report_does_not_list_is_still_said(ui, services, settings, hall, the_wall):
@@ -422,10 +456,10 @@ def test_a_wall_set_on_a_screen_the_report_does_not_list_is_still_said(ui, servi
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-3")
     open_players(ui)
 
-    screens = cell(ui, hall, "Screens").locator("li").all_inner_texts()
-    assert len(screens) == 3
-    assert screens[2].startswith("HDMI 3 · ◌ not in its last report")
-    assert screens[2].endswith(f"Shows {the_wall.name}")
+    screens = cell(ui, hall, "Screens").locator("li")
+    expect(screens).to_have_count(3)
+    expect(screens.nth(2)).to_have_text(starting("HDMI 3 · ◌ not in its last report"), use_inner_text=True)
+    expect(screens.nth(2)).to_have_text(ending(f"Shows {the_wall.name}"), use_inner_text=True)
 
 
 def test_a_label_panel_is_listed_with_its_state_and_the_wall_it_captions(ui, services, settings, hall, the_wall):
@@ -433,14 +467,17 @@ def test_a_label_panel_is_listed_with_its_state_and_the_wall_it_captions(ui, ser
     report(settings, hall, WITH_A_PANEL)
     open_players(ui)
     # One panel: its port is not named (§ Vocabulary names a panel by its Player).
-    assert cell(ui, hall, "Label panel").inner_text().replace("\n", "\t").split("\t") == ["● answering, 800 × 480", "No wall"]
+    # The state and the wall, two parts: split by a line break or a tab, and nothing else in the cell.
+    expect(cell(ui, hall, "Label panel")).to_have_text(
+        re.compile("^" + re.escape("● answering, 800 × 480") + r"[\n\t]No wall$"), use_inner_text=True
+    )
 
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     open_players(ui)
     panel = cell(ui, hall, "Label panel")
-    assert panel.inner_text().endswith(f"Captions {the_wall.name}")
-    assert "epd-0" not in panel.inner_text()
-    assert panel.get_by_role("link", name=the_wall.name).get_attribute("href") == f"#walls?wall={the_wall.id}"
+    expect(panel).to_have_text(ending(f"Captions {the_wall.name}"), use_inner_text=True)
+    expect(panel).not_to_contain_text("epd-0", use_inner_text=True)
+    expect(panel.get_by_role("link", name=the_wall.name)).to_have_attribute("href", f"#walls?wall={the_wall.id}")
 
 
 # -- its settings, in its Edit… -----------------------------------------------------------
@@ -457,9 +494,11 @@ def test_renaming_a_player_keeps_its_walls(ui, services, hall, the_wall):
     ui.page.wait_for_selector("#view [data-said]")
 
     assert services.clients.get_client(hall.id).name == "Study Pi"
-    assert cell(ui, hall, "Player").inner_text() == "Study Pi"
-    assert the_wall.name in cell(ui, hall, "Screens").inner_text()
-    assert ui.page.inner_text("#view [data-said]") == "Hall Pi is now called Study Pi. Its token and its walls are unchanged."
+    expect(cell(ui, hall, "Player")).to_have_text("Study Pi", use_inner_text=True)
+    expect(cell(ui, hall, "Screens")).to_contain_text(the_wall.name, use_inner_text=True)
+    expect(ui.page.locator("#view [data-said]")).to_have_text(
+        "Hall Pi is now called Study Pi. Its token and its walls are unchanged.", use_inner_text=True
+    )
 
 
 def test_a_refused_rename_is_said_in_the_dialog_and_changes_nothing(ui, services, hall):
@@ -471,7 +510,7 @@ def test_a_refused_rename_is_said_in_the_dialog_and_changes_nothing(ui, services
     rename = dialog.get_by_role("button", name="Rename Hall Pi")
     rename.click()
     assert "Couldn't rename Hall Pi" in ui.said_beside(rename)
-    assert dialog.is_visible()
+    expect(dialog).to_be_visible()
     assert {view.client.name for view in services.clients.list_clients()} == {"Hall Pi", other.name}
 
 
@@ -484,20 +523,21 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
 
     edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == "Remove Hall Pi?"
-    consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text("Remove Hall Pi?", use_inner_text=True)
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
+    consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     # In the order the server lists the Player's walls.
     first, second = (shown.wall.name for shown in services.clients.get_client_view(hall.id).walls)
     both = f"{first} and {second}"
-    assert f"{both} will be left without a Player" in consequence
-    assert consequence.startswith("Its token stops working at once, and ")
-    assert "Landing" not in consequence
+    expect(consequence).to_contain_text(f"{both} will be left without a Player", use_inner_text=True)
+    expect(consequence).to_have_text(starting("Its token stops working at once, and "), use_inner_text=True)
+    expect(consequence).not_to_contain_text("Landing", use_inner_text=True)
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Remove Hall Pi')")
     ui.page.wait_for_selector("#view [data-said]")
 
-    said = ui.page.inner_text("#view [data-said]")
-    assert said == f"Hall Pi is removed. 2 walls now have no Player: {both}."
+    expect(ui.page.locator("#view [data-said]")).to_have_text(
+        f"Hall Pi is removed. 2 walls now have no Player: {both}.", use_inner_text=True
+    )
     assert services.clients.list_clients() == []
     assert services.clients.placement_of(study.id).client is None
     assert admitted(server_url, token) == 401
@@ -514,7 +554,7 @@ def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, 
 
     assert [view.client.id for view in services.clients.list_clients()] == [hall.id]
     assert services.clients.placement_of(the_wall.id).client.id == hall.id
-    assert row(ui, hall).is_visible()
+    expect(row(ui, hall)).to_be_visible()
 
 
 def test_removing_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall):
@@ -522,12 +562,12 @@ def test_removing_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall)
 
     edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
-    assert "It shows no wall, so no wall is affected." in consequence
-    assert "left without a Player" not in consequence
+    consequence = ui.page.locator("dialog.confirm .confirm-consequence")
+    expect(consequence).to_contain_text("It shows no wall, so no wall is affected.", use_inner_text=True)
+    expect(consequence).not_to_contain_text("left without a Player", use_inner_text=True)
     # Never issued one, so no token is said to stop.
-    assert consequence.startswith("It has no token.")
-    assert "token stops working" not in consequence
+    expect(consequence).to_have_text(starting("It has no token."), use_inner_text=True)
+    expect(consequence).not_to_contain_text("token stops working", use_inner_text=True)
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
@@ -541,6 +581,8 @@ def test_leaving_add_player_adds_nothing(ui, services, leave):
     else:
         dialog.get_by_role("button", name="Cancel").click()
     dialog.wait_for(state="detached")
+    # Left, not submitted: a request sent anyway would be in flight by now.
+    ui.page.wait_for_load_state("networkidle")
 
     assert services.clients.list_clients() == []
     assert ui.page.evaluate("() => document.activeElement.textContent") == "Add Player…"
@@ -557,7 +599,9 @@ def test_leaving_edit_changes_nothing(ui, services, hall, leave):
     else:
         dialog.get_by_role("button", name="Close").click()
     dialog.wait_for(state="detached")
+    # Left, not submitted: a request sent anyway would be in flight by now.
+    ui.page.wait_for_load_state("networkidle")
 
     assert services.clients.get_client(hall.id).name == "Hall Pi"
     assert services.clients.get_client(hall.id).token_issued_at == token.issued_at
-    assert cell(ui, hall, "Player").inner_text() == "Hall Pi"
+    expect(cell(ui, hall, "Player")).to_have_text("Hall Pi", use_inner_text=True)

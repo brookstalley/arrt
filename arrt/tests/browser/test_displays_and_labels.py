@@ -11,6 +11,7 @@ heartbeat route calls, so the records the page reads are the ones a running
 client would have left.
 """
 
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -19,6 +20,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 FRAME_ID = "uuid:00000000-0000-4000-8000-000000000001"
 
@@ -91,11 +94,16 @@ def open_edit(ui, wall):
 def test_the_panel_is_listed_with_its_state_and_captions_no_wall(ui, services, hall, three_walls):
     open_players(ui)
 
-    assert cell(ui, hall, "Label panel").inner_text().replace("\n", "\t").split("\t") == ["● answering, 800 × 480", "No wall"]
-    # The displays stay among the screens, the Frame named as one.
-    screens = cell(ui, hall, "Screens").locator("li").all_inner_texts()
-    named = [each.split(" · ")[0] for each in screens]
-    assert named == ["HDMI 1, 1920 × 1080", "HDMI 2, 1280 × 1024", "Samsung Frame, 3840 × 2160"]
+    # The state and the wall it captions, two parts split by one line break (the
+    # read split on it, and a tab as well).
+    expect(cell(ui, hall, "Label panel")).to_have_text(re.compile(r"^● answering, 800 × 480[\n\t]No wall$"), use_inner_text=True)
+    # The displays stay among the screens, the Frame named as one: each item is
+    # its name, then either nothing or " · " and more (the read kept what came
+    # before the first " · ").
+    named = ["HDMI 1, 1920 × 1080", "HDMI 2, 1280 × 1024", "Samsung Frame, 3840 × 2160"]
+    expect(cell(ui, hall, "Screens").locator("li")).to_have_text(
+        [re.compile("^" + re.escape(each) + "(?: · |$)") for each in named], use_inner_text=True
+    )
 
 
 def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls):
@@ -117,13 +125,20 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
         dialog.wait_for(state="detached")
 
         open_players(ui)
-        assert cell(ui, hall, "Label panel").inner_text().endswith(f"Captions {wall.name}")
+        expect(cell(ui, hall, "Label panel")).to_have_text(
+            re.compile(re.escape(f"Captions {wall.name}") + "$"), use_inner_text=True
+        )
         for each in three_walls:
             dialog = open_walls(ui) or open_edit(ui, each)
             if each is wall:
-                assert dialog.locator(".wall-labels").inner_text().startswith("Captioned by a label on Hall Pi.")
+                expect(dialog.locator(".wall-labels")).to_have_text(
+                    re.compile("^" + re.escape("Captioned by a label on Hall Pi.")), use_inner_text=True
+                )
             else:
-                assert dialog.locator(".wall-labels").count() == 0
+                # The dialog's Label panel section first: it is drawn with the rest
+                # of the dialog, so the absence is not met by a dialog on its way.
+                expect(dialog.get_by_role("heading", name="Label panel")).to_be_visible()
+                expect(dialog.locator(".wall-labels")).to_have_count(0)
             ui.page.keyboard.press("Escape")
             dialog.wait_for(state="detached")
         previous = wall
@@ -147,22 +162,25 @@ def test_edit_opened_before_the_page_repaints_offers_what_is_true_now(ui, servic
     assert stopped == 200
 
     dialog = open_edit(ui, study)
-    offered = dialog.get_by_label(f"Caption {study.name} with", exact=True).locator("option").all_inner_texts()
-    assert "the label panel on Hall Pi" in offered
+    offered = dialog.get_by_label(f"Caption {study.name} with", exact=True).locator("option")
+    # One option whose whole text is that, wherever it stands in the list: a
+    # subsequence of one, which is how a list holds an item.
+    expect(offered).to_contain_text([re.compile("^the label panel on Hall Pi$")], use_inner_text=True)
     ui.page.keyboard.press("Escape")
     dialog.wait_for(state="detached")
 
     # And the wall that lost it no longer says it is captioned.
     dialog = open_edit(ui, living)
-    assert dialog.locator(".wall-labels").count() == 0
+    expect(dialog.get_by_role("heading", name="Label panel")).to_be_visible()
+    expect(dialog.locator(".wall-labels")).to_have_count(0)
 
 
 def test_a_player_with_no_panel_says_it_reported_none(ui, services, hall):
     report(services, hall, {"outputs": EVERYTHING["outputs"][:1]})
     open_players(ui)
 
-    assert cell(ui, hall, "Label panel").inner_text() == "None reported."
-    assert cell(ui, hall, "Label panel").locator("li").count() == 0
+    expect(cell(ui, hall, "Label panel")).to_have_text("None reported.", use_inner_text=True)
+    expect(cell(ui, hall, "Label panel").locator("li")).to_have_count(0)
 
 
 def test_a_frame_two_players_report_is_a_fault_both_pages_name(ui, services, hall, three_walls):
@@ -173,19 +191,21 @@ def test_a_frame_two_players_report_is_a_fault_both_pages_name(ui, services, hal
     open_players(ui)
     # Said once under the table: the server's sentence names both Players.
     fault = ui.page.locator("#view .player-fault")
-    assert fault.count() == 1
-    assert "Hall Pi and Study Mac both report" in fault.inner_text()
-    assert "configured on one Player" in fault.inner_text()
-    assert fault.inner_text().startswith("▲ ")
+    expect(fault).to_have_count(1)
+    expect(fault).to_contain_text("Hall Pi and Study Mac both report", use_inner_text=True)
+    expect(fault).to_contain_text("configured on one Player", use_inner_text=True)
+    expect(fault).to_have_text(re.compile("^▲ "), use_inner_text=True)
 
     open_walls(ui)
     # A fault is a problem, so the card says it (the page rules of 2026-10-27:
     # where a wall shows is said on the card only when it is one), and sends
     # the curator to the Players it names.
     line = wall_card(ui, living).locator(".wall-problem")
-    assert "Hall Pi and Study Mac both report" in line.inner_text()
-    assert line.get_by_role("link", name="See Settings › Players").get_attribute("href") == "#clients"
+    expect(line).to_contain_text("Hall Pi and Study Mac both report", use_inner_text=True)
+    expect(line.get_by_role("link", name="See Settings › Players")).to_have_attribute("href", "#clients")
     # Neither shows it, whatever the wall's record still names.
-    assert "Shown by" not in line.inner_text()
-    assert "Assigned to" not in line.inner_text()
-    assert wall_card(ui, living).locator(".wall-now").get_attribute("data-state") in (None, "unassigned")
+    expect(line).not_to_contain_text("Shown by", use_inner_text=True)
+    expect(line).not_to_contain_text("Assigned to", use_inner_text=True)
+    # Absent, or "unassigned": a state that is anything else is refused, and an
+    # attribute that is not there passes, as `None` did.
+    expect(wall_card(ui, living).locator(".wall-now")).not_to_have_attribute("data-state", re.compile(r"^(?!unassigned$)"))

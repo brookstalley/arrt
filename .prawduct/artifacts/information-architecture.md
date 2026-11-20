@@ -16,19 +16,18 @@ after the surface had already been built across six chunks — so this artifact 
 partly a description of what exists and partly a redesign of it, and every place
 those differ is marked **CHANGE** with the reasoning.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The curation
-> plane becomes the **server** of a two-product system. That server holds a
-> *Library* (what exists and what to acquire) and *Programming* (what hangs
-> where), and it runs on the household NAS rather than the Pi. **This remains the
+> **Direction changed 2026-09-30 — see `re-architecture.md`; most of it has
+> landed.** The curation plane is the **server** of a two-product system. It
+> holds the *Library* (what exists and what to acquire) and *Programming* (what
+> hangs where), and it runs on the household NAS, not the Pi. **This remains the
 > one human interface.** *(The navigation norm below was amended later the same
 > day, to the *arr layout. The owner's ruling and its cost are in § Direction.)*
-> What moves underneath:
-> themes become **playlists** owned by Programming, possibly smart ones defined
-> by rules over facts and tags; a second, open layer of *programming tags* sits
-> beside the Library's facets; and **Watches** (standing searches) join
-> discovery. None of that is designed into a screen yet. § Open questions names
-> where each is expected to land. No table in this artifact changed, because no
-> screen was added or removed.
+> Built since, and in the tables below: **Watches** (standing searches), as a
+> Settings page, and Settings' five pages (Players, Sources, Watches, General
+> and Taste) under the Settings index. Not designed into a screen yet: a **smart
+> theme** (a rule over facts and tags, which `re-architecture.md` calls a smart
+> playlist) and a second, open layer of *programming tags*. § Open questions
+> names where each is expected to land.
 
 > **Direction changed 2026-10-01 — see `ia-proposal.md` § Rulings.** The owner
 > ruled nine decisions on an IA derived from `user-scenarios.md`: one-world search
@@ -38,11 +37,14 @@ those differ is marked **CHANGE** with the reasoning.
 > for a duration left to wave 4. *(2026-10-02: ruling 5a's "excursion" became a
 > **destination** on every Get, *All works* by default or any other theme, by the
 > owner's rulings in `build-plan-topics-and-destinations.md`, which also places
-> Topics under Library. *Topic pages* are built by that plan's Chunk 05: Library ›
-> Topics at `#topics` and one topic at `#topic/<qid>`, in the tables below.)* **This artifact still describes what runs**, and
-> its tables are guarded against the built client. Where the two differ,
-> `ia-proposal.md` wins for the target and this text wins for today, until the
-> build plan that lands each piece amends it.
+> Topics under the Artworks section. *Topic pages* are built by that plan's Chunk 05: Artworks ›
+> Topics at `#topics` and one topic at `#topic/<qid>`, in the tables below.)*
+> **The authority chain, as it now runs.** This artifact describes what runs, and
+> its tables are guarded against the built client. The proposal's rulings of 2026-10-01,
+> 2026-10-07, 2026-10-11 and 2026-10-27 have been carried into the tables below,
+> so for a screen they name, **these tables win**; `ia-proposal.md` is the record
+> of the proposal and of each ruling's words, and marks the sections the tables
+> superseded. A ruling not yet built is stated in its own place as not built.
 
 ## Direction
 
@@ -91,7 +93,7 @@ inside an existing section, not a section of its own.
 > **Ruled departure, 2026-10-01: Add New is dissolved.** Every *arr app has an
 > Add New page, so the norm would keep one. The owner ruled it away
 > (`ia-proposal.md` ruling 3): acquiring becomes a *Get* action on any selection,
-> and the conversation becomes *Ask*, under Library where Add New stood. The rest
+> and the conversation becomes *Ask*, under Artworks where Add New stood. The rest
 > of the target sidebar keeps the norm (ruling 9): no new top-level section, and
 > *arr names where an *arr page exists (Queue, History, Wanted).
 >
@@ -178,11 +180,11 @@ around how the software works rather than around what a curator does.
 
 Three symptoms, each traceable to that:
 
-- **Themes are a separate destination from the collection they select from.** A
-  curator organising work sees the collection in one tab and the organisation of it
+- **Themes are a separate destination from the works they select from.** A
+  curator organising work sees the Library in one tab and the organisation of it
   in another, and must hold the mapping in their head.
 - **Health is a peer of the art.** An appliance-status panel sits at the same rank
-  as the catalogue, in a product whose stated identity is "museum, not gadget".
+  as the Library, in a product whose stated identity is "museum, not gadget".
 - **The wall is fourth.** The thing the entire product exists to produce is the
   fourth item in the navigation, behind three tabs about producing it.
 
@@ -237,15 +239,30 @@ takes — and refuses one of five words or fewer that opens with "The ".
   its old words. The server's records, routes and MCP tools keep `client` and
   `not-again` (`POST /api/walls/{id}/not-again`, `art_theme(action='not_again')`), as
   `run` did above: they are a contract with what already calls them.
-- **The words for a work's images** *(2026-11-19, `build-plan-audit-wave-1.md`)*. The
-  image acquired of a work, the Original in the records, is its **picture** (*Picture*
-  on the Work page, *No picture* where there is none). The copy made from it that
-  each wall's Player is sent, the presentation master in the records, is its **copy
-  for the walls**. Neither is a *master* on a screen a person reads: the one word
-  meant both. *Picture* follows the pages that already said it; *copy for the
-  walls* is a builder's choice awaiting the owner's confirmation (§ Open
-  questions). The records, routes and MCP action names keep `master`, as `run`
-  and `client` do above.
+- **The words for a work's images** *(2026-11-19, `build-plan-audit-wave-1.md`;
+  confirmed by the owner the same day, ruling 6 of 2026-11-19 in
+  `owner-rulings.md`)*. The image acquired of a work, the Original in the records,
+  is its **picture** (*Picture* on the Work page, *No picture* where there is
+  none). The copy made from it that each wall's Player is sent, the presentation
+  master in the records, is its **copy for the walls**, the household's word.
+  Neither is a *master* on a screen a person reads: the one word meant both.
+  *Picture* follows the pages that already said it. The records, routes and MCP
+  action names keep `master`, as `run` and `client` do above.
+- **A theme, never a playlist** *(ruling 1 of 2026-11-19)*. A person reads *theme*:
+  on a screen, in a dialog, in a message, in an agent's description. *Playlist*
+  is the name of one field the contract keeps until its next breaking version
+  (`playlist` in the manifest, `player-contract.md`), and of `re-architecture.md`'s
+  target, where Programming owns what it calls a smart playlist; a theme with a
+  rule would be a *smart theme* on a page. The field, its code names and the
+  records keep their spellings.
+- **The Library, and Artworks** *(ruling 2 of 2026-11-19)*. The household's holdings
+  are **the Library**. The screen that lists them is **Artworks** (its address is
+  still `#collection`). *Collection* is only a museum's (a source's holdings, as
+  *which collections hold their work*), and *catalogue* is not a word a person
+  reads for the household's holdings: it names the store (the catalogue file) and
+  the MCP tool `art_catalogue` where those are named as code, which keep it. A
+  screen that speaks of what the household holds says *your library* or *the
+  Library*, as Search's *Search your library* does.
 - **One date formatter**, `core/dates.js`: a readable date and how long ago
   ("5 Oct 2026, 14:46 (3 days ago)"). The instant itself goes only in a
   `<time datetime>` or inside a *Details* disclosure; `tests/browser/
@@ -302,10 +319,10 @@ retired into Ask on 2026-10-09.
 > when a screen has no row or a row has no screen.
 
 **CHANGE — Themes stops being a top-level screen.** A theme is a *saved selection
-over the collection*, not a parallel noun, and the built surface's own routes say
+over the Library*, not a parallel noun, and the built surface's own routes say
 so: every theme operation is membership and order over works. Promoting it to a
-peer of the collection is what forces the curator to hold a mapping in their head.
-It becomes a rail inside Collection — a filter that is also editable — plus a
+peer of Artworks is what forces the curator to hold a mapping in their head.
+It becomes a rail inside Artworks — a filter that is also editable — plus a
 **Theme** screen for the one thing that genuinely is its own act: hanging it.
 
 > **RULING 2026-08-17 — Theme is an index *and* an addressable detail (#133).**
@@ -322,7 +339,7 @@ It becomes a rail inside Collection — a filter that is also editable — plus 
 > it was noticed by eye a chunk later.
 >
 > **The index survives because creating a theme, and managing the set of them,
-> have no other home.** Collection's rail is a *filter over the grid*; making it a
+> have no other home.** Artworks' rail is a *filter over the grid*; making it a
 > manager is a redesign of two screens and moves organising away from the works
 > being organised, which is what the CHANGE above just decided. So the id is
 > optional rather than required — the third mode `core/route.js`'s grammar grew
@@ -515,8 +532,9 @@ listed below so it can be disputed.
     the card's first control. *(Builder's ruling, 2026-09-30, recorded as a
     DECISION in `build-plan-arr-navigation.md`. The owner can overrule it.)*
 - **The toolbar** on Artworks puts the page's acts and the selection's on the
-  left, and View, Sort, Filter and *Select* on the right, in that order
-  (`core/toolbar.js` decides the order once, for every list page). View offers Posters, Overview and Table
+  left, and View, Sort, Filter and *Select* on the right, in that order, *Select*
+  last (confirmed by the owner, ruling 6 of 2026-11-19; `core/toolbar.js` decides
+  the order once, for every list page). View offers Posters, Overview and Table
   (Posters was the contact sheet and Overview the catalogue; `?density=` keeps
   its spellings). Sort offers Title, Artist (unattributed last) and Recently
   added, and applies to a theme filtered here as to any filter (a theme's
@@ -526,7 +544,7 @@ listed below so it can be disputed.
   label says what it does, *Hide filters* or *Show filters* (2026-10-08, #288).
   With the rails away, a facet or a theme still narrowing the works says so above
   them and offers the rails back, since the grid would otherwise read as the
-  whole collection. An Artist's page and the search results have the same
+  whole Library. An Artist's page and the search results have the same
   toolbar, with what they have to put in it. *(Until 2026-11-19 they, and a
   Topic's page, had a toolbar holding *Select* alone, built 2026-10-08, with the
   toggle beside the acts it brings in. The owner's page rules of 2026-10-27,
@@ -654,18 +672,18 @@ Three consequences, all cheap to honour now and expensive to retrofit:
 - **Health is per-device and already nearly is.** The top bar's status
   indicator aggregates — "well", or "the study panel has not reported since 09:14" — so it
   gains a device dimension rather than a new design.
-- **A theme is not owned by a wall.** Themes stay collection-scoped; *hanging* is
+- **A theme is not owned by a wall.** Themes stay Library-scoped; *hanging* is
   the per-wall act. Two walls may hang the same theme, and that must not require
   duplicating it.
 
 > **Direction changed 2026-09-30 — see `re-architecture.md`.** This rule survives
-> and gains an owner: a theme is a **playlist**, owned by the Programming role,
-> still global, and still hung per wall. What changes is what a playlist *can be*.
-> Besides a hand-ordered list, it may be a **smart playlist**: a rule over Library
-> facets (`subject: Nativity`) and programming tags (`party`), plus manual
-> additions and exclusions. The Theme screen will need to show which members came
-> from the rule and which were placed by hand. That is new design owed here, and
-> it is not started.
+> and gains an owner: Programming owns the theme (built: its tables are
+> Programming's), still global, and still hung per wall. **Not built, and not
+> started as design:** besides a hand-ordered list, a theme may be a **smart
+> theme** (`re-architecture.md`'s smart playlist): a rule over Library facets
+> (`subject: Nativity`) and programming tags (`party`), plus manual additions and
+> exclusions. The Theme screen will need to show which members came from the rule
+> and which were placed by hand.
 
 ### Two structural blockers, found 2026-08-10 — both ruled on 2026-08-12
 
@@ -729,7 +747,7 @@ zero-count option is disabled.** The first prototype offered Movement and Era as
 independent lists, which let a curator select "Colour Field" and "1920s" — a
 combination that cannot exist — and get an empty grid with no explanation. A filter
 that promises results it cannot produce is worse than no filter: it teaches the
-curator that the collection is smaller than it is.
+curator that the Library is smaller than it is.
 
 Three rules make that hold:
 
@@ -777,7 +795,7 @@ failure this artifact exists to prevent.
 
 **Resolved 2026-08-10: `WorkFacet`** (`data-model.md`), carrying `kind`, `value`
 and a required `derivation` of `sourced` or `inferred`. It uses **the same typed
-vocabulary as `Affinity.kind`**, which is what lets the collection be filtered and
+vocabulary as `Affinity.kind`**, which is what lets the Library be filtered and
 the curator's taste be matched against it in one set of terms.
 
 Two consequences the interface must show rather than hide:
@@ -910,9 +928,9 @@ and neither is fully reversible, which drives two rules:
 
 ### Flow 5 — Organise into themes
 
-`Artworks → Select → add to theme` *(and)* `Library › Themes → Theme → reorder`
+`Artworks → Select → add to theme` *(and)* `Artworks › Themes → Theme → reorder`
 
-**CHANGE — organising happens in the collection, against the works being
+**CHANGE — organising happens in Artworks, against the works being
 organised.** Membership is edited from the grid, in place, with multi-select.
 Reordering — which is genuinely about the theme rather than about the works —
 happens on the Theme screen.
@@ -928,7 +946,7 @@ a filter; the two were redrawn apart:
   (§ A control never offers a dead end). A theme filtered here is in the Sort
   menu's order, as any filter is; its curated order is its own page's. The
   rail's separate theme list and its per-theme *Open* are gone: themes are
-  reached from Library › Themes.
+  reached from Artworks › Themes.
 - **Adding and removing appear only in *Select* mode**, as Radarr's mass editor
   does: a *Select* toggle in the toolbar shows ticks on the
   tiles and the acts on what is ticked beside it, each saying the whole act:
@@ -975,11 +993,10 @@ Activation is the one act in the product that changes what other people in the
 house see. It gets a confirmation that names the consequence in those terms, and
 the wall repaints from the published manifest rather than from optimism.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** Unchanged for the
-> curator. Underneath, "the published manifest" becomes a per-wall document the
-> server serves over HTTP (wave 2) instead of a file in a shared directory, and a
-> wall's player pulls it into a local cache. The confirmation's wording still
-> names the wall and the consequence.
+> **Landed (waves 2 and 3, `re-architecture.md`).** "The published manifest" is a
+> per-wall document the server serves over HTTP, and a wall's Player pulls it into
+> a local cache. Unchanged for the curator: the confirmation's wording still names
+> the wall and the consequence.
 
 ## Information Hierarchy
 
@@ -1036,7 +1053,7 @@ who did not edit this table.
 `Artwork.status` is `accepted` or `archived` and restoration is permitted — **there
 is no delete of a work in this product**, and `api-contract.md` § The routes the
 interface design requires records why a delete route was not written. A button
-labelled *Remove* promises the work is gone; the work is in fact still catalogued,
+labelled *Remove* promises the work is gone; the work is in fact still in the Library,
 still restorable, and merely out of circulation. The label is **Archive**, its
 undo is **Restore**, and the confirmation says which of the two it is doing. This
 matters beyond wording: a curator who believes removal is destructive will
@@ -1062,7 +1079,7 @@ the confirmation says so.
 > sentence and a longer one.
 >
 > The alternative was to make archiving republish, and it was rejected on the
-> precedent that catalogue-side tidying does not reach across the plane boundary —
+> precedent that Library-side tidying does not reach across the plane boundary —
 > the same reason `clear_wall` does not. **That is a defensible ruling and it
 > leaves a real gap**: a curator who archives the picture they are looking at will
 > still be looking at it.
@@ -1080,7 +1097,7 @@ the confirmation says so.
 > ruling rests on.
 >
 > So the archive path still does not republish, and the plane boundary still holds:
-> a catalogue edit does not drive a display, and the curator who wants the wall to
+> a Library edit does not drive a display, and the curator who wants the wall to
 > catch up performs a display act to make it. `architecture.md` records that archiving removes a work
 from the manifest and leaves it in the theme, with `archived` the first of the five
 exclusion causes — and calls that silence "precisely this product's characteristic
@@ -1203,11 +1220,11 @@ What this interface does **not** include, stated so the absences read as decisio
 - **No accounts, login, roles, or sharing.** One operator (`data-model.md`).
 - **No editing of artwork metadata.** Titles, artists and dates come from the
   source and are the label's evidence; a free-text override would make the physical
-  label unfalsifiable against the collection it cites.
+  label unfalsifiable against the Library's record it cites.
 - **No in-browser image editing** — no crop, no colour adjustment, nothing that
   paints on the picture. The mat engine is the product's hardest-won logic and the
   interface does not reimplement it. **What a mat may never be is unrecorded**:
-  every mat the catalogue holds says how it was arrived at.
+  every mat the Library holds says how it was arrived at.
 
   > **Amended 2026-08-18, ruled by the operator, on #91.** The clause used to read
   > "no manual mat override beyond re-deriving it… a hand-placed mat would have no
@@ -1225,13 +1242,13 @@ What this interface does **not** include, stated so the absences read as decisio
 - **No onboarding flow.** A single expert operator who built the thing; a first-run
   wizard would be the condescension `product-brief.md` warns against. The empty
   states carry the work an onboarding flow would otherwise do.
-- **No offline mode.** The curation plane is a loopback service on the same Pi.
+- **No offline mode.** The server is a LAN service on the household NAS, as it
+  has been since wave 3 (`re-architecture.md`); it was a loopback service on the
+  wall's Pi before.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** Two items above
-> move, and neither is decided here.
-> - **Offline mode.** The server moves off the Pi to the household NAS (wave 3),
->   so the curation surface stops being loopback on the wall's own machine. It
->   stays a LAN service with no offline mode.
+> **Direction changed 2026-09-30 — see `re-architecture.md`. One item above is
+> still open**, with no wave: the server's move to the NAS has landed, and with
+> it the offline-mode item's premise (above).
 > - **Metadata editing.** The re-architecture sends factual corrections ("that's
 >   an eel, not a snake") to the Library through this UI. That is a **facet**
 >   edit, not the title, artist or date edit the metadata item forbids, and the
@@ -1276,11 +1293,6 @@ by `re-architecture.md` (`archive/build-plan.md`).
   thousands-scale corpus, not now.
 - **Whether Review needs its own density control.** Judging wants maximum picture;
   a run of 40 wants an overview. Deferred until a run is large enough to hurt.
-- **What the presentation master is called on a page** *(added 2026-11-19)*. § Vocabulary
-  says *copy for the walls*, chosen by the builder so that *master* stops meaning two
-  things; the owner has not ruled on it. Until they do, it is the word on the pages
-  and in the MCP descriptions, and a change is a wording sweep, not a design.
-
 - **Where the re-architecture's new objects live on the surface** *(added
   2026-09-30; see `re-architecture.md`)*. Each needs a home that satisfies the
   navigation norm: where its *arr precedent puts it, as a page inside an
@@ -1292,7 +1304,7 @@ by `re-architecture.md` (`archive/build-plan.md`).
     run.)*
   - **Programming tags** belong on Artworks and Work, beside the facets they
     are deliberately distinct from.
-  - **Smart-playlist rules** belong on the Theme screen.
+  - **Smart-theme rules** belong on the Theme screen.
   - **Watch spend** belongs on the status indicator. *(2026-11-09: built on Settings › Watches instead, each Watch's month beside its cap. The indicator names troubles only, by its own rule (`core/status.js`), so it says an overdue Watch and a spent allowance holding one, and not a figure, `build-plan-watches.md`.)*
 
   None is designed but Watches (Settings › Watches, 2026-11-09). The screen tables above will need rows only if one of them

@@ -10,6 +10,7 @@ an artist the library has not matched.
 carrying markup and asserts it arrives as words, not as an element.
 """
 
+import re
 from dataclasses import replace
 
 import pytest
@@ -106,11 +107,12 @@ class TestTheIndex:
         ui.open("#artist")
         ui.page.wait_for_selector("ul.artist-posters li.card")
 
-        names = ui.page.locator("ul.artist-posters .card-title").all_inner_texts()
-        assert names == ["Salvador Dalí", "Charles Demuth", "Mark Rothko"]
+        expect(ui.page.locator("ul.artist-posters .card-title")).to_have_text(
+            ["Salvador Dalí", "Charles Demuth", "Mark Rothko"], use_inner_text=True
+        )
         rothko_card = ui.page.locator(f"li.card[data-artist='{artist.id}']")
-        assert rothko_card.locator(".card-meta").inner_text() == "1903–1970 · 1 work"
-        assert rothko_card.locator("img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
+        expect(rothko_card.locator(".card-meta")).to_have_text("1903–1970 · 1 work", use_inner_text=True)
+        expect(rothko_card.locator("img")).to_have_attribute("src", f"/api/works/{work.id}/thumbnail")
 
         ui.page.click("ul.artist-posters a:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
@@ -124,15 +126,16 @@ class TestTheIndex:
         ui.page.wait_for_selector("#view table tbody tr")
 
         assert ui.page.evaluate("() => window.location.hash") == "#artist?view=table"
-        assert ui.page.locator("button.menu-button-trigger", has_text="View").inner_text().startswith("View: Table")
-        assert ui.page.locator("#view tbody td:first-child").all_inner_texts() == [
-            "Salvador Dalí",
-            "Charles Demuth",
-            "Mark Rothko",
-        ]
+        expect(ui.page.locator("button.menu-button-trigger", has_text="View")).to_have_text(
+            re.compile(r"^View: Table"), use_inner_text=True
+        )
+        expect(ui.page.locator("#view tbody td:first-child")).to_have_text(
+            ["Salvador Dalí", "Charles Demuth", "Mark Rothko"], use_inner_text=True
+        )
         ui.page.reload()
         ui.page.wait_for_selector("#view table tbody tr")
-        assert ui.page.locator("ul.artist-posters").count() == 0
+        expect(ui.page.locator("#view table tbody tr")).to_have_count(3)
+        expect(ui.page.locator("ul.artist-posters")).to_have_count(0)
 
     def test_every_artist_is_reached_by_keyboard(self, ui, rothko, seeded_service):
         """The picture is a pointer's shortcut; the name is the control, and Tab reaches each one."""
@@ -158,7 +161,8 @@ class TestTheIndex:
             "() => getComputedStyle(document.querySelector('ul.artist-posters')).gridTemplateColumns.split(' ').length"
         )
         assert fewest <= tracks <= most
-        grid = ui.page.locator("ul.artist-posters").bounding_box()
+        expect(ui.page.locator("ul.artist-posters")).to_be_visible()
+        grid = ui.page.locator("ul.artist-posters").bounding_box()  # one-shot: geometry, measured once the posters are visible
         assert grid["x"] + grid["width"] <= width, "the grid runs past the page"
 
     def test_a_picture_that_fails_to_load_says_so_and_keeps_the_card(self, ui, rothko, seeded_service):
@@ -169,10 +173,10 @@ class TestTheIndex:
         ui.page.wait_for_selector(f"li.card[data-artist='{artist.id}'] .card-image-absent")
 
         card = ui.page.locator(f"li.card[data-artist='{artist.id}']")
-        assert card.locator(".card-image-absent").inner_text() == "No picture"
-        assert card.locator("img").count() == 0, "a broken image was left in the card"
-        assert card.locator(".card-title").inner_text() == "Mark Rothko"
-        assert card.locator(".card-meta").inner_text() == "1903–1970 · 1 work"
+        expect(card.locator(".card-image-absent")).to_have_text("No picture", use_inner_text=True)
+        expect(card.locator(".card-title")).to_have_text("Mark Rothko", use_inner_text=True)
+        expect(card.locator(".card-meta")).to_have_text("1903–1970 · 1 work", use_inner_text=True)
+        expect(card.locator("img"), "a broken image was left in the card").to_have_count(0)
 
     def test_the_sidebar_offers_artists_under_artworks(self, ui, rothko):
         ui.open("#collection")
@@ -194,9 +198,11 @@ class TestTheArtistPage:
 
         # The count is the page's line of facts, above the toolbar, as on every
         # list page (audit 6, finding 12); the section's heading names it only.
-        assert ui.page.locator("#view .page-facts").inner_text() == "1 work in your library"
-        assert ui.page.locator("#in-your-library").inner_text() == "In your library"
-        assert ui.page.locator("section[aria-labelledby='in-your-library'] .card-title").all_inner_texts() == [work.title]
+        expect(ui.page.locator("#view .page-facts")).to_have_text("1 work in your library", use_inner_text=True)
+        expect(ui.page.locator("#in-your-library")).to_have_text("In your library", use_inner_text=True)
+        expect(ui.page.locator("section[aria-labelledby='in-your-library'] .card-title")).to_have_text(
+            [work.title], use_inner_text=True
+        )
 
     def test_two_held_works_naming_one_item_are_shown_as_a_duplicate(self, ui, services, service, rothko):
         """The duplicate a curator should see, rather than one mark that quietly picks one."""
@@ -207,7 +213,7 @@ class TestTheArtistPage:
         _registry_answered(ui)
 
         badge = ui.page.locator("section[aria-labelledby='their-work'] .badge-held")
-        assert badge.inner_text().strip().endswith("Held ×2")
+        expect(badge).to_have_text(re.compile(r"Held ×2\s*$"), use_inner_text=True)
         badge.click()
         # By address, not by heading: the twin's title contains the first's, so a
         # heading match passes whichever of the two opened.
@@ -220,31 +226,30 @@ class TestTheArtistPage:
         _page(ui, artist)
         _registry_answered(ui)
 
-        marks = {
-            row.locator("td").nth(1).inner_text(): row.locator("td").nth(3)
-            for row in ui.page.locator("section[aria-labelledby='their-work'] tbody tr").all()
-        }
-        assert " ".join(marks["No 1"].inner_text().split()) == "◑ Wanted"
-        assert marks["Untitled (Purple, White, and Red)"].locator(".work-pic-held img").count() == 1
-        assert marks["Rothko Chapel"].locator(".work-pic-not-held img").count() == 1
+        # Whitespace-normalised, as the join over `split()` was.
+        expect(_their_row(ui, "No 1").locator("td").nth(3)).to_have_text("◑ Wanted", use_inner_text=True)
+        expect(
+            _their_row(ui, "Untitled (Purple, White, and Red)").locator("td").nth(3).locator(".work-pic-held img")
+        ).to_have_count(1)
+        expect(_their_row(ui, "Rothko Chapel").locator("td").nth(3).locator(".work-pic-not-held img")).to_have_count(1)
 
     def test_their_work_marks_the_held_one_held_and_the_others_not(self, ui, rothko):
         artist, work = rothko
         _page(ui, artist)
         _registry_answered(ui)
 
-        states = {
-            # The Get column comes first; the work and its state are the second and fourth.
-            row.locator("td").nth(1).inner_text(): row.locator("td").nth(3).inner_text().strip()
-            for row in ui.page.locator("section[aria-labelledby='their-work'] tbody tr").all()
-        }
-        assert states["Untitled (Purple, White, and Red)"].endswith("Held")
-        assert states["Rothko Chapel"].endswith("Not held · Image found")
+        # The Get column comes first; the work and its state are the second and fourth.
+        expect(_their_row(ui, "Untitled (Purple, White, and Red)").locator("td").nth(3)).to_have_text(
+            re.compile(r"Held\s*$"), use_inner_text=True
+        )
+        expect(_their_row(ui, "Rothko Chapel").locator("td").nth(3)).to_have_text(
+            re.compile(r"Not held · Image found\s*$"), use_inner_text=True
+        )
         # A work with neither says so in glyph and word, as every state does,
         # rather than a dash (the owner's ruling on #172).
-        assert " ".join(states["No 1"].split()) == "○ Not held"
-        assert "No English title (Q16682090)" in states
-        assert "1276" in ui.page.locator("section[aria-labelledby='their-work'] caption").inner_text()
+        expect(_their_row(ui, "No 1").locator("td").nth(3)).to_have_text("○ Not held", use_inner_text=True)
+        expect(_their_row(ui, "No English title (Q16682090)")).to_have_count(1)
+        expect(ui.page.locator("section[aria-labelledby='their-work'] caption")).to_contain_text("1276", use_inner_text=True)
 
         ui.page.click("section[aria-labelledby='their-work'] .badge-held")
         ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
@@ -272,7 +277,10 @@ class TestTheArtistPage:
         # The frame is sized by the style, whether or not the picture has arrived;
         # one hidden by the style has no box at all.
         for style in ("held", "not-held"):
-            box = ui.page.locator(f"{section} .work-pic-{style}").bounding_box()
+            expect(ui.page.locator(f"{section} .work-pic-{style}"), f"the {style} picture is not drawn").to_be_visible()
+            box = ui.page.locator(
+                f"{section} .work-pic-{style}"
+            ).bounding_box()  # one-shot: geometry, measured once it is visible
             assert box is not None, f"the {style} picture is not drawn"
             assert min(box["width"], box["height"]) >= 48, f"the {style} picture is too small to tell works apart"
         fits = ui.page.evaluate(
@@ -284,11 +292,11 @@ class TestTheArtistPage:
         chapel = ui.page.locator(f"{section} tbody tr", has_text="Rothko Chapel")
         column, under = chapel.locator("td.year-col"), chapel.locator(".year-under")
         shown, folded = (under, column) if width < 640 else (column, under)
-        assert shown.is_visible()
-        assert shown.inner_text() == "1971"
-        assert not folded.is_visible()
+        expect(shown).to_be_visible()
+        expect(shown).to_have_text("1971", use_inner_text=True)
+        expect(folded).to_be_hidden()
         fresco = ui.page.locator(f"{section} tbody tr", has_text="A fresco")
-        assert fresco.locator(".year-under" if width < 640 else "td.year-col").inner_text() == "50 BCE"
+        expect(fresco.locator(".year-under" if width < 640 else "td.year-col")).to_have_text("50 BCE", use_inner_text=True)
 
     def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, pictures_load, rothko):
         # The picture has to load to stay on the page, and Commons is not asked.
@@ -299,15 +307,15 @@ class TestTheArtistPage:
 
         thumb = ui.page.locator(".badge-image-found img")
         # Why 250: `FOUND_WIDTH` in `core/registry.js`.
-        assert thumb.get_attribute("src") == f"{COMMONS}?width=250"
-        assert thumb.get_attribute("referrerpolicy") == "no-referrer"
+        expect(thumb).to_have_attribute("src", f"{COMMONS}?width=250")
+        expect(thumb).to_have_attribute("referrerpolicy", "no-referrer")
 
     def test_registry_text_arrives_as_words_not_markup(self, ui, rothko):
         artist, _work = rothko
         _page(ui, artist)
         _registry_answered(ui)
 
-        assert ui.page.get_by_text('American painter <img src=x onerror="window.pwned=1">').count() == 1
+        expect(ui.page.get_by_text('American painter <img src=x onerror="window.pwned=1">')).to_have_count(1)
         assert ui.page.evaluate("() => window.pwned") is None
 
     def test_holdings_and_movements_are_shown(self, ui, rothko):
@@ -315,8 +323,8 @@ class TestTheArtistPage:
         _page(ui, artist)
         _registry_answered(ui)
 
-        assert ui.page.get_by_text("National Gallery of Art: 1128").count() == 1
-        assert ui.page.get_by_text("abstract expressionism").count() == 1
+        expect(ui.page.get_by_text("National Gallery of Art: 1128")).to_have_count(1)
+        expect(ui.page.get_by_text("abstract expressionism")).to_have_count(1)
 
     def test_a_registry_outage_leaves_the_library_half_working(self, ui, rothko, registry):
         artist, work = rothko
@@ -324,8 +332,12 @@ class TestTheArtistPage:
         _page(ui, artist)
         _registry_answered(ui)
 
-        assert "could not be asked" in ui.page.locator("section[aria-labelledby='their-work'] p.note").inner_text()
-        assert ui.page.locator("section[aria-labelledby='in-your-library'] .card-title").all_inner_texts() == [work.title]
+        expect(ui.page.locator("section[aria-labelledby='their-work'] p.note")).to_contain_text(
+            "could not be asked", use_inner_text=True
+        )
+        expect(ui.page.locator("section[aria-labelledby='in-your-library'] .card-title")).to_have_text(
+            [work.title], use_inner_text=True
+        )
 
     def test_an_unmatched_artist_says_so(self, ui, services, service):
         painter = service.add_artist(name="Unmatched Painter")
@@ -333,7 +345,9 @@ class TestTheArtistPage:
         _page(ui, painter)
         _registry_answered(ui)
 
-        assert "not matched to Wikidata" in ui.page.locator("section[aria-labelledby='their-work'] p.note").inner_text()
+        expect(ui.page.locator("section[aria-labelledby='their-work'] p.note")).to_contain_text(
+            "not matched to Wikidata", use_inner_text=True
+        )
 
     def test_more_like_this_writes_an_artist_affinity(self, ui, services, rothko):
         artist, _work = rothko
@@ -400,8 +414,8 @@ class TestTheArtistPage:
         ui.open(f"#artist/{artist.id}")
 
         ui.page.wait_for_selector("#error:not([hidden])")
-        assert "500" in ui.page.inner_text("#error")
-        assert ui.page.locator("#view h1:has-text('That artist is not here')").count() == 0
+        expect(ui.page.locator("#error")).to_contain_text("500", use_inner_text=True)
+        expect(ui.page.locator("#view h1:has-text('That artist is not here')")).to_have_count(0)
 
     def test_an_address_naming_nobody_says_so(self, ui):
         ui.open("#artist/nobody")
@@ -434,6 +448,18 @@ def _their_work(ui):
     return ui.page.locator("section[aria-labelledby='their-work']")
 
 
+def _their_row(ui, title):
+    """The row of *Their work* whose title cell is `title` and nothing else.
+
+    Chosen by the words in full, since a substring would take "No 1" for any
+    title that holds it; the cell's raw text also holds the year folded under
+    the title on a phone, so it is the words the cell shows that are matched. A
+    title that is not there matches no row, and the assertion on it fails.
+    """
+    cell = ui.page.locator("td:nth-of-type(2)").get_by_text(title, exact=True)
+    return _their_work(ui).locator("tbody tr").filter(has=cell)
+
+
 class TestAnUnlinkedArtist:
     """An artist the library holds with no Wikidata item: who they might be, and a click to say which.
 
@@ -455,25 +481,27 @@ class TestAnUnlinkedArtist:
         _page(ui, unlinked)
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] button:text-is('This is them')")
 
-        rows = [" ".join(text.split()) for text in _their_work(ui).locator("li").all_inner_texts()]
-        assert rows == [
-            # The item is each link's target, not words in the row (#359).
-            "Mark Rothko 1903–1970 · on Wikidata · their years agree This is them",
-            "Mark Rothko 1850–1900 · on Wikidata This is them",
-        ]
+        expect(_their_work(ui).locator("li")).to_have_text(
+            [
+                # The item is each link's target, not words in the row (#359).
+                "Mark Rothko 1903–1970 · on Wikidata · their years agree This is them",
+                "Mark Rothko 1850–1900 · on Wikidata This is them",
+            ],
+            use_inner_text=True,
+        )
         targets = _their_work(ui).locator("li a:text-is('on Wikidata')").evaluate_all("(links) => links.map((a) => a.href)")
         assert [target.rsplit("/", 1)[-1] for target in targets] == [ROTHKO, "Q900001"]
         # Said once: where people are offered, their list asks the question and
         # the server's "not matched" note is not said beside it (#359).
-        assert _their_work(ui).locator("p.note").count() == 0
-        assert "Is it one of these?" in _their_work(ui).inner_text()
-        assert "not matched" not in ui.page.locator("#view").inner_text()
+        expect(_their_work(ui)).to_contain_text("Is it one of these?", use_inner_text=True)
+        expect(_their_work(ui).locator("p.note")).to_have_count(0)
+        expect(ui.view).not_to_contain_text("not matched", use_inner_text=True)
         _their_work(ui).locator("li").first.locator("button").click()
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 
-        assert "Rothko Chapel" in _their_work(ui).inner_text()
-        assert _their_work(ui).locator("button:text-is('This is them')").count() == 0
-        assert "set by you" in ui.page.locator(".identity-now").inner_text()
+        expect(_their_work(ui)).to_contain_text("Rothko Chapel", use_inner_text=True)
+        expect(_their_work(ui).locator("button:text-is('This is them')")).to_have_count(0)
+        expect(ui.page.locator(".identity-now")).to_contain_text("set by you", use_inner_text=True)
 
     def test_a_candidate_taken_since_the_page_was_drawn_is_refused_and_nothing_is_stored(self, ui, services, service, unlinked):
         """The list is read once; another artist may take the item before the click. The route refuses it, and says why."""
@@ -507,15 +535,17 @@ class TestAnUnlinkedArtist:
         _page(ui, unlinked)
         _registry_answered(ui)
 
-        assert "You said Wikidata has no item" in _their_work(ui).locator("p.note").inner_text()
-        assert _their_work(ui).locator("button:text-is('This is them')").count() == 0
+        expect(_their_work(ui).locator("p.note")).to_contain_text("You said Wikidata has no item", use_inner_text=True)
+        expect(_their_work(ui).locator("button:text-is('This is them')")).to_have_count(0)
 
     def test_their_page_by_qid_offers_to_link_them_and_then_is_theirs(self, ui, registry, unlinked):
         registry.artists[ROTHKO] = replace(registry.artists[ROTHKO], name="Mark Rothko", born=1903, died=1970)
         ui.open(f"#artist/{ROTHKO}")
         ui.page.wait_for_selector("#view .namesake")
 
-        assert "Your library has Mark Rothko (1903–1970), not linked to Wikidata." in ui.page.locator(".namesake").inner_text()
+        expect(ui.page.locator(".namesake")).to_contain_text(
+            "Your library has Mark Rothko (1903–1970), not linked to Wikidata.", use_inner_text=True
+        )
         ui.page.click("#view button:text-is('Link them to this item')")
         ui.page.wait_for_function("(id) => window.location.hash === `#artist/${id}`", arg=unlinked.id)
         # The hash changes before the artist's own page replaces the registry
@@ -527,7 +557,7 @@ class TestAnUnlinkedArtist:
                 && !section.innerText.includes("Asking Wikidata");
             }""")
 
-        assert "Rothko Chapel" in _their_work(ui).inner_text()
+        expect(_their_work(ui)).to_contain_text("Rothko Chapel", use_inner_text=True)
 
     def test_a_linked_artists_namesake_page_offers_no_link(self, ui, registry, rothko):
         """The paired negative: the page by QID of someone the library holds linked forwards, and offers nothing."""
@@ -535,7 +565,7 @@ class TestAnUnlinkedArtist:
         ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
         _registry_answered(ui)
 
-        assert ui.page.locator("#view .namesake").count() == 0
+        expect(ui.page.locator("#view .namesake")).to_have_count(0)
 
 
 class TestWhenWikidataListsNoWorks:
@@ -556,7 +586,7 @@ class TestWhenWikidataListsNoWorks:
         ui.page.wait_for_selector("#view textarea#ask-words")
 
         assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Paintings%20by%20Lucy%20Bull"
-        assert ui.page.input_value("#ask-words") == "Paintings by Lucy Bull"
+        expect(ui.page.locator("#ask-words")).to_have_value("Paintings by Lucy Bull")
 
     def test_a_held_artist_wikidata_lists_nothing_for_offers_it_too(self, ui, services, service, lucy_bull):
         painter = service.add_artist(name="Lucy Bull", born=1990)
@@ -572,7 +602,7 @@ class TestWhenWikidataListsNoWorks:
         _page(ui, artist)
         _registry_answered(ui)
 
-        assert ui.page.locator("#view a:text-is('Ask for their work')").count() == 0
+        expect(ui.page.locator("#view a:text-is('Ask for their work')")).to_have_count(0)
 
 
 def test_an_empty_artist_index_offers_ask(ui):

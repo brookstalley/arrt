@@ -8,6 +8,7 @@ were ready. These checks run on every page the sidebar reaches, read from the
 route table, so a page added later is held to the same rules.
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -17,6 +18,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
@@ -134,8 +137,8 @@ def test_an_empty_page_uses_the_one_empty_state(ui, key):
     if key in EMPTY_WHEN_NOTHING_IS_HELD:
         lead = ui.page.locator("#view .empty > p.empty-lead")
         lead.first.wait_for()
-        assert lead.count() == 1
-        assert lead.inner_text().strip()
+        expect(lead).to_have_count(1)
+        expect(lead).to_have_text(re.compile(r"\S"), use_inner_text=True)
         # The page's name outranks what the page says about itself.
         sizes = ui.page.evaluate(
             "() => ['#view h1', '#view .empty-lead'].map((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize))"
@@ -143,9 +146,9 @@ def test_an_empty_page_uses_the_one_empty_state(ui, key):
         assert sizes[1] < sizes[0]
     else:
         ui.page.wait_for_load_state("networkidle")
-        assert ui.page.locator("#view .empty").count() == 0
+        expect(ui.page.locator("#view .empty")).to_have_count(0)
     # The shapes the shared one replaced.
-    assert ui.page.locator("#view .empty :is(h2, h3), #view .panel.empty, #view .stack.empty").count() == 0
+    expect(ui.page.locator("#view .empty :is(h2, h3), #view .panel.empty, #view .stack.empty")).to_have_count(0)
 
 
 @pytest.mark.parametrize(
@@ -160,7 +163,7 @@ def test_the_lists_of_what_is_held_use_the_one_empty_state_when_empty(ui, key, l
     ui.open(f"#{key}")
     shown = ui.page.locator("#view .empty > p.empty-lead")
     shown.wait_for()
-    assert shown.inner_text() == lead
+    expect(shown).to_have_text(lead, use_inner_text=True)
 
 
 def _probe(ui, markup: str):
@@ -209,6 +212,7 @@ def test_hovering_an_act_leaves_a_full_card_link_covering_the_card(ui):
         '<span id="cover" style="position: absolute; inset: 0"></span></a></div>',
     )
     ui.page.hover("#act")
-    card = ui.page.locator("#card").bounding_box()
-    cover = ui.page.locator("#cover").bounding_box()
+    expect(ui.page.locator("#cover")).to_be_attached()
+    card = ui.page.locator("#card").bounding_box()  # one-shot: geometry, measured once the probe is in the page
+    cover = ui.page.locator("#cover").bounding_box()  # one-shot: geometry, measured once the probe is in the page
     assert (cover["width"], cover["height"]) == (card["width"], card["height"])

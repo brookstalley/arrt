@@ -29,6 +29,7 @@ import json
 import logging
 import sqlite3
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -112,6 +113,10 @@ class BackupResult:
     byte_size: int
     kept: int
     removed: tuple[str, ...]
+    #: How long the `VACUUM INTO` took, by the monotonic clock: the copy holds a
+    #: SHARED lock the server's commits wait on, so this is how long they could
+    #: have waited, and the figure that would reopen the WAL decision.
+    copy_seconds: float
 
 
 class CatalogueBackup:
@@ -138,8 +143,9 @@ class CatalogueBackup:
         receipt_path: Path,
         keep: int,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        """`clock` says when a pass starts, unless `run` is told, and when it completes."""
+        """`clock` says when a pass starts, unless `run` is told, and when it completes; `monotonic` times the copy."""
         if keep < 1:
             raise ValueError(f"keep must be at least 1, got {keep}")
         self._catalogue_path = catalogue_path
@@ -147,6 +153,7 @@ class CatalogueBackup:
         self._receipt_path = receipt_path
         self._keep = keep
         self._clock = clock
+        self._monotonic = monotonic
 
     def run(self, *, now: datetime | None = None) -> BackupResult:
         """Take one generation. Raises on failure, after logging it, with the previous receipt untouched."""
@@ -169,6 +176,7 @@ class CatalogueBackup:
                 "bytes": result.byte_size,
                 "kept": result.kept,
                 "removed": len(result.removed),
+                "copy_seconds": result.copy_seconds,
             },
         )
         return result
@@ -187,12 +195,14 @@ class CatalogueBackup:
         # 5 s) and fail with "database is locked" past that. A household
         # catalogue copies in well under a second; one that grew past the
         # timeout would show as refused writes while the backup runs.
+        copy_began = self._monotonic()
         _copy_intact(sqlite3.connect(f"file:{self._catalogue_path}?mode=ro", uri=True), final)
+        copy_seconds = self._monotonic() - copy_began
         removed = self._retain()
         byte_size = final.stat().st_size
         kept = len(self._generations())
         self._write_receipt(started=started, path=final, byte_size=byte_size, kept=kept)
-        return BackupResult(path=final, byte_size=byte_size, kept=kept, removed=removed)
+        return BackupResult(path=final, byte_size=byte_size, kept=kept, removed=removed, copy_seconds=copy_seconds)
 
     def _generations(self) -> list[Path]:
         return sorted(self._directory.glob(_GENERATION_GLOB))

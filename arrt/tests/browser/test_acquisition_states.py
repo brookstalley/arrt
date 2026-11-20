@@ -11,6 +11,7 @@ The suite's application runs no queue worker, so a work with no image stays
 what the worker would have left.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -59,10 +60,10 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
 
     open_work(ui, work)
 
-    line = ui.page.inner_text(".acquisition-line")
-    assert "queued" in line
-    assert "Waiting its turn to be fetched" in line
-    assert ui.page.locator(".acquisition-line button").count() == 0, "nothing has failed, so there is nothing to retry"
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("queued", use_inner_text=True)
+    expect(line).to_contain_text("Waiting its turn to be fetched", use_inner_text=True)
+    expect(ui.page.locator(".acquisition-line button"), "nothing has failed, so there is nothing to retry").to_have_count(0)
     # The queue's line replaces the bare "no picture yet" sentence: the Picture
     # panel holds its heading and that line and nothing else. Keyed on what the
     # panel holds rather than on the sentence's wording, which a rewording would
@@ -79,14 +80,14 @@ def test_a_work_the_queue_gave_up_on_says_why_and_retry_puts_it_back(ui, accepte
     store.set_queued_acquisition(QueuedAcquisition(artwork_id=work.id, failures=4, detail="the museum answered 404."))
 
     open_work(ui, work)
-    line = ui.page.inner_text(".acquisition-line")
-    assert "gave up" in line
-    assert "Gave up after 4 tries: the museum answered 404." in line
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("gave up", use_inner_text=True)
+    expect(line).to_contain_text("Gave up after 4 tries: the museum answered 404.", use_inner_text=True)
 
     ui.page.click(".acquisition-line button:has-text('Retry')")
     ui.page.wait_for_selector(".acquisition-line:has-text('queued')")
 
-    assert "gave up" not in ui.page.inner_text(".acquisition-line")
+    expect(line).not_to_contain_text("gave up", use_inner_text=True)
     assert store.get_queued_acquisition(work.id).failures == 0
 
 
@@ -99,11 +100,11 @@ def test_a_failed_work_says_which_try_failed_and_when_the_next_is(ui, accepted, 
 
     open_work(ui, work)
 
-    line = ui.page.inner_text(".acquisition-line")
-    assert "failed" in line
-    assert "Try 1 of 4 failed: the connection was reset." in line
-    assert "It tries again at" in line
-    assert ui.page.locator(".acquisition-line button:has-text('Retry now')").count() == 1
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("failed", use_inner_text=True)
+    expect(line).to_contain_text("Try 1 of 4 failed: the connection was reset.", use_inner_text=True)
+    expect(line).to_contain_text("It tries again at", use_inner_text=True)
+    expect(ui.page.locator(".acquisition-line button:has-text('Retry now')")).to_have_count(1)
 
 
 def test_a_work_being_fetched_says_since_when_and_that_it_takes_a_while(ui, accepted, services):
@@ -113,11 +114,11 @@ def test_a_work_being_fetched_says_since_when_and_that_it_takes_a_while(ui, acce
 
     open_work(ui, work)
 
-    line = ui.page.inner_text(".acquisition-line")
-    assert "fetching" in line
-    assert "Being fetched since" in line
-    assert "up to half an hour" in line
-    assert ui.page.locator(".acquisition-line button").count() == 0, "a fetch in hand is not retried"
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("fetching", use_inner_text=True)
+    expect(line).to_contain_text("Being fetched since", use_inner_text=True)
+    expect(line).to_contain_text("up to half an hour", use_inner_text=True)
+    expect(ui.page.locator(".acquisition-line button"), "a fetch in hand is not retried").to_have_count(0)
 
 
 def test_a_paused_queue_says_why_and_what_ends_it_on_the_work_page(ui, accepted, services):
@@ -128,11 +129,13 @@ def test_a_paused_queue_says_why_and_what_ends_it_on_the_work_page(ui, accepted,
 
     open_work(ui, work)
 
-    line = ui.page.inner_text(".acquisition-line")
-    assert "paused" in line
-    assert "Every fetch is paused: only 1.2 GB free; 2.0 GB required." in line
-    assert "Free some space on it" in line
-    assert "MIN_FREE_BYTES" not in line, "the Work page is a household page, which names no setting"
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("paused", use_inner_text=True)
+    expect(line).to_contain_text("Every fetch is paused: only 1.2 GB free; 2.0 GB required.", use_inner_text=True)
+    expect(line).to_contain_text("Free some space on it", use_inner_text=True)
+    expect(line, "the Work page is a household page, which names no setting").not_to_contain_text(
+        "MIN_FREE_BYTES", use_inner_text=True
+    )
 
 
 def test_a_pause_nothing_anticipated_points_at_the_journal_rather_than_a_remedy(ui, accepted, services):
@@ -141,9 +144,9 @@ def test_a_pause_nothing_anticipated_points_at_the_journal_rather_than_a_remedy(
 
     open_work(ui, work)
 
-    line = ui.page.inner_text(".acquisition-line")
-    assert "Every fetch is paused: database disk image is malformed" in line
-    assert "acquisition.queue_error" in line
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text("Every fetch is paused: database disk image is malformed", use_inner_text=True)
+    expect(line).to_contain_text("acquisition.queue_error", use_inner_text=True)
 
 
 def test_a_work_holding_its_image_says_nothing_about_the_queue(ui, ready_work):
@@ -151,8 +154,9 @@ def test_a_work_holding_its_image_says_nothing_about_the_queue(ui, ready_work):
 
     open_work(ui, work)
 
-    assert ui.page.locator(".acquisition-line").count() == 0
-    assert "Pixels" in ui.text()
+    # What a held work's page says, so the page is drawn when the line is found absent.
+    expect(ui.view).to_contain_text("Pixels", use_inner_text=True)
+    expect(ui.page.locator(".acquisition-line")).to_have_count(0)
 
 
 # -- Activity › Queue ---------------------------------------------------------
@@ -167,12 +171,15 @@ def test_the_queue_lists_the_works_in_line_in_the_order_it_will_try_them(ui, acc
     ui.open("#queue")
     ui.page.wait_for_selector(".acquisitions .in-line tbody tr")
 
-    rows = ui.page.locator(".acquisitions .in-line tbody tr").all_inner_texts()
-    titles = [row.split("\t")[0] for row in rows]
-    assert titles.index("Retried") < titles.index("Accepted first")
-    first_row = next(row for row in rows if row.startswith("Accepted first"))
-    assert "queued" in first_row
-    assert "Retry" not in first_row
+    # The retried work comes ahead of the one accepted first: the first
+    # "Retried" has no "Accepted first" before it, and one follows.
+    rows = ui.page.locator(".acquisitions .in-line tbody tr")
+    expect(ui.page.locator(".acquisitions .in-line tbody")).to_have_text(
+        re.compile(r"^(?:(?!Accepted first)[\s\S])*?Retried[\s\S]*Accepted first"), use_inner_text=True
+    )
+    first_row = rows.filter(has_text="Accepted first")
+    expect(first_row).to_contain_text("queued", use_inner_text=True)
+    expect(first_row).not_to_contain_text("Retry", use_inner_text=True)
 
 
 def _failed(store, work, detail, *, failures=1):
@@ -194,25 +201,30 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_no_retry
     ui.open("#queue")
     ui.page.wait_for_selector(".failure-cause")
 
-    assert ui.page.locator(".in-line tbody tr:has-text('Failed once')").count() == 0, "a failed work was also in line"
-    head = ui.page.inner_text(".failure-cause")
-    assert "refused." in head
-    assert "1 work" in head
+    # The work that waits is in line, so the line has drawn when the failed one is found not to be.
+    expect(ui.page.locator(".in-line tbody tr:has-text('Waiting')").first).to_be_attached()
+    expect(ui.page.locator(".in-line tbody tr:has-text('Failed once')"), "a failed work was also in line").to_have_count(0)
+    head = ui.page.locator(".failure-cause")
+    expect(head).to_contain_text("refused.", use_inner_text=True)
+    expect(head).to_contain_text("1 work", use_inner_text=True)
     # A group of one says "Retry": "Retry all" over one work promised more than it did.
-    assert ui.page.locator(".failure-cause button").all_text_contents() == ["Retry"]
+    expect(ui.page.locator(".failure-cause button")).to_have_text(["Retry"])
 
     ui.page.click(".failure-cause a:has-text('Show the works')")
     ui.page.wait_for_selector(".failure-cause-works tbody tr")
 
-    row = ui.page.locator(".failure-cause-works tbody tr").inner_text()
-    assert row.startswith("Failed once")
-    assert "Try 1 of 4 failed. It tries again at" in row, "the cause is the group's heading, not repeated per work"
-    href = ui.page.locator(".failure-cause-works a:has-text('Failed once')").get_attribute("href")
-    assert href.startswith(f"#work/{failed.id}")
+    row = ui.page.locator(".failure-cause-works tbody tr")
+    expect(row).to_have_text(re.compile(r"^Failed once"), use_inner_text=True)
+    expect(row, "the cause is the group's heading, not repeated per work").to_contain_text(
+        "Try 1 of 4 failed. It tries again at", use_inner_text=True
+    )
+    expect(ui.page.locator(".failure-cause-works a:has-text('Failed once')")).to_have_attribute(
+        "href", re.compile("^" + re.escape(f"#work/{failed.id}"))
+    )
     # One Retry for the group; a row has none (design direction: never one button
     # per row, audit-6 finding 11). A single work is retried on its own page.
-    assert ui.page.locator(".failure-cause-works button").count() == 0
-    assert "cause=refused." in ui.page.url, "opening a group is an address"
+    expect(ui.page.locator(".failure-cause-works button")).to_have_count(0)
+    expect(ui.page, "opening a group is an address").to_have_url(re.compile(re.escape("cause=refused.")))
 
 
 def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, seed_the_served_catalogue, catalogue_file, store):
@@ -226,11 +238,14 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     ui.open("#queue")
     ui.page.wait_for_selector(".failure-cause")
 
-    assert ui.page.locator(".failure-cause").count() == 1
-    head = ui.page.inner_text(".failure-cause")
-    assert "The work has no source to acquire from." in head
-    assert "2000 works" in head
-    assert ui.page.locator(".acquisitions tbody tr").count() <= 25, "a failure was drawn as a row before its group opened"
+    head = ui.page.locator(".failure-cause")
+    expect(head).to_have_count(1)
+    expect(head).to_contain_text("The work has no source to acquire from.", use_inner_text=True)
+    expect(head).to_contain_text("2000 works", use_inner_text=True)
+    # At most 25 rows: there is no 26th.
+    expect(
+        ui.page.locator(".acquisitions tbody tr").nth(25), "a failure was drawn as a row before its group opened"
+    ).to_have_count(0)
     height = ui.page.evaluate("() => document.documentElement.scrollHeight")
     assert height < 3000, f"Queue is {height}px tall with one cause"
 
@@ -238,13 +253,17 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     ui.page.wait_for_selector(".failure-cause-works tbody tr")
 
     rows = ui.page.locator(".failure-cause-works tbody tr")
-    assert rows.count() == 25
-    shown = ui.page.inner_text(".acquisitions")
+    expect(rows).to_have_count(25)
+    expect(ui.page.locator(".acquisitions")).to_contain_text("1–25 of 2000", use_inner_text=True)
+    # No pattern of two thousand ids is written for `not_to_contain_text`: the
+    # panel's words are read once, after the expects above have drawn it whole.
+    shown = ui.page.inner_text(
+        ".acquisitions"
+    )  # one-shot: membership of 2,000 ids in the settled panel, which has no retrying form
     assert not any(work.id in shown for work in works), "a work was named by its id"
-    assert "1–25 of 2000" in shown
     ui.page.click(".failure-cause-works a:has-text('Next')")
     ui.page.wait_for_selector(".failure-cause-works :text('26–50 of 2000')")
-    assert rows.count() == 25
+    expect(rows).to_have_count(25)
 
     # On a phone the group and its opened works fit across: no sideways scroll.
     ui.page.set_viewport_size({"width": 390, "height": 844})
@@ -262,19 +281,20 @@ def test_retry_all_retries_the_group_in_one_request_and_says_what_it_did(ui, acc
     ui.page.wait_for_selector(".failure-cause")
 
     # The button says how many it retries: the whole group, four works.
-    assert ui.page.locator(".failure-cause button").all_text_contents() == ["Retry 4"]
+    expect(ui.page.locator(".failure-cause button")).to_have_text(["Retry 4"])
     ui.page.click(".failure-cause button:text-is('Retry 4')")
-    said = ui.page.wait_for_selector(".retry-all-said")
 
-    assert said.inner_text() == "3 works put back in line. 1 work not: The work has no source to acquire from."
+    expect(ui.page.locator(".retry-all-said")).to_have_text(
+        "3 works put back in line. 1 work not: The work has no source to acquire from.", use_inner_text=True
+    )
     assert len(ui.requests_matching("/api/acquisitions/causes/retry")) == 1
     assert ui.requests_matching("/acquisition/retry") == [], "a group's Retry asked once per work"
     assert {store.get_queued_acquisition(work.id).failures for work in retried} == {0}
     # The one refused stays under its cause; the three are back in line.
-    assert ui.page.locator(".failure-cause").count() == 1
-    assert "1 work" in ui.page.inner_text(".failure-cause")
-    in_line = ui.page.inner_text(".in-line")
-    assert all(f"Given up {number}" in in_line for number in range(3))
+    expect(ui.page.locator(".failure-cause")).to_have_count(1)
+    expect(ui.page.locator(".failure-cause")).to_contain_text("1 work", use_inner_text=True)
+    for number in range(3):
+        expect(ui.page.locator(".in-line")).to_contain_text(f"Given up {number}", use_inner_text=True)
 
 
 def test_the_works_in_line_page_from_the_server(ui, accepted):
@@ -284,10 +304,10 @@ def test_the_works_in_line_page_from_the_server(ui, accepted):
     ui.open("#queue")
     ui.page.wait_for_selector(".in-line tbody tr")
 
-    assert ui.page.locator(".in-line tbody tr").count() == 25
+    expect(ui.page.locator(".in-line tbody tr")).to_have_count(25)
     ui.page.click(".in-line a:has-text('Next')")
     ui.page.wait_for_selector(".in-line .queue-paging :text('26–')")
-    assert "offset=25" in ui.page.url
+    expect(ui.page).to_have_url(re.compile(re.escape("offset=25")))
     assert ui.requests_matching("/api/acquisitions?offset=25")
 
 
@@ -336,11 +356,14 @@ def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
     ui.open("#queue")
     ui.page.wait_for_selector(".acquisition-pause")
 
-    pause = ui.page.inner_text(".acquisition-pause")
-    assert "Every fetch is paused: only 1.2 GB free" in pause
-    assert "Free some space on it" in pause
-    panel = ui.page.inner_text(".acquisitions")
-    assert panel.index("Every fetch is paused") < panel.index("Hunters in the Snow"), "the pause holds every row beneath it"
+    pause = ui.page.locator(".acquisition-pause")
+    expect(pause).to_contain_text("Every fetch is paused: only 1.2 GB free", use_inner_text=True)
+    expect(pause).to_contain_text("Free some space on it", use_inner_text=True)
+    # The first "Every fetch is paused" has no title before it, and the title follows.
+    expect(ui.page.locator(".acquisitions"), "the pause holds every row beneath it").to_have_text(
+        re.compile(r"^(?:(?!Hunters in the Snow)[\s\S])*?Every fetch is paused[\s\S]*Hunters in the Snow"),
+        use_inner_text=True,
+    )
 
 
 def test_a_queue_owing_nothing_says_so(ui):
@@ -349,8 +372,8 @@ def test_a_queue_owing_nothing_says_so(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('Fetching images (0)')")
 
-    assert "Every accepted work holds its image." in ui.text()
-    assert ui.page.locator(".acquisition-pause").count() == 0
+    expect(ui.view).to_contain_text("Every accepted work holds its image.", use_inner_text=True)
+    expect(ui.page.locator(".acquisition-pause")).to_have_count(0)
 
 
 # -- a Review card for an accepted work -----------------------------------------
@@ -367,10 +390,10 @@ def test_an_accepted_card_says_its_image_is_queued_and_a_pending_one_says_nothin
     ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-line")
 
-    line = ui.page.inner_text("li.card[data-work='taken'] .acquisition-line")
-    assert "queued" in line
-    assert "Waiting its turn" in line
-    assert ui.page.locator("li.card[data-work='pending'] .acquisition-slot").count() == 0
+    line = ui.page.locator("li.card[data-work='taken'] .acquisition-line")
+    expect(line).to_contain_text("queued", use_inner_text=True)
+    expect(line).to_contain_text("Waiting its turn", use_inner_text=True)
+    expect(ui.page.locator("li.card[data-work='pending'] .acquisition-slot")).to_have_count(0)
 
 
 def test_an_accepted_card_whose_image_is_held_says_so(ui, ready_work):
@@ -383,7 +406,9 @@ def test_an_accepted_card_whose_image_is_held_says_so(ui, ready_work):
     ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-slot p")
 
-    assert ui.page.inner_text("li.card[data-work='taken'] .acquisition-slot") == "Its image is held and prepared for the wall."
+    expect(ui.page.locator("li.card[data-work='taken'] .acquisition-slot")).to_have_text(
+        "Its image is held and prepared for the wall.", use_inner_text=True
+    )
 
 
 def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is_coming(ui, accepted, services):
@@ -397,7 +422,9 @@ def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is
     ui.open_folds()
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-slot p")
 
-    assert ui.page.inner_text("li.card[data-work='taken'] .acquisition-slot") == "No image is being fetched for it."
+    expect(ui.page.locator("li.card[data-work='taken'] .acquisition-slot")).to_have_text(
+        "No image is being fetched for it.", use_inner_text=True
+    )
 
 
 def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_record(ui, accepted, store):
@@ -445,7 +472,7 @@ def test_the_fetches_section_says_what_it_holds_before_its_parts(ui):
     summary = ui.page.locator(".acquisitions > .acquisition-summary")
     summary.wait_for()
 
-    assert summary.inner_text() == "1 work in line"
+    expect(summary).to_have_text("1 work in line", use_inner_text=True)
     order = ui.page.locator(".acquisitions").evaluate(
         "(panel) => [...panel.querySelectorAll('h2, .acquisition-summary, h3')]"
         ".map((n) => n.tagName === 'P' ? 'summary' : n.tagName)"

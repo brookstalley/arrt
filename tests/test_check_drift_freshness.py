@@ -239,3 +239,110 @@ def test_the_entry_point_exits_zero_on_a_healthy_pair():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# -- known-blocked rows: the file's age is this check's; a blocked run's freshness is the job's -------
+
+BLOCKED = SCRIPT.parents[1] / "known-blocked.json"
+WRITTEN = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+
+def _healthy_at(now: datetime) -> list[dict]:
+    """Both free jobs and the paid one succeeding recently, as of `now`."""
+    return [
+        {
+            "createdAt": (now - timedelta(days=2)).isoformat().replace("+00:00", "Z"),
+            "jobs": [{"name": MUSEUM, "conclusion": "success"}, {"name": BINARY, "conclusion": "success"}],
+        },
+        {
+            "createdAt": (now - timedelta(days=5)).isoformat().replace("+00:00", "Z"),
+            "jobs": [{"name": PAID, "conclusion": "success"}],
+        },
+    ]
+
+
+def test_a_tier_whose_only_failures_are_unexpired_known_blocked_probes_counts_fresh(capsys):
+    """The judge ends such a job `success`, so the tier is fresh by the conclusion it carries.
+
+    With the real file, unexpired as of the day it was written, the check passes and says what is excused.
+    """
+    guard = _load()
+
+    assert guard.main(_healthy_at(WRITTEN), WRITTEN, BLOCKED) == 0
+
+    printed = capsys.readouterr().out
+    assert printed.count("known-blocked: tests/live/") == 6
+    assert "(#110) is excused until 2027-01-18" in printed and "(#109) is excused until 2027-01-18" in printed
+
+
+def test_an_expired_row_fails_the_check_naming_it_though_every_tier_is_fresh(capsys):
+    """Trips on the file alone: both tiers ran on time and succeeded; only the day after the expiry differs."""
+    guard = _load()
+    after = datetime(2027, 1, 19, 12, 0, tzinfo=UTC)
+
+    assert guard.main(_healthy_at(after), after, BLOCKED) == 1
+
+    printed = capsys.readouterr().out
+    assert "::error::known-blocked tests/live/test_artic_shapes_are_still_real.py::" in printed
+    assert "expired on 2027-01-18" in printed
+
+
+def test_a_row_refused_for_its_expiry_or_its_probe_fails_the_check_by_name(tmp_path, capsys):
+    guard = _load()
+    live = tmp_path / "arrt" / "tests" / "live"
+    live.mkdir(parents=True)
+    (live / "test_p.py").write_text("def test_probe(): pass\n")
+    path = tmp_path / "known-blocked.json"
+    rows = [
+        {"test": "tests/live/test_p.py::test_probe", "issue": 5, "expires": "2027-06-01", "reason": "r"},
+        {"test": "tests/live/test_p.py::test_renamed", "issue": 5, "expires": "2026-12-01", "reason": "r"},
+    ]
+    path.write_text(json.dumps({"blocked": rows}))
+
+    assert guard.blocked_rows(path, WRITTEN, tmp_path / "arrt") == 1
+
+    printed = capsys.readouterr().out
+    assert "test_probe: expires 2027-06-01, more than 60 days after 2026-11-19" in printed
+    assert "test_renamed: names test_renamed, which tests/live/test_p.py does not define" in printed
+
+
+def test_without_a_blocked_file_the_tiers_alone_decide_as_before():
+    guard = _load()
+
+    assert guard.main(_healthy_at(WRITTEN), WRITTEN) == 0
+    assert guard.main([], WRITTEN) == 1
+
+
+def test_a_blocked_probe_does_not_make_a_never_run_tier_fresh(capsys):
+    """Excusing a probe is not evidence the schedule is alive: no successful run, still a failure."""
+    guard = _load()
+
+    assert guard.main([], WRITTEN, BLOCKED) == 1
+    assert "have never completed successfully" in capsys.readouterr().out
+
+
+def test_the_entry_point_checks_the_blocked_file_it_is_given():
+    runs = json.dumps(_healthy_at(WRITTEN))
+
+    fresh = subprocess.run(
+        [sys.executable, str(SCRIPT), "--now", "2026-11-19T12:00:00Z", "--blocked", str(BLOCKED)],
+        input=runs,
+        capture_output=True,
+        text=True,
+    )
+    expired = subprocess.run(
+        [sys.executable, str(SCRIPT), "--now", "2027-01-19T12:00:00Z", "--blocked", str(BLOCKED)],
+        input=json.dumps(_healthy_at(datetime(2027, 1, 19, 12, 0, tzinfo=UTC))),
+        capture_output=True,
+        text=True,
+    )
+
+    assert fresh.returncode == 0, fresh.stdout + fresh.stderr
+    assert expired.returncode == 1
+    assert "expired on 2027-01-18" in expired.stdout
+
+
+def test_the_workflow_hands_the_freshness_check_the_blocked_file():
+    workflow = (SCRIPT.parents[2] / ".github" / "workflows" / "drift-freshness.yml").read_text(encoding="utf-8")
+
+    assert "check_drift_freshness.py --blocked .github/known-blocked.json" in workflow

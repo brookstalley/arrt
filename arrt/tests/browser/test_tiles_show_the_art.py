@@ -8,12 +8,16 @@ own mat. Every work here is a **portrait master**, so a picture in a screen's
 decoded is what is measured, not the address it asked for.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 @pytest.fixture
@@ -70,9 +74,14 @@ def test_a_tile_carries_no_badge_that_says_nothing(ui, composed, work_with_an_im
 
     verdict = ui.page.evaluate(f"() => fetch('/api/works/{big.id}').then(r => r.json()).then(d => d.work.fit.verdict)")
     assert verdict == "meets_minimum", "the fixture no longer makes the case this test is about"
-    footer = ui.page.locator(f"li.card[data-artwork='{big.id}'] .card-footer").inner_text()
+    # The grid has painted (the small card's badge is in it), so the big card's
+    # footer is settled too: its absence of words is read of a drawn card.
+    expect(ui.page.locator(f"li.card[data-artwork='{big.id}']")).to_be_visible()
+    footer = ui.page.locator(f"li.card[data-artwork='{big.id}'] .card-footer")
     for word in ("minimum", "wall render", "master"):
-        assert word not in footer, f"the tile still says {word!r}"
-    small_footer = ui.page.locator(f"li.card[data-artwork='{small.id}'] .card-footer").inner_text()
-    assert small_footer.strip(), "a fit worth saying went with the ones that say nothing"
-    assert "below minimum" in small_footer
+        expect(footer, f"the tile still says {word!r}").not_to_contain_text(word, use_inner_text=True)
+    small_footer = ui.page.locator(f"li.card[data-artwork='{small.id}'] .card-footer")
+    expect(small_footer, "a fit worth saying went with the ones that say nothing").to_have_text(
+        re.compile(r"\S"), use_inner_text=True
+    )
+    expect(small_footer).to_contain_text("below minimum", use_inner_text=True)

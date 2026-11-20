@@ -8,6 +8,7 @@ what lets a count change between two reads.
 """
 
 import json
+import re
 
 import pytest
 
@@ -17,6 +18,7 @@ pytest.importorskip(
 )
 
 from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict, an_instance_listing
+from playwright.sync_api import expect
 
 from arrt.http.models import RunListOut
 
@@ -47,10 +49,12 @@ def test_it_lists_the_runs_waiting_with_how_many_each_holds(ui):
     ui.open("#to_review")
     ui.page.wait_for_selector("#view h1:text-is('To review')")
 
-    rows = [" ".join(row.split()) for row in ui.page.locator("#view tbody tr").all_inner_texts()]
-    assert ui.page.locator("#view h2").first.inner_text() == "3 works to review"
-    assert rows[0].startswith("Works you chose Get of chosen works 2 ")
-    assert rows[1].startswith("Quiet interiors Get from Ask 1 ")
+    # Each row's cells are read as one line, as the whitespace-joined read did:
+    # a pattern is matched against the raw innerText, so a space is `\s+`.
+    rows = ui.page.locator("#view tbody tr")
+    expect(ui.page.locator("#view h2").first).to_have_text("3 works to review", use_inner_text=True)
+    expect(rows.nth(0)).to_have_text(re.compile(r"^Works\s+you\s+chose\s+Get\s+of\s+chosen\s+works\s+2\s"), use_inner_text=True)
+    expect(rows.nth(1)).to_have_text(re.compile(r"^Quiet\s+interiors\s+Get\s+from\s+Ask\s+1\s"), use_inner_text=True)
 
 
 def test_a_get_opens_on_its_own_page_where_it_is_reviewed(ui):
@@ -83,7 +87,7 @@ def test_with_nothing_waiting_it_says_so(ui):
     ui.open("#to_review")
 
     ui.page.wait_for_selector("#view p:has-text('Nothing waits for you.')")
-    assert ui.page.locator("#view table").count() == 0
+    expect(ui.page.locator("#view table")).to_have_count(0)
 
 
 def test_the_sidebar_says_how_many_wait_in_words_and_a_number(ui):
@@ -93,19 +97,23 @@ def test_the_sidebar_says_how_many_wait_in_words_and_a_number(ui):
     section_link = ui.page.locator("li.section[data-section='activity'] a.section-link")
     page_link.locator(".awaiting-count").wait_for()
 
-    assert " ".join(page_link.inner_text().split()) == "To review 3"
-    assert section_link.locator(".awaiting-count").inner_text() == "3 to review"
-    assert page_link.get_attribute("aria-label") == "To review: 3 works to review"
-    assert section_link.get_attribute("aria-label") == "Activity: 3 works to review"
+    expect(page_link).to_have_text("To review 3", use_inner_text=True)
+    expect(section_link.locator(".awaiting-count")).to_have_text("3 to review", use_inner_text=True)
+    expect(page_link).to_have_attribute("aria-label", "To review: 3 works to review")
+    expect(section_link).to_have_attribute("aria-label", "Activity: 3 works to review")
 
 
 def test_with_nothing_waiting_the_sidebar_shows_no_count(ui):
     ui.serve("**/api/runs?awaiting=true", NOTHING)
     ui.open("#walls")
     ui.page.wait_for_selector("#view *")
+    # The count is written when the listing answers, and an answer of nothing
+    # writes nothing a wait could name: so the page is let go quiet first, the
+    # listing's request and the write after it both in.
+    ui.page.wait_for_load_state("networkidle")
 
-    assert ui.page.locator(".awaiting-count").count() == 0
-    assert ui.page.locator("nav ul.pages a[data-view='to_review']").get_attribute("aria-label") is None
+    expect(ui.page.locator(".awaiting-count")).to_have_count(0)
+    expect(ui.page.locator("nav ul.pages a[data-view='to_review']")).not_to_have_attribute("aria-label")
 
 
 def test_activity_opens_to_review(ui):

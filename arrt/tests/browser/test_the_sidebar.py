@@ -21,6 +21,8 @@ those facts. Everything about the indicator, search, back and old addresses is
 carried over, with the labels the ruling renamed.
 """
 
+import re
+
 import pytest
 
 # At import time, not in a fixture. A marker deselection still *collects* this
@@ -30,6 +32,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 #: The sidebar's sections, in order: § The *arr layout's table. Artworks first
 #: because every *arr app puts its library first; Walls second, in Calendar's
@@ -105,7 +109,7 @@ def test_the_sidebar_is_the_arr_sections_and_nothing_else(ui, seeded_service):
     ui.open()
     ui.page.wait_for_selector(SECTION_LINKS)
 
-    assert ui.page.locator(f"{SECTION_LINKS} .label").all_inner_texts() == SECTIONS
+    expect(ui.page.locator(f"{SECTION_LINKS} .label")).to_have_text(SECTIONS, use_inner_text=True)
 
 
 #: The page each section's own link opens: its first page in the route table.
@@ -164,7 +168,7 @@ def test_each_page_is_reachable_by_clicking_and_says_where_it_landed(ui, seeded_
     ui.page.locator(f"nav.sidebar a[data-view='{view}']").last.click()
     ui.page.wait_for_selector(f"#view h1:has-text('{heading}')")
 
-    assert lit(ui, view).count() == 1
+    expect(lit(ui, view)).to_have_count(1)
 
 
 @pytest.mark.parametrize(("view", "heading"), SIDEBAR_PAGES)
@@ -173,7 +177,7 @@ def test_each_page_is_addressable(ui, seeded_service, view, heading):
     ui.open(f"#{view}")
     ui.page.wait_for_selector(f"#view h1:has-text('{heading}')")
 
-    assert lit(ui, view).count() == 1
+    expect(lit(ui, view)).to_have_count(1)
 
 
 def test_only_one_link_is_the_current_page(ui, seeded_service):
@@ -187,8 +191,8 @@ def test_only_one_link_is_the_current_page(ui, seeded_service):
     ui.open("#taste")
     ui.page.wait_for_selector("#view h1")
 
-    assert ui.page.locator("nav.sidebar [aria-current='page']").count() == 1
-    assert lit(ui, "taste").inner_text() == "Taste"
+    expect(lit(ui, "taste")).to_have_text("Taste", use_inner_text=True)
+    expect(ui.page.locator("nav.sidebar [aria-current='page']")).to_have_count(1)
 
 
 def test_the_sidebar_links_are_real_addresses(ui, seeded_service):
@@ -197,7 +201,7 @@ def test_the_sidebar_links_are_real_addresses(ui, seeded_service):
     ui.page.wait_for_selector(SECTION_LINKS)
 
     for view, _heading in SIDEBAR_PAGES:
-        assert ui.page.locator(f"nav.sidebar a[data-view='{view}']").first.get_attribute("href") == f"#{view}"
+        expect(ui.page.locator(f"nav.sidebar a[data-view='{view}']").first).to_have_attribute("href", f"#{view}")
 
 
 def test_the_product_opens_on_artworks(ui, seeded_service):
@@ -207,14 +211,14 @@ def test_the_product_opens_on_artworks(ui, seeded_service):
     ui.open()
     ui.page.wait_for_selector("#view .page-facts")
 
-    assert lit(ui, "collection").count() == 1
+    expect(lit(ui, "collection")).to_have_count(1)
 
 
 def test_an_address_naming_nothing_lands_on_artworks(ui, seeded_service):
     ui.open("#nonsense")
     ui.page.wait_for_selector("#view .page-facts")
 
-    assert lit(ui, "collection").count() == 1
+    expect(lit(ui, "collection")).to_have_count(1)
 
 
 def test_the_skip_link_skips_rather_than_navigating(ui, seeded_service):
@@ -234,7 +238,7 @@ def test_the_skip_link_skips_rather_than_navigating(ui, seeded_service):
 
     assert ui.page.evaluate("() => document.activeElement.id") == "view"
     assert ui.page.evaluate("() => window.location.hash") == "#walls"
-    assert "Walls" in ui.page.inner_text("#view h1")
+    expect(ui.page.locator("#view h1")).to_contain_text("Walls", use_inner_text=True)
 
 
 # -- the drawer, on a phone -----------------------------------------------------
@@ -250,14 +254,14 @@ def test_on_a_phone_the_sidebar_is_behind_the_menu_button(phone, seeded_service)
     phone.open("#collection")
     phone.page.wait_for_selector("#view h1")
 
-    assert not phone.page.locator("nav.sidebar").is_visible()
     menu = phone.page.locator("button.menu-button")
-    assert menu.is_visible()
-    assert menu.get_attribute("aria-expanded") == "false"
+    expect(menu).to_be_visible()
+    expect(phone.page.locator("nav.sidebar")).to_be_hidden()
+    expect(menu).to_have_attribute("aria-expanded", "false")
 
     menu.click()
-    assert phone.page.locator("nav.sidebar").is_visible()
-    assert menu.get_attribute("aria-expanded") == "true"
+    expect(phone.page.locator("nav.sidebar")).to_be_visible()
+    expect(menu).to_have_attribute("aria-expanded", "true")
 
 
 def test_the_drawer_closes_on_escape_and_hands_focus_back(phone, seeded_service):
@@ -267,11 +271,11 @@ def test_the_drawer_closes_on_escape_and_hands_focus_back(phone, seeded_service)
 
     phone.page.focus("button.menu-button")
     phone.page.keyboard.press("Enter")
-    assert phone.page.locator("nav.sidebar").is_visible()
+    expect(phone.page.locator("nav.sidebar")).to_be_visible()
     assert phone.page.evaluate("() => document.activeElement.closest('nav.sidebar') !== null")
 
     phone.page.keyboard.press("Escape")
-    assert not phone.page.locator("nav.sidebar").is_visible()
+    expect(phone.page.locator("nav.sidebar")).to_be_hidden()
     assert phone.page.evaluate("() => document.activeElement.classList.contains('menu-button')")
 
 
@@ -281,12 +285,12 @@ def test_tapping_beside_the_drawer_closes_it(phone, seeded_service):
     phone.page.wait_for_selector("#view h1")
 
     phone.page.click("button.menu-button")
-    assert phone.page.locator("nav.sidebar").is_visible()
+    expect(phone.page.locator("nav.sidebar")).to_be_visible()
     # To the right of the drawer, which is at most 85% of the width.
     phone.page.mouse.click(365, 400)
 
-    assert not phone.page.locator("nav.sidebar").is_visible()
-    assert phone.page.locator("button.menu-button").get_attribute("aria-expanded") == "false"
+    expect(phone.page.locator("nav.sidebar")).to_be_hidden()
+    expect(phone.page.locator("button.menu-button")).to_have_attribute("aria-expanded", "false")
 
 
 def test_picking_a_page_from_the_drawer_closes_it(phone, seeded_service):
@@ -297,7 +301,7 @@ def test_picking_a_page_from_the_drawer_closes_it(phone, seeded_service):
     phone.page.click("nav.sidebar a[data-view='walls']")
     phone.page.wait_for_selector("#view h1:has-text('Walls')")
 
-    assert not phone.page.locator("nav.sidebar").is_visible()
+    expect(phone.page.locator("nav.sidebar")).to_be_hidden()
 
 
 def test_on_a_wide_window_there_is_no_menu_button(ui, seeded_service):
@@ -306,8 +310,8 @@ def test_on_a_wide_window_there_is_no_menu_button(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")
 
-    assert ui.page.locator("nav.sidebar").is_visible()
-    assert not ui.page.locator("button.menu-button").is_visible()
+    expect(ui.page.locator("nav.sidebar")).to_be_visible()
+    expect(ui.page.locator("button.menu-button")).to_be_hidden()
 
 
 # -- System › Status -------------------------------------------------------------
@@ -320,8 +324,8 @@ def test_status_is_under_system(ui, seeded_service):
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
     system = ui.page.locator("nav.sidebar li.section", has=ui.page.locator("a.section-link[data-view='health']"))
-    assert system.locator("a.section-link .label").inner_text() == "System"
-    assert lit(ui, "health").inner_text() == "Status"
+    expect(system.locator("a.section-link .label")).to_have_text("System", use_inner_text=True)
+    expect(lit(ui, "health")).to_have_text("Status", use_inner_text=True)
 
 
 def test_status_is_reached_by_the_top_bar_indicator(ui, seeded_service, a_health_reading):
@@ -335,7 +339,7 @@ def test_status_is_reached_by_the_top_bar_indicator(ui, seeded_service, a_health
 
     # A panel only Status has, so the page reached is that one's whole body. It
     # was the geometry panel's heading until the owner removed it (#266).
-    assert "Image sources" in ui.text()
+    expect(ui.view).to_contain_text("Image sources", use_inner_text=True)
 
 
 def test_status_keeps_the_address_health_had(ui, seeded_service, a_health_reading):
@@ -344,8 +348,8 @@ def test_status_keeps_the_address_health_had(ui, seeded_service, a_health_readin
     ui.open("#health")
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
-    assert "The living room" in ui.text()
-    assert "The catalogue was last backed up" in ui.text()
+    expect(ui.view).to_contain_text("The living room", use_inner_text=True)
+    expect(ui.view).to_contain_text("The catalogue was last backed up", use_inner_text=True)
 
 
 def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_reading, a_wall_reading):
@@ -367,9 +371,10 @@ def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_readi
     ui.open("#health")
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
-    headings = ui.page.locator("#view .panel h2").all_inner_texts()
-    assert "The living room" in headings
-    assert "The study" in headings
+    # Each is one of the panels' headings, whole: an `h2` whose words are those and no others.
+    for name in ("The living room", "The study"):
+        heading = ui.page.locator("#view .panel h2").filter(has_text=re.compile(rf"^\s*{re.escape(name)}\s*$")).first
+        expect(heading, f"no panel is headed {name!r}").to_be_attached()
     # "for this wall", not "here". Both wave-1 chunks reworded this sentence and
     # pinned their own wording; the per-wall one survives the merge, because with
     # a panel per room "here" has several possible referents and names none of
@@ -377,7 +382,7 @@ def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_readi
     # It said "Nothing has ever written a heartbeat for this wall" until
     # 2026-11-19, when chunk 06 of `build-plan-audit-wave-1.md` took "heartbeat"
     # off the household's screens: a Player reports, and the wall is still named.
-    assert "No Player has ever reported for this wall." in ui.text()
+    expect(ui.view).to_contain_text("No Player has ever reported for this wall.", use_inner_text=True)
 
 
 def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(ui):
@@ -405,9 +410,9 @@ def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(u
     ui.open("#health")
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
-    assert "carries no walls" in ui.text()
-    assert "The catalogue was last backed up" in ui.text()
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    expect(ui.view).to_contain_text("carries no walls", use_inner_text=True)
+    expect(ui.view).to_contain_text("The catalogue was last backed up", use_inner_text=True)
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 # -- the status indicator ------------------------------------------------------
@@ -418,7 +423,7 @@ def test_the_indicator_is_on_every_page(ui, seeded_service):
     for view, _heading in SIDEBAR_PAGES:
         ui.open(f"#{view}")
         ui.page.wait_for_selector("#view h1")
-        assert ui.page.locator("#status").is_visible(), view
+        expect(ui.page.locator("#status"), view).to_be_visible()
 
 
 def test_the_indicator_is_on_a_phone_too(ui, seeded_service):
@@ -428,7 +433,7 @@ def test_the_indicator_is_on_a_phone_too(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")
 
-    assert ui.page.locator("#status").is_visible()
+    expect(ui.page.locator("#status")).to_be_visible()
 
 
 # -- the System badge ------------------------------------------------------------
@@ -454,9 +459,9 @@ def test_the_system_badge_counts_the_problems(ui, a_health_reading, a_wall_readi
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert system_link(ui).locator(".status-count").inner_text() == "2"
+    expect(system_link(ui).locator(".status-count")).to_have_text("2", use_inner_text=True)
     # A number alone is no word, so the link's name carries one.
-    assert system_link(ui).get_attribute("aria-label") == "System: 2 problems"
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 2 problems")
 
 
 def test_one_problem_is_not_called_problems(ui, a_health_reading, a_wall_reading):
@@ -464,7 +469,7 @@ def test_one_problem_is_not_called_problems(ui, a_health_reading, a_wall_reading
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert system_link(ui).get_attribute("aria-label") == "System: 1 problem"
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 1 problem")
 
 
 def test_a_well_system_shows_no_badge_and_says_so(ui, a_health_reading):
@@ -474,8 +479,8 @@ def test_a_well_system_shows_no_badge_and_says_so(ui, a_health_reading):
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='well']")
 
-    assert system_link(ui).locator(".status-count").count() == 0
-    assert system_link(ui).get_attribute("aria-label") == "System: all well"
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: all well")
+    expect(system_link(ui).locator(".status-count")).to_have_count(0)
 
 
 def test_a_reading_that_cannot_be_fetched_is_not_a_well_badge(ui):
@@ -483,8 +488,10 @@ def test_a_reading_that_cannot_be_fetched_is_not_a_well_badge(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert system_link(ui).get_attribute("aria-label") != "System: all well"
-    assert system_link(ui).locator(".status-count").count() == 1
+    # Not "all well" is the claim; what it says instead is a problem counted, and the badge names that, so
+    # the retried form asserts the value (an inequality would hold for the empty link before the first paint).
+    expect(system_link(ui).locator(".status-count")).to_have_count(1)
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 1 problem")
 
 
 def test_the_indicator_names_which_wall_went_quiet(ui, a_health_reading, a_wall_reading):
@@ -507,11 +514,12 @@ def test_the_indicator_names_which_wall_went_quiet(ui, a_health_reading, a_wall_
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
     indicator = ui.page.locator("#status")
-    words = indicator.inner_text()
-    assert "The study has not reported" in words
-    assert "The living room" not in words, "the wall that is reporting was named as a problem"
+    expect(indicator).to_contain_text("The study has not reported", use_inner_text=True)
+    expect(indicator, "the wall that is reporting was named as a problem").not_to_contain_text(
+        "The living room", use_inner_text=True
+    )
     # Three carriers, and the glyph is the one a stylesheet cannot supply.
-    assert indicator.locator(".glyph").count() == 1
+    expect(indicator.locator(".glyph")).to_have_count(1)
 
 
 def test_the_indicator_says_well_when_every_observation_is_well(ui, a_health_reading):
@@ -525,7 +533,7 @@ def test_the_indicator_says_well_when_every_observation_is_well(ui, a_health_rea
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='well']")
 
-    assert ui.page.inner_text("#status").strip().endswith("Well")
+    expect(ui.page.locator("#status")).to_have_text(re.compile(r"Well\s*$"), use_inner_text=True)
 
 
 def test_the_indicator_takes_its_state_from_the_readings_and_not_from_the_summary(ui, a_health_reading, a_wall_reading):
@@ -547,7 +555,7 @@ def test_the_indicator_takes_its_state_from_the_readings_and_not_from_the_summar
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert "The study has not reported" in ui.page.inner_text("#status")
+    expect(ui.page.locator("#status")).to_contain_text("The study has not reported", use_inner_text=True)
 
 
 def test_the_indicator_names_a_reading_that_could_not_be_read(ui, a_health_reading, a_wall_reading):
@@ -565,12 +573,12 @@ def test_the_indicator_names_a_reading_that_could_not_be_read(ui, a_health_readi
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    words = ui.page.inner_text("#status")
+    words = ui.page.locator("#status")
     # "The study's heartbeat cannot be read" until 2026-11-19: chunk 06 of
     # `build-plan-audit-wave-1.md` took "heartbeat" off the household's screens.
-    assert "The study's last report cannot be read" in words
-    assert "heartbeat" not in words
-    assert "has not reported" not in words, "an unreadable file was reported as a silent one"
+    expect(words).to_contain_text("The study's last report cannot be read", use_inner_text=True)
+    expect(words).not_to_contain_text("heartbeat", use_inner_text=True)
+    expect(words, "an unreadable file was reported as a silent one").not_to_contain_text("has not reported", use_inner_text=True)
 
 
 def test_the_indicator_names_a_backup_that_has_never_run(ui, a_health_reading, a_backup_reading):
@@ -583,7 +591,7 @@ def test_the_indicator_names_a_backup_that_has_never_run(ui, a_health_reading, a
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert "The catalogue has never been backed up" in ui.page.inner_text("#status")
+    expect(ui.page.locator("#status")).to_contain_text("The catalogue has never been backed up", use_inner_text=True)
 
 
 def test_the_indicator_refuses_to_report_well_from_a_reading_it_did_not_take(ui, a_health_reading):
@@ -600,7 +608,7 @@ def test_the_indicator_refuses_to_report_well_from_a_reading_it_did_not_take(ui,
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert "carries no walls" in ui.page.inner_text("#status")
+    expect(ui.page.locator("#status")).to_contain_text("carries no walls", use_inner_text=True)
 
 
 def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_reading):
@@ -613,7 +621,7 @@ def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_r
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert "No wall is recorded" in ui.page.inner_text("#status")
+    expect(ui.page.locator("#status")).to_contain_text("No wall is recorded", use_inner_text=True)
 
 
 def test_a_health_reading_that_cannot_be_fetched_does_not_read_as_well(ui):
@@ -626,9 +634,9 @@ def test_a_health_reading_that_cannot_be_fetched_does_not_read_as_well(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert "could not be fetched" in ui.page.inner_text("#status")
+    expect(ui.page.locator("#status")).to_contain_text("could not be fetched", use_inner_text=True)
     # The grid still painted, and nothing shouted at the curator about it.
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 # -- a contextual screen returns where it was opened from ---------------------
@@ -653,10 +661,10 @@ def test_a_work_opened_from_artworks_returns_to_artworks(ui, one_work):
     ui.page.wait_for_selector("#view a:has-text('←')")
 
     back = ui.page.locator("#view a", has_text="←").first
-    assert back.inner_text() == "← Artworks"
+    expect(back).to_have_text("← Artworks", use_inner_text=True)
     back.click()
     ui.page.wait_for_selector("ul.grid")
-    assert lit(ui, "collection").count() == 1
+    expect(lit(ui, "collection")).to_have_count(1)
 
 
 def test_the_same_work_opened_from_the_walls_returns_to_the_walls(ui, one_work):
@@ -671,7 +679,7 @@ def test_the_same_work_opened_from_the_walls_returns_to_the_walls(ui, one_work):
     ui.page.wait_for_selector("#view h1")
 
     back = ui.page.locator("#view a", has_text="←").first
-    assert back.inner_text() == "← Walls"
+    expect(back).to_have_text("← Walls", use_inner_text=True)
     back.click()
     ui.page.wait_for_selector("#view h1:has-text('Walls')")
 
@@ -681,7 +689,7 @@ def test_the_page_a_work_was_opened_from_stays_lit(ui, one_work):
     ui.open(f"#work/{one_work.id}?from=walls")
     ui.page.wait_for_selector("#view h1")
 
-    assert lit(ui, "walls").count() == 1
+    expect(lit(ui, "walls")).to_have_count(1)
 
 
 def test_where_a_work_was_opened_from_is_in_the_address(ui, one_work):
@@ -729,7 +737,7 @@ def test_a_work_reached_with_no_opener_still_has_a_way_out(ui, one_work):
     ui.open(f"#work/{one_work.id}")
     ui.page.wait_for_selector("#view h1")
 
-    assert ui.page.locator("#view a", has_text="←").first.inner_text() == "← Artworks"
+    expect(ui.page.locator("#view a", has_text="←").first).to_have_text("← Artworks", use_inner_text=True)
 
 
 @pytest.fixture
@@ -747,8 +755,8 @@ def test_a_theme_reached_with_no_opener_returns_to_themes(ui, a_theme):
     ui.open(f"#theme/{a_theme.id}")
     ui.page.wait_for_selector("#view h1:has-text('Late night')")
 
-    assert ui.page.locator("#view a", has_text="←").first.inner_text() == "← Themes"
-    assert lit(ui, "theme").count() == 1
+    expect(ui.page.locator("#view a", has_text="←").first).to_have_text("← Themes", use_inner_text=True)
+    expect(lit(ui, "theme")).to_have_count(1)
 
 
 def test_a_theme_opened_from_the_themes_page_carries_no_opener(ui, a_theme):
@@ -771,7 +779,7 @@ def test_the_search_box_is_on_every_page(ui, seeded_service):
     for view, _heading in SIDEBAR_PAGES:
         ui.open(f"#{view}")
         ui.page.wait_for_selector("#view h1")
-        assert ui.page.locator("#search-form input#search").count() == 1, view
+        expect(ui.page.locator("#search-form input#search"), view).to_have_count(1)
 
 
 def test_searching_from_anywhere_opens_the_results_and_returns_there(ui, seeded_service):
@@ -787,7 +795,7 @@ def test_searching_from_anywhere_opens_the_results_and_returns_there(ui, seeded_
     assert ui.page.evaluate("() => window.location.hash") == "#search?from=walls&q=Nighthawks"
     ui.page.click("#view p a:text-is('← Walls')")
     ui.page.wait_for_selector("#view h1:has-text('Walls')")
-    assert lit(ui, "walls").count() == 1
+    expect(lit(ui, "walls")).to_have_count(1)
 
 
 def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_service):
@@ -800,7 +808,7 @@ def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_ser
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
-    everything = ui.page.locator("ul.grid li.card").count()
+    everything = ui.page.locator("ul.grid li.card").count()  # one-shot: the unfiltered size, to compare the search's with
 
     # The box opens the results page; its held works lead on to the grid.
     ui.page.fill("#search", "singular study")
@@ -809,9 +817,8 @@ def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_ser
     ui.page.wait_for_selector("#view .page-facts:has-text('filtered by the search')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#collection?q=singular%20study"
-    found = ui.page.locator("ul.grid li.card").count()
-    assert found == 1
-    assert found < everything, "the search matched everything, so it cannot have narrowed anything"
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(1)
+    assert everything > 1, "the search matched everything, so it cannot have narrowed anything"
 
 
 def test_the_search_is_the_catalogue_s_and_not_this_screen_s(ui, service, seeded_service):
@@ -834,13 +841,15 @@ def test_the_search_is_the_catalogue_s_and_not_this_screen_s(ui, service, seeded
     ui.open("#collection?q=Tempera")
     ui.page.wait_for_selector("#view .page-facts")
 
-    assert ui.page.locator("ul.grid li.card").count() == 1
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(1)
     # "1 work", not "1 works": a theme holding one work made the old wording
     # visible often enough to fix. The count and the search moved from the
     # heading to the facts line under it, which names the search in the empty
     # state's words, when the page took its name as its heading (ruling 1 of
     # 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == "1 work \u00b7 filtered by the search \u201cTempera\u201d"
+    expect(ui.page.locator("#view .page-facts")).to_have_text(
+        "1 work \u00b7 filtered by the search \u201cTempera\u201d", use_inner_text=True
+    )
 
 
 def test_a_search_finds_a_work_by_its_artist(ui, seeded_service):
@@ -853,8 +862,8 @@ def test_a_search_finds_a_work_by_its_artist(ui, seeded_service):
     ui.open("#collection?q=Dal%C3%AD")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.locator("ul.grid li.card").count() == 1
-    assert "The Persistence of Memory" in ui.text()
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(1)
+    expect(ui.view).to_contain_text("The Persistence of Memory", use_inner_text=True)
 
 
 def test_a_search_that_matches_nothing_says_so_and_offers_the_way_back(ui, seeded_service):
@@ -865,7 +874,7 @@ def test_a_search_that_matches_nothing_says_so_and_offers_the_way_back(ui, seede
     # the search had answered. Same assertion, sounder wait.
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing held matches" in ui.text()
+    expect(ui.view).to_contain_text("Nothing held matches", use_inner_text=True)
     ui.page.click("#view a:has-text('Show everything')")
     ui.page.wait_for_selector("ul.grid li.card")
 
@@ -876,14 +885,14 @@ def test_a_bookmarked_search_reopens_with_the_box_filled_in(ui, seeded_service):
     ui.open("#collection?q=study")
     ui.page.wait_for_selector("#view .page-facts:has-text('filtered by the search')")
 
-    assert ui.page.input_value("#search") == "study"
+    expect(ui.page.locator("#search")).to_have_value("study")
 
 
 def test_browser_back_undoes_a_search(ui, seeded_service):
     """A search is a navigation, so the way out of one is the way out of any of them."""
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
-    everything = ui.page.locator("ul.grid li.card").count()
+    everything = ui.page.locator("ul.grid li.card").count()  # one-shot: the size the grid must come back to
 
     ui.page.fill("#search", "study")
     ui.page.press("#search", "Enter")
@@ -893,7 +902,7 @@ def test_browser_back_undoes_a_search(ui, seeded_service):
     # The results page holds no grid at all, so waiting on one is what
     # distinguishes the repaint from the stale DOM.
     ui.page.wait_for_selector("ul.grid li.card")
-    assert ui.page.locator("ul.grid li.card").count() == everything
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(everything)
 
 
 # -- the addresses the surface used to answer to ------------------------------
@@ -927,7 +936,7 @@ def test_every_old_address_opens_the_page_that_took_over(ui, seeded_service):
         ui.page.wait_for_selector("#view h1")
         # The address bar is corrected, so what a curator copies is what this
         # surface would produce, and the page that took over is the one lit.
-        assert lit(ui, now).count() == 1, old
+        expect(lit(ui, now), old).to_have_count(1)
 
 
 def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_that_declined(
@@ -951,8 +960,8 @@ def test_the_system_badge_counts_a_source_that_failed_or_faulted_and_not_one_tha
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
-    assert system_link(ui).get_attribute("aria-label") == "System: 2 problems"
-    words = ui.page.locator("#status").inner_text()
-    assert "The gallery source could not be loaded" in words
-    assert "The artic source has faulted since startup" in words
-    assert "commons" not in words
+    expect(system_link(ui)).to_have_attribute("aria-label", "System: 2 problems")
+    words = ui.page.locator("#status")
+    expect(words).to_contain_text("The gallery source could not be loaded", use_inner_text=True)
+    expect(words).to_contain_text("The artic source has faulted since startup", use_inner_text=True)
+    expect(words).not_to_contain_text("commons", use_inner_text=True)

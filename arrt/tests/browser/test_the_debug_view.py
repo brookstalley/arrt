@@ -6,6 +6,8 @@ did. The flag is the page's own query (`/?debug#work/<id>`), so the tests open
 it that way and follow links inside the app to show it stays.
 """
 
+import re
+
 import pytest
 
 from arrt.http.models import SourcePluginOut, SourcesOut
@@ -15,6 +17,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 @pytest.fixture
@@ -39,6 +43,11 @@ def _work_page(ui, work, *, debug: bool):
     ui.page.wait_for_selector("h2:text-is('Where it can be obtained')")
 
 
+def _raw(fragment: str) -> re.Pattern:
+    """A fragment as the page prints it, line breaks and all: a pattern, which sees what a string folds away."""
+    return re.compile(r"\n".join(re.escape(line) for line in fragment.split("\n")))
+
+
 #: What only debug shows on a Work page, each as the page would print it.
 def _engineering(work):
     return [f"raw/{work.id}.jpg", "Content hash", "What has been rendered", "presentation_master", "Mat colour", "#27285b"]
@@ -47,19 +56,18 @@ def _engineering(work):
 def test_a_work_page_ends_at_what_a_person_can_act_on(ui, a_prepared_work):
     _work_page(ui, a_prepared_work, debug=False)
 
-    text = ui.text()
+    # What stays: where it can be obtained, by the museum's name. First, so
+    # the absences below are of a page that has painted what it keeps.
+    expect(ui.view).to_contain_text("Art Institute of Chicago", use_inner_text=True)
     for fragment in _engineering(a_prepared_work):
-        assert fragment not in text, fragment
-    # What stays: where it can be obtained, by the museum's name.
-    assert "Art Institute of Chicago" in text
+        expect(ui.view, fragment).not_to_contain_text(_raw(fragment), use_inner_text=True)
 
 
 def test_debug_shows_a_work_s_files_renditions_and_mat(ui, a_prepared_work):
     _work_page(ui, a_prepared_work, debug=True)
 
-    text = ui.text()
     for fragment in _engineering(a_prepared_work):
-        assert fragment in text, fragment
+        expect(ui.view, fragment).to_contain_text(_raw(fragment), use_inner_text=True)
 
 
 def test_the_flag_survives_following_links_inside_the_app(ui, a_prepared_work):
@@ -78,20 +86,22 @@ def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
     ui.open("#health")
     ui.page.wait_for_selector("h1")
     ui.page.wait_for_selector(".wall-reading")
-    assert ui.page.locator(".raw-details").count() == 0
+    expect(ui.page.locator(".raw-details")).to_have_count(0)
 
     ui.open("?debug#health")
     ui.page.wait_for_selector(".raw-details")
     # The server's own sentence for the wall, which names the file it read, is
     # debug's (#359): beside the curator's "Last heard from", not instead of it.
     raw = ui.page.locator(".wall-reading .raw-sentence")
-    assert raw.count() == 1
+    expect(raw).to_have_count(1)
     # The server's sentence itself, word for word. Until 2026-11-19 this looked
     # for "display plane" in it, the server's wording then; the server now says
     # "This wall's Player last reported …" (`HeartbeatReading.describe`), and the
     # payload the suite serves says what the server would.
-    assert raw.inner_text() == reading["walls"][0]["heartbeat"]["description"]
-    assert ui.page.locator(".wall-reading .reading-sentence").inner_text().startswith("Last heard from ")
+    expect(raw).to_have_text(reading["walls"][0]["heartbeat"]["description"], use_inner_text=True)
+    expect(ui.page.locator(".wall-reading .reading-sentence")).to_have_text(
+        re.compile("^" + re.escape("Last heard from ")), use_inner_text=True
+    )
 
 
 def test_sources_names_a_plugin_s_id_package_and_interface_only_in_debug(ui, a_source_reading):
@@ -104,17 +114,15 @@ def test_sources_names_a_plugin_s_id_package_and_interface_only_in_debug(ui, a_s
     ui.open("#sources")
     entry = ui.page.locator(".source-entry")
     entry.wait_for()
-    plain = entry.inner_text()
-    assert "Art Institute of Chicago" in plain
+    expect(entry).to_contain_text("Art Institute of Chicago", use_inner_text=True)
     for fragment in ("Plugin\nartic", "arrt-sources 0.4.1", "Interface"):
-        assert fragment not in plain, fragment
+        expect(entry, fragment).not_to_contain_text(_raw(fragment), use_inner_text=True)
 
     ui.open("?debug#sources")
     entry = ui.page.locator(".source-entry")
     entry.wait_for()
-    debugged = entry.inner_text()
     for fragment in ("Plugin\nartic", "arrt-sources 0.4.1", "Interface"):
-        assert fragment in debugged, fragment
+        expect(entry, fragment).to_contain_text(_raw(fragment), use_inner_text=True)
 
 
 def test_a_get_shows_the_model_s_reading_of_the_request_only_in_debug(ui):
@@ -132,11 +140,11 @@ def test_a_get_shows_the_model_s_reading_of_the_request_only_in_debug(ui):
 
     ui.open("#get/run-1")
     ui.page.wait_for_selector("#view section.asked-for")
-    assert "Extract specific, named artworks" not in ui.text()
+    expect(ui.view).not_to_contain_text("Extract specific, named artworks", use_inner_text=True)
 
     ui.open("?debug#get/run-1")
     ui.page.wait_for_selector("#view section.asked-for")
-    assert f"How it read the request: {reading}" in ui.text()
+    expect(ui.view).to_contain_text(f"How it read the request: {reading}", use_inner_text=True)
 
 
 def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_reading, a_wall_reading):
@@ -155,11 +163,10 @@ def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_read
     ui.open("#health")
     panel = ui.page.locator(".wall-reading")
     panel.wait_for()
-    text = panel.inner_text()
-    assert "Television\nNot reachable" in text
-    assert "Label panel\nNot working" in text
-    assert "Last error\nthe television refused the connection" in text
-    assert ui.page.locator(".raw-details").count() == 0
+    expect(panel).to_contain_text(_raw("Television\nNot reachable"), use_inner_text=True)
+    expect(panel).to_contain_text(_raw("Label panel\nNot working"), use_inner_text=True)
+    expect(panel).to_contain_text(_raw("Last error\nthe television refused the connection"), use_inner_text=True)
+    expect(ui.page.locator(".raw-details")).to_have_count(0)
 
 
 def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wall_reading):
@@ -177,11 +184,10 @@ def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wa
     ui.open("#health")
     panel = ui.page.locator(".wall-reading")
     panel.wait_for()
-    text = panel.inner_text()
-    assert "Television\nShowing art" in text
+    expect(panel).to_contain_text(_raw("Television\nShowing art"), use_inner_text=True)
     # No label panel, so no row about one; and no error, so no error row.
-    assert "Label panel" not in text
-    assert "Last error" not in text
+    expect(panel).not_to_contain_text("Label panel", use_inner_text=True)
+    expect(panel).not_to_contain_text("Last error", use_inner_text=True)
 
 
 def test_every_page_still_paints_when_the_source_names_cannot_be_read(ui, a_prepared_work):
@@ -191,4 +197,4 @@ def test_every_page_still_paints_when_the_source_names_cannot_be_read(ui, a_prep
     ui.open(f"#work/{a_prepared_work.id}")
     ui.page.wait_for_selector("h2:text-is('Where it can be obtained')")
     # A built-in source is still named by its museum.
-    assert "Art Institute of Chicago" in ui.text()
+    expect(ui.view).to_contain_text("Art Institute of Chicago", use_inner_text=True)

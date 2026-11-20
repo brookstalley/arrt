@@ -3458,12 +3458,12 @@ backlog_last_groomed_at: 2026-10-29
 # BACKLOG SERVICE CUTOVER (API §2.4)
 # -----------------------------------------------------------------------------
 # The live backlog is GitHub Issues, reached through `prawduct-hook backlog`.
-# `.prawduct/backlog.md` is FROZEN HISTORY from this point — do not edit it, and
+# `.prawduct/artifacts/archive/backlog-2026.md` is FROZEN HISTORY from this point — do not edit it, and
 # do not read it as current state. Setting this key repoints the session briefing
 # to the GV2 snapshot and retires every markdown-premise advisory probe.
 #
 # Cut over 2026-07-19 per skills/backlog/migration-scrub.md:
-#   0. backup      — backlog.md is git-tracked; full-fidelity dump in
+#   0. backup      — .prawduct/artifacts/archive/backlog-2026.md is git-tracked; full-fidelity dump in
 #                    .prawduct/backlog-export/ (export-manifest.json + item-N.json)
 #   1-2. disposition — 2 items, both `keep`; no stale, no duplicates, empty archive
 #                    (so open/all archive scope was moot)
@@ -3488,7 +3488,7 @@ backlog_last_groomed_at: 2026-10-29
 # provision ran first. So the practical GV5/GV6 gap is a missing explicit
 # taxonomy step, not a broken backlog.
 #
-# Rollback is total and cheap: unset this key. backlog.md is unmodified in git.
+# Rollback is total and cheap: unset this key. .prawduct/artifacts/archive/backlog-2026.md is unmodified in git.
 
 # Renamed 2026-09-30 from brookstalley/samsung-frame-art-loader. GitHub redirects
 # the old name, and issue numbers are unchanged.

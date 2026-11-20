@@ -36,10 +36,12 @@ default_selection = ["tests"]
 
 # The curation plane. `-n 0` because testament is the parallelism: its addopts
 # ask for `-n auto`, which inside one batch would fight the runner's own slots.
+# `arrt/tests/system` runs the server as a process over catalogues past releases
+# left; it reaches no network and no git, so it runs here and in the image.
 [suites.curation]
 adapter = "pytest"
 command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/pyproject.toml", "--rootdir=.", "-n", "0", "-q"]
-default_selection = ["arrt/tests/unit", "arrt/tests/integration", "arrt/tests/contract", "arrt/tests/eval", "arrt/tests/test_scaffold.py"]
+default_selection = ["arrt/tests/unit", "arrt/tests/integration", "arrt/tests/contract", "arrt/tests/system", "arrt/tests/eval", "arrt/tests/test_scaffold.py"]
 default_for_paths = true
 
 # The browser suite: the shipped client in Chromium, on the runners that carry it.

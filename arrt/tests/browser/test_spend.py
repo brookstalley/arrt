@@ -31,14 +31,15 @@ def a_budget(state, *, remaining=None, budget=None, spent=None, note=None) -> di
     )
 
 
-def _budget_said(ui) -> list[str]:
-    ui.page.wait_for_selector("#sidebar .budget .budget-line")
-    # The line is a link since audit-6 finding 10 and its note a paragraph; one
-    # union locator keeps them in the order they are drawn.
-    return [
-        " ".join(text.split())
-        for text in ui.page.locator("#sidebar .budget .budget-line, #sidebar .budget .budget-note").all_inner_texts()
-    ]
+def _the_budget_says(ui, said: list[str]) -> None:
+    """The sidebar's budget words are exactly `said`, in the order drawn, each with its whitespace folded.
+
+    The line is a link since audit-6 finding 10 and its note a paragraph; one
+    union locator keeps them in the order they are drawn.
+    """
+    expect(ui.page.locator("#sidebar .budget .budget-line, #sidebar .budget .budget-note")).to_have_text(
+        said, use_inner_text=True
+    )
 
 
 # -- the sidebar's budget ---------------------------------------------------------
@@ -84,7 +85,7 @@ def test_the_sidebar_says_what_is_left_this_month_for_each_state(ui, budget, sai
     ui.serve("**/api/budget", budget)
     ui.open("")
 
-    assert _budget_said(ui) == said
+    _the_budget_says(ui, said)
     if budget["state"] != "known":
         assert "left this month" not in " ".join(said[1:]), "only a figure the provider or the budget gives is 'left'"
 
@@ -92,7 +93,7 @@ def test_the_sidebar_says_what_is_left_this_month_for_each_state(ui, budget, sai
 def test_the_real_server_without_a_key_says_nothing_spends(ui):
     ui.open("")
 
-    assert _budget_said(ui)[0] == "Nothing spends"
+    expect(ui.page.locator("#sidebar .budget .budget-line")).to_have_text("Nothing spends", use_inner_text=True)
 
 
 @pytest.mark.parametrize("state", ["known", "uncapped", "not_configured", "unavailable"])
@@ -177,7 +178,7 @@ def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):
     ui.serve("**/api/budget", [(500, {"error": "boom"}), a_budget("known", remaining="1", budget="5", spent="4")])
     ui.open("")
 
-    assert _budget_said(ui)[0] == "Budget unknown"
+    expect(ui.page.locator("#sidebar .budget .budget-line")).to_have_text("Budget unknown", use_inner_text=True)
     ui.page.evaluate("() => { window.location.hash = '#discover'; }")
     ui.page.wait_for_function("() => document.querySelector('#sidebar .budget-line').textContent === '$1.00 left this month'")
 
@@ -206,9 +207,9 @@ def test_an_approval_gate_stored_before_offers_approve_with_its_tier(ui):
 
     approve = ui.page.locator("button:text-is('Approve the list')")
     approve.wait_for()
-    assert " ".join(approve.locator("xpath=following-sibling::*[1]").inner_text().split()) == "Cost: Free"
-    assert ui.page.locator("button:text-is('Decline it')").count() == 1
-    assert "threshold" not in ui.text(), "no threshold stops a run any more"
+    expect(approve.locator("xpath=following-sibling::*[1]")).to_have_text("Cost: Free", use_inner_text=True)
+    expect(ui.page.locator("button:text-is('Decline it')")).to_have_count(1)
+    expect(ui.view, "no threshold stops a run any more").not_to_contain_text("threshold", use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -220,9 +221,10 @@ def test_no_other_run_offers_approve_or_decline(ui, status):
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run, works=[a_candidate()]))
     ui.serve(f"**/api/runs/{RUN_ID}/spend", {"scope": "run_family", "cost_usd": "0", "run_id": RUN_ID})
     ui.open(f"#get/{RUN_ID}")
-    ui.page.wait_for_selector("#view h1")
+    # The run's own page is drawn when it says what was asked: only then does a missing act mean it was left off.
+    expect(ui.view).to_contain_text("Something by Dalí", use_inner_text=True)
 
-    assert ui.page.locator("button:text-is('Approve the list'), button:text-is('Decline it')").count() == 0
+    expect(ui.page.locator("button:text-is('Approve the list'), button:text-is('Decline it')")).to_have_count(0)
 
 
 def test_a_run_halted_at_the_cap_says_the_months_budget_is_spent(ui):
@@ -233,5 +235,5 @@ def test_a_run_halted_at_the_cap_says_the_months_budget_is_spent(ui):
 
     line = ui.page.locator("#view .run-end-reason")
     line.wait_for()
-    assert line.inner_text() == f"Why it stopped: {reason}"
-    assert "credit limit" not in ui.text()
+    expect(line).to_have_text(f"Why it stopped: {reason}", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("credit limit", use_inner_text=True)

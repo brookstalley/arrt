@@ -10,6 +10,84 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Restoring the catalogue from a backup, on the machine that runs the server — added 2026-11-19
+
+**`build-plan-audit-wave-2.md`, Chunk 06; the steps are `operational-spec.md` §
+Backup and Restore, "The restore, as `arrt/tests/system/test_restore.py` runs it".**
+**Nobody has run this on the machine that holds the real library.** The test runs
+it on a seeded art root, as a process, in two places (the same art root, and a new
+one), and found that the old runbook silently undid itself; the real catalogue, its
+real backup directory and the real Players have not met it. Do it first into a
+scratch art root with `BACKUP_DIR` empty (the exercise block in the same section),
+where nothing real is touched; then, when you would trust it, on the real one:
+
+- **Stop the server, then take the journal away.** Remove
+  `catalogue.sqlite-journal` from beside the catalogue (and a `-wal` or `-shm` if
+  any is there). Is there one? On a server that was stopped cleanly there is none;
+  on one that was killed mid-write there is, and a backup copied in beside it
+  opens as that server's last commit with the integrity check saying `ok`.
+- **Copy the newest `catalogue-*Z.sqlite` in beside the catalogue, then rename it
+  over `catalogue.sqlite`.** On a new machine, restore `raw/`, `presentation/` and
+  `thumbs/` first. Start the server.
+- **Nothing is re-hung.** Walls shows each wall's theme as it was at the backup,
+  and a wall's Player fetches its feed (the journal's `pull.adopted` on the Player,
+  or its next poll answering `200` once, then `304`) without anyone pressing *Hang*.
+  The old runbook said to hang each wall's theme again; if a wall answers "nothing
+  has been published for this wall yet", that is a defect to report, not a step.
+- **The generation survives.** If the generation you restored from is younger than
+  `BACKUP_INTERVAL_SECONDS`, the journal says `backup.skipped_recent` at start and
+  nothing is pruned; if it is older, the start-up pass writes a new generation of
+  the restored catalogue and prunes the oldest, as it always has, so look at what
+  the backup directory holds afterwards.
+- **The record of which release opened it.** `sqlite3 catalogue.sqlite 'SELECT *
+  FROM catalogue_opened'` names the release you just started, the instant,
+  `1` for migrations finished, and the catalogue shape generation that release expects.
+- **Your own restore notes** (the operator's private ones, outside this
+  repository) should gain the journal step; this repository cannot hold them.
+
+Not measured by anyone: a feed left beside the restored catalogue that names the
+theme that is hung but a work the backup lacks (a work added after the backup was
+taken). If you restore from a backup older than your last additions, look at the
+walls that hang that theme and say what they showed.
+
+### The built image against a real Arrt Player — added 2026-11-19
+
+**`build-plan-audit-wave-2.md`, Chunk 08.** **The `player` job in
+`.github/workflows/image.yml` has never run, and its docker path is proven only by
+a pull request into `main`** (or a run by hand, `gh workflow run image.yml --ref
+<branch>`). The test it runs, `arrt/tests/system/test_a_real_player.py`, has run:
+against `python -m arrt` from the checkout, locally and on the
+testament pool, with the server and a real Player as two processes; what has not
+run is the same test against the built `app` image (`ARRT_SERVER_IMAGE`), which is
+what the NAS runs. On the release pull request into `main`:
+
+- **The `player` job is green**, and its log shows the Player fetched at the commit
+  `arrt/tests/system/player-ref.txt` names (the pin is a commit of Arrt Player's
+  wave 2 branch, not a tag; move it to the Player's release commit once one is
+  cut), the image started and answering, and the test passing, not skipped. If it
+  is red, the first thing to read is whether the image ran as the NAS runs it
+  (the art root mounted at `/art`) or the Player could not reach the container.
+- **It stays inside the minutes ruling** (2026-11-18): one build a release. How
+  long it took is worth writing here; nobody has measured it on a runner.
+- **The test stage still does not run it** (no git in the image): the Dockerfile
+  says so beside its `pytest` line.
+
+### A pool outage does not stop a merge, seen on GitHub — added 2026-11-19
+
+**`build-plan-audit-wave-2.md`, Chunk 04.** `.github/scripts/pool_or_fallback.py`
+and the fallback steps in `tests.yml` have been run from a machine against a
+console that does not answer, an unreachable coordinator and the real pool, with
+envelopes recorded from real runs, and **never on GitHub**. Before the check
+named *Lint, then every suite* is made required on `develop` and `main`: on a
+scratch branch make the workflow see `TESTAMENT_CONSOLE=https://console.invalid`
+and look for the retries (about ten minutes), the job's summary opening "The pool
+was unavailable; ran here, on GitHub's runner, without the browser suite", the
+three *Fallback* steps passing, the guard warning that the browser suite did not
+run, and how long the fallback takes (curation's time on a runner is unmeasured);
+then one ordinary pool run, and a deliberately red test, which must stay red with
+no fallback steps. A pull request from a fork always ends "Nothing ran" (no key),
+so it can never pass a required check.
+
 ### Setting up a wall and its Player, at a real wall — added 2026-11-19
 
 **`build-plan-audit-wave-1.md`.** On the NAS, once the release with this
@@ -615,7 +693,8 @@ are one loop now, and the Player asks for its manifest at `…/manifest/v1`.
 Live integration: the suite drives doubles of the set and the connector. On the
 Pi, after pulling this branch and restarting the unit (SIGTERM, never SIGKILL):
 
-- **The journal** logs `daemon.started` for the Frame wall and `screen.started`
+- **The journal** logs `frame.started` for the Frame wall (`daemon.started` before
+  Arrt Player's audit wave 2, which renamed it) and `screen.started`
   for the HDMI wall, and `pull.adopted` for each, with no `pull.refused`.
 - **The Frame** steps on at its interval, a `next` from Arrt steps it once, and
   switching the set to a programme leaves the wall alone
