@@ -2761,6 +2761,8 @@ def _spend(report: SpendReport) -> SpendOut:
         run_id=report.run_id,
         year=report.year,
         month=report.month,
+        unknown_cost_calls=report.unknown_cost_calls,
+        summary=report.summary,
     )
 
 

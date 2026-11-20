@@ -17,13 +17,16 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import httpx
 import pytest
 from fakes import a_work, a_work_list, spent, stored_awaiting_approval, works
 
 from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
+from arrt.library.discovery.openrouter import OpenRouterClient
+from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
-from arrt.persistence.discovery_records import InitiatedBy, RunStatus, SpendCategory, Verdict
+from arrt.persistence.discovery_records import CostStatus, InitiatedBy, RunStatus, SpendCategory, Verdict
 from arrt.services.errors import ServiceError
 
 
@@ -436,6 +439,88 @@ def test_spend_incurred_before_a_failure_is_still_recorded(services, engine, set
 
     assert services.discovery.run_cost(run_id).direct == Decimal("0.05")
     assert services.discovery.searches_in_run(run_id) == 2
+
+
+def _timing_out_engine(model: str = "deepseek/deepseek-v4-flash"):
+    """Phase one's real engine and client, whose socket takes the request and times out reading the answer."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out")
+
+    client = OpenRouterClient(
+        "sk-or-v1-test", model=model, max_output_tokens=8000, client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    return OpenRouterEngine(client, search_results=10)
+
+
+def test_a_phase_one_call_that_times_out_after_it_was_sent_records_a_row_whose_cost_is_unknown(services, settings):
+    """Audit-2 S5, through the runner: the run fails, and the ledger holds the call, its model and its run, at $0."""
+    runner = DiscoveryRunner(
+        services.discovery, _timing_out_engine("lab/the-model-asked"), settings.discovery_settings, spawn=lambda work: work()
+    )
+
+    run_id = start(runner).id
+
+    assert services.discovery.get_run(run_id).status is RunStatus.FAILED
+    [row] = services.discovery._store.list_spend_records(run_id=run_id)
+    assert (row.cost_status, row.cost_usd, row.model_id, row.discovery_run_id, row.category) == (
+        CostStatus.UNKNOWN,
+        Decimal(0),
+        "lab/the-model-asked",
+        run_id,
+        SpendCategory.DISCOVERY_TOKENS,
+    )
+    cost = services.discovery.run_cost(run_id)
+    assert (cost.direct, cost.direct_unknown, cost.total_unknown) == (Decimal(0), 1, 1)
+
+
+def test_a_run_s_report_reads_at_least_its_figure_with_the_calls_whose_cost_is_unknown(services, settings):
+    runner = DiscoveryRunner(services.discovery, _timing_out_engine(), settings.discovery_settings, spawn=lambda work: work())
+    run_id = start(runner).id
+    services.discovery.record_spend(category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("0.0213"), discovery_run_id=run_id)
+
+    report = runner.spend_report(run_id=run_id)
+
+    assert (report.cost_usd, report.unknown_cost_calls) == (Decimal("0.0213"), 1)
+    assert report.summary == "at least $0.0213, and 1 call whose cost is unknown"
+
+
+def test_the_month_reads_at_least_its_figure_and_the_calls_whose_cost_is_unknown(services, runner):
+    """ "At least $X, and N calls whose cost is unknown" (Chunk 35, acceptance 3)."""
+    july = datetime(2026, 7, 9, tzinfo=UTC)
+    services.discovery.record_spend(category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("1.20"), at=july)
+    services.discovery.record_spend(category=SpendCategory.ASK_TOKENS, cost_usd=Decimal("2.00"), at=july)
+    for category in (SpendCategory.ASK_TOKENS, SpendCategory.MAT_COLOR_VISION):
+        services.discovery.record_spend(category=category, cost_usd=Decimal(0), at=july, cost_status=CostStatus.UNKNOWN)
+
+    report = runner.spend_report(year=2026, month=7)
+
+    assert (report.cost_usd, report.unknown_cost_calls) == (Decimal("3.20"), 2)
+    assert report.summary == "at least $3.20, and 2 calls whose cost is unknown"
+    assert services.discovery.spend_in_month(year=2026, month=7) == Decimal("3.20")
+
+
+def test_a_month_with_every_cost_known_reads_as_its_figure_alone(services, runner):
+    services.discovery.record_spend(
+        category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("1.20"), at=datetime(2026, 7, 9, tzinfo=UTC)
+    )
+
+    report = runner.spend_report(year=2026, month=7)
+
+    assert (report.unknown_cost_calls, report.summary) == (0, "$1.20")
+
+
+def test_a_call_whose_cost_is_unknown_is_refused_a_figure(services):
+    """An unknown row holds 0, so no sum can read a guess as the provider's figure."""
+    with pytest.raises(ServiceError, match="recorded at \\$0"):
+        services.discovery.record_spend(
+            category=SpendCategory.ASK_TOKENS, cost_usd=Decimal("0.01"), cost_status=CostStatus.UNKNOWN
+        )
+
+
+def test_a_cost_status_that_is_not_one_is_refused_by_name(services):
+    with pytest.raises(ServiceError, match="cost_status"):
+        services.discovery.record_spend(category=SpendCategory.ASK_TOKENS, cost_usd=Decimal(0), cost_status="maybe")
 
 
 def test_a_run_cancelled_while_phase_one_worked_keeps_its_spend_and_discards_its_results(services, engine, settings):

@@ -562,6 +562,30 @@ def test_the_unattended_projections_agree():
     check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))
 
 
+#: Spend's fields HTTP carries first: the count of calls whose cost is unknown,
+#: and the figure in words, "at least" with any (audit-wave-2b Chunk 35). Owed to
+#: `art_discovery(action='spend')` by Chunk 53, which removes this exemption.
+HTTP_ONLY_ON_SPEND_UNTIL_CHUNK_53 = frozenset({"unknown_cost_calls", "summary"})
+
+#: MCP's `run_direct_cost_usd`, which `SpendOut`'s docstring leaves off HTTP by
+#: decision: the browser reads that figure off the run record.
+MCP_ONLY_ON_SPEND = frozenset({"run_direct_cost_usd"})
+
+
+def test_the_spend_projections_agree_but_for_the_named_fields():
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from arrt.library.services.runner import SpendReport
+
+    report = SpendReport(scope="run", cost_usd=Decimal("0.05"), run_id="r1", run_direct_usd=Decimal("0.01"), unknown_cost_calls=1)
+    services = SimpleNamespace(runner=SimpleNamespace(spend_report=lambda **_: report))
+
+    projected = set(bindings._spend(services, {"run_id": "r1"})) - {"success"}
+    assert projected >= MCP_ONLY_ON_SPEND, "an MCP-only field named here that MCP no longer has is a stale exemption"
+    check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut), HTTP_ONLY_ON_SPEND_UNTIL_CHUNK_53)
+
+
 def test_the_watch_projections_agree_value_for_value():
     """`WatchOut` and `art_watches`' fields, for a Watch with every field filled, compared by value, not only by name."""
     from decimal import Decimal

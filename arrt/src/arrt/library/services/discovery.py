@@ -32,8 +32,9 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import MAXYEAR, MINYEAR, UTC, datetime
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
+from arrt.counting import counted
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.months import utc_month
 from arrt.library.services import attribution, selection
@@ -45,6 +46,7 @@ from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
@@ -175,10 +177,62 @@ class RunCost:
     The two differ because a re-search is its own run: `direct` is what this run
     was billed, and `total` adds every resolve run descended from it. "What did
     asking for Dalí cost" is the second number.
+
+    Each figure sums the rows whose cost is known; the calls whose cost is
+    unknown (`CostStatus.UNKNOWN`) are counted beside it, so a run with any
+    reads as "at least" its figure.
     """
 
     direct: Decimal
     total: Decimal
+    direct_unknown: int = 0
+    total_unknown: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class SpendTotal:
+    """What a set of spend rows says was spent, and how sure it is.
+
+    `cost_usd` sums the rows whose cost is known. `unknown_calls` counts the
+    rows of calls that were sent and never said what they cost: each may have
+    been billed, so with any of them the figure is a floor, never the bill.
+    """
+
+    cost_usd: Decimal
+    unknown_calls: int = 0
+
+    @classmethod
+    def of(cls, records: Iterable[SpendRecord]) -> SpendTotal:
+        known = Decimal(0)
+        unknown = 0
+        for record in records:
+            if record.cost_status is CostStatus.UNKNOWN:
+                unknown += 1
+            else:
+                known += record.cost_usd
+        return cls(cost_usd=known, unknown_calls=unknown)
+
+    @property
+    def words(self) -> str:
+        """The figure in words: "$0.42", or "at least $0.42, and 2 calls whose cost is unknown".
+
+        The figure is rounded down, so "at least" stays true of it: to the cent
+        from a dollar up, and to a hundredth of a cent below, where a month of
+        mat calls lives.
+        """
+        figure = _dollars(self.cost_usd)
+        if not self.unknown_calls:
+            return figure
+        return f"at least {figure}, and {counted(self.unknown_calls, 'call')} whose cost is unknown"
+
+
+def _dollars(amount: Decimal) -> str:
+    """`amount` in dollars, rounded down: "$3.20", "$0.0052"."""
+    cents = amount.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    if cents == amount or amount >= 1:
+        return f"${cents:.2f}"
+    finer = amount.quantize(Decimal("0.0001"), rounding=ROUND_DOWN).normalize()
+    return f"${cents:.2f}" if finer == cents else f"${finer:f}"
 
 
 class DiscoveryService:
@@ -1324,6 +1378,7 @@ class DiscoveryService:
         output_tokens: int | None = None,
         units: int | None = None,
         at: datetime | None = None,
+        cost_status: CostStatus = CostStatus.KNOWN,
     ) -> SpendRecord:
         """Record what something cost. Attribution and history — never a ceiling.
 
@@ -1334,9 +1389,18 @@ class DiscoveryService:
 
         The two references are alternatives rather than a hierarchy: a run's
         spend carries `discovery_run_id`, and a work's mat carries `artwork_id`.
+
+        `cost_status` `UNKNOWN` is a call sent that never said what it cost; its
+        `cost_usd` is 0 and refused otherwise, so no sum can mistake a guess for
+        the provider's figure.
         """
         if cost_usd < 0:
             raise ServiceError(f"A cost cannot be negative, got {cost_usd}.")
+        status = require_member(cost_status, enum=CostStatus, field="cost_status")
+        if status is CostStatus.UNKNOWN and cost_usd != 0:
+            raise ServiceError(
+                f"A call whose cost is unknown is recorded at $0, got {cost_usd}: its figure is what nobody was told."
+            )
         # Every reference is checked here rather than left to the file's foreign
         # keys: a caller gets "no discovery run with id ..." instead of a refusal
         # phrased about a constraint they cannot see.
@@ -1355,8 +1419,23 @@ class DiscoveryService:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             units=units,
+            cost_status=status,
         )
         store_write(self._store.add_spend_record, record)
+        if status is CostStatus.UNKNOWN:
+            # The ledger says how many; the journal says which and when, for an
+            # operator reconciling against the provider's own activity page.
+            log.warning(
+                "a paid call was sent and never said what it cost",
+                extra={
+                    "event": "spend.cost_unknown",
+                    "spend_id": record.id,
+                    "category": str(record.category),
+                    "model_id": model_id,
+                    "run_id": discovery_run_id,
+                    "artwork_id": artwork_id,
+                },
+            )
         return record
 
     def run_cost(self, run_id: str) -> RunCost:
@@ -1368,7 +1447,13 @@ class DiscoveryService:
         """
         self.get_run(run_id)
         direct = self._spend_total(run_id)
-        return RunCost(direct=direct, total=direct + sum(self._spend_total(child) for child in self._descendants(run_id)))
+        below = [self._spend_total(child) for child in self._descendants(run_id)]
+        return RunCost(
+            direct=direct.cost_usd,
+            total=direct.cost_usd + sum((each.cost_usd for each in below), Decimal(0)),
+            direct_unknown=direct.unknown_calls,
+            total_unknown=direct.unknown_calls + sum(each.unknown_calls for each in below),
+        )
 
     def searches_in_run(self, run_id: str) -> int:
         """How many web searches this run has made.
@@ -1387,7 +1472,11 @@ class DiscoveryService:
         )
 
     def spend_in_month(self, *, year: int, month: int) -> Decimal:
-        """Everything spent in one calendar month, UTC.
+        """Everything known to have been spent in one calendar month, UTC: `month_spend`'s figure."""
+        return self.month_spend(year=year, month=month).cost_usd
+
+    def month_spend(self, *, year: int, month: int) -> SpendTotal:
+        """What one calendar month, UTC, is known to have cost, and its calls whose cost is unknown.
 
         The month is the **UTC** calendar month rather than the operator's local
         one, because the provider's own credit limit resets at midnight UTC — a
@@ -1402,7 +1491,7 @@ class DiscoveryService:
         if not MINYEAR <= year < MAXYEAR:
             raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
         since, until = utc_month(year, month)
-        return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
+        return SpendTotal.of(self._store.list_spend_records(since=since, until=until))
 
     # -- internals ------------------------------------------------------------
 
@@ -1602,8 +1691,8 @@ class DiscoveryService:
             frontier.extend(children)
         return found
 
-    def _spend_total(self, run_id: str) -> Decimal:
-        return sum((record.cost_usd for record in self._store.list_spend_records(run_id=run_id)), Decimal(0))
+    def _spend_total(self, run_id: str) -> SpendTotal:
+        return SpendTotal.of(self._store.list_spend_records(run_id=run_id))
 
     def _record_started(self, run: DiscoveryRun, *, intent: str | None = None, works: int | None = None) -> None:
         """Write the history's line for a Get beginning, inside the transaction that begins it."""

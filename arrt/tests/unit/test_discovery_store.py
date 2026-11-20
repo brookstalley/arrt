@@ -19,6 +19,7 @@ from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
     Confirmation,
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
@@ -102,6 +103,9 @@ _EXPECTED_SCHEMA = {
         "units",
         "cost_usd",
         "occurred_at",
+        # Widened 2026-11-19: whether cost_usd is the provider's figure or a
+        # call sent that never said (audit-wave-2b Chunk 35).
+        "cost_status",
     },
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
     "sightings": {"wikidata_qid", "url"},
@@ -291,6 +295,130 @@ def test_the_pipeline_survives_the_process_that_wrote_it(tmp_path):
 
         assert store.list_coverage_by_run("r2") == [ResolveRunWork(resolve_run_id="r2", candidate_work_id="c1")]
         assert store.list_coverage_by_work("c1") == [ResolveRunWork(resolve_run_id="r2", candidate_work_id="c1")]
+    finally:
+        reopened.close()
+
+
+def _spend(id_: str, cost: str, status: CostStatus = CostStatus.KNOWN) -> SpendRecord:
+    return SpendRecord(
+        id=id_,
+        category=SpendCategory.DISCOVERY_TOKENS,
+        cost_usd=Decimal(cost),
+        occurred_at=_STARTED,
+        discovery_run_id="r1",
+        model_id="lab/m",
+        cost_status=status,
+    )
+
+
+def test_a_cost_status_survives_the_round_trip(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("known", "0.07"))
+        store.add_spend_record(_spend("unknown", "0", CostStatus.UNKNOWN))
+    finally:
+        opened.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        read = {record.id: record.cost_status for record in SqliteDiscovery(reopened).list_spend_records()}
+    finally:
+        reopened.close()
+
+    assert read == {"known": CostStatus.KNOWN, "unknown": CostStatus.UNKNOWN}
+
+
+def _without_cost_status(path) -> None:
+    """Take the column away, leaving `spend_records` as every release before it declared the table."""
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE spend_records DROP COLUMN cost_status")
+        connection.commit()
+        assert "cost_status" not in {row[1] for row in connection.execute("PRAGMA table_info(spend_records)")}
+    finally:
+        connection.close()
+
+
+def test_a_row_written_before_the_column_existed_reads_as_known(tmp_path):
+    """Chunk 35, acceptance 4: the widening's default is what an older row is, and it held the provider's figure."""
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+    _without_cost_status(path)
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'discovery', 'mcp_client', 'completed', 0, '2026-07-27T09:30:00+00:00')"
+        )
+        connection.execute(
+            "INSERT INTO spend_records (id, discovery_run_id, category, cost_usd, occurred_at) "
+            "VALUES ('old', 'r1', 'discovery_tokens', '0.42', '2026-07-27T09:30:00+00:00')"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        [record] = SqliteDiscovery(reopened).list_spend_records()
+    finally:
+        reopened.close()
+
+    assert (record.id, record.cost_usd, record.cost_status) == ("old", Decimal("0.42"), CostStatus.KNOWN)
+
+
+def test_a_row_whose_cost_is_unknown_sums_as_nothing_to_a_reader_that_ignores_the_column(tmp_path):
+    """Chunk 35, acceptance 5: what v0.11.0 makes of such a row, which reads every column but this one.
+
+    With the column gone and the file reopened, the row is what a release that
+    never heard of it sees: a known cost of $0, which is what such a release
+    says today of a call that left no row at all. (Measured against the
+    v0.11.0 release itself as well; the change record says how.)
+    """
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("billed", "0.07"))
+        store.add_spend_record(_spend("unanswered", "0", CostStatus.UNKNOWN))
+    finally:
+        opened.close()
+    _without_cost_status(path)
+
+    reopened = open_catalogue_file(path)
+    try:
+        records = SqliteDiscovery(reopened).list_spend_records()
+    finally:
+        reopened.close()
+
+    assert sum((record.cost_usd for record in records), Decimal(0)) == Decimal("0.07")
+    assert {record.id: record.cost_usd for record in records} == {"billed": Decimal("0.07"), "unanswered": Decimal(0)}
+
+
+def test_a_cost_status_the_reader_does_not_know_is_refused_rather_than_read_as_known(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("s", "0"))
+    finally:
+        opened.close()
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("UPDATE spend_records SET cost_status = 'estimated'")
+        connection.commit()
+    finally:
+        connection.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        with pytest.raises(ValueError, match="estimated"):
+            SqliteDiscovery(reopened).list_spend_records()
     finally:
         reopened.close()
 

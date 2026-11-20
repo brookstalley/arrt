@@ -28,6 +28,7 @@ run rather than a setting nothing honours.
 import json
 import logging
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
 from typing import Any, Final
 
 from arrt.library.discovery.dedup import clean_name
@@ -40,8 +41,15 @@ from arrt.library.discovery.engine import (
     WorkList,
     WorkListRequest,
 )
-from arrt.library.discovery.openrouter import Citation, Completion, KeyExhausted, OpenRouterClient, OpenRouterError
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.library.discovery.openrouter import (
+    Citation,
+    Completion,
+    CostUnknown,
+    KeyExhausted,
+    OpenRouterClient,
+    OpenRouterError,
+)
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 
 log = logging.getLogger(__name__)
 
@@ -173,6 +181,11 @@ class OpenRouterEngine:
             # so there is nothing to record. Reported as exhaustion specifically,
             # which is the one failure whose answer is to stop rather than retry.
             raise BudgetExhausted(str(exc)) from exc
+        except CostUnknown as exc:
+            # Sent, and no answer said what it cost: the provider may have
+            # billed it, so the run records the call as one whose cost is
+            # unknown rather than as nothing.
+            raise EngineFailure(str(exc), spend=(_unknown_spend(exc),)) from exc
         except OpenRouterError as exc:
             raise EngineFailure(str(exc)) from exc
 
@@ -280,6 +293,20 @@ def _spend_of(completion: Completion) -> tuple[EngineSpend, ...]:
             )
         )
     return tuple(rows)
+
+
+def _unknown_spend(failed: CostUnknown) -> EngineSpend:
+    """The one row a call that failed after it was sent leaves: its model, its cost unknown, at 0.
+
+    One row, the tokens' category: a call that searched may also owe the search
+    fee, and the row stands for the whole call, whose split nobody was told.
+    """
+    return EngineSpend(
+        category=SpendCategory.DISCOVERY_TOKENS,
+        cost_usd=Decimal(0),
+        model_id=failed.model_id,
+        cost_status=CostStatus.UNKNOWN,
+    )
 
 
 #: Cleaning the identity fields is `dedup`'s, because the work identity derived
