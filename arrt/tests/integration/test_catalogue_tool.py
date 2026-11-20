@@ -111,6 +111,9 @@ async def test_help_works_without_arguments_and_without_the_catalogue(server_url
         "archive",
         "restore",
         "retry_acquisition",
+        "queue",
+        "failures",
+        "retry_failures",
         "set_mat_color",
         "set_work_qid",
         "set_artist_qid",
@@ -169,6 +172,9 @@ async def test_an_unknown_action_is_an_error_result_that_enumerates_the_valid_se
         "archive",
         "restore",
         "retry_acquisition",
+        "queue",
+        "failures",
+        "retry_failures",
         "set_mat_color",
         "set_work_qid",
         "set_artist_qid",
@@ -250,6 +256,7 @@ async def test_an_unknown_tool_is_reported_with_the_names_that_do_exist(server_u
         "art_players",
         "art_review",
         "art_settings",
+        "art_spend",
         "art_taste",
         "art_theme",
         "art_watches",
@@ -869,3 +876,78 @@ _AN_OBJECT_PAGE = "https://www.artic.edu/artworks/91194/golden-bird"
 
 def _artic_declined() -> SourceRoster:
     return SourceRoster.of(unavailable={"artic": (artic_claims, "ARTIC_USER_AGENT is unset")})
+
+
+# -- the queue: Activity › Queue's twins (wave 2b, Chunk 53) ----------------------------------
+
+
+def _failing(services, store, count: int, detail: str) -> list[str]:
+    """`count` works with a source, each failed once for `detail`, as the queue's worker would leave them."""
+    from datetime import UTC, datetime
+
+    from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
+
+    ids = []
+    for number in range(count):
+        work = services.catalogue.add_artwork(title=f"{detail} {number}")
+        services.catalogue.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}.jpg",
+            provider="gallery_site",
+            source_class=SourceClass.CONTEMPORARY_WEB,
+            acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+            rights_status=RightsStatus.UNKNOWN,
+            is_primary=True,
+        )
+        store.set_queued_acquisition(
+            QueuedAcquisition(artwork_id=work.id, failures=1, next_try_at=datetime(2026, 12, 1, tzinfo=UTC), detail=detail)
+        )
+        ids.append(work.id)
+    return ids
+
+
+async def _route(server_url: str, path: str, **params) -> dict:
+    import httpx
+
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        return (await client.get(path, params=params)).raise_for_status().json()
+
+
+async def test_the_queue_its_causes_and_a_causes_works_are_the_routes_answers(server_url, services, store):
+    """`queue`, `failures` and `failures(cause=…)` against `/api/acquisitions`, `/causes` and `/causes/works`, whole.
+
+    Two causes of different sizes, so the order (the largest first) and each
+    count are values, and a page past the first, so `offset` reaches the slice.
+    """
+    _failing(services, store, 3, "a 404.")
+    _failing(services, store, 1, "reset.")
+
+    queue, _ = await call(server_url, "art_catalogue", action="queue")
+    causes, _ = await call(server_url, "art_catalogue", action="failures")
+    page, _ = await call(server_url, "art_catalogue", action="failures", cause="a 404.", limit=2, offset=1)
+
+    assert {k: v for k, v in queue.items() if k != "success"} == await _route(server_url, "/api/acquisitions")
+    assert {k: v for k, v in causes.items() if k != "success"} == await _route(server_url, "/api/acquisitions/causes")
+    assert {k: v for k, v in page.items() if k != "success"} == await _route(
+        server_url, "/api/acquisitions/causes/works", cause="a 404.", limit=2, offset=1
+    )
+    assert (queue["failing"], queue["causes"]) == (4, 2)
+    assert [(row["cause"], row["works"]) for row in causes["causes"]] == [("a 404.", 3), ("reset.", 1)]
+    assert (page["total"], len(page["works"]), page["offset"]) == (3, 2, 1)
+    assert page["works"][0]["acquisition"]["phase"] == "failed"
+
+
+async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(server_url, services, store):
+    failed = _failing(services, store, 2, "a 404.")
+
+    retried, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+
+    assert errored is False
+    assert (retried["cause"], retried["retried"], retried["refused"]) == ("a 404.", 2, [])
+    assert "nothing was fetched" in retried["notice"]
+    states = services.acquisition_queue.state_of(failed)
+    assert {str(states[work].phase) for work in failed} == {"queued"}
+    # The second press finds no work failing for it, and is refused in the service's words.
+    again, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+    assert errored is True
+    assert again["error"].startswith("No work in the queue failed for that reason now")

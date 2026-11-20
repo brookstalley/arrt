@@ -177,6 +177,13 @@ _FORCE = Param(
     description="Make the presentation master again even if the work's is already current. Defaults to false.",
 )
 
+#: One description for `cause`, neutral between the action that takes it as a
+#: filter and the one that requires it, because the wire schema publishes only
+#: the first declaration of a name.
+_CAUSE_DESCRIPTION = "Why a group of fetches failed, exactly as action='failures' words it."
+_CAUSE_TO_LIST = Param(name="cause", type="string", description=_CAUSE_DESCRIPTION)
+_CAUSE_TO_RETRY = Param(name="cause", type="string", description=_CAUSE_DESCRIPTION, required=True)
+
 ART_CATALOGUE: Final = ToolRecord(
     name="art_catalogue",
     title="Art catalogue",
@@ -329,6 +336,47 @@ ART_CATALOGUE: Final = ToolRecord(
                     "Retrying cannot cost the work its image: an attempt that fails replaces nothing, and one that "
                     "comes back with missing tiles is refused outright when the work already holds a complete image."
                 ),
+            ),
+        ),
+        Action(
+            name="queue",
+            description="Return the fetch queue's pause, if any, and the works still in line, in the order tried.",
+            example="art_catalogue(action='queue')",
+            params=(_LIMIT, _OFFSET),
+            tips=(
+                (
+                    "A work that failed is not in line: failing counts them, and action='failures' lists them by "
+                    "cause, of which there are causes. A pause is the deployment's, with the remedy an operator applies."
+                ),
+            ),
+        ),
+        Action(
+            name="failures",
+            description="List why the queue's fetches failed, one row per cause with how many, or one cause's works.",
+            example="art_catalogue(action='failures')",
+            params=(_CAUSE_TO_LIST, _LIMIT, _OFFSET),
+            tips=(
+                (
+                    "As Activity › Queue lists them: a cause names no work, so thousands of works failing one way are "
+                    "one row. outcome, plugin and museum are set when the cause is what one plugin's fetches said."
+                ),
+                (
+                    "Omit cause for every cause, the largest first; give one, exactly as a row words it, for that "
+                    "cause's works, each with its title and acquisition."
+                ),
+            ),
+        ),
+        Action(
+            name="retry_failures",
+            description="Queue every work that failed for one cause to be fetched again, and return at once.",
+            example="art_catalogue(action='retry_failures', cause='<a cause from action=failures>')",
+            params=(_CAUSE_TO_RETRY,),
+            tips=(
+                (
+                    "Each work is retried as retry_acquisition retries it; one the queue refuses (no source, being "
+                    "fetched now) is counted under why, naming no work. Nothing is fetched in the call."
+                ),
+                "A cause no work holds any more is refused: the queue may have tried them again since.",
             ),
         ),
         Action(
@@ -2494,9 +2542,50 @@ ART_WATCHES: Final = ToolRecord(
     ),
 )
 
+#: System › Spend's twin (wave 2b, Chunk 53): what was spent, month by month.
+#:
+#: **A tool of its own, and that is a decision with a cost.** `art_discovery`
+#: already answers one run's or one month's figure (`spend`), but its description
+#: is at its 2,048-byte budget, and a history of every kind of spending (Ask's
+#: replies and the mats as well as the Gets) is not discovery; `art_settings` is
+#: Settings › General and `art_display`'s `status` is the walls'. Nothing
+#: existing was the honest home. The cost: one more tool in every client's
+#: listing, and an agent asked about one month may find it in either.
+ART_SPEND: Final = ToolRecord(
+    name="art_spend",
+    title="Art spend",
+    summary=(
+        "What was spent, by UTC calendar month, as System › Spend shows it: by kind of spending, by Get, and the "
+        "calls whose cost is unknown. Reads the ledger only; it sets no limit, which is the provider's."
+    ),
+    read_only=True,
+    destructive=False,
+    open_world=False,
+    actions=(
+        Action(
+            name="history",
+            description="Return the months spent in, newest first, the current one always first, and how many earlier.",
+            example="art_spend(action='history')",
+            tips=(
+                (
+                    "Each total's summary is the figure in words: 'at least $X, and N calls whose cost is unknown' "
+                    "when a call was sent and never said what it cost. Quote summary rather than cost_usd, which is "
+                    "then a floor."
+                ),
+                (
+                    "A Get's row is its own calls in that month, never its family's; "
+                    "art_discovery(action='spend', run_id=…) is one Get's whole cost, re-searches included."
+                ),
+                "Up to twelve months are listed; older_months counts the earlier ones that spent something.",
+            ),
+        ),
+    ),
+)
+
 #: Registration order, which is the order a client sees. Money first, then the
-#: gate that money runs through, then the collection it lands in, and last what
-#: the product has come to know about the person it is all for.
+#: gate that money runs through, then the Library it lands in, and last what
+#: the product has come to know about the person it is all for; then what it all
+#: cost, which joined later.
 TOOLS: Final[tuple[ToolRecord, ...]] = (
     ART_DISCOVERY,
     ART_REVIEW,
@@ -2507,6 +2596,7 @@ TOOLS: Final[tuple[ToolRecord, ...]] = (
     ART_TASTE,
     ART_SETTINGS,
     ART_WATCHES,
+    ART_SPEND,
 )
 
 TOOLS_BY_NAME: Final[dict[str, ToolRecord]] = {tool.name: tool for tool in TOOLS}

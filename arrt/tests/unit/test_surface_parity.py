@@ -871,6 +871,60 @@ def test_the_spend_projections_agree_but_for_the_named_fields():
     assert tool["summary"].startswith("at least")
 
 
+def test_the_spend_history_agrees_value_for_value():
+    """`art_spend(action='history')` is `GET /api/spend`, by name and value, at every depth.
+
+    A month with a kind of spending, a Get and a call whose cost is unknown, so
+    no list is the empty one every shape agrees on.
+    """
+    from decimal import Decimal
+
+    from arrt.library.services import spend_history
+    from arrt.library.services.discovery import SpendTotal
+    from arrt.persistence.discovery_records import SpendCategory
+
+    run = DiscoveryRun(
+        id="r1",
+        kind=RunKind.DISCOVERY,
+        initiated_by=InitiatedBy.MCP_CLIENT,
+        status=RunStatus.COMPLETED,
+        approval_required=False,
+        started_at=WHEN,
+        intent_text="Hokusai's waves",
+        watch_id="w1",
+    )
+    floor = SpendTotal(cost_usd=Decimal("0.42"), unknown_calls=2)
+    history = spend_history.SpendHistory(
+        months=[
+            spend_history.SpendMonth(
+                year=2026,
+                month=8,
+                total=floor,
+                categories=[spend_history.SpendByCategory(category=SpendCategory.DISCOVERY_TOKENS, calls=5, total=floor)],
+                gets=[spend_history.SpendOnGet(run=run, calls=5, total=floor)],
+                unknown_calls=[
+                    spend_history.UnknownCostCall(
+                        spend_id="s1", category=SpendCategory.DISCOVERY_TOKENS, occurred_at=WHEN, model_id="m/1", run_id="r1"
+                    )
+                ],
+            )
+        ],
+        older_months=3,
+    )
+
+    tool = bindings._spend_history_fields(history)
+    route = http_api._spend_history(history).model_dump()
+
+    check_parity("SpendHistory", set(tool), _fields(http_models.SpendHistoryOut))
+    check_parity("SpendMonth", set(tool["months"][0]), _fields(http_models.SpendMonthOut))
+    check_parity("SpendByCategory", set(tool["months"][0]["categories"][0]), _fields(http_models.SpendByCategoryOut))
+    check_parity("SpendOnGet", set(tool["months"][0]["gets"][0]), _fields(http_models.SpendOnGetOut))
+    check_parity("UnknownCostCall", set(tool["months"][0]["unknown_calls"][0]), _fields(http_models.UnknownCostCallOut))
+    assert tool == route
+    assert tool["months"][0]["summary"] == floor.words
+    assert floor.words.startswith("at least")
+
+
 def test_the_watch_projections_agree_value_for_value():
     """`WatchOut` and `art_watches`' fields, for a Watch with every field filled, compared by value, not only by name."""
     from decimal import Decimal

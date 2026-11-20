@@ -20,10 +20,11 @@ from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
-from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
-from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from arrt.library.services import spend_history
+from arrt.library.services.discovery import SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.quality import Fit
@@ -320,6 +321,88 @@ def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None
         "plugin": state.plugin,
         "failed_at": _moment(state.failed_at),
     }
+
+
+def _queue(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/acquisitions`: the pause, then one page of the works still in line, in its names."""
+    listing = services.acquisition_queue.listing()
+    in_line = listing.in_line
+    limit = arguments.get("limit", DEFAULT_LIST_LIMIT)
+    offset = arguments.get("offset", 0)
+    pause = listing.pause
+    return ok(
+        pause=(
+            None
+            if pause is None
+            else {"condition": pause.condition, "detail": pause.detail, "since": _moment(pause.since), "remedy": pause.remedy}
+        ),
+        works=[_queued_work_fields(entry) for entry in in_line[offset : offset + limit]],
+        total=len(in_line),
+        limit=limit,
+        offset=offset,
+        failing=len(listing.entries) - len(in_line),
+        causes=len(listing.causes),
+    )
+
+
+def _failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/acquisitions/causes`, or with a cause `/causes/works`, in their names (`test_surface_parity.py`).
+
+    Paged as those routes page: the service's default size, sliced from the
+    listing the queue builds whole (`http/api.py`'s `_queue_page`).
+    """
+    causes = services.acquisition_queue.listing().causes
+    limit = arguments.get("limit", DEFAULT_LIST_LIMIT)
+    offset = arguments.get("offset", 0)
+    cause = arguments.get("cause")
+    if cause is None:
+        return ok(
+            causes=[_failure_cause_fields(group) for group in causes[offset : offset + limit]],
+            total=len(causes),
+            limit=limit,
+            offset=offset,
+        )
+    # A cause no work holds any more lists no works rather than refusing, as
+    # the route answers: the group emptied because the queue tried them again.
+    group = next((each for each in causes if each.cause == cause), None)
+    entries = () if group is None else group.entries
+    return ok(
+        cause=cause,
+        works=[_queued_work_fields(entry) for entry in entries[offset : offset + limit]],
+        total=len(entries),
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _failure_cause_fields(group: FailureCause) -> dict[str, Any]:
+    return {
+        "cause": group.cause,
+        "works": len(group.entries),
+        "failed": group.failed,
+        "gave_up": group.gave_up,
+        "outcome": None if group.outcome is None else str(group.outcome),
+        "plugin": group.plugin,
+        "museum": None if group.plugin is None else museum_name(group.plugin),
+    }
+
+
+def _queued_work_fields(entry: QueueEntry) -> dict[str, Any]:
+    return {"title": entry.title, "acquisition": _acquisition_fields(entry.state)}
+
+
+def _retry_failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`POST /api/acquisitions/causes/retry`: a cause's Retry, the queue's own; fetches nothing in the call."""
+    result = services.acquisition_queue.retry_cause(arguments["cause"])
+    return ok(
+        cause=result.cause,
+        retried=result.retried,
+        refused=[{"reason": reason, "works": count} for reason, count in result.refused.items()],
+        notice=(
+            "Queued again; nothing was fetched in this call. art_catalogue(action='failures') shows what still "
+            "fails, and action='get' one work's progress under `acquisition`."
+        ),
+    )
 
 
 def _retry_notice(state: AcquisitionState) -> str:
@@ -1143,6 +1226,56 @@ def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
         unknown_cost_calls=report.unknown_cost_calls,
         summary=report.summary,
     )
+
+
+def _spend_history(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/spend`: the months of spending, in `SpendHistoryOut`'s names (`test_surface_parity.py`)."""
+    return ok(**_spend_history_fields(spend_history.read(services.discovery)))
+
+
+def _spend_history_fields(history: spend_history.SpendHistory) -> dict[str, Any]:
+    return {
+        "months": [
+            {
+                "year": month.year,
+                "month": month.month,
+                **_spend_total_fields(month.total),
+                "categories": [
+                    {"category": str(each.category), "calls": each.calls, **_spend_total_fields(each.total)}
+                    for each in month.categories
+                ],
+                "gets": [
+                    {
+                        "run_id": each.run.id,
+                        "kind": str(each.run.kind),
+                        "intent": each.run.intent_text,
+                        "watch_id": each.run.watch_id,
+                        "started_at": _moment(each.run.started_at),
+                        "calls": each.calls,
+                        **_spend_total_fields(each.total),
+                    }
+                    for each in month.gets
+                ],
+                "unknown_calls": [
+                    {
+                        "spend_id": call.spend_id,
+                        "category": str(call.category),
+                        "occurred_at": _moment(call.occurred_at),
+                        "model_id": call.model_id,
+                        "run_id": call.run_id,
+                    }
+                    for call in month.unknown_calls
+                ],
+            }
+            for month in history.months
+        ],
+        "older_months": history.older_months,
+    }
+
+
+def _spend_total_fields(total: SpendTotal) -> dict[str, Any]:
+    """A total as every spend row says it: the figure, the calls whose cost is unknown, and the server's words."""
+    return {"cost_usd": str(total.cost_usd), "unknown_cost_calls": total.unknown_calls, "summary": total.words}
 
 
 def _list_candidate_works(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1971,6 +2104,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "archive"): _archive_artwork,
     ("art_catalogue", "restore"): _restore_artwork,
     ("art_catalogue", "retry_acquisition"): _retry_acquisition,
+    ("art_catalogue", "queue"): _queue,
+    ("art_catalogue", "failures"): _failures,
+    ("art_catalogue", "retry_failures"): _retry_failures,
     ("art_catalogue", "set_mat_color"): _set_mat_color,
     ("art_catalogue", "set_work_qid"): _set_work_qid,
     ("art_catalogue", "set_artist_qid"): _set_artist_qid,
@@ -2033,6 +2169,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_watches", "create"): _create_watch,
     ("art_watches", "update"): _update_watch,
     ("art_watches", "delete"): _delete_watch,
+    ("art_spend", "history"): _spend_history,
 }
 
 

@@ -31,6 +31,10 @@ from arrt.services.errors import ServiceError
 #: 3 of 2026-11-19): every act on a wall went to `art_display`, and the Player
 #: actions left it for this tool so the wall acts fit its description budget.
 #: No name here was renamed or removed.
+#:
+#: `art_spend` joined after the break, as an addition (wave 2b, Chunk 53):
+#: System › Spend's history had no honest home on an existing tool, and
+#: `art_discovery`'s description was at its budget (`tools.py`'s `ART_SPEND`).
 FROZEN_TOOL_NAMES = {
     "art_catalogue",
     "art_discovery",
@@ -38,6 +42,7 @@ FROZEN_TOOL_NAMES = {
     "art_players",
     "art_review",
     "art_settings",
+    "art_spend",
     "art_taste",
     "art_theme",
     "art_watches",
@@ -131,6 +136,8 @@ async def test_exactly_the_tools_that_leave_the_machine_declare_an_open_world(to
         "art_taste",
         "art_settings",
         "art_watches",
+        # The spend ledger is this machine's; reading it asks the provider nothing.
+        "art_spend",
     } & open_world == set()
 
 
@@ -597,3 +604,38 @@ def test_every_action_ask_may_call_is_one_the_surface_takes():
         assert tool_name in TOOLS_BY_NAME, f"Ask may call {tool_name}, which the surface does not have"
         missing = actions - set(TOOLS_BY_NAME[tool_name].action_names)
         assert not missing, f"Ask may call {tool_name}'s {sorted(missing)}, which it does not take"
+
+
+async def test_the_spend_history_over_mcp_is_get_api_spend(server_url, services):
+    """`art_spend(action='history')` against `GET /api/spend`, whole, with a known and an unknown-cost call this month."""
+    import json
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    import httpx
+
+    from arrt.persistence.discovery_records import CostStatus, InitiatedBy, SpendCategory
+
+    now = datetime.now(UTC)
+    run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.MCP_CLIENT)
+    for cost, status in ((Decimal("0.0213"), CostStatus.KNOWN), (Decimal(0), CostStatus.UNKNOWN)):
+        services.discovery.record_spend(
+            category=SpendCategory.DISCOVERY_TOKENS,
+            cost_usd=cost,
+            discovery_run_id=run.id,
+            model_id="the-model",
+            at=now,
+            cost_status=status,
+        )
+
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("art_spend", {"action": "history"})
+    payload = json.loads(result.content[0].text)
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        route = (await client.get("/api/spend")).raise_for_status().json()
+
+    assert payload.pop("success") is True
+    assert payload == route
+    assert payload["months"][0]["summary"] == "at least $0.0213, and 1 call whose cost is unknown"
+    assert [each["run_id"] for each in payload["months"][0]["gets"]] == [run.id]
