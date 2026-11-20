@@ -155,7 +155,7 @@ class TestEachActWritesOneEvent:
 
         response = http.post("/api/themes/no-such-theme/activate", json={"wall_id": study["wall_id"]})
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert of_kind(http, "wall.hung") == []
 
 

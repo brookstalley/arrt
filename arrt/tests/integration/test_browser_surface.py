@@ -407,7 +407,7 @@ class TestWorkDetail:
 
     def test_an_unknown_work_is_refused_with_a_message_written_to_be_shown(self, http):
         response = http.get("/api/works/not-a-work")
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert "not-a-work" in response.json()["error"]
 
 
@@ -962,7 +962,7 @@ class TestThemeOrder:
 class TestRefusalsReachTheCurator:
     def test_a_refused_operation_returns_the_service_message(self, http):
         response = http.post("/api/themes/nope/works", json={"artwork_id": "also-nope"})
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert "nope" in response.json()["error"]
 
     def test_asking_for_the_wall_with_no_active_theme_says_so(self, http, wall):

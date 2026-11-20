@@ -59,7 +59,7 @@ from arrt.persistence.discovery_records import (
     WorkProvenance,
 )
 from arrt.persistence.records import AcquisitionMethod, Artist, EventKind, RightsStatus, SourceClass
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
 
@@ -269,7 +269,7 @@ class DiscoveryService:
         """Return one run, or refuse if there is no such id."""
         run = self._store.get_run(run_id)
         if run is None:
-            raise ServiceError(f"No discovery run with id {run_id!r} exists.")
+            raise NotFound(f"No discovery run with id {run_id!r} exists.")
         return run
 
     def list_runs(self, *, status: RunStatus | str | None = None, kind: RunKind | str | None = None) -> Sequence[DiscoveryRun]:
@@ -767,7 +767,7 @@ class DiscoveryService:
         """Return one proposed work, or refuse if there is no such id."""
         work = self._store.get_candidate_work(candidate_work_id)
         if work is None:
-            raise ServiceError(f"No candidate work with id {candidate_work_id!r} exists.")
+            raise NotFound(f"No candidate work with id {candidate_work_id!r} exists.")
         return work
 
     def get_candidate_image(self, candidate_image_id: str) -> CandidateImage:
@@ -781,7 +781,7 @@ class DiscoveryService:
         """
         image = self._store.get_candidate_image(candidate_image_id)
         if image is None:
-            raise ServiceError(f"No candidate image with id {candidate_image_id!r} exists.")
+            raise NotFound(f"No candidate image with id {candidate_image_id!r} exists.")
         return image
 
     def list_candidate_works(self, run_id: str) -> Sequence[CandidateWork]:

@@ -523,21 +523,22 @@ def test_a_wall_is_mapped_to_a_display_and_given_labels_over_http(server_url, se
 
 
 @pytest.mark.parametrize(
-    ("method", "path", "body", "names"),
+    ("method", "path", "body", "names", "status"),
     [
-        ("POST", "/api/walls/no-such-wall/display", {"display_id": "x"}, "No wall with id"),
-        ("POST", "/api/walls/no-such-wall/labels", {"client_id": "x", "output": "epd-0"}, "No wall with id"),
-        ("DELETE", "/api/walls/no-such-wall/labels/x", None, "No wall with id"),
-        ("POST", "/api/clients", {"name": "  "}, "name cannot be empty"),
-        ("POST", "/api/clients/no-such-client", {"name": "x"}, "No client with id"),
-        ("DELETE", "/api/clients/no-such-client", None, "No client with id"),
-        ("POST", "/api/clients/no-such-client/token", None, "No client with id"),
-        ("POST", "/api/walls/no-such-wall/client", {"client_id": "x", "output": "frame"}, "No wall with id"),
-        ("DELETE", "/api/walls/no-such-wall/client", None, "No wall with id"),
+        # A wall or client named that is not there is not found (404); an empty name is refused (400).
+        ("POST", "/api/walls/no-such-wall/display", {"display_id": "x"}, "No wall with id", 404),
+        ("POST", "/api/walls/no-such-wall/labels", {"client_id": "x", "output": "epd-0"}, "No wall with id", 404),
+        ("DELETE", "/api/walls/no-such-wall/labels/x", None, "No wall with id", 404),
+        ("POST", "/api/clients", {"name": "  "}, "name cannot be empty", 400),
+        ("POST", "/api/clients/no-such-client", {"name": "x"}, "No client with id", 404),
+        ("DELETE", "/api/clients/no-such-client", None, "No client with id", 404),
+        ("POST", "/api/clients/no-such-client/token", None, "No client with id", 404),
+        ("POST", "/api/walls/no-such-wall/client", {"client_id": "x", "output": "frame"}, "No wall with id", 404),
+        ("DELETE", "/api/walls/no-such-wall/client", None, "No wall with id", 404),
     ],
 )
-def test_the_curator_routes_refuse_with_the_services_words(server_url, method, path, body, names):
+def test_the_curator_routes_refuse_with_the_services_words(server_url, method, path, body, names, status):
     response = httpx.request(method, server_url + path, json=body)
 
-    assert response.status_code == 400
+    assert response.status_code == status
     assert names in response.json()["error"]

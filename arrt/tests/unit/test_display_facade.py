@@ -47,7 +47,7 @@ from arrt.programming import themes as themes_module
 from arrt.programming import walls as walls_module
 from arrt.programming.display import UNSET, DisplayService
 from arrt.programming.lookups import Lookups
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 
 #: `DisplayService`'s public methods on chunk 21's base (c1915a9e), with their
 #: signatures as `inspect.signature` spells them, annotations as written and the
@@ -379,7 +379,12 @@ def test_a_lookup_planted_in_a_collaborator_is_found():
 
 
 def test_the_refusals_are_the_lookups_sentences_word_for_word(services, display, wall_id):
-    """Implicit guarantee: the sentences a person and an agent read, and the one error class, as the publisher raised them."""
+    """Implicit guarantee: the sentences a person and an agent read, and the error class each is raised as.
+
+    A wall or theme that is not there is `NotFound` (Chunk 37: 404 on `/api`, a
+    `ServiceError` to everything else); a wall with nothing hanging is a plain
+    `ServiceError`, because the wall is there.
+    """
     with pytest.raises(ServiceError) as wall:
         display.get_wall("nowhere")
     with pytest.raises(ServiceError) as theme:
@@ -387,8 +392,9 @@ def test_the_refusals_are_the_lookups_sentences_word_for_word(services, display,
     with pytest.raises(ServiceError) as hanging:
         display.leave_theme("any-work", wall_id=wall_id)
 
-    assert type(wall.value) is ServiceError
-    assert type(theme.value) is ServiceError
+    assert type(wall.value) is NotFound
+    assert type(theme.value) is NotFound
+    assert type(hanging.value) is ServiceError
     assert str(wall.value) == "No wall with id 'nowhere' is in the catalogue."
     assert str(theme.value) == "No theme with id 'nothing' is in the catalogue."
     name = display.get_wall(wall_id).name

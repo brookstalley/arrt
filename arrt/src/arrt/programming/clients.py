@@ -43,7 +43,7 @@ from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading, heartbeat_path_in
 from arrt.programming.player_state import PlayerReading, player_reading
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_text
 from arrt.services.store import store_write
 
@@ -333,7 +333,7 @@ class ClientService:
     def get_client(self, client_id: str) -> Client:
         client = self._store.get_client(client_id)
         if client is None:
-            raise ServiceError(f"No client with id {client_id!r} is recorded.")
+            raise NotFound(f"No client with id {client_id!r} is recorded.")
         return client
 
     def list_clients(self) -> Sequence[ClientView]:
@@ -356,7 +356,7 @@ class ClientService:
     def get_display(self, display_id: str) -> Display:
         display = self._store.get_display(display_id)
         if display is None:
-            raise ServiceError(f"No display with id {display_id!r} is recorded.")
+            raise NotFound(f"No display with id {display_id!r} is recorded.")
         return display
 
     def client_document(self, client_id: str) -> bytes:
@@ -553,7 +553,7 @@ class ClientService:
             wall = self._require_wall(wall_id)
             label = self._store.get_label_output(label_id)
             if label is None:
-                raise ServiceError(f"No label output with id {label_id!r} is recorded.")
+                raise NotFound(f"No label output with id {label_id!r} is recorded.")
             if label.wall_id not in (None, wall.id):
                 raise ServiceError(f"The label output {label.output!r} does not caption {wall.name}, so it was left as it is.")
             released = replace(label, wall_id=None)

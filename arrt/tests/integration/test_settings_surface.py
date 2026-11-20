@@ -61,7 +61,7 @@ def test_a_value_the_setting_cannot_take_is_refused_in_the_services_words(server
 def test_an_unknown_setting_is_refused_naming_the_ones_there_are(server_url):
     response = httpx.post(f"{server_url}/api/settings/units", json={"value": "metric"}, timeout=30)
 
-    assert response.status_code == 400
+    assert response.status_code == 404
     assert "The settings are label_units" in response.json()["error"]
 
 

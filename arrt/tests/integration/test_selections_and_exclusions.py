@@ -109,7 +109,7 @@ class TestHangingASelection:
         empty = http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": []})
         unknown = http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": ["no-such-work"]})
 
-        assert (empty.status_code, unknown.status_code) == (400, 400)
+        assert (empty.status_code, unknown.status_code) == (400, 404)
         assert http.get("/api/walls").json()["walls"][0]["theme"] is None
         assert events(http, "wall.hung") == []
 
@@ -129,7 +129,7 @@ class TestASelectionLivesWhileItHangs:
 
         hang(http, a_theme_holding(http, "Late night", work), the_wall)
 
-        assert http.get(f"/api/themes/{selection}").status_code == 400
+        assert http.get(f"/api/themes/{selection}").status_code == 404
         assert http.get(f"/api/works/{work.id}").status_code == 200
 
     def test_a_new_selection_over_an_old_one_deletes_the_old_one(self, http, ready_work, the_wall):
@@ -137,7 +137,7 @@ class TestASelectionLivesWhileItHangs:
 
         second = self.selection_on(http, the_wall, ready_work("Chop Suey"))
 
-        assert http.get(f"/api/themes/{first}").status_code == 400
+        assert http.get(f"/api/themes/{first}").status_code == 404
         assert http.get(f"/api/themes/{second}").status_code == 200
 
     def test_taking_a_selection_down_deletes_it(self, http, ready_work, the_wall):
@@ -145,7 +145,7 @@ class TestASelectionLivesWhileItHangs:
 
         assert http.delete(f"/api/walls/{the_wall['wall_id']}/theme").status_code == 200
 
-        assert http.get(f"/api/themes/{selection}").status_code == 400
+        assert http.get(f"/api/themes/{selection}").status_code == 404
 
     def test_a_selection_still_hanging_on_another_wall_is_kept(self, http, ready_work, the_wall):
         study = http.post("/api/walls", json={"name": "The study"}).json()

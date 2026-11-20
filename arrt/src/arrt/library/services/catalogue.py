@@ -66,7 +66,7 @@ from arrt.persistence.records import (
     WorkOrder,
     is_current,
 )
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import description_markup, relative_path, require_member, require_text
 from arrt.services.store import ActState, store_write
 
@@ -712,7 +712,7 @@ class CatalogueService:
         """
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
         named = replace(
             artist,
             family_name=family_name,
@@ -751,7 +751,7 @@ class CatalogueService:
         reads this service's clock.
         """
         if artist_id is not None and self._store.get_artist(artist_id) is None:
-            raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the catalogue.")
         now = self._now() if at is None else at
         artwork = Artwork(
             id=self._mint_id(),
@@ -1019,7 +1019,7 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         held = next((facet for facet in self._store.list_facets(artwork_id) if facet.id == facet_id), None)
         if held is None:
-            raise ServiceError(f"Artwork {artwork_id!r} has no facet with id {facet_id!r}.")
+            raise NotFound(f"Artwork {artwork_id!r} has no facet with id {facet_id!r}.")
         store_write(self._store.remove_facet, facet_id)
 
     # -- writes: sources ------------------------------------------------------
@@ -1071,7 +1071,7 @@ class CatalogueService:
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
         promoted = replace(source, is_primary=True)
         with self._store.transaction():
             self._demote_primary_sources(source.artwork_id)
@@ -1091,7 +1091,7 @@ class CatalogueService:
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
         status = require_member(status, enum=FetchStatus, field="status")
         if outcome is not None and FetchOutcome(outcome).fetch_status is not status:
             raise ValueError(f"A fetch whose outcome is {outcome} has status {FetchOutcome(outcome).fetch_status}, not {status}.")
@@ -1144,7 +1144,7 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the catalogue.")
         if source.artwork_id != artwork_id:
             raise ServiceError(f"Source {source_id!r} belongs to a different artwork than {artwork_id!r}.")
         if byte_size <= 0:
@@ -1425,7 +1425,7 @@ class CatalogueService:
     def _require_artwork(self, artwork_id: str) -> Artwork:
         artwork = self._store.get_artwork(artwork_id)
         if artwork is None:
-            raise ServiceError(f"No artwork with id {artwork_id!r} is in the catalogue.")
+            raise NotFound(f"No artwork with id {artwork_id!r} is in the catalogue.")
         return artwork
 
     def _resolve_artist(self, artist_id: str | None, seen: dict[str, Artist | None]) -> Artist | None:

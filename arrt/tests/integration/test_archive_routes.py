@@ -99,7 +99,7 @@ def test_a_second_call_is_refused_in_words_a_curator_can_act_on(http, service, f
 def test_an_unknown_work_is_refused_rather_than_silently_accepted(http, act):
     answer = http.post(f"/api/works/no-such-work/{act}")
 
-    assert answer.status_code == 400
+    assert answer.status_code == 404
     assert "no-such-work" in answer.json()["error"]
 
 

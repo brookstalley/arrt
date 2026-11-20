@@ -40,7 +40,7 @@ from arrt.library.services.settings import (
 from arrt.library.services.unattended import Refusal, UnattendedAllowance
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy, RunStatus, Watch
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
@@ -164,7 +164,7 @@ class WatchService:
     def get(self, watch_id: str) -> Watch:
         found = self._store.get_watch(watch_id)
         if found is None:
-            raise ServiceError(f"No Watch with id {watch_id!r}.")
+            raise NotFound(f"No Watch with id {watch_id!r}.")
         return found
 
     def cadence_of(self, watch: Watch) -> Cadence:

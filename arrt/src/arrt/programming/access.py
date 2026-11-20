@@ -44,7 +44,7 @@ from typing import Final
 from arrt.persistence.records import Client
 from arrt.programming.clients import Placements
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class PlayerAccess:
         with self._store.transaction():
             client = self._store.get_client(client_id)
             if client is None:
-                raise ServiceError(f"No client with id {client_id!r} is recorded.")
+                raise NotFound(f"No client with id {client_id!r} is recorded.")
             store_write(self._store.update_client, replace(client, token_verifier=verifier_of(token), token_issued_at=issued_at))
         log.info(
             "Issued a new token for client %r; any earlier one no longer works.",

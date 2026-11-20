@@ -62,7 +62,7 @@ def test_the_browser_writes_changes_and_removes_a_watch(server_url):
     assert removed.json()["watch_id"] == watch["watch_id"]
     assert route(server_url, "GET", "/watches").json() == {"watches": []}
     gone = route(server_url, "GET", f"/watches/{watch['watch_id']}")
-    assert gone.status_code == 400
+    assert gone.status_code == 404
     assert "No Watch with id" in gone.json()["error"]
 
 

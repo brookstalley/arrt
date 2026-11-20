@@ -69,7 +69,7 @@ class TestTheBrowserSurface:
     def test_an_unknown_artist_is_refused_by_name(self, http):
         refused = http.post("/api/artists/nobody/wikidata", json={"qid": "Q1"})
 
-        assert refused.status_code == 400
+        assert refused.status_code == 404
         assert "nobody" in refused.json()["error"]
 
 

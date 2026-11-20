@@ -41,7 +41,7 @@ from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
 from arrt.programming.walls import Walls
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member
 from arrt.services.store import store_write
 
@@ -272,7 +272,7 @@ class Scenes:
         with self._store.reading():
             scene = self._store.get_scene(scene_id)
             if scene is None:
-                raise ServiceError(f"No scene with id {scene_id!r}.")
+                raise NotFound(f"No scene with id {scene_id!r}.")
             return self._scene_view(scene)
 
     def scene_walls(self, view: SceneView) -> list[SceneWall]:
@@ -311,7 +311,7 @@ class Scenes:
     def _require_scene(self, scene_id: str, status: SceneStatus) -> Scene:
         scene = self._store.get_scene(scene_id)
         if scene is None:
-            raise ServiceError(f"No scene with id {scene_id!r}.")
+            raise NotFound(f"No scene with id {scene_id!r}.")
         actual = scene.status_at(datetime.now(UTC))
         if actual is not status:
             raise ServiceError(_SCENE_NOT[status].format(status=actual.value))

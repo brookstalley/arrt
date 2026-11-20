@@ -413,7 +413,7 @@ class TestCommissioningARun:
     def test_an_unknown_run_is_refused_with_something_to_act_on(self, http):
         response = http.get("/api/runs/no-such-run")
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert "no-such-run" in response.json()["error"]
 
     def test_the_run_half_runs_over_http(self, http, engine):

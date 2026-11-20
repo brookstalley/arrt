@@ -65,7 +65,7 @@ def test_the_route_refuses_a_blank_name(http, wall):
 def test_the_route_refuses_an_unknown_wall_by_its_id(http):
     refused = http.post("/api/walls/nobody", json={"name": "The hall"})
 
-    assert refused.status_code == 400
+    assert refused.status_code == 404
     assert "No wall with id 'nobody'" in refused.json()["error"]
 
 

@@ -231,7 +231,7 @@ class TestOneArtist:
     def test_an_unknown_artist_is_refused_by_name(self, http):
         refused = http.get("/api/artists/nobody")
 
-        assert refused.status_code == 400
+        assert refused.status_code == 404
         assert "nobody" in refused.json()["error"]
 
 

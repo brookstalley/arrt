@@ -41,7 +41,7 @@ from arrt.programming.feeds import FeedPublisher
 from arrt.programming.lookups import Lookups
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
@@ -456,7 +456,7 @@ class Themes:
             # is written as if remote.
             for answer in self._library.playable(chosen).values():
                 if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
-                    raise ServiceError(answer.detail)
+                    raise NotFound(answer.detail)
             theme = Theme(
                 id=theme_id,
                 # Names are unique across themes, hidden or not, so the id's head
@@ -702,7 +702,7 @@ class Themes:
             self.get_listed_theme(theme_id)
             for answer in self._library.playable(chosen).values():
                 if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
-                    raise ServiceError(answer.detail)
+                    raise NotFound(answer.detail)
             others = list(self._store.list_memberships(theme_id))
             held = {membership.artwork_id for membership in others}
             joining = [artwork_id for artwork_id in chosen if artwork_id not in held]
@@ -988,7 +988,7 @@ class Themes:
         """
         answer = self._library.playable([artwork_id])[artwork_id]
         if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
-            raise ServiceError(answer.detail)
+            raise NotFound(answer.detail)
         return answer
 
     @staticmethod

@@ -125,7 +125,7 @@ def test_an_unknown_id_refuses_the_whole_addition(http, services, studies):
 
     answer = http.post(f"/api/themes/{theme.id}/works/bulk", json={"artwork_ids": [studies[0], "no-such-work"]})
 
-    assert answer.status_code == 400
+    assert answer.status_code == 404
     assert services.display.theme_work_ids(theme.id) == []
 
 
@@ -161,7 +161,7 @@ def test_archiving_by_filter_archives_every_match_and_passes_over_the_archived(h
 def test_an_unknown_id_refuses_the_whole_archive(http, seeded_service, studies):
     answer = http.post("/api/works/archive", json={"artwork_ids": [studies[0], "no-such-work"]})
 
-    assert answer.status_code == 400
+    assert answer.status_code == 404
     assert seeded_service.get_artwork(studies[0]).artwork.status is ArtworkStatus.ACCEPTED
 
 

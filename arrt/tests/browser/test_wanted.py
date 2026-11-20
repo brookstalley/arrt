@@ -535,6 +535,39 @@ def test_search_all_tries_every_search_and_says_which_could_not_start(ui, wanted
     assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"
 
 
+def test_search_all_says_which_work_is_gone_and_still_starts_the_rest(ui, wanted, discovery, propose):
+    """A work gone between the listing and the press is not found (404 since Chunk 37), not a fault.
+
+    Its sentence is shown where a refusal's is, and the Get after it still starts.
+    The answer served for the first Get is the server's own for a candidate work
+    it does not hold, asked of the real server, so the stub cannot drift from
+    what it says. Asked of the work's own route, because this suite's server has
+    no image provider, so its resolve route refuses before it looks a work up;
+    both refuse a missing work through `DiscoveryService.get_candidate_work`.
+    """
+    import httpx
+
+    other_run = discovery.start_discovery_run(intent_text="Magritte", initiated_by=InitiatedBy.WEB_UI)
+    elsewhere = propose("The Son of Man", run_id=other_run.id, proposed_artist="René Magritte")
+    discovery.record_resolution(elsewhere.id)
+    discovery.want(elsewhere.id)
+    gone = httpx.get(f"{ui.base_url}/api/candidates/no-such-work", timeout=30.0)
+    assert gone.status_code == 404, gone.text
+    ui.serve("**/api/runs/resolve", [(gone.status_code, gone.json()), {"run_id": "resolve-b"}])
+    requests = posted(ui, "/api/runs/resolve")
+
+    open_wanted(ui)
+    ui.page.click("button:text-is('Get all again')")
+    ui.page.wait_for_selector(".search-all-outcome")
+
+    assert [method for method, _, _ in requests if method == "POST"] == ["POST", "POST"], "a missing work stopped the rest"
+    outcome = ui.page.locator(".search-all-outcome")
+    expect(outcome).to_contain_text("Started 1 Get. 1 other could not start:", use_inner_text=True)
+    expect(outcome).to_contain_text(gone.json()["error"], use_inner_text=True)
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
+    assert ui.page.evaluate("() => window.location.hash") == "#wanted", "the page left before saying what was refused"
+
+
 # -- on a phone -------------------------------------------------------------------
 
 PHONE = {"width": 390, "height": 844}
