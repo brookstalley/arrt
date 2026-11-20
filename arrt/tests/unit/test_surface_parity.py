@@ -599,8 +599,127 @@ def test_the_look_projections_agree_value_for_value_but_for_the_image_block():
     assert tool == route.model_dump()
 
 
+#: The names MCP's wall answers and HTTP's spell differently, per record, MCP's
+#: name first. One fact, two names, on purpose: MCP's wall answers say
+#: `artwork_id` for a work since wave 2b (the owner's ruling 3 of 2026-11-19), the
+#: name every MCP action takes, and `/api`, whose only reader is the browser,
+#: keeps `work_id` (`build-plan-audit-wave-2b.md`'s Goals, "Tradeoffs accepted").
+#: Every other name on these records is the same on both. `check_renamed` refuses
+#: a rename that no longer describes the two surfaces. Each record is compared
+#: below, but `Upcoming`, which `tests/integration/test_walls_last_shown.py`
+#: compares through a real server, as `GET /api/walls` and `art_display(action='walls')`.
+WALL_RENAMES: dict[str, dict[str, str]] = {
+    "DisplayState": {"artwork_id": "work_id"},
+    "ReportedState": {"artwork_id": "work_id"},
+    "LastShown": {"artwork_id": "work_id"},
+    "Upcoming": {"artwork_id": "work_id"},
+    "SceneWall": {"artwork_id": "work_id"},
+    "Next": {"artwork_id": "work_id"},
+}
+
+
+def check_renamed(record: str, mcp: set[str], http: set[str], renames: dict[str, str] | None = None) -> set[str]:
+    """Raise unless each rename is live, and return MCP's names in HTTP's spelling.
+
+    Live means the MCP name is one MCP answers and HTTP does not, and the HTTP
+    name one HTTP answers and MCP does not. A rename either surface has stopped
+    needing would otherwise go on translating a name nobody sends, and hide the
+    next real divergence behind a pair that reads as considered.
+    """
+    renames = WALL_RENAMES[record] if renames is None else renames
+    for mcp_name, http_name in renames.items():
+        mcp_alone = mcp_name in mcp and mcp_name not in http
+        assert mcp_alone, (
+            f"{record}: the rename {mcp_name!r} -> {http_name!r} is stale: MCP does not answer {mcp_name!r} "
+            "where HTTP does not. Delete it."
+        )
+        http_alone = http_name in http and http_name not in mcp
+        assert http_alone, (
+            f"{record}: the rename {mcp_name!r} -> {http_name!r} is stale: HTTP does not answer {http_name!r} "
+            "where MCP does not. Delete it."
+        )
+    return {renames.get(name, name) for name in mcp}
+
+
+def in_http_names(value: object, renames: dict[str, str]) -> object:
+    """An MCP answer with every renamed key spelt as HTTP spells it, at any depth."""
+    if isinstance(value, dict):
+        return {renames.get(key, key): in_http_names(inner, renames) for key, inner in value.items()}
+    if isinstance(value, list):
+        return [in_http_names(inner, renames) for inner in value]
+    return value
+
+
+def test_a_rename_mcp_no_longer_needs_is_refused():
+    with pytest.raises(AssertionError, match="stale: MCP does not answer 'artwork_id'"):
+        check_renamed("Upcoming", mcp={"work_id", "starts_at"}, http={"work_id", "starts_at"})
+
+
+def test_a_rename_http_no_longer_needs_is_refused():
+    with pytest.raises(AssertionError, match="stale: HTTP does not answer 'work_id'"):
+        # The day /api renames its field too, or drops it.
+        check_renamed("Upcoming", mcp={"artwork_id", "starts_at"}, http={"starts_at"})
+
+
+def test_a_planted_rename_is_refused():
+    """A rename for a name both surfaces already share is stale the day it is written."""
+    with pytest.raises(AssertionError, match="stale"):
+        check_renamed(
+            "Upcoming",
+            mcp={"artwork_id", "starts_at"},
+            http={"work_id", "starts_at"},
+            renames={"artwork_id": "work_id", "starts_at": "starts_at"},
+        )
+
+
+def test_a_walls_display_state_agrees_value_for_value_but_for_the_one_rename():
+    """`art_display(action='walls')` and `GET /api/walls` state a wall's screen alike, `artwork_id` aside."""
+    from arrt.programming.display_state import DisplayState, ReportedState, ScreenState
+
+    shown = DisplayState(
+        state=ScreenState.SILENT,
+        work_id=None,
+        since=WHEN,
+        reported_at=WHEN,
+        age_seconds=4000.0,
+        last=ReportedState(state=ScreenState.SHOWING_ART, work_id="wrk_1", since=WHEN),
+    )
+    tool = bindings._display_state_fields(shown)
+    route = http_api._display_state(shown).model_dump()
+
+    check_parity("DisplayState", check_renamed("DisplayState", set(tool), set(route)), _fields(http_models.DisplayStateOut))
+    check_parity(
+        "ReportedState",
+        check_renamed("ReportedState", set(tool["last"]), set(route["last"])),
+        _fields(http_models.ReportedStateOut),
+    )
+    assert in_http_names(tool, WALL_RENAMES["DisplayState"]) == route
+    assert tool["last"]["artwork_id"] == "wrk_1"
+
+
+def test_a_walls_last_showing_agrees_value_for_value_but_for_the_one_rename():
+    from arrt.persistence.records import Showing
+
+    showing = Showing(wall_id="wal_1", work_id="wrk_1", started_at=WHEN, last_seen_at=WHEN)
+    tool = bindings._last_shown_fields(showing)
+    route = http_api._last_shown(showing).model_dump()
+
+    check_parity("LastShown", check_renamed("LastShown", set(tool), set(route)), _fields(http_models.LastShownOut))
+    assert in_http_names(tool, WALL_RENAMES["LastShown"]) == route
+
+
+def test_a_step_answers_in_the_routes_names_but_for_the_one_rename_and_its_notice():
+    """`next` and `show_now` against `NextOut`, which carries no notice: the tool's says what was not confirmed."""
+    stepped = bindings._republished_fields("wal_1", "wrk_1")
+
+    check_parity(
+        "Next", check_renamed("Next", set(stepped) - {"notice"}, _fields(http_models.NextOut)), _fields(http_models.NextOut)
+    )
+    assert stepped["artwork_id"] == "wrk_1"
+
+
 def test_the_scene_projections_carry_the_same_field_names():
-    """`GET /api/scenes/live` and `art_theme(action='scenes')` read one scene, its walls included."""
+    """`GET /api/scenes/live` and `art_display(action='scenes')` read one scene, its walls included."""
     from arrt.persistence.records import Scene, SceneLifetime, SceneStatus
     from arrt.programming.display import SceneWall
     from arrt.programming.display_state import ScreenState
@@ -621,7 +740,12 @@ def test_the_scene_projections_carry_the_same_field_names():
     projected = bindings._scene_projection(scene, [wall])
 
     check_parity("Scene", set(projected), _fields(http_models.SceneOut))
-    check_parity("SceneWall", set(projected["walls"][0]), _fields(http_models.SceneWallOut))
+    check_parity(
+        "SceneWall",
+        check_renamed("SceneWall", set(projected["walls"][0]), _fields(http_models.SceneWallOut)),
+        _fields(http_models.SceneWallOut),
+    )
+    assert projected["walls"][0]["artwork_id"] == "wrk_1"
 
 
 def test_the_setting_projections_agree():

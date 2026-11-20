@@ -14,6 +14,7 @@ import httpx
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from unit.test_surface_parity import WALL_RENAMES, check_renamed, in_http_names
 
 from arrt.programming.manifest.v2 import read_published
 
@@ -36,10 +37,24 @@ def _http_walls(server_url):
     return {wall["wall_id"]: wall for wall in walls}
 
 
+#: Which of `test_surface_parity.WALL_RENAMES`' records each field is: MCP's wall
+#: answers say `artwork_id` where `/api/walls` says `work_id` (wave 2b, ruling 3).
+_RECORDS = {"last_shown": "LastShown", "upcoming": "Upcoming"}
+
+
 async def _both(server_url, wall_id, field):
-    """The field as each surface states it, after asking that they state it alike."""
+    """The field as each surface states it, after asking that they state it alike, the one rename aside."""
     over_http = _http_walls(server_url)[wall_id][field]
     over_mcp = (await _mcp_walls(server_url))[wall_id][field]
+    renames = WALL_RENAMES[_RECORDS[field]]
+    for mcp_entry, http_entry in zip(
+        over_mcp if isinstance(over_mcp, list) else [over_mcp],
+        over_http if isinstance(over_http, list) else [over_http],
+        strict=True,
+    ):
+        if mcp_entry is not None:
+            check_renamed(_RECORDS[field], set(mcp_entry), set(http_entry), renames)
+    over_mcp = in_http_names(over_mcp, renames)
     assert over_http == over_mcp, f"{field}: GET /api/walls says {over_http!r}, art_display says {over_mcp!r}"
     return over_http
 
