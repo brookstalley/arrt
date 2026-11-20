@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from arrt.persistence.records import (
     SceneStatus,
@@ -30,19 +30,16 @@ from arrt.programming import shape
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.feeds import FeedPublisher, log_published
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.schedule import Slot
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import UNSET, Themes, Unset
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module these lines were said from before it had a module of its
 #: own, and kept, for the reason `feeds.py` gives: a logger's name is what a
@@ -135,10 +132,14 @@ UPCOMING: Final[int] = 3
 class Walls:
     """Read and write the walls, their settings, and what each shows now."""
 
-    def __init__(self, store: ProgrammingStore, settings: DisplaySettings, feeds: FeedPublisher, themes: Themes) -> None:
+    def __init__(
+        self, store: ProgrammingStore, settings: DisplaySettings, lookups: Lookups, feeds: FeedPublisher, themes: Themes
+    ) -> None:
         self._store = store
         self._settings = settings
         self._placements = Placements(store, settings.art_root)
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
 
@@ -151,9 +152,9 @@ class Walls:
         who took everything down both produce it, and `information-architecture.md`
         designs it as one of the Walls screen's named empty states.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         assignment = self._store.get_assignment(wall_id)
-        return None if assignment is None else self._feeds.get_theme(assignment.theme_id)
+        return None if assignment is None else self._lookups.get_theme(assignment.theme_id)
 
     def survey_walls(self) -> Sequence[WallView]:
         """Every wall with what hangs on it and what its screen is doing."""
@@ -168,7 +169,7 @@ class Walls:
         "what hangs here" has one answer in this class. `survey_walls` is the
         bulk path, and reads the whole catalogue once for N walls.
         """
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         return WallView(
             wall=wall,
             hanging=self.hanging_on(wall_id),
@@ -244,7 +245,7 @@ class Walls:
         # (`ClientService._merge_place`), and a wall read before it would put
         # the old display back.
         with self._store.transaction():
-            wall = self._feeds.get_wall(wall_id)
+            wall = self._lookups.get_wall(wall_id)
             renamed = replace(wall, name=chosen)
             self._refuse_a_taken_name(renamed)
             store_write(self._store.update_wall, renamed)
@@ -288,7 +289,7 @@ class Walls:
         caller can name it.
         """
         with self._store.transaction():
-            wall = self._feeds.get_wall(wall_id)
+            wall = self._lookups.get_wall(wall_id)
             assignment = self._store.get_assignment(wall_id)
             if assignment is not None:
                 store_write(self._store.remove_assignment, wall_id)
@@ -309,7 +310,7 @@ class Walls:
             wall.name,
             wall_id,
             (
-                f"; took down {self._feeds.get_theme(assignment.theme_id).name!r}"
+                f"; took down {self._lookups.get_theme(assignment.theme_id).name!r}"
                 if assignment and self._store.get_theme(assignment.theme_id)
                 else ""
             ),
@@ -327,13 +328,13 @@ class Walls:
         chosen = None if mode is None else require_member(mode, enum=MatMode, field="mat mode").value
         # Read where it is written, for the reason `rename_wall` gives.
         with self._feeds.publishing():
-            wall = self._feeds.get_wall(wall_id)
+            wall = self._lookups.get_wall(wall_id)
             store_write(self._store.update_wall, replace(wall, mat_mode=chosen))
             feed = self._feeds.published(wall_id)
             if feed is not None:
                 self._feeds.patch_v2_works(wall_id, feed, {})
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
-        return self._feeds.get_wall(wall_id)
+        return self._lookups.get_wall(wall_id)
 
     def set_playback(
         self,
@@ -364,7 +365,7 @@ class Walls:
         """
         # Read where it is written, for the reason `rename_wall` gives.
         with self._feeds.publishing():
-            wall = self._feeds.get_wall(wall_id)
+            wall = self._lookups.get_wall(wall_id)
             chosen = replace(
                 wall,
                 rotation_interval_seconds=(
@@ -395,7 +396,7 @@ class Walls:
         )
         if build is not None:
             log_published(build)
-        return self._feeds.get_wall(wall_id)
+        return self._lookups.get_wall(wall_id)
 
     # -- writes: what the wall shows now ---------------------------------------
 
@@ -408,7 +409,7 @@ class Walls:
         the study; a wall sharing works with it has its slots to come rebuilt
         beside it (`FeedPublisher._write_v2`).
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         with self._feeds.publishing():
             return self._feeds.restart(wall_id, pinned=None)
 
@@ -423,7 +424,7 @@ class Walls:
         is not in the theme hanging there is shown for one slot, as a guest,
         and the schedule then carries on through the theme.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         answer = self._themes.require_showable(artwork_id)
         with self._feeds.publishing():
             return self._feeds.restart(wall_id, pinned=answer)

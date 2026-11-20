@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import Any, Final
 
 from arrt import observations
 from arrt.persistence.records import (
@@ -25,19 +25,16 @@ from arrt.programming import adequacy, showings
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.scenes import Scenes
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
 from arrt.services.errors import ServiceError
 from arrt.services.store import store_write
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module these lines were said from before it had a module of its
 #: own, and kept, for the reason `feeds.py` gives: a logger's name is what a
@@ -177,10 +174,18 @@ class Reports:
     """Keep what each wall's Player reports, and answer from it."""
 
     def __init__(
-        self, store: ProgrammingStore, settings: DisplaySettings, feeds: FeedPublisher, themes: Themes, scenes: Scenes
+        self,
+        store: ProgrammingStore,
+        settings: DisplaySettings,
+        lookups: Lookups,
+        feeds: FeedPublisher,
+        themes: Themes,
+        scenes: Scenes,
     ) -> None:
         self._store = store
         self._settings = settings
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
         self._scenes = scenes
@@ -220,7 +225,7 @@ class Reports:
         every reader of a wall's report opens. Refused, and nothing written, if
         the health panel could not read it.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         problem = heartbeat.problem_with(document)
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this server can read: {problem}")
@@ -294,7 +299,7 @@ class Reports:
 
     def last_showing(self, wall_id: str) -> Showing | None:
         """The work this wall showed last and for how long, whatever its screen does now; None if it has shown nothing."""
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         return self._store.latest_showing(wall_id)
 
     def last_shown_by_work(self) -> Mapping[str, datetime]:
@@ -315,7 +320,7 @@ class Reports:
         § The heartbeat, minor 2): a window made smaller for a minute must not
         make every work on the wall look fine.
         """
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         if wall.display_id is None:
             return None
         since = datetime.now(UTC) - SCREEN_MEMORY
@@ -330,7 +335,7 @@ class Reports:
         of the reasons it is, rather than an empty answer that would read as
         "every work is fine".
         """
-        if self._feeds.get_wall(wall_id).display_id is None:
+        if self._lookups.get_wall(wall_id).display_id is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_DISPLAY)
         screen = self.largest_screen(wall_id)
         if screen is None:
@@ -368,7 +373,7 @@ class Reports:
         and no screen (minor 4, a screen unplugged), says nothing about the
         screen, and nothing is kept.
         """
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         capabilities = document.get("capabilities")
         screen = capabilities.get("screen") if isinstance(capabilities, Mapping) else None
         if wall.display_id is None or not isinstance(screen, Mapping):
@@ -394,7 +399,7 @@ class Reports:
         The bytes, not a parse of them, so the ETag a Player compares is a hash
         of exactly what it was sent.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         try:
             return self._settings.manifest_v2_path(wall_id).read_bytes()
         except FileNotFoundError:

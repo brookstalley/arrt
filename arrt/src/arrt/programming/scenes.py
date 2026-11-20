@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Final
+from typing import Final
 
 from arrt.library.facade import (
     EventKind,
@@ -34,18 +34,15 @@ from arrt.persistence.records import (
 )
 from arrt.programming.display_state import ScreenState
 from arrt.programming.feeds import FeedPublisher, applied_at
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
 from arrt.programming.walls import Walls
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member
 from arrt.services.store import store_write
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module these lines were said from before it had a module of its
 #: own, and kept, for the reason `feeds.py` gives: a logger's name is what a
@@ -102,6 +99,7 @@ class Scenes:
         store: ProgrammingStore,
         library: LibraryFacade,
         settings: DisplaySettings,
+        lookups: Lookups,
         feeds: FeedPublisher,
         themes: Themes,
         walls: Walls,
@@ -109,6 +107,8 @@ class Scenes:
         self._store = store
         self._library = library
         self._settings = settings
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
         self._walls = walls
@@ -128,11 +128,11 @@ class Scenes:
         """The scene being assembled: the one already started, else a new empty one.
 
         One draft at a time, because the builder on Walls holds one; the store
-        would take more, and only the newest stages anything (`FeedPublisher.current_draft`).
+        would take more, and only the newest stages anything (`Lookups.current_draft`).
         """
         with self._store.transaction():
             ended = self.settle_scenes()
-            draft = self._feeds.current_draft()
+            draft = self._lookups.current_draft()
             if draft is None:
                 draft = Scene(id=str(uuid.uuid4()), status=SceneStatus.DRAFT, created_at=datetime.now(UTC))
                 store_write(self._store.add_scene, draft)
@@ -148,7 +148,7 @@ class Scenes:
         feed, whose Player has nothing to show a scene over. A refusal changes
         nothing in the draft.
         """
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         answer = self._themes.require_showable(artwork_id)
         with self._feeds.publishing():
             scene = self._require_scene(scene_id, SceneStatus.DRAFT)
@@ -164,7 +164,7 @@ class Scenes:
 
     def unpin_scene(self, scene_id: str, wall_id: str) -> SceneView:
         """Take this wall out of the draft and stop staging its work there."""
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         with self._feeds.publishing():
             self._require_scene(scene_id, SceneStatus.DRAFT)
             store_write(self._store.remove_pin, scene_id, wall_id)
@@ -208,7 +208,7 @@ class Scenes:
             if not pins:
                 raise ServiceError("This scene has no walls in it yet. Pick a work for a wall first.")
             for pin in pins:
-                wall = self._feeds.get_wall(pin.wall_id)
+                wall = self._lookups.get_wall(pin.wall_id)
                 try:
                     self._themes.require_showable(pin.work_id)
                 except ServiceError as refusal:
@@ -261,7 +261,7 @@ class Scenes:
     def scene_draft(self) -> SceneView | None:
         """The scene being assembled, or None."""
         with self._store.reading():
-            draft = self._feeds.current_draft()
+            draft = self._lookups.current_draft()
             return None if draft is None else self._scene_view(draft)
 
     def get_scene(self, scene_id: str) -> SceneView:

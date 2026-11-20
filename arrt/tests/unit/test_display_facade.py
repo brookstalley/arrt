@@ -18,9 +18,16 @@ nobody wrote down, so what it must not change is held here:
   is the collaborator's own object rather than a copy;
 - every module says its lines under `arrt.programming.display`, the logger the
   journal's readers filter on.
+
+On 2026-11-20 (audit wave 2b, Chunk 48) the existence-checking lookups left
+`FeedPublisher` for a home of their own (`Lookups`, `lookups.py`), every
+collaborator and the facade calling the one instance the facade builds, and
+`DisplaySettings` left `display.py` for `settings.py`. What the lookups guaranteed
+as the publisher's methods is held at the end of this file.
 """
 
 import ast
+import contextlib
 import inspect
 import logging
 from annotationlib import Format
@@ -29,13 +36,18 @@ from pathlib import Path
 
 import pytest
 
+from arrt.persistence.records import Wall
 from arrt.programming import display as display_module
 from arrt.programming import feeds as feeds_module
+from arrt.programming import lookups as lookups_module
 from arrt.programming import reports as reports_module
 from arrt.programming import scenes as scenes_module
+from arrt.programming import settings as settings_module
 from arrt.programming import themes as themes_module
 from arrt.programming import walls as walls_module
 from arrt.programming.display import UNSET, DisplayService
+from arrt.programming.lookups import Lookups
+from arrt.services.errors import ServiceError
 
 #: `DisplayService`'s public methods on chunk 21's base (c1915a9e), with their
 #: signatures as `inspect.signature` spells them, annotations as written and the
@@ -116,9 +128,11 @@ BEFORE = {
 }
 
 #: Every public module-level name `display.py` had on chunk 21's base, by the
-#: module it lives in now. `DisplaySettings` and `DisplayService` stayed.
+#: module it lives in now. `DisplayService` stayed; `DisplaySettings` moved to
+#: `settings.py` in 2b's Chunk 48.
 IMPORTED_FROM_DISPLAY = {
-    display_module: ["DisplayService", "DisplaySettings"],
+    display_module: ["DisplayService"],
+    settings_module: ["DisplaySettings"],
     themes_module: ["Unset", "UNSET", "ThemeCount", "ThemePlacement", "WorkPlacements", "NotAgainScope", "NotAgain"],
     walls_module: [
         "MatMode",
@@ -136,7 +150,7 @@ IMPORTED_FROM_DISPLAY = {
 }
 
 #: The collaborators the facade composes, by the attribute it holds each in.
-COLLABORATORS = ("_feeds", "_themes", "_walls", "_scenes", "_reports")
+COLLABORATORS = ("_lookups", "_feeds", "_themes", "_walls", "_scenes", "_reports")
 
 
 class _Spelled:
@@ -182,19 +196,30 @@ def test_display_py_holds_only_the_facade_and_defines_none_of_what_it_re_exports
             defined.update(target.id for target in node.targets if isinstance(target, ast.Name))
         elif isinstance(node, (ast.AnnAssign, ast.TypeAlias)):
             defined.add(node.target.id if isinstance(node, ast.AnnAssign) else node.name.id)
-    assert defined == {"DisplaySettings", "DisplayService", "__all__"}
+    assert defined == {"DisplayService", "__all__"}
 
 
-def test_one_store_and_one_publisher_under_every_collaborator(display):
-    """One act is one transaction and one set of staged feeds only while every collaborator shares them."""
+def test_one_store_and_one_publisher_under_every_collaborator(display, store):
+    """One act is one transaction and one set of staged feeds only while every collaborator shares them.
+
+    The store is found through the collaborators: the facade keeps none of its
+    own since 2b's Chunk 48, so it is the one the services were bound with.
+    """
     for attribute in COLLABORATORS:
         collaborator = getattr(display, attribute)
-        assert collaborator._store is display._store, f"{attribute} has a store of its own"
-        if attribute != "_feeds":
+        assert collaborator._store is store, f"{attribute} has a store of its own"
+        if attribute not in ("_lookups", "_feeds"):
             assert collaborator._feeds is display._feeds, f"{attribute} publishes through a publisher of its own"
+        if attribute != "_lookups":
+            assert collaborator._lookups is display._lookups, f"{attribute} looks walls up through lookups of its own"
         for other in COLLABORATORS:
             if hasattr(collaborator, other):
                 assert getattr(collaborator, other) is getattr(display, other), f"{attribute}.{other} is not the facade's"
+
+
+def test_the_facade_keeps_no_store_library_or_settings_of_its_own(display):
+    """C19: it set `_store`, `_library` and `_settings` and read none; what it holds now is its collaborators."""
+    assert set(vars(display)) == set(COLLABORATORS)
 
 
 class _Recorder:
@@ -238,7 +263,16 @@ def test_each_delegation_hands_every_argument_to_the_collaborator_holding_it_and
 
 @pytest.mark.parametrize(
     "module",
-    [display_module, feeds_module, themes_module, walls_module, scenes_module, reports_module],
+    [
+        display_module,
+        feeds_module,
+        themes_module,
+        walls_module,
+        scenes_module,
+        reports_module,
+        lookups_module,
+        settings_module,
+    ],
     ids=lambda module: module.__name__.rsplit(".", 1)[-1],
 )
 def test_every_module_s_lines_are_said_under_the_display_logger(module):
@@ -279,3 +313,152 @@ def test_a_line_from_each_collaborator_reaches_the_journal_under_the_display_log
     assert {where: {r.name for r in lines} for where, lines in said.items()} == {
         where: {"arrt.programming.display"} for where in said
     }
+
+
+# -- the lookups' one home (Chunk 48, C9) ---------------------------------------------------
+
+#: The existence-checking lookups, which `Lookups` alone defines.
+LOOKUPS = ("get_wall", "get_theme", "require_hanging", "current_draft")
+#: The modules of the facade and its collaborators.
+COMPOSED = (display_module, feeds_module, themes_module, walls_module, scenes_module, reports_module)
+
+
+def _lookups_defined_outside(sources):
+    """Each `module.Class.name` defining a lookup outside `Lookups`, but for the facade's own one-line delegations to it."""
+    found = []
+    for module, source in sources.items():
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for method in node.body:
+                if not isinstance(method, ast.FunctionDef) or method.name not in LOOKUPS:
+                    continue
+                if node.name == "DisplayService" and _delegates_to_lookups(method):
+                    continue
+                found.append(f"{module}.{node.name}.{method.name}")
+    return found
+
+
+def _delegates_to_lookups(method):
+    """Whether the body, past its docstring, is `return self._lookups.<the same name>(…)` and nothing else."""
+    body = [statement for statement in method.body if not isinstance(statement, ast.Expr)]
+    if len(body) != 1 or not isinstance(body[0], ast.Return) or not isinstance(body[0].value, ast.Call):
+        return False
+    called = body[0].value.func
+    return (
+        isinstance(called, ast.Attribute)
+        and called.attr == method.name
+        and isinstance(called.value, ast.Attribute)
+        and called.value.attr == "_lookups"
+    )
+
+
+def _sources():
+    return {module.__name__.rsplit(".", 1)[-1]: Path(module.__file__).read_text(encoding="utf-8") for module in COMPOSED}
+
+
+def test_no_collaborator_but_the_lookups_defines_a_wall_or_theme_lookup():
+    """Acceptance 3 of Chunk 48: one home, so a change to what a lookup raises (Chunk 37) is made once."""
+    assert _lookups_defined_outside(_sources()) == []
+    assert {name for name in LOOKUPS if callable(getattr(Lookups, name, None))} == set(LOOKUPS)
+
+
+def test_a_lookup_planted_in_a_collaborator_is_found():
+    """The check above, shown able to fail: one lookup planted back on the publisher, and one facade method that does more."""
+    sources = _sources()
+    sources["feeds"] = sources["feeds"].replace(
+        "class FeedPublisher:\n",
+        "class FeedPublisher:\n    def get_wall(self, wall_id):\n        return self._store.get_wall(wall_id)\n",
+        1,
+    )
+    sources["display"] = sources["display"].replace(
+        "return self._lookups.get_theme(theme_id)", "return self._feeds.get_theme(theme_id)", 1
+    )
+
+    assert _lookups_defined_outside(sources) == ["display.DisplayService.get_theme", "feeds.FeedPublisher.get_wall"]
+
+
+def test_the_refusals_are_the_lookups_sentences_word_for_word(services, display, wall_id):
+    """Implicit guarantee: the sentences a person and an agent read, and the one error class, as the publisher raised them."""
+    with pytest.raises(ServiceError) as wall:
+        display.get_wall("nowhere")
+    with pytest.raises(ServiceError) as theme:
+        display.get_theme("nothing")
+    with pytest.raises(ServiceError) as hanging:
+        display.leave_theme("any-work", wall_id=wall_id)
+
+    assert type(wall.value) is ServiceError
+    assert type(theme.value) is ServiceError
+    assert str(wall.value) == "No wall with id 'nowhere' is in the catalogue."
+    assert str(theme.value) == "No theme with id 'nothing' is in the catalogue."
+    name = display.get_wall(wall_id).name
+    assert str(hanging.value) == (f"Nothing is hanging on {name!r}, so there is nothing to put on it. Hang a theme there first.")
+
+
+def test_the_clients_wall_refusal_is_the_lookups_own(services, display):
+    """One owner for the sentence: `ClientService` refuses a wall it does not hold exactly as the lookups do."""
+    client = services.clients.add_client(name="Hall Pi")
+    with pytest.raises(ServiceError) as from_clients:
+        services.clients.assign_wall("nowhere", client_id=client.id, output="hdmi-a-1")
+    with pytest.raises(ServiceError) as from_lookups:
+        display.get_wall("nowhere")
+
+    assert type(from_clients.value) is type(from_lookups.value)
+    assert str(from_clients.value) == str(from_lookups.value) == lookups_module.no_wall("nowhere")
+
+
+def test_a_lookup_answers_from_inside_the_callers_transaction(display, store):
+    """Implicit guarantee: a lookup reads the one store on the caller's thread, so it sees what the caller's act wrote."""
+    wall = Wall(id="written-just-now", name="The landing", created_at=datetime.now(UTC))
+    seen = []
+
+    def act() -> None:
+        with store.transaction():
+            store.add_wall(wall)
+            seen.append(display._lookups.get_wall(wall.id))
+            raise RuntimeError("roll the act back")
+
+    with pytest.raises(RuntimeError):
+        act()
+
+    assert seen == [wall]
+    with pytest.raises(ServiceError, match="No wall with id 'written-just-now'"):
+        display._lookups.get_wall(wall.id)
+
+
+def test_a_lookup_replaced_on_the_facade_reaches_every_collaborator(display, ready_work, wall_id, monkeypatch):
+    """Implicit guarantee: one object answers them all, as the publisher did, so one patch reaches every call."""
+    theme = display.add_theme(name="Hung")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work("On the wall").id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    draft = display.draft_scene()
+    real = display._lookups.get_wall
+    asked: list[str] = []
+
+    def counted(wall):
+        asked.append(wall)
+        return real(wall)
+
+    monkeypatch.setattr(display._lookups, "get_wall", counted)
+    acts = {
+        "facade": lambda: display.get_wall(wall_id),
+        "feeds": lambda: display.build_manifest(wall_id),
+        "themes": lambda: display.leave_theme("not-in-it", wall_id=wall_id),
+        "walls": lambda: display.rename_wall(wall_id, name="The hall"),
+        "scenes": lambda: display.unpin_scene(draft.scene.id, wall_id),
+        "reports": lambda: display.last_showing(wall_id),
+    }
+    reached = {}
+    for where, act in acts.items():
+        asked.clear()
+        with contextlib.suppress(ServiceError):
+            act()
+        reached[where] = wall_id in asked
+
+    assert reached == dict.fromkeys(acts, True)
+
+
+def test_display_settings_is_one_class_imported_from_either_module():
+    """Acceptance 4 of Chunk 48: moved, and re-exported as the same object, so `__main__` and the container still build it."""
+    assert display_module.DisplaySettings is settings_module.DisplaySettings
+    assert settings_module.DisplaySettings.__module__ == "arrt.programming.settings"

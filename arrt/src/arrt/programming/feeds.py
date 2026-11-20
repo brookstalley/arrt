@@ -22,12 +22,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import Any, Final
 
 from arrt import atomic
 from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable
-from arrt.persistence.records import Scene, ScenePin, SceneStatus, Theme, Wall
+from arrt.persistence.records import Scene, ScenePin, SceneStatus, Wall
 from arrt.programming import shape
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, published_from, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
@@ -42,14 +43,10 @@ from arrt.programming.schedule import (
     run_household_pass,
 )
 from arrt.programming.schedule import build as build_schedule
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.store import ActState
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module the feed's lines were said from before it had a module
 #: of its own, and kept: a logger's name is what a reader of the journal filters
@@ -116,10 +113,12 @@ class _Control:
 class FeedPublisher:
     """Build, stage and publish each wall's feed, and keep every published feed true to the Library."""
 
-    def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
+    def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings, lookups: Lookups) -> None:
         self._store = store
         self._library = library
         self._settings = settings
+        #: The facade's one set of lookups, over the same store (`lookups.py`).
+        self._lookups = lookups
         #: The feeds the open publishing transaction has decided, by wall, written
         #: as its last step (`publishing`). Seen only by the act that opened it:
         #: any other reads the published file, which is what Players have.
@@ -202,20 +201,6 @@ class FeedPublisher:
 
     # -- what a feed is built from -------------------------------------------
 
-    def get_wall(self, wall_id: str) -> Wall:
-        """Return one wall."""
-        wall = self._store.get_wall(wall_id)
-        if wall is None:
-            raise ServiceError(f"No wall with id {wall_id!r} is in the catalogue.")
-        return wall
-
-    def get_theme(self, theme_id: str) -> Theme:
-        """Return one theme."""
-        theme = self._store.get_theme(theme_id)
-        if theme is None:
-            raise ServiceError(f"No theme with id {theme_id!r} is in the catalogue.")
-        return theme
-
     def pace(self, wall: Wall) -> tuple[int, bool]:
         """How long each work stays up on this wall, and whether it plays shuffled.
 
@@ -232,19 +217,6 @@ class FeedPublisher:
             wall.shuffle if wall.shuffle is not None else self._settings.shuffle,
         )
 
-    def require_hanging(self, wall: Wall) -> Theme:
-        assignment = self._store.get_assignment(wall.id)
-        if assignment is None:
-            raise ServiceError(
-                f"Nothing is hanging on {wall.name!r}, so there is nothing to put on it. Hang a theme there first."
-            )
-        return self.get_theme(assignment.theme_id)
-
-    def current_draft(self) -> Scene | None:
-        """The draft the builder shows and the walls stage: the newest, should the store hold more than one."""
-        drafts = self._store.list_scenes(SceneStatus.DRAFT)
-        return drafts[-1] if drafts else None
-
     # -- the manifest ---------------------------------------------------------
 
     def build_manifest(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
@@ -260,8 +232,8 @@ class FeedPublisher:
         consequence before it happens — which it cannot do without knowing whose
         consequence it is.
         """
-        wall = self.get_wall(wall_id)
-        theme = self.get_theme(theme_id) if theme_id is not None else self.require_hanging(wall)
+        wall = self._lookups.get_wall(wall_id)
+        theme = self._lookups.get_theme(theme_id) if theme_id is not None else self._lookups.require_hanging(wall)
 
         entries: list[PlayableWork] = []
         exclusions: list[Exclusion] = []
@@ -408,7 +380,12 @@ class FeedPublisher:
                 if back and feeds[wall_id] is not None:
                     self.patch_walls([wall_id])
                     republished.append(wall_id)
-                    log.info("Wall %r: %s back in its scene (after %s).", self.get_wall(wall_id).name, ", ".join(back), cause)
+                    log.info(
+                        "Wall %r: %s back in its scene (after %s).",
+                        self._lookups.get_wall(wall_id).name,
+                        ", ".join(back),
+                        cause,
+                    )
 
         result = Reconciliation(asked=len(asked), refused=tuple(sorted(refused)), republished=tuple(dict.fromkeys(republished)))
         if work_ids is None and not result.changed:
@@ -516,7 +493,7 @@ class FeedPublisher:
         the feed could send: answering "done" while the wall goes on as it was is
         the silence this product exists to avoid.
         """
-        wall = self.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         previous = self.published(wall_id)
         if previous is None:
             raise ServiceError(
@@ -556,7 +533,7 @@ class FeedPublisher:
         after = self.published(wall_id)
         left = sorted(refused & set(previous.carried) - set(after.carried if after is not None else ()))
         if left:
-            log.info("Wall %r: took %s off the feed (after %s).", self.get_wall(wall_id).name, ", ".join(left), cause)
+            log.info("Wall %r: took %s off the feed (after %s).", self._lookups.get_wall(wall_id).name, ", ".join(left), cause)
         return True
 
     def roll_v2(self, wall_id: str) -> None:
@@ -605,7 +582,7 @@ class FeedPublisher:
         the hung theme arrives by `_publish_additions`, which builds the theme.
         """
         order = self._v2_order(previous.playlist_id, works)
-        slot_seconds, shuffle = self.pace(self.get_wall(wall_id))
+        slot_seconds, shuffle = self.pace(self._lookups.get_wall(wall_id))
         return self._write_v2(
             wall_id,
             playlist=(previous.playlist_id, previous.playlist_name),
@@ -837,7 +814,7 @@ class FeedPublisher:
             self._rebuild_v2(wall_id, feed, works=works, start=Keep())
             log.info(
                 "Wall %r: took works the Library no longer offers off the feed (%s, after %s).",
-                self.get_wall(wall_id).name,
+                self._lookups.get_wall(wall_id).name,
                 ", ".join(sorted(gone)),
                 cause,
             )
@@ -847,14 +824,14 @@ class FeedPublisher:
             if fresh:
                 log.info(
                     "Wall %r: pointed the feed at the current master or colour of %s (after %s).",
-                    self.get_wall(wall_id).name,
+                    self._lookups.get_wall(wall_id).name,
                     ", ".join(sorted(fresh)),
                     cause,
                 )
             if gone:
                 log.info(
                     "Wall %r: took works the Library no longer offers out of its scene (%s, after %s).",
-                    self.get_wall(wall_id).name,
+                    self._lookups.get_wall(wall_id).name,
                     ", ".join(sorted(gone)),
                     cause,
                 )
@@ -867,7 +844,7 @@ class FeedPublisher:
         A key nobody set is absent, so the Player falls to its own default, as a
         channel reader would (`player-contract.md` § Presentation settings).
         """
-        wall = self.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         return {} if wall.mat_mode is None else {"mat": {"mode": wall.mat_mode}}
 
     def patch_v2_works(self, wall_id: str, feed: Published, entries: Mapping[str, Mapping[str, Any]]) -> None:
@@ -944,7 +921,7 @@ class FeedPublisher:
         if dropped:
             log.warning(
                 "Wall %r: its scene names works it can no longer show (%s); the wall shows its schedule in their place.",
-                self.get_wall(wall_id).name,
+                self._lookups.get_wall(wall_id).name,
                 ", ".join(dropped),
                 extra={"event": "scene.work_dropped", "wall_id": wall_id, "work_ids": dropped},
             )
@@ -961,14 +938,14 @@ class FeedPublisher:
         for scene in self._store.list_scenes(SceneStatus.LIVE):
             if scene.status_at(now) is SceneStatus.LIVE:
                 live.extend((scene, pin) for pin in self._store.list_pins(scene.id) if pin.wall_id == wall_id)
-        draft = self.current_draft()
+        draft = self._lookups.current_draft()
         staged = [] if draft is None else [pin.work_id for pin in self._store.list_pins(draft.id) if pin.wall_id == wall_id]
         if len(live) > 1:
             # Apply ends every other live scene, so this is a store written by
             # something else; the latest applied wins, as it would on the wall.
             log.warning(
                 "Wall %r is pinned by %d live scenes; its feed carries the one applied last.",
-                self.get_wall(wall_id).name,
+                self._lookups.get_wall(wall_id).name,
                 len(live),
             )
         return (max(live, key=lambda found: applied_at(found[0])) if live else None), staged

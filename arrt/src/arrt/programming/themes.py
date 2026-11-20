@@ -38,6 +38,7 @@ from arrt.persistence.records import (
     WorkExclusion,
 )
 from arrt.programming.feeds import FeedPublisher
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -127,9 +128,11 @@ class NotAgain:
 class Themes:
     """Read and write the themes and their membership, what hangs where, and the works kept off every wall."""
 
-    def __init__(self, store: ProgrammingStore, library: LibraryFacade, feeds: FeedPublisher) -> None:
+    def __init__(self, store: ProgrammingStore, library: LibraryFacade, lookups: Lookups, feeds: FeedPublisher) -> None:
         self._store = store
         self._library = library
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         #: The facade's one publisher: every act here that changes a feed opens its transaction.
         self._feeds = feeds
 
@@ -149,7 +152,7 @@ class Themes:
         selection; this refuses the id arriving another way. Taking a work out
         of one stays allowed: *Not this one again* does it on the wall's behalf.
         """
-        theme = self._feeds.get_theme(theme_id)
+        theme = self._lookups.get_theme(theme_id)
         if theme.hidden:
             raise ServiceError(
                 f"{theme.name!r} is the selection hanging on a wall, not a theme, so it cannot be renamed, "
@@ -252,7 +255,7 @@ class Themes:
         these through the Library, which is the composition the bindings are
         allowed to do and this service is not.
         """
-        self._feeds.get_theme(theme_id)
+        self._lookups.get_theme(theme_id)
         return [membership.artwork_id for membership in self._store.list_memberships(theme_id)]
 
     # -- writes: themes and membership ----------------------------------------
@@ -285,7 +288,7 @@ class Themes:
         """
         self.get_listed_theme(theme_id)
         store_write(self._store.mark_default_theme, theme_id)
-        return self._feeds.get_theme(theme_id)
+        return self._lookups.get_theme(theme_id)
 
     def offer_destinations(self, work_ids: Iterable[str]) -> Sequence[str]:
         """Offer each work the theme it was accepted into, once, and return the ones that joined.
@@ -397,7 +400,7 @@ class Themes:
         how much of itself reached the wall — and a switch that silently put up
         four of a theme's twelve works is the failure this report exists for.
         """
-        self._feeds.get_theme(theme_id)
+        self._lookups.get_theme(theme_id)
         # One act around the hang, the publish and the retirement, and it holds
         # both ways (`FeedPublisher.publishing`). A feed that cannot be written takes the hang
         # back: recording the hang and then failing to publish left the
@@ -407,7 +410,7 @@ class Themes:
         # not show a hang the catalogue rolled back. What it replaces is read
         # inside, so a hang made meanwhile is the one retired.
         with self._feeds.publishing():
-            self._feeds.get_wall(wall_id)
+            self._lookups.get_wall(wall_id)
             replaced = self._store.get_assignment(wall_id)
             store_write(
                 self._store.set_assignment,
@@ -436,7 +439,7 @@ class Themes:
         chosen = list(dict.fromkeys(artwork_ids))
         if not chosen:
             raise ServiceError("A selection needs at least one work to hang.")
-        wall = self._feeds.get_wall(wall_id)
+        wall = self._lookups.get_wall(wall_id)
         # One question for every work, as the manifest build asks it: the facade
         # is written as if remote.
         for answer in self._library.playable(chosen).values():
@@ -496,8 +499,8 @@ class Themes:
         """
         # Read inside, so the theme it leaves is the one hanging when it leaves.
         with self._feeds.publishing():
-            wall = self._feeds.get_wall(wall_id)
-            theme = self._feeds.require_hanging(wall)
+            wall = self._lookups.get_wall(wall_id)
+            theme = self._lookups.require_hanging(wall)
             if self._store.get_membership(theme.id, artwork_id) is None:
                 raise ServiceError(
                     f"Artwork {artwork_id!r} is not in {theme.name!r}, which is what hangs on {wall.name!r}, "
@@ -530,7 +533,7 @@ class Themes:
         history so that wall's history shows the act. It changes nothing else.
         """
         self._require_held(artwork_id)
-        looking_at = self._feeds.get_wall(wall_id) if wall_id is not None else None
+        looking_at = self._lookups.get_wall(wall_id) if wall_id is not None else None
         if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
             raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
         exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
@@ -602,11 +605,11 @@ class Themes:
         """
         # Read inside, so a hang made meanwhile is the one taken down and retired.
         with self._store.transaction():
-            wall = self._feeds.get_wall(wall_id)
+            wall = self._lookups.get_wall(wall_id)
             assignment = self._store.get_assignment(wall_id)
             if assignment is None:
                 raise ServiceError(f"Nothing is hanging on wall {wall_id!r}, so there is nothing to take down.")
-            taken_down = self._feeds.get_theme(assignment.theme_id)
+            taken_down = self._lookups.get_theme(assignment.theme_id)
             store_write(self._store.remove_assignment, wall_id)
             self.retire_selection(assignment)
         # The only operation in Programming that deliberately leaves the catalogue
@@ -716,7 +719,7 @@ class Themes:
         not renumbered, as a single removal does not renumber it. Walls hanging
         the theme lose what left, as `remove_from_theme` says.
         """
-        self._feeds.get_theme(theme_id)
+        self._lookups.get_theme(theme_id)
         removed: list[str] = []
         with self._feeds.publishing():
             for artwork_id in dict.fromkeys(artwork_ids):
@@ -865,7 +868,7 @@ class Themes:
         degradation. Publishing an empty manifest instead would blank the wall as
         a side effect of tidying up the catalogue.
         """
-        theme = self._feeds.get_theme(theme_id)
+        theme = self._lookups.get_theme(theme_id)
         if theme.is_default:
             raise ServiceError(
                 f"Theme {theme.name!r} is the default, which new works join, so it cannot be deleted. "
