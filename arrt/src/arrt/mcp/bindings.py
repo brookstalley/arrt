@@ -951,6 +951,8 @@ def _registry_artist(services: Services, arguments: Mapping[str, Any]) -> dict[s
                 "sitelinks": entry.sitelinks,
                 "image": entry.image,
                 "held_artwork_ids": list(view.held.get(entry.qid, ())),
+                # The held work the row pictures itself by, or null (wave 2b, Chunk 40).
+                "pictured_artwork_id": services.catalogue.pictured(view.held.get(entry.qid, ())),
                 "wanted": entry.qid in view.wanted,
                 "in_review": _in_review_fields(view.waiting.get(entry.qid)),
             }
@@ -1050,6 +1052,7 @@ def _registry_topic(services: Services, arguments: Mapping[str, Any]) -> dict[st
                     "creator_unknown": entry.work.creator_unknown,
                     "state": str(entry.state),
                     "held_artwork_ids": list(entry.held),
+                    "pictured_artwork_id": services.catalogue.pictured(entry.held),
                     "wanted": entry.wanted,
                 }
                 for entry in works.works
@@ -1120,6 +1123,10 @@ def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
         run_direct_cost_usd=None if report.run_direct_usd is None else str(report.run_direct_usd),
         year=report.year,
         month=report.month,
+        # Calls sent that never said what they cost: with any, cost_usd is a
+        # floor, and the summary says "at least" (wave 2b, Chunk 35).
+        unknown_cost_calls=report.unknown_cost_calls,
+        summary=report.summary,
     )
 
 

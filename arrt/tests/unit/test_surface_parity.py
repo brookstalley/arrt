@@ -511,13 +511,6 @@ def test_the_picture_store_readings_agree_value_for_value():
     assert {"pictures_bytes", "pictures_files"} <= set(bindings._pictures_fields(reading))
 
 
-#: Fields each registry row of an artist's works and a topic's works answers
-#: over HTTP that `art_discovery`'s `artist` and `topic` rows do not yet: the
-#: held work the row pictures itself by (wave 2b, Chunk 40). Chunk 53 gives the
-#: MCP rows their twin and removes this; `test_registry_tools.py` holds the two
-#: payloads to it with `check_not_yet_on_mcp`, row by row.
-REGISTRY_ROW_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"pictured_artwork_id"})
-
 
 def check_not_yet_on_mcp(record: str, mcp: set[str], http: set[str], not_yet: frozenset[str]) -> None:
     """Raise unless the two surfaces agree but for `not_yet`, each of which HTTP answers and MCP does not.
@@ -823,11 +816,6 @@ def test_the_unattended_projections_agree():
     check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))
 
 
-#: Spend's fields HTTP carries first: the count of calls whose cost is unknown,
-#: and the figure in words, "at least" with any (audit-wave-2b Chunk 35). Owed to
-#: `art_discovery(action='spend')` by Chunk 53, which removes this exemption.
-SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET = frozenset({"unknown_cost_calls", "summary"})
-
 #: MCP's `run_direct_cost_usd`, which `SpendOut`'s docstring leaves off HTTP by
 #: decision: the browser reads that figure off the run record.
 MCP_ONLY_ON_SPEND = frozenset({"run_direct_cost_usd"})
@@ -842,11 +830,15 @@ def test_the_spend_projections_agree_but_for_the_named_fields():
     report = SpendReport(scope="run", cost_usd=Decimal("0.05"), run_id="r1", run_direct_usd=Decimal("0.01"), unknown_cost_calls=1)
     services = SimpleNamespace(runner=SimpleNamespace(spend_report=lambda **_: report))
 
-    projected = set(bindings._spend(services, {"run_id": "r1"})) - {"success"}
+    tool = bindings._spend(services, {"run_id": "r1"})
+    projected = set(tool) - {"success"}
     assert projected >= MCP_ONLY_ON_SPEND, "an MCP-only field named here that MCP no longer has is a stale exemption"
-    check_parity(
-        "Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut), SPEND_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET
-    )
+    check_parity("Spend", projected - MCP_ONLY_ON_SPEND, _fields(http_models.SpendOut))
+    # Value for value: the unknown-cost count and "at least" in words (Chunk 35's), on both since Chunk 53.
+    route = http_api._spend(report).model_dump()
+    assert {name: tool[name] for name in route} == route
+    assert (tool["unknown_cost_calls"], tool["summary"]) == (1, report.summary)
+    assert tool["summary"].startswith("at least")
 
 
 def test_the_watch_projections_agree_value_for_value():
