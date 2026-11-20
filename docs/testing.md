@@ -53,6 +53,37 @@ the *curation* plane's `http/static/app.js` against
 does not read the artifacts. So a change made entirely inside `arrt/` — routing a screen,
 editing those IA tables — is guarded by a leg in the repo root.
 
+### The image's test stage
+
+`arrt/Dockerfile`'s `test` target runs the curation suite inside the image the
+NAS runs, as the app's unprivileged user, laid out as the image lays it out:
+`arrt/` is `/app`, and nothing beside it exists unless a `COPY` brings it in.
+CI builds it only on a pull request into `main` and by hand
+(`.github/workflows/image.yml`, by the owner's ruling of 2026-11-20 that CI is
+kept small); before that it is about seven minutes of GitHub's runner on every
+pull request. Run it yourself, by hand on the branch, when you change the
+Dockerfile, a lockfile or the interpreter pin.
+
+The one class it caught that nothing else did, a test reading a file the image
+does not carry (`.env.example` in wave 1, `docs/source-plugins.md` in wave 2b),
+is held on every pull request by the root suite:
+`tests/test_the_image_carries_what_tests_read.py` reads the stage's `COPY` lines
+against every path a module under `arrt/tests/` or `arrt/tools/` builds from its
+own `__file__`, and names the file and the `COPY` it needs. A climb it cannot
+work out to one path (`.parents` walked as a whole) is declared there with what
+it reads. It does not see a path built from a string, from the working
+directory or inside a subprocess; those still meet the image at the release.
+
+Why not on the pool: a suite of testament's runs in the project's container,
+which has no Docker daemon and builds no target of the Dockerfile, or on the
+runner's host, which this project is not granted. The probe of 2026-11-20 for a
+host suite answered `host suites (image): arrt may use ['container'] here, not
+executor 'host'`. Granting it is a pool admin's act. The suite it would be:
+`executor = "host"`, `requires = ["docker", "docker-heavy", "arch:x86_64"]` (the
+image is amd64-only for dezoomify-rs), `max_batches_per_runner = 1`, its one test
+running `docker buildx build --target test-report --build-context repo=. arrt/`
+and reading the report with `.github/scripts/assert_tests_ran.py`.
+
 ## The browser suite
 
 The client under `arrt/src/arrt/http/static/` is the product's only
