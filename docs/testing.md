@@ -147,8 +147,8 @@ runner.
   shared with other builders and never removed by it. One log file,
   `<tmp>/arrt-image-stage/last-build.log`, overwritten by each build. To take all of
   it away: `docker buildx rm arrt-image-stage`.
-- **Cost, as measured on 2026-11-20**, each a run on a runner with Docker, by two
-  people at different times, so the figures differ with the runner and its load:
+- **Cost, as measured on 2026-11-20**, each a run on a runner with Docker, in two
+  sets of runs at different times, so the figures differ with the runner and its load:
   - by Chunk 65's delegate: 147 s cold, on a builder with no cache; 125 to 127 s with
     the dependency layers cached and the code changed; 2 s when nothing the stage
     copies changed (its layers all cached); 1 s to fail when a `COPY` names a missing
