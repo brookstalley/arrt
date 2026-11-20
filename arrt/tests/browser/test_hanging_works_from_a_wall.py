@@ -364,18 +364,25 @@ def test_stop_selecting_clears_the_wall_from_the_address_and_nothing_else(ui, se
 
 
 def test_a_hang_from_the_card_of_a_wall_whose_player_has_no_token_yet_is_recorded_and_shown(ui, api, services, walls, two_works):
-    """Allowed today: only what is recorded and shown is held here, not the words about the Player.
+    """Allowed: the hang is recorded and shown, and the question says the wall waits, in the server's words.
 
-    The wall's Player is set up (it shows the wall) but has been issued no token, and has
+    The wall's Player is chosen for it but has been issued no token, and has
     never reported: the hang is recorded and the card says what the wall hangs.
+    The question says whom the wall waits for, as the health panel does, and
+    not that everyone in the house sees it change (Chunk 66).
     """
     _, study = walls
     waiting = services.clients.add_client(name="Study Pi")
     services.clients.assign_wall(study.id, client_id=waiting.id, output="hdmi-a-1")
+    words = services.health.observe_waiting()[study.id].words
     choose_works_for(ui, study)
     tick(ui, two_works[0])
     hang_button(ui).click()
     ui.page.locator("dialog.confirm[open]").wait_for()
+    consequence = ui.page.locator(".confirm-consequence")
+    expect(consequence).to_contain_text(f"{words}.", use_inner_text=True)
+    assert words == "The study waits for Study Pi, which has no token yet"
+    expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
 
     with ui.page.expect_request(lambda request: bool(SELECTION.search(request.url)) and request.method == "POST"):
         ui.page.click(".confirm-actions button:text-is('Hang')")

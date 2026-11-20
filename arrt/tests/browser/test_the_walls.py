@@ -597,17 +597,17 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
 # -- hanging, and the question asked first -------------------------------------
 
 
-def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, services, a_full_theme, the_wall):
+def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_player_shows, a_full_theme, the_wall):
     """ "Hang Winter on The wall?", never "Hang Winter?".
 
     Even with one wall, and that is the point: a sentence that reads correctly
     today only because there is one possible target silently becomes wrong.
     The wall is on a Player's screen, since the question promises the house
     sees a change only where a Player shows the wall (audit 2026-11-19, finding
-    19; the other branch is the test after this one).
+    19; the other branches are the two tests after this one). The Player has
+    its token and has reported: one with no token shows nothing yet (Chunk 66).
     """
-    hall = services.clients.add_client(name="Hall Pi")
-    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    a_player_shows(the_wall.id)
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
@@ -635,6 +635,29 @@ def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_th
     consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
     expect(consequence).to_contain_text(f"No Player shows {the_wall.name} yet, so nothing shows it until one does.")
     expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
+
+
+def test_hanging_on_a_wall_whose_player_has_no_token_says_it_waits_in_the_servers_words(ui, services, a_full_theme, the_wall):
+    """Chunk 66: the question told a person everyone would see a wall change that its Player cannot show yet.
+
+    The words are the server's (`waiting_for.words`, `GET /api/walls`), the
+    ones the health panel says; the hang is still asked, and allowed.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    waits = services.health.observe_waiting()[the_wall.id]
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall")
+
+    ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
+    consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
+    expect(consequence).to_contain_text(f"{waits.words}.", use_inner_text=True)
+    assert waits.words == f"{the_wall.name} waits for Hall Pi, which has no token yet"
+    expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
+    expect(consequence).not_to_contain_text("No Player shows", use_inner_text=True)
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
+    ui.page.wait_for_selector("section.wall .wall-hanging dt:text-is('Changes')")
+    assert services.display.hanging_on(the_wall.id).id == a_full_theme.id
 
 
 def test_declining_the_question_leaves_the_wall_exactly_as_it_was(ui, services, a_full_theme, the_wall):

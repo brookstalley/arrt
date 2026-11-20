@@ -224,6 +224,30 @@ def want_item(discovery, propose):
 
 
 @pytest.fixture
+def a_player_shows(services):
+    """Put a wall on a Player that has its token and has reported: `a_player_shows(wall_id)`, the Player returned.
+
+    A Player chosen with no token, or with no report yet, is still being set up
+    (`player_state.py`), and the walls it shows wait for it
+    (`services.health.walls_waiting`): the question before a hang says so, never
+    that everyone sees them change (wave 2b, Chunk 66). A test of a wall a
+    Player shows makes it shown through the server's own routes, so the wall is
+    one `walls_waiting` does not name. `player` puts a second wall on the same one.
+    """
+
+    def _shows(wall_id, *, name="Hall Pi", output="hdmi-a-1", player=None):
+        if player is None:
+            player = services.clients.add_client(name=name)
+            services.access.issue(player.id)
+            outputs = [{"name": f"hdmi-a-{n}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for n in (1, 2)]
+            services.clients.record_heartbeat(player.id, {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs})
+        services.clients.assign_wall(wall_id, client_id=player.id, output=output)
+        return player
+
+    return _shows
+
+
+@pytest.fixture
 def a_health_reading():
     """`GET /api/health` as the API's own models define it: one heartbeat per wall.
 
