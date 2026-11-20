@@ -722,6 +722,20 @@ def record_of_a_copy(path: Path) -> CatalogueOpened | Literal["unreadable"] | No
         connection.close()
 
 
+class ShapeGenerationRise(str):
+    """The item a generation rise adds to what an open replaces: a raise, never a drop.
+
+    `what_an_open_replaces` answers one tuple, the migrations' drops and this
+    beside them, because the pre-migration copy is taken for either. A plain
+    string there read as one more thing dropped ("needs a migration that drops
+    catalogue shape generation 1"), so a rise is told apart by its type and
+    `backup.SnapshotFailed`'s sentence says what it is. Still a `str`, so the
+    copy's log lines carry it in their `drops` list as before.
+    """
+
+    __slots__ = ()
+
+
 def generation_rise(connection: sqlite3.Connection, *, generation: int) -> tuple[str, ...]:
     """What this open replaces beyond the migrations' drops: the shape generation a release of `generation` moves the file off.
 
@@ -734,7 +748,7 @@ def generation_rise(connection: sqlite3.Connection, *, generation: int) -> tuple
     recorded = last_opened(connection)
     if recorded is None or type(recorded.schema_generation) is not int or recorded.schema_generation >= generation:
         return ()
-    return (f"catalogue shape generation {recorded.schema_generation} (this release writes {generation})",)
+    return (ShapeGenerationRise(f"the catalogue shape generation from {recorded.schema_generation} to {generation}"),)
 
 
 def what_an_open_replaces(connection: sqlite3.Connection, *, generation: int) -> tuple[str, ...]:

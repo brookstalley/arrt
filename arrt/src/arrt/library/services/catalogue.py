@@ -26,7 +26,7 @@ without an event loop.
 import hashlib
 import logging
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -49,6 +49,7 @@ from arrt.persistence.records import (
     EventKind,
     EventPage,
     FacetDerivation,
+    FetchOutcome,
     FetchStatus,
     HistoryEvent,
     IdentitySetBy,
@@ -65,7 +66,7 @@ from arrt.persistence.records import (
     WorkOrder,
     is_current,
 )
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import description_markup, relative_path, require_member, require_text
 from arrt.services.store import ActState, store_write
 
@@ -95,6 +96,16 @@ MAX_FACET_VALUES: Final[int] = 50
 #: and scans every work's searched text, and a pasted paragraph would compose a
 #: statement of dozens of them against a request nobody meant to make.
 MAX_SEARCH_TERMS: Final[int] = 8
+
+
+def machine_now() -> datetime:
+    """This machine's clock, in UTC: what a service reads when it was handed no clock."""
+    return datetime.now(UTC)
+
+
+def new_id() -> str:
+    """A fresh random identity: what a service mints when it was handed no id source."""
+    return str(uuid.uuid4())
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,8 +242,24 @@ def _offered(options: Sequence[FacetOption]) -> Sequence[FacetOption]:
 class CatalogueService:
     """Read and write the catalogue, and announce what changed."""
 
-    def __init__(self, store: CatalogueStore, events: LibraryEvents | None = None, *, art_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        store: CatalogueStore,
+        events: LibraryEvents | None = None,
+        *,
+        art_root: Path | None = None,
+        now: Callable[[], datetime] = machine_now,
+        mint_id: Callable[[], str] = new_id,
+    ) -> None:
         self._store = store
+        #: The clock every record this service writes is stamped by, and the
+        #: source of every identity it mints. Defaults read the machine, so the
+        #: container and the seed construct it as before; a test passes its own,
+        #: and the records carry exactly what it said. **One act reads the clock
+        #: once**: a write that records an event beside its row passes the event
+        #: the row's instant rather than reading again.
+        self._now = now
+        self._mint_id = mint_id
         #: The Library owns its publisher, so a catalogue built without one still
         #: announces, to nobody. The container passes the one Programming is
         #: subscribed to.
@@ -547,6 +574,18 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         return self._store.get_original(artwork_id)
 
+    def pictured(self, artwork_ids: Sequence[str]) -> str | None:
+        """The first of these works that holds a master image, whose thumbnail can be made; None when none does.
+
+        What a registry row that is held pictures itself by, so a page asks for
+        no thumbnail the server would refuse and says *No picture* instead. An
+        id the catalogue does not hold pictures nothing rather than refusing:
+        the rows were matched a moment before, and a work archived since is no
+        reason to fail the page.
+        """
+        with self._store.reading():
+            return next((artwork_id for artwork_id in artwork_ids if self._store.get_original(artwork_id) is not None), None)
+
     def fit(self, artwork_id: str, *, profile: QualityProfile) -> Fit:
         """Judge the work's held original against the quality profile."""
         original = self.get_original(artwork_id)
@@ -627,7 +666,7 @@ class CatalogueService:
     ) -> Artist:
         """Record an artist and return it with its minted identity."""
         artist = Artist(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             name=require_text(name, field="name"),
             nationality=nationality,
             born=born,
@@ -673,7 +712,7 @@ class CatalogueService:
         """
         artist = self._store.get_artist(artist_id)
         if artist is None:
-            raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
         named = replace(
             artist,
             family_name=family_name,
@@ -695,6 +734,7 @@ class CatalogueService:
         rights: str | None = None,
         commentary: str | None = None,
         wikidata_qid: str | None = None,
+        at: datetime | None = None,
     ) -> Artwork:
         """Record a work in the catalogue and return it.
 
@@ -705,12 +745,16 @@ class CatalogueService:
         in. Everything before acceptance is a candidate, which is a separate
         entity with its own verdict, so an artwork never carries a pending or
         rejected state of its own to drift out of step with it.
+
+        `at` is the instant of the act this is part of (an acceptance passes its
+        verdict's), so the work, its verdict and its history line agree; None
+        reads this service's clock.
         """
         if artist_id is not None and self._store.get_artist(artist_id) is None:
-            raise ServiceError(f"No artist with id {artist_id!r} is in the catalogue.")
-        now = datetime.now(UTC)
+            raise NotFound(f"No artist with id {artist_id!r} is in the Library.")
+        now = self._now() if at is None else at
         artwork = Artwork(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             title=require_text(title, field="title"),
             created_at=now,
             status=ArtworkStatus.ACCEPTED,
@@ -780,18 +824,21 @@ class CatalogueService:
         wall_id: str | None = None,
         theme_id: str | None = None,
         detail: Mapping[str, object] | None = None,
+        at: datetime | None = None,
     ) -> HistoryEvent:
-        """Write one act into the history, now.
+        """Write one act into the history, at `at` or, when None, now by this service's clock.
 
         **Called where the act happens, by the service that performs it**, inside
         that act's transaction where it has one, so the history and the change
         it records commit together. Nothing here checks the references: a wall or
-        a theme is Programming's, and the history keeps what it was told.
+        a theme is Programming's, and the history keeps what it was told. A caller
+        that stamped its own row passes that row's instant as `at`, so the act is
+        one moment in the history and in the row.
         """
         event = HistoryEvent(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             kind=require_member(kind, enum=EventKind, field="kind"),
-            occurred_at=datetime.now(UTC),
+            occurred_at=self._now() if at is None else at,
             work_id=work_id,
             run_id=run_id,
             wall_id=wall_id,
@@ -806,15 +853,21 @@ class CatalogueService:
         *,
         kinds: Sequence[EventKind | str] = (),
         wall_id: str | None = None,
+        work_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> EventPage:
-        """What happened, newest first: every kind named (all of them when none is), on one wall if one is named.
+        """What happened, newest first: every kind named (all of them when none is), on one wall and of one work if named.
 
         A wall's history is every event naming it, which today is what was hung
         there and what was kept off it from there. The wall is not checked: an
         id no wall carries has no history, which is an answer rather than a
         fault, and the Library cannot see Programming's walls to say otherwise.
+
+        A work's history is every event naming it: its acceptance from a Get,
+        its archive and restore, and what kept it off walls. Not checked
+        either, for the history's own reason: it outlives what it names, so a
+        work since deleted still has the history it had.
         """
         resolved = tuple(dict.fromkeys(require_member(kind, enum=EventKind, field="kind") for kind in kinds))
         resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
@@ -822,7 +875,19 @@ class CatalogueService:
             raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")
         if offset < 0:
             raise ServiceError(f"offset cannot be negative, got {offset}.")
-        return self._store.list_events(kinds=resolved, wall_id=wall_id, limit=resolved_limit, offset=offset)
+        return self._store.list_events(kinds=resolved, wall_id=wall_id, work_id=work_id, limit=resolved_limit, offset=offset)
+
+    def get_that_brought(self, artwork_id: str) -> HistoryEvent | None:
+        """The acceptance that made this work one of the Library's, naming the Get it came from; None when none is recorded.
+
+        Read from the history (`EventKind.ACCEPTED`, whose `run_id` is the
+        Get's), so it is known for every work accepted since the history
+        arrived and for none before it, and for no work that came some other
+        way (added by hand, or seeded). The newest, should one ever be
+        recorded twice.
+        """
+        page = self._store.list_events(kinds=(EventKind.ACCEPTED,), work_id=artwork_id, limit=1, offset=0)
+        return page.events[0] if page.events else None
 
     # -- what a work is -------------------------------------------------------
 
@@ -859,6 +924,28 @@ class CatalogueService:
         to prevent.
         """
         self._require_artwork(artwork_id)
+        return self._record_facet(
+            artwork_id=artwork_id,
+            kind=kind,
+            value=value,
+            derivation=derivation,
+            source_note=source_note,
+            value_qid=value_qid,
+            at=self._now(),
+        )
+
+    def _record_facet(
+        self,
+        *,
+        artwork_id: str,
+        kind: VocabularyKind | str,
+        value: str,
+        derivation: FacetDerivation | str,
+        source_note: str | None,
+        value_qid: str | None,
+        at: datetime,
+    ) -> WorkFacet:
+        """`record_facet` for a work already checked, stamped with the act's instant."""
         resolved_kind = require_member(kind, enum=VocabularyKind, field="kind")
         resolved_derivation = require_member(derivation, enum=FacetDerivation, field="derivation")
         resolved_value = require_text(value, field="value")
@@ -879,12 +966,12 @@ class CatalogueService:
         if held is not None:
             return held
         facet = WorkFacet(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             artwork_id=artwork_id,
             kind=resolved_kind,
             value=resolved_value,
             derivation=resolved_derivation,
-            created_at=datetime.now(UTC),
+            created_at=at,
             source_note=source_note,
             value_qid=value_qid,
         )
@@ -903,18 +990,21 @@ class CatalogueService:
         keeps its provenance, so an inferred value is not relabelled as sourced.
         """
         self._require_artwork(artwork_id)
+        # One replacement is one act: every claim it writes carries one instant.
+        at = self._now()
         with self._store.transaction():
             withdrawn = [facet for facet in self._store.list_facets(artwork_id) if _from(facet, source_note)]
             for facet in withdrawn:
                 store_write(self._store.remove_facet, facet.id)
             for claim in claims:
-                self.record_facet(
+                self._record_facet(
                     artwork_id=artwork_id,
                     kind=claim.kind,
                     value=claim.value,
                     derivation=FacetDerivation.SOURCED,
                     source_note=source_note,
                     value_qid=claim.value_qid,
+                    at=at,
                 )
             written = sum(1 for facet in self._store.list_facets(artwork_id) if _from(facet, source_note))
         return FacetReplacement(withdrawn=len(withdrawn), written=written)
@@ -929,7 +1019,7 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         held = next((facet for facet in self._store.list_facets(artwork_id) if facet.id == facet_id), None)
         if held is None:
-            raise ServiceError(f"Artwork {artwork_id!r} has no facet with id {facet_id!r}.")
+            raise NotFound(f"Artwork {artwork_id!r} has no facet with id {facet_id!r}.")
         store_write(self._store.remove_facet, facet_id)
 
     # -- writes: sources ------------------------------------------------------
@@ -956,7 +1046,7 @@ class CatalogueService:
         """
         self._require_artwork(artwork_id)
         source = Source(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             artwork_id=artwork_id,
             url=require_text(url, field="url"),
             provider=require_text(provider, field="provider"),
@@ -981,26 +1071,35 @@ class CatalogueService:
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
         promoted = replace(source, is_primary=True)
         with self._store.transaction():
             self._demote_primary_sources(source.artwork_id)
             store_write(self._store.update_source, promoted)
         return promoted
 
-    def record_fetch(self, source_id: str, *, status: FetchStatus, at: datetime | None = None) -> Source:
+    def record_fetch(
+        self, source_id: str, *, status: FetchStatus, outcome: FetchOutcome | None = None, at: datetime | None = None
+    ) -> Source:
         """Record how the last fetch from this source went.
 
         `partial_tiles` is a normal dezoomify outcome rather than an error: a
         tile server dropping a few tiles still yields a usable master image.
+        `outcome` is what the fetch said, finer than `status`, and must be one
+        whose coarse status is `status`; `None` records none, and clears the
+        outcome of an earlier fetch, which says nothing about this one.
         """
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
+        status = require_member(status, enum=FetchStatus, field="status")
+        if outcome is not None and FetchOutcome(outcome).fetch_status is not status:
+            raise ValueError(f"A fetch whose outcome is {outcome} has status {FetchOutcome(outcome).fetch_status}, not {status}.")
         updated = replace(
             source,
-            last_fetch_status=require_member(status, enum=FetchStatus, field="status"),
-            last_fetched_at=at if at is not None else datetime.now(UTC),
+            last_fetch_status=status,
+            last_fetched_at=at if at is not None else self._now(),
+            last_fetch_outcome=None if outcome is None else FetchOutcome(outcome),
         )
         store_write(self._store.update_source, updated)
         return updated
@@ -1045,7 +1144,7 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         source = self._store.get_source(source_id)
         if source is None:
-            raise ServiceError(f"No source with id {source_id!r} is in the catalogue.")
+            raise NotFound(f"No source with id {source_id!r} is in the Library.")
         if source.artwork_id != artwork_id:
             raise ServiceError(f"Source {source_id!r} belongs to a different artwork than {artwork_id!r}.")
         if byte_size <= 0:
@@ -1065,7 +1164,7 @@ class CatalogueService:
         with self._store.transaction():
             held = self._store.get_original(artwork_id)
             original = Original(
-                id=held.id if held is not None else str(uuid.uuid4()),
+                id=held.id if held is not None else self._mint_id(),
                 artwork_id=artwork_id,
                 source_id=source_id,
                 relative_path=relative_path(path, field="path"),
@@ -1121,14 +1220,14 @@ class CatalogueService:
                 None,
             )
             rendition = Rendition(
-                id=existing.id if existing is not None else str(uuid.uuid4()),
+                id=existing.id if existing is not None else self._mint_id(),
                 artwork_id=artwork_id,
                 kind=resolved_kind,
                 target_width=target_width,
                 target_height=target_height,
                 relative_path=relative_path(path, field="path"),
                 source_content_hash=original.content_hash,
-                generated_at=datetime.now(UTC),
+                generated_at=self._now(),
                 layout=layout,
             )
             # Hashed here from the file, never accepted from the caller, for the
@@ -1293,11 +1392,11 @@ class CatalogueService:
         if current is not None and current.hex_rgb == resolved_hex and current.method is resolved_method:
             return current
         mat_color = MatColor(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             artwork_id=artwork_id,
             hex_rgb=resolved_hex,
             method=resolved_method,
-            chosen_at=datetime.now(UTC),
+            chosen_at=self._now(),
             is_current=True,
             lab_l=lab_l,
             lab_a=lab_a,
@@ -1326,7 +1425,7 @@ class CatalogueService:
     def _require_artwork(self, artwork_id: str) -> Artwork:
         artwork = self._store.get_artwork(artwork_id)
         if artwork is None:
-            raise ServiceError(f"No artwork with id {artwork_id!r} is in the catalogue.")
+            raise NotFound(f"No artwork with id {artwork_id!r} is in the Library.")
         return artwork
 
     def _resolve_artist(self, artist_id: str | None, seen: dict[str, Artist | None]) -> Artist | None:

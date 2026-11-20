@@ -82,6 +82,7 @@ SCREEN_NAMES = {
     "general": "General",
     "taste": "Taste",
     "health": "Status",
+    "spend": "Spend",
 }
 
 
@@ -235,6 +236,7 @@ def test_the_route_table_parses():
         "general",
         "taste",
         "health",
+        "spend",
     ], (
         f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "
         "and the first is the home, which every *arr app makes its library"
@@ -296,6 +298,36 @@ def test_every_row_is_a_screen(heading: str):
     )
 
 
+def system_pages() -> set[str]:
+    """The labels of the route table's pages that sit under System: what the sidebar lists there."""
+    return {
+        match.group(1)
+        for body in routes().values()
+        if 'section: "system"' in body and (match := re.search(r'page:\s*"([^"]+)"', body)) is not None
+    }
+
+
+def system_rows() -> set[str]:
+    """The pages § The *arr layout's table lists under System, as `| System › **Page** |`."""
+    return set(re.findall(r"^\| System › \*\*([^*]+)\*\* \|", ARTIFACT.read_text(encoding="utf-8"), re.MULTILINE))
+
+
+def test_the_layout_table_lists_every_system_page_the_sidebar_lists():
+    """Both directions, over the System section: Status, then Spend.
+
+    The three per-screen tables are checked above by name; § The *arr layout's
+    table is the one place that says where each page sits and what it follows, so
+    a page added to the sidebar and left out of it is a page whose placement was
+    never stated, and a row for a page the sidebar does not list is a placement
+    of nothing.
+    """
+    listed = system_pages()
+    assert listed >= {"Status", "Spend"}, f"System lists {sorted(listed)}: the parser read the wrong thing"
+    assert system_rows() == listed, (
+        f"§ The *arr layout lists {sorted(system_rows())} under System; " f"{_relative(ROUTE_TABLE)} lists {sorted(listed)} there"
+    )
+
+
 def test_the_contextual_enumeration_matches_the_route_table():
     """A contextual screen is one reached from a sidebar page, and returns to it.
 
@@ -345,6 +377,24 @@ class TestTheGuardCanFail:
         )
         with pytest.raises(AssertionError, match="enumerates"):
             test_the_contextual_enumeration_matches_the_route_table()
+
+    def test_it_catches_a_system_page_the_layout_table_lacks(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(
+            sys.modules[__name__],
+            "routes",
+            lambda: {
+                "health": '{ section: "system", page: "Status" }',
+                "spend": '{ section: "system", page: "Spend" }',
+                "ledger": '{ section: "system", page: "Ledger" }',
+            },
+        )
+        with pytest.raises(AssertionError, match="lists"):
+            test_the_layout_table_lists_every_system_page_the_sidebar_lists()
+
+    def test_it_catches_a_layout_row_for_a_page_the_sidebar_lacks(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(sys.modules[__name__], "system_rows", lambda: {"Status", "Spend", "Ghost"})
+        with pytest.raises(AssertionError, match="lists"):
+            test_the_layout_table_lists_every_system_page_the_sidebar_lists()
 
     def test_the_comment_stripper_does_not_eat_the_code(self):
         """It runs over every read of the route table, so its own failure is silent."""

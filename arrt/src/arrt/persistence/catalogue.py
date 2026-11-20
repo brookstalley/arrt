@@ -67,6 +67,10 @@ class WorkToAcquire:
     holds_original: bool
     #: The queue's row for it, or None for a work it has not yet tried.
     queued: QueuedAcquisition | None
+    #: The work's Wikidata item, read in the same row: what a settled queue row
+    #: is compared against, so a read of every failed work needs no second read
+    #: per work (`AcquisitionQueue.failed_states`).
+    wikidata_qid: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,8 +431,16 @@ class CatalogueStore(Protocol):
         """Record one act. Raises if the id is already stored."""
         ...
 
-    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
-        """A page of history, newest first, narrowed to these kinds (any, when none) and to one wall."""
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind] = (),
+        wall_id: str | None = None,
+        work_id: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> EventPage:
+        """A page of history, newest first, narrowed to these kinds (any, when none), to one wall and to one work."""
         ...
 
 

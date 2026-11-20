@@ -52,10 +52,12 @@ from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import (
     DEADLINE_CEILING_SECONDS,
     ENTRY_POINT_GROUP,
+    HOLD_BACK_AFTER,
     STRAGGLERS_PER_PLUGIN,
     SourceRoster,
     load_sources,
 )
+from arrt.mcp import bindings
 
 FIXTURE: Final = Path(__file__).resolve().parents[1] / "fixtures" / "plugins" / "misbehaving"
 #: The distribution's metadata, in pyproject's `[project]` shape, in a file not
@@ -442,14 +444,25 @@ def _late(caplog) -> list[logging.LogRecord]:
 
 
 def test_a_fifth_call_while_four_are_still_running_is_not_made_and_every_work_still_resolves(http, plugin, clock):
+    """Two Gets, three works then two, because one Get is one pass.
+
+    Since 2026-11-20 a pass stops asking a plugin after three could-not-be-asked
+    answers in a row (`one_pass`), so one Get of five hung works makes
+    three calls and never reaches the fourth still running. The straggler bound
+    is the process's, across passes: the second Get's first call is the fourth
+    still running, and its second is the fifth, which is not made.
+    """
     plugin.CONTROL.mode = "hangs"
     assert STRAGGLERS_PER_PLUGIN == 4
+    assert HOLD_BACK_AFTER == 3
 
-    view = finished(http, start_get(http, *FIVE))
+    first = finished(http, start_get(http, *FIVE[:3]))
+    view = finished(http, start_get(http, *FIVE[3:]))
 
-    assert view["run"]["status"] == "completed", view["run"]
-    for qid in FIVE:
-        steady_still_answers(http, view, qid)
+    for each, qids in ((first, FIVE[:3]), (view, FIVE[3:])):
+        assert each["run"]["status"] == "completed", each["run"]
+        for qid in qids:
+            steady_still_answers(http, each, qid)
     assert plugin.CONTROL.entered == 4, "the fifth call was made while four were still running"
     assert len(clock.decisions) == 4
     gallery = on_status(http, "misbehaving")
@@ -494,8 +507,9 @@ def test_a_plugin_that_uses_all_of_the_deadline_it_declared_is_waited_for_and_he
 def test_a_reader_that_raises_is_a_fault_on_status_and_the_steady_work_still_arrives(http, plugin, services):
     """Acquisition: the work the misbehaving plugin found cannot be read; the steady plugin's is fetched and held.
 
-    Pins today's Queue: the fault reaches the work as a failed fetch in the
-    host's words (wave 2b's 32 and 33 tell "faulted" apart from "could not be asked").
+    The fault reaches the work as `faulted`, apart from could-not-be-asked, and
+    waits for Arrt's next load of its plugins rather than the schedule: asking
+    the same plugin again cannot help.
     """
     plugin.CONTROL.mode = "answers"
     plugin.CONTROL.misbehaving_holds = {TITLES[ONLY_THERE]}
@@ -511,10 +525,113 @@ def test_a_reader_that_raises_is_a_fault_on_status_and_the_steady_work_still_arr
 
     assert http.get(f"/api/works/{accepted[HELD]}").json()["acquisition"] is None, "the steady work's image is held"
     stuck = http.get(f"/api/works/{accepted[ONLY_THERE]}").json()["acquisition"]
-    assert stuck["phase"] == "failed", stuck
-    assert stuck["detail"] == (
-        "the Misbehaving Gallery plugin could not read this source: the Misbehaving Gallery plugin faulted: RuntimeError"
-    )
-    assert plugin.CONTROL.reads == 1
+    assert (stuck["phase"], stuck["outcome"], stuck["plugin"]) == ("failed", "faulted", "misbehaving"), stuck
+    assert stuck["next_try_at"] is None, "a fault waits for the plugins' next load, not the schedule"
+    assert stuck["failed_at"] is not None
+    assert stuck["detail"] == "the Misbehaving Gallery plugin faulted while reading this source: RuntimeError"
+    services.acquisition_queue.run()
+    assert plugin.CONTROL.reads == 1, "a work the plugin faulted on was asked again under the same load"
     gallery = on_status(http, "misbehaving")
     assert (gallery["faults"], gallery["last_fault"]) == (1, "RuntimeError: the page has no 'image' key")
+
+
+# -- interface 1.6: the page is gone ---------------------------------------------------
+
+
+def test_a_1_5_plugin_that_says_a_dead_link_the_old_way_is_could_not_be_asked_exactly_as_before(http, plugin):
+    """`misbehaving` declares 1.5 and raises `ImageSearchFailure` for a dead link: 1.6 changes nothing for it."""
+    plugin.CONTROL.mode = "dead_link"
+
+    view = finished(http, start_get(http, HELD, ONLY_THERE))
+
+    assert view["run"]["status"] == "completed", view["run"]
+    steady_still_answers(http, view)
+    not_recorded_as_held_by_nobody(view)
+    gallery = on_status(http, "misbehaving")
+    assert (gallery["state"], gallery["faults"], gallery["unasked"], gallery["answered"]) == ("loaded", 0, 2, 0)
+    assert gallery["last_unasked"] == "every page the item links at the gallery answered 404"
+    assert in_settings(http, "misbehaving")["unasked"] == 2, "Settings › Sources counts it as Status does"
+
+
+@pytest.mark.parametrize("plugin_names", [("gone", "steady")])
+def test_a_finder_answering_that_every_page_is_gone_settles_the_work_it_alone_might_hold(http, plugin):
+    """Audit-4 finding 4: a work whose only page at a holder is dead settled nowhere, searched again for ever."""
+    plugin.CONTROL.gone_for = {TITLES[ONLY_THERE]}
+
+    view = finished(http, start_get(http, HELD, ONLY_THERE))
+
+    assert view["run"]["status"] == "completed", view["run"]
+    nobody = work_of(view, ONLY_THERE)
+    assert (nobody["resolution_status"], nobody["unresolved_reason"]) == ("unresolved", "not_held"), nobody
+    archive = on_status(http, "gone")
+    assert (archive["state"], archive["faults"], archive["unasked"]) == ("loaded", 0, 0), archive
+    assert archive["answered"] == 2, "a page gone is an answer, counted as one"
+
+
+@pytest.mark.parametrize("plugin_names", [("gone", "steady")])
+def test_a_reader_answering_that_the_page_is_gone_settles_the_work_and_queue_groups_it_by_the_plugin(http, plugin, services):
+    view = finished(http, start_get(http, ONLY_THERE))
+    work = work_of(view, ONLY_THERE)
+    assert [provider for provider, _url in scans(http, work)] == ["gone"]
+    answer = http.post(f"/api/candidates/{work['work_id']}/verdict", json={"verdict": "accepted"})
+    assert answer.status_code == 200, answer.text
+    artwork_id = answer.json()["artwork_id"]
+
+    services.acquisition_queue.run()
+
+    settled = http.get(f"/api/works/{artwork_id}").json()
+    acquisition = settled["acquisition"]
+    assert (acquisition["phase"], acquisition["outcome"], acquisition["plugin"]) == ("gave_up", "link_gone", "gone")
+    (source,) = [each for each in settled["sources"] if each["provider"] == "gone"]
+    assert source["last_fetch_status"] == "failed", "the coarse status an older release reads is unchanged"
+    # The served catalogue's seeded works fail too, each under its own words.
+    (cause,) = [each for each in http.get("/api/acquisitions/causes").json()["causes"] if each["outcome"]]
+    assert (cause["outcome"], cause["plugin"], cause["museum"], cause["gave_up"]) == (
+        "link_gone",
+        "gone",
+        "Gone Archive",
+        1,
+    )
+    assert cause["cause"].startswith("The Gone Archive plugin read that the source's page is gone")
+    assert services.acquisition_queue.run().due == 0, "a settled work is not asked again"
+
+
+@pytest.mark.parametrize("plugin_names", [("gone", "steady")])
+def test_every_sentence_and_field_naming_a_plugin_from_outside_names_the_museum_it_declares(http, plugin, services):
+    """The source's sentence, its troubles' words, the sources answer and a failure cause's museum: one name, the plugin's own.
+
+    Each is read from the plugin's own reading (`SourceHealth.museum`), never
+    from what the latest load declared process-wide: a second load in this
+    process (another host, the plugin-testing helper's) replaces that, and
+    the sentence then named the plugin by its id beside a `museum` field that
+    named the museum.
+    """
+    view = finished(http, start_get(http, ONLY_THERE))
+    answer = http.post(f"/api/candidates/{work_of(view, ONLY_THERE)['work_id']}/verdict", json={"verdict": "accepted"})
+    assert answer.status_code == 200, answer.text
+    services.acquisition_queue.run()
+    from arrt.library.sources import names
+
+    names.declare_museums({})  # as another load in this process would
+
+    assert on_status(http, "gone")["description"].startswith("The Gone Archive plugin is loaded"), on_status(http, "gone")
+    assert on_status(http, "gone")["museum"] == in_settings(http, "gone")["museum"] == "Gone Archive"
+    (cause,) = [each for each in http.get("/api/acquisitions/causes").json()["causes"] if each["outcome"]]
+    assert (cause["plugin"], cause["museum"]) == ("gone", "Gone Archive")
+    # The cause's sentence names the museum its `museum` field beside it names:
+    # one owner, so the two cannot differ however the process-wide names stand.
+    assert cause["cause"].startswith(f"The {cause['museum']} plugin read"), cause
+    over_mcp = bindings._failures(services, {})
+    assert [each["museum"] for each in over_mcp["causes"] if each["outcome"]] == ["Gone Archive"]
+    assert [each["cause"] for each in over_mcp["causes"] if each["outcome"]] == [cause["cause"]]
+    assert {each["name"]: each["museum"] for each in bindings._image_sources(services, {})["sources"]}["gone"] == "Gone Archive"
+
+
+@pytest.mark.parametrize("plugin_names", [("newer", "steady")])
+def test_a_plugin_needing_interface_1_7_is_refused_at_load_by_name_and_the_get_goes_on(http, plugin):
+    view = finished(http, start_get(http, HELD))
+
+    assert view["run"]["status"] == "completed", view["run"]
+    steady_still_answers(http, view)
+    newer = in_settings(http, "newer")
+    assert (newer["state"], newer["reason"]) == ("failed", "it needs source interface 1.7, and this Arrt is 1.6")

@@ -57,7 +57,7 @@ async def two_themes(server_url, ready_work, wall):
     hanging = await _theme_holding(server_url, "Hanging", ready_work("Automat"), ready_work("Chop Suey"))
     foreign = await _theme_holding(server_url, "Foreign", ready_work("Hopper study"))
     await call(server_url, "art_theme", action="add", theme_id=foreign, artwork_id=unshowable["artwork_id"])
-    await call(server_url, "art_theme", action="activate", theme_id=hanging, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=hanging, wall_id=wall)
     return {"hanging": hanging, "foreign": foreign}
 
 
@@ -259,8 +259,11 @@ def test_sync_says_it_republishes_what_is_hanging_and_preview_says_it_writes_not
     assert "writes nothing" in preview_prose or "changes nothing" in preview_prose
 
 
-def test_the_theme_tool_names_hang_selection_as_how_works_go_up_and_show_now_says_it_lasts_one_slot():
-    assert "hang_selection" in ART_THEME.summary
+def test_hang_selection_is_on_the_wall_tool_the_theme_tool_points_there_and_show_now_says_it_lasts_one_slot():
+    """Every act on a wall is `art_display`'s, `hang_selection` among them, and the theme tool's summary points there."""
+    assert "hang_selection" in ART_DISPLAY.action_names
+    assert "hang_selection" not in ART_THEME.action_names
+    assert "art_display" in ART_THEME.summary
     tips = " ".join(_action(ART_DISPLAY, "show_now").tips)
     assert "one slot" in tips
     assert "hang_selection" in tips

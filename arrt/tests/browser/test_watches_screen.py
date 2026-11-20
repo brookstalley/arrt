@@ -7,13 +7,14 @@ Watch's on its Get, and an overdue Watch reaches the status indicator and Status
 """
 
 import re
+from datetime import UTC, datetime
 from decimal import Decimal
 
-import httpx
 import pytest
 
 from arrt.library.discovery.openrouter import KeyStatus
-from arrt.persistence.discovery_records import InitiatedBy
+from arrt.library.services.discovery import SpendTotal
+from arrt.persistence.discovery_records import CostStatus, InitiatedBy, SpendCategory
 
 pytest.importorskip(
     "playwright.sync_api",
@@ -94,14 +95,14 @@ def test_switching_a_watch_off_applies_at_once_and_a_refused_cap_returns_to_what
     assert services.watches.get(watch.id).monthly_cap_usd is None
 
 
-def test_removing_a_watch_asks_first_and_a_no_keeps_it(ui, services):
+def test_forgetting_a_watch_asks_first_and_a_no_keeps_it(ui, services):
     watch = services.watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
     ui.open("#watches")
     ui.page.wait_for_selector("section.watch")
 
-    panel_of(ui, watch.id).locator("button", has_text="Remove…").click()
+    panel_of(ui, watch.id).locator("button", has_text="Forget…").click()
     dialog = ui.page.locator("dialog.confirm")
-    expect(dialog).to_contain_text(f"Remove the Watch “{WORDS}”?", use_inner_text=True)
+    expect(dialog).to_contain_text(f"Forget the Watch “{WORDS}”?", use_inner_text=True)
     dialog.locator("button", has_text="Cancel").click()
     # The No was received. A removal that went ahead anyway is a request in
     # flight, which the page's own refresh follows: once the page has been
@@ -111,8 +112,8 @@ def test_removing_a_watch_asks_first_and_a_no_keeps_it(ui, services):
     ui.page.wait_for_load_state("networkidle")
     assert [kept.id for kept in services.watches.list()] == [watch.id]
 
-    panel_of(ui, watch.id).locator("button", has_text="Remove…").click()
-    ui.page.locator("dialog.confirm button", has_text="Remove").click()
+    panel_of(ui, watch.id).locator("button", has_text="Forget…").click()
+    ui.page.locator("dialog.confirm button", has_text="Forget").click()
     ui.page.wait_for_selector(".empty")
     assert services.watches.list() == []
 
@@ -153,12 +154,13 @@ class TestWithAModelKey:
         expect(ui.page.locator(".found-by-watch")).to_have_count(0)
 
 
-def an_overdue_reading(health: dict) -> dict:
-    return health | {"watches": {"overdue": [WORDS], "allowance_spent": False}}
-
-
-def test_an_overdue_watch_is_named_on_the_status_indicator_and_on_status(ui, server_url):
-    ui.serve("**/api/health", [an_overdue_reading(httpx.get(f"{server_url}/api/health", timeout=30).json())])
+def test_an_overdue_watch_is_named_on_the_status_indicator_and_on_status(ui, a_health_reading):
+    # Built with the Watch overdue, so the answer's `troubles` (what the
+    # indicator says) carry it as the server's would. It was the real server's
+    # answer with `watches` swapped in, whose troubles still said nothing of it.
+    reading = a_health_reading(watches={"overdue": [WORDS], "allowance_spent": False})
+    assert [trouble["about"] for trouble in reading["troubles"]] == ["watch"]
+    ui.serve("**/api/health", [reading])
     ui.open("#watches")
 
     indicator = ui.page.locator("#status")
@@ -178,3 +180,49 @@ def test_with_nothing_overdue_the_indicator_says_nothing_of_watches(ui, services
     ui.page.wait_for_function("document.querySelector('#status').dataset.state !== undefined")
 
     assert "Watch" not in ui.page.locator("#status").evaluate("(n) => n.textContent")
+
+
+def _spent_with_one_unknown(services, *, initiated_by, watch_id=None):
+    """A run that was billed $0.0213 and made one call whose cost is unknown, as the ledger records them."""
+    run = services.discovery.start_discovery_run(intent_text=WORDS, initiated_by=initiated_by, watch_id=watch_id)
+    now = datetime.now(UTC)
+    services.discovery.record_spend(
+        category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("0.0213"), discovery_run_id=run.id, model_id="m", at=now
+    )
+    services.discovery.record_spend(
+        category=SpendCategory.DISCOVERY_TOKENS,
+        cost_usd=Decimal(0),
+        discovery_run_id=run.id,
+        model_id="m",
+        at=now,
+        cost_status=CostStatus.UNKNOWN,
+    )
+    return SpendTotal(cost_usd=Decimal("0.0213"), unknown_calls=1).words
+
+
+def test_what_a_watch_spent_is_the_servers_words_and_says_at_least_for_a_cost_unknown(ui, services):
+    """The Watch's line shows its `summary` (`SpendTotal.words`), never `$${spent_usd}` formatted here.
+
+    Red before: the line read "$0.02 spent of $0.00." for a month with a call
+    whose cost is unknown, a figure the server says is only a floor.
+    """
+    watch = services.watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
+    said = _spent_with_one_unknown(services, initiated_by=InitiatedBy.UNATTENDED, watch_id=watch.id)
+
+    ui.open("#watches")
+    ui.page.wait_for_selector("section.watch")
+
+    assert said == "at least $0.0213, and 1 call whose cost is unknown"
+    expect(panel_of(ui, watch.id).locator(".watch-spend")).to_have_text(f"Spent {said}, of $0.00.", use_inner_text=True)
+
+
+def test_what_unattended_work_spent_on_general_is_the_servers_words_and_says_at_least(ui, services):
+    """General's spend line shows the allowance's `summary`, never `$${spent_usd}` formatted there."""
+    said = _spent_with_one_unknown(services, initiated_by=InitiatedBy.UNATTENDED)
+
+    ui.open("#general")
+    ui.page.wait_for_selector(".unattended-spend")
+
+    expect(ui.page.locator(".unattended-spend")).to_have_text(
+        f"Spent this month: {said}, of a $0.00 allowance; $0.00 left.", use_inner_text=True
+    )

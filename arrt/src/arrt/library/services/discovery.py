@@ -27,17 +27,18 @@ core keeps this logic testable without an event loop.
 """
 
 import logging
-import uuid
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import MAXYEAR, MINYEAR, UTC, datetime
-from decimal import Decimal
+from datetime import MAXYEAR, MINYEAR, datetime
+from decimal import ROUND_DOWN, Decimal
+from typing import Final
 
+from arrt.counting import counted
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.months import utc_month
 from arrt.library.services import attribution, selection
-from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.catalogue import CatalogueService, machine_now, new_id
 from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import checked_qid
 from arrt.library.services.taste import observe_artist
@@ -45,6 +46,7 @@ from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     CandidateImage,
     CandidateWork,
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
@@ -58,7 +60,7 @@ from arrt.persistence.discovery_records import (
     WorkProvenance,
 )
 from arrt.persistence.records import AcquisitionMethod, Artist, EventKind, RightsStatus, SourceClass
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
 
@@ -175,10 +177,79 @@ class RunCost:
     The two differ because a re-search is its own run: `direct` is what this run
     was billed, and `total` adds every resolve run descended from it. "What did
     asking for Dalí cost" is the second number.
+
+    Each figure sums the rows whose cost is known; the calls whose cost is
+    unknown (`CostStatus.UNKNOWN`) are counted beside it, so a run with any
+    reads as "at least" its figure.
     """
 
     direct: Decimal
     total: Decimal
+    direct_unknown: int = 0
+    total_unknown: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class SpendTotal:
+    """What a set of spend rows says was spent, and how sure it is.
+
+    `cost_usd` sums the rows whose cost is known. `unknown_calls` counts the
+    rows of calls that were sent and never said what they cost: each may have
+    been billed, so with any of them the figure is a floor, never the bill.
+    """
+
+    cost_usd: Decimal
+    unknown_calls: int = 0
+
+    @classmethod
+    def of(cls, records: Iterable[SpendRecord]) -> SpendTotal:
+        known = Decimal(0)
+        unknown = 0
+        for record in records:
+            if record.cost_status is CostStatus.UNKNOWN:
+                unknown += 1
+            else:
+                known += record.cost_usd
+        return cls(cost_usd=known, unknown_calls=unknown)
+
+    @property
+    def words(self) -> str:
+        """The figure in words: "$0.42", or "at least $0.42, and 2 calls whose cost is unknown".
+
+        The figure is rounded down, so "at least" stays true of it: to the cent
+        from a dollar up, grouped by thousands as the client writes a count
+        ("$1,234.56"), and to a hundredth of a cent below, where a month of mat
+        calls lives.
+
+        **Something spent below the finest figure is never said as nothing**:
+        rounded down it would read "$0.00", the words of a
+        month with no spend, and rounded up it would name a sum nobody was
+        billed. It is "under $0.0001"; with calls whose cost is unknown, the
+        floor is "more than $0.00".
+        """
+        if 0 < self.cost_usd < _FINEST:
+            if not self.unknown_calls:
+                return f"under ${_FINEST}"
+            figure = "more than $0.00"
+        else:
+            figure = _dollars(self.cost_usd)
+            if not self.unknown_calls:
+                return figure
+            figure = f"at least {figure}"
+        return f"{figure}, and {counted(self.unknown_calls, 'call')} whose cost is unknown"
+
+
+#: The finest figure a cost is said to: a hundredth of a cent.
+_FINEST: Final[Decimal] = Decimal("0.0001")
+
+
+def _dollars(amount: Decimal) -> str:
+    """`amount` in dollars, rounded down: "$3.20", "$0.0052", "$1,234.56"."""
+    cents = amount.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    if cents == amount or amount >= 1:
+        return f"${cents:,.2f}"
+    finer = amount.quantize(_FINEST, rounding=ROUND_DOWN).normalize()
+    return f"${cents:.2f}" if finer == cents else f"${finer:f}"
 
 
 class DiscoveryService:
@@ -191,9 +262,18 @@ class DiscoveryService:
         profile: QualityProfile | None = None,
         *,
         precedence: selection.Precedence | None = None,
+        now: Callable[[], datetime] = machine_now,
+        mint_id: Callable[[], str] = new_id,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
+        #: The clock every record this service writes is stamped by, and the
+        #: source of every identity it mints; defaults read the machine, so no
+        #: construction site changes. **One act reads the clock once**: a run's
+        #: start or end, a verdict and an acceptance pass their one instant to
+        #: the history line and the work they write beside it.
+        self._now = now
+        self._mint_id = mint_id
         #: The quality profile. Held because automatic selection has to withhold
         #: an instance below its minimum. Optional so a caller with no deployment
         #: profile gets the ranking without a minimum rather than a constructor
@@ -207,7 +287,7 @@ class DiscoveryService:
         """Return one run, or refuse if there is no such id."""
         run = self._store.get_run(run_id)
         if run is None:
-            raise ServiceError(f"No discovery run with id {run_id!r} exists.")
+            raise NotFound(f"No discovery run with id {run_id!r} exists.")
         return run
 
     def list_runs(self, *, status: RunStatus | str | None = None, kind: RunKind | str | None = None) -> Sequence[DiscoveryRun]:
@@ -240,12 +320,12 @@ class DiscoveryService:
         the work list arrives, and a run in flight honestly has none.
         """
         run = DiscoveryRun(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             kind=RunKind.DISCOVERY,
             initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
             status=RunStatus.RESOLVING_WORKS,
             approval_required=False,
-            started_at=datetime.now(UTC),
+            started_at=self._now(),
             intent_text=require_text(intent_text, field="intent_text"),
             watch_id=watch_id,
         )
@@ -435,12 +515,12 @@ class DiscoveryService:
                     f"{len(parent_ids)}. Start one per originating run."
                 )
             run = DiscoveryRun(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 kind=RunKind.RESOLVE,
                 initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
                 status=RunStatus.RESOLVING_IMAGES,
                 approval_required=False,
-                started_at=datetime.now(UTC),
+                started_at=self._now(),
                 parent_run_id=parent_ids.pop(),
                 estimated_cost_usd=None if price is None else price(len(works)),
             )
@@ -481,12 +561,12 @@ class DiscoveryService:
         chosen = list({work.qid: work for work in works}.values())
         with self._store.transaction():
             run = DiscoveryRun(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 kind=RunKind.GET,
                 initiated_by=require_member(initiated_by, enum=InitiatedBy, field="initiated_by"),
                 status=RunStatus.RESOLVING_IMAGES,
                 approval_required=False,
-                started_at=datetime.now(UTC),
+                started_at=self._now(),
                 estimated_cost_usd=Decimal(0),
                 destination_theme_id=destination_theme_id,
             )
@@ -496,7 +576,7 @@ class DiscoveryService:
                 store_write(
                     self._store.add_candidate_work,
                     CandidateWork(
-                        id=str(uuid.uuid4()),
+                        id=self._mint_id(),
                         discovery_run_id=run.id,
                         proposed_title=title,
                         proposed_artist=work.artist,
@@ -577,6 +657,8 @@ class DiscoveryService:
         in. That line is the *only* signal a run died — silence here is not the
         absence of a problem, it is the absence of this repair.
         """
+        # One start's repair is one act: every run it ends carries this instant.
+        at = self._now()
         with self._store.transaction():
             for status in (held for held in RunStatus if held.is_process_held):
                 for run in self._store.list_runs(status=status):
@@ -597,7 +679,7 @@ class DiscoveryService:
                     # Coverage is released by the run becoming terminal, not by
                     # deleting its rows: the join records what the run's scope
                     # was, and that stays true after the run has ended.
-                    interrupted = self._ended(run, RunStatus.INTERRUPTED)
+                    interrupted = self._ended(run, RunStatus.INTERRUPTED, at=at)
                     store_write(self._store.update_run, interrupted)
                     self._record_ended(interrupted)
             self._reclean_proposed_titles()
@@ -703,7 +785,7 @@ class DiscoveryService:
         """Return one proposed work, or refuse if there is no such id."""
         work = self._store.get_candidate_work(candidate_work_id)
         if work is None:
-            raise ServiceError(f"No candidate work with id {candidate_work_id!r} exists.")
+            raise NotFound(f"No candidate work with id {candidate_work_id!r} exists.")
         return work
 
     def get_candidate_image(self, candidate_image_id: str) -> CandidateImage:
@@ -717,7 +799,7 @@ class DiscoveryService:
         """
         image = self._store.get_candidate_image(candidate_image_id)
         if image is None:
-            raise ServiceError(f"No candidate image with id {candidate_image_id!r} exists.")
+            raise NotFound(f"No candidate image with id {candidate_image_id!r} exists.")
         return image
 
     def list_candidate_works(self, run_id: str) -> Sequence[CandidateWork]:
@@ -813,7 +895,7 @@ class DiscoveryService:
                     "Pass reconsider=True to propose it again deliberately."
                 )
             work = CandidateWork(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 discovery_run_id=run_id,
                 proposed_title=require_text(proposed_title, field="proposed_title"),
                 rationale=require_text(rationale, field="rationale"),
@@ -877,7 +959,7 @@ class DiscoveryService:
                 )
                 return None
             work = CandidateWork(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 discovery_run_id=run_id,
                 proposed_title=require_text(title, field="title"),
                 rationale=require_text(rationale, field="rationale"),
@@ -918,23 +1000,27 @@ class DiscoveryService:
         if target is Verdict.PENDING:
             raise ServiceError("'pending' is where a work starts, not a decision. Valid verdicts are: accepted, rejected.")
 
+        # One verdict is one act: the work, the artwork it mints and the history
+        # line all carry this instant.
+        at = self._now()
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             if work.verdict.is_terminal:
                 raise ServiceError(f"Candidate work {candidate_work_id!r} was already {work.verdict}, and that is final.")
             if target is Verdict.ACCEPTED:
-                outcome = self._accept(work)
+                outcome = self._accept(work, at=at)
                 self._catalogue.record_event(
                     EventKind.ACCEPTED,
                     work_id=outcome.work.artwork_id,
                     run_id=work.discovery_run_id,
                     detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                    at=at,
                 )
                 # In the verdict's transaction, so a verdict and the taste it
                 # implies commit together or not at all.
-                observe_artist(self._store, work.proposed_artist)
+                observe_artist(self._store, work.proposed_artist, at=at, mint_id=self._mint_id)
                 return outcome
-            rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
+            rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=at)
             store_write(self._store.update_candidate_work, rejected)
             # A turned-down candidate never became a work, so the event names it
             # by its candidate id and its title rather than by a work id.
@@ -942,8 +1028,9 @@ class DiscoveryService:
                 EventKind.REJECTED,
                 run_id=work.discovery_run_id,
                 detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                at=at,
             )
-            observe_artist(self._store, work.proposed_artist)
+            observe_artist(self._store, work.proposed_artist, at=at, mint_id=self._mint_id)
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------
@@ -1038,7 +1125,7 @@ class DiscoveryService:
                 )
                 return already
             image = CandidateImage(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 candidate_work_id=work.id,
                 url=found_at,
                 provider=require_text(provider, field="provider"),
@@ -1192,7 +1279,7 @@ class DiscoveryService:
         self._require_turnable(image, work)
         store_write(
             self._store.update_candidate_image,
-            replace(image, is_selected=False, rejected_at=datetime.now(UTC)),
+            replace(image, is_selected=False, rejected_at=self._now()),
         )
         # Only a vacancy is filled. Rejecting an alternate while the instance
         # actually on offer still stands must not move the selection — a curator
@@ -1324,6 +1411,7 @@ class DiscoveryService:
         output_tokens: int | None = None,
         units: int | None = None,
         at: datetime | None = None,
+        cost_status: CostStatus = CostStatus.KNOWN,
     ) -> SpendRecord:
         """Record what something cost. Attribution and history — never a ceiling.
 
@@ -1334,9 +1422,18 @@ class DiscoveryService:
 
         The two references are alternatives rather than a hierarchy: a run's
         spend carries `discovery_run_id`, and a work's mat carries `artwork_id`.
+
+        `cost_status` `UNKNOWN` is a call sent that never said what it cost; its
+        `cost_usd` is 0 and refused otherwise, so no sum can mistake a guess for
+        the provider's figure.
         """
         if cost_usd < 0:
             raise ServiceError(f"A cost cannot be negative, got {cost_usd}.")
+        status = require_member(cost_status, enum=CostStatus, field="cost_status")
+        if status is CostStatus.UNKNOWN and cost_usd != 0:
+            raise ServiceError(
+                f"A call whose cost is unknown is recorded at $0, got {cost_usd}: its figure is what nobody was told."
+            )
         # Every reference is checked here rather than left to the file's foreign
         # keys: a caller gets "no discovery run with id ..." instead of a refusal
         # phrased about a constraint they cannot see.
@@ -1345,18 +1442,33 @@ class DiscoveryService:
         if artwork_id is not None:
             self._catalogue.get_artwork(artwork_id)
         record = SpendRecord(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             category=require_member(category, enum=SpendCategory, field="category"),
             cost_usd=cost_usd,
-            occurred_at=at if at is not None else datetime.now(UTC),
+            occurred_at=at if at is not None else self._now(),
             discovery_run_id=discovery_run_id,
             artwork_id=artwork_id,
             model_id=model_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             units=units,
+            cost_status=status,
         )
         store_write(self._store.add_spend_record, record)
+        if status is CostStatus.UNKNOWN:
+            # The ledger says how many; the journal says which and when, for an
+            # operator reconciling against the provider's own activity page.
+            log.warning(
+                "a paid call was sent and never said what it cost",
+                extra={
+                    "event": "spend.cost_unknown",
+                    "spend_id": record.id,
+                    "category": str(record.category),
+                    "model_id": model_id,
+                    "run_id": discovery_run_id,
+                    "artwork_id": artwork_id,
+                },
+            )
         return record
 
     def run_cost(self, run_id: str) -> RunCost:
@@ -1368,7 +1480,24 @@ class DiscoveryService:
         """
         self.get_run(run_id)
         direct = self._spend_total(run_id)
-        return RunCost(direct=direct, total=direct + sum(self._spend_total(child) for child in self._descendants(run_id)))
+        below = [self._spend_total(child) for child in self._descendants(run_id)]
+        return RunCost(
+            direct=direct.cost_usd,
+            total=direct.cost_usd + sum((each.cost_usd for each in below), Decimal(0)),
+            direct_unknown=direct.unknown_calls,
+            total_unknown=direct.unknown_calls + sum(each.unknown_calls for each in below),
+        )
+
+    def run_summary(self, run: DiscoveryRun) -> str | None:
+        """What the run record says this run was billed, in words (`SpendTotal.words`); None while it has no figure.
+
+        The figure is the run's own (`actual_cost_usd`, written when it ends),
+        and "at least" when any of its own calls never said what it cost.
+        """
+        if run.actual_cost_usd is None:
+            return None
+        unknown = self._spend_total(run.id).unknown_calls
+        return SpendTotal(cost_usd=run.actual_cost_usd, unknown_calls=unknown).words
 
     def searches_in_run(self, run_id: str) -> int:
         """How many web searches this run has made.
@@ -1387,7 +1516,11 @@ class DiscoveryService:
         )
 
     def spend_in_month(self, *, year: int, month: int) -> Decimal:
-        """Everything spent in one calendar month, UTC.
+        """Everything known to have been spent in one calendar month, UTC: `month_spend`'s figure."""
+        return self.month_spend(year=year, month=month).cost_usd
+
+    def month_spend(self, *, year: int, month: int) -> SpendTotal:
+        """What one calendar month, UTC, is known to have cost, and its calls whose cost is unknown.
 
         The month is the **UTC** calendar month rather than the operator's local
         one, because the provider's own credit limit resets at midnight UTC — a
@@ -1402,11 +1535,19 @@ class DiscoveryService:
         if not MINYEAR <= year < MAXYEAR:
             raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
         since, until = utc_month(year, month)
-        return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
+        return SpendTotal.of(self._store.list_spend_records(since=since, until=until))
+
+    def spend_ledger(self) -> Sequence[SpendRecord]:
+        """Every spend row, newest first: what `spend_history.read` groups by month.
+
+        Not windowed, because the store's contract is equality filters and a
+        household's ledger holds a few hundred rows a year (`list_spend_records`).
+        """
+        return self._store.list_spend_records()
 
     # -- internals ------------------------------------------------------------
 
-    def _accept(self, work: CandidateWork) -> VerdictOutcome:
+    def _accept(self, work: CandidateWork, *, at: datetime) -> VerdictOutcome:
         """Mint the artwork this candidate becomes, and promote its instances.
 
         Acceptance is the only way into the catalogue, and it is a promotion
@@ -1482,6 +1623,7 @@ class DiscoveryService:
             # The item the curator chose the work by. Works may share one (a
             # duplicate the Artist page shows as *Held ×2*), so nothing is refused.
             wikidata_qid=work.wikidata_qid,
+            at=at,
         )
         for image in images:
             # A scan the curator turned down stays a candidate and is never
@@ -1504,7 +1646,7 @@ class DiscoveryService:
                 confidence=image.confidence,
                 selection_rationale=image.selection_rationale,
             )
-        accepted = replace(work, verdict=Verdict.ACCEPTED, artwork_id=artwork.id, decided_at=datetime.now(UTC))
+        accepted = replace(work, verdict=Verdict.ACCEPTED, artwork_id=artwork.id, decided_at=at)
         store_write(self._store.update_candidate_work, accepted)
         return VerdictOutcome(
             work=accepted,
@@ -1602,8 +1744,8 @@ class DiscoveryService:
             frontier.extend(children)
         return found
 
-    def _spend_total(self, run_id: str) -> Decimal:
-        return sum((record.cost_usd for record in self._store.list_spend_records(run_id=run_id)), Decimal(0))
+    def _spend_total(self, run_id: str) -> SpendTotal:
+        return SpendTotal.of(self._store.list_spend_records(run_id=run_id))
 
     def _record_started(self, run: DiscoveryRun, *, intent: str | None = None, works: int | None = None) -> None:
         """Write the history's line for a Get beginning, inside the transaction that begins it."""
@@ -1612,14 +1754,14 @@ class DiscoveryService:
             detail["intent"] = intent
         if works is not None:
             detail["works"] = works
-        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail)
+        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail, at=run.started_at)
 
     def _record_ended(self, run: DiscoveryRun) -> None:
         """Write the history's line for a Get ending, however it ended, inside the transaction that ends it."""
         detail: dict[str, object] = {"run_kind": str(run.kind), "status": str(run.status)}
         if run.end_reason is not None:
             detail["reason"] = run.end_reason
-        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail)
+        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail, at=run.completed_at)
 
     def _require_status(self, run_id: str, expected: RunStatus, *, doing: str) -> DiscoveryRun:
         """Refuse a transition the run is not standing on the edge of."""
@@ -1666,15 +1808,16 @@ class DiscoveryService:
             self._record_ended(ended)
         return ended
 
-    @staticmethod
     def _ended(
+        self,
         run: DiscoveryRun,
         status: RunStatus,
         *,
         actual_cost_usd: Decimal | None = None,
         unresolved_work_count: int | None = None,
+        at: datetime | None = None,
     ) -> DiscoveryRun:
-        """The run as it will be stored once it has ended.
+        """The run as it will be stored once it has ended, at `at` or, when None, now.
 
         A cost already recorded is kept when the caller supplies none: a run that
         spent money before being cancelled still spent it.
@@ -1682,7 +1825,7 @@ class DiscoveryService:
         return replace(
             run,
             status=status,
-            completed_at=datetime.now(UTC),
+            completed_at=self._now() if at is None else at,
             actual_cost_usd=actual_cost_usd if actual_cost_usd is not None else run.actual_cost_usd,
             unresolved_work_count=(unresolved_work_count if unresolved_work_count is not None else run.unresolved_work_count),
         )

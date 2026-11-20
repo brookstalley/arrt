@@ -29,7 +29,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend
 from playwright.sync_api import expect
 
 from arrt.library.registry import (
@@ -712,7 +712,7 @@ def test_the_run_screen_words_a_get_as_one(ui, status, said):
         ),
     ]
     ui.serve(f"**/api/runs/{GET_ID}", a_run_view(a_run(run_id=GET_ID, kind="get", intent=None, status=status), works))
-    ui.serve(f"**/api/runs/{GET_ID}/spend*", {"scope": "run", "cost_usd": "0", "run_id": GET_ID, "year": None, "month": None})
+    ui.serve(f"**/api/runs/{GET_ID}/spend*", a_spend(scope="run", cost_usd="0", run_id=GET_ID))
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view h1:text-is('Get')")
 

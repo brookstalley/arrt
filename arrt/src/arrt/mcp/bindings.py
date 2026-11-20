@@ -20,10 +20,11 @@ from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
-from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
-from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services import spend_history
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
+from arrt.library.services.discovery import DiscoveryService, SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
 from arrt.library.services.quality import Fit
@@ -41,7 +42,6 @@ from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WorkMatch
-from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
@@ -65,6 +65,7 @@ from arrt.programming.display import (
     PLAYERS_OWN_MAT,
     SHUFFLE_CHOICES,
     UNSET,
+    NotAgainScope,
     SceneView,
     SceneWall,
     SizeJudgement,
@@ -74,10 +75,20 @@ from arrt.programming.display import (
 )
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
+from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import PicturesReading, SourceHealth
+from arrt.services.health import (
+    FailedFetches,
+    PicturesReading,
+    SetupStep,
+    SourceHealth,
+    Trouble,
+    WallsNow,
+    WallWait,
+    walls_waiting,
+)
 from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -111,7 +122,7 @@ _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKin
 #: send the curator to do something pointless.
 RESTORE_NOTICE: Final[str] = "It goes back into the rotation of every wall hanging a theme that holds it."
 
-#: What `art_theme(action='allow_again')` and the Work page's *Allow on walls
+#: What `art_display(action='allow_again')` and the Work page's *Allow on walls
 #: again* both say. Restoring an archived work and letting a kept-off work back
 #: reach the wall the same way, so they are said in the same words; the client
 #: holds this verbatim (`tests/unit/test_client_vocabulary.py`).
@@ -201,9 +212,18 @@ def _facet_group(group: FacetGroup) -> dict[str, Any]:
 
 def _get_artwork(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     artwork_id = arguments["artwork_id"]
+    artwork = _full(services.catalogue.get_artwork(artwork_id))
+    brought = services.catalogue.get_that_brought(artwork_id)
     return ok(
-        artwork=_full(services.catalogue.get_artwork(artwork_id)),
+        artwork=artwork,
         acquisition=_acquisition_fields(services.acquisition_queue.state_of([artwork_id]).get(artwork_id)),
+        # The Get the work was accepted from, as `WorkDetailOut.get` says it; null
+        # for a work that came another way, or before the history.
+        get=(
+            None
+            if brought is None or brought.run_id is None
+            else {"run_id": brought.run_id, "accepted_at": _moment(brought.occurred_at)}
+        ),
     )
 
 
@@ -303,7 +323,94 @@ def _acquisition_fields(state: AcquisitionState | None) -> dict[str, Any] | None
         "since": None if state.since is None else state.since.isoformat(),
         "condition": state.condition,
         "remedy": state.remedy,
+        # What the last failed fetch said, which decides when it is tried again;
+        # the plugin that said it; when the failure was recorded.
+        "outcome": None if state.outcome is None else str(state.outcome),
+        "plugin": state.plugin,
+        "failed_at": _moment(state.failed_at),
     }
+
+
+def _queue(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/acquisitions`: the pause, then one page of the works still in line, in its names."""
+    listing = services.acquisition_queue.listing()
+    in_line = listing.in_line
+    limit = arguments.get("limit", DEFAULT_LIST_LIMIT)
+    offset = arguments.get("offset", 0)
+    pause = listing.pause
+    return ok(
+        pause=(
+            None
+            if pause is None
+            else {"condition": pause.condition, "detail": pause.detail, "since": _moment(pause.since), "remedy": pause.remedy}
+        ),
+        works=[_queued_work_fields(entry) for entry in in_line[offset : offset + limit]],
+        total=len(in_line),
+        limit=limit,
+        offset=offset,
+        failing=listing.failing,
+        causes=listing.cause_count,
+    )
+
+
+def _failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/acquisitions/causes`, or with a cause `/causes/works`, in their names (`test_surface_parity.py`).
+
+    Paged as those routes page: the service's default size, sliced from the
+    listing the queue builds whole (`http/api.py`'s `_queue_page`).
+    """
+    causes = services.acquisition_queue.listing().causes
+    limit = arguments.get("limit", DEFAULT_LIST_LIMIT)
+    offset = arguments.get("offset", 0)
+    cause = arguments.get("cause")
+    if cause is None:
+        return ok(
+            causes=[_failure_cause_fields(group, services.health.museum_of) for group in causes[offset : offset + limit]],
+            total=len(causes),
+            limit=limit,
+            offset=offset,
+        )
+    # A cause no work holds any more lists no works rather than refusing, as
+    # the route answers: the group emptied because the queue tried them again.
+    group = next((each for each in causes if each.cause == cause), None)
+    entries = () if group is None else group.entries
+    return ok(
+        cause=cause,
+        works=[_queued_work_fields(entry) for entry in entries[offset : offset + limit]],
+        total=len(entries),
+        limit=limit,
+        offset=offset,
+    )
+
+
+def _failure_cause_fields(group: FailureCause, museum_of: Callable[[str], str]) -> dict[str, Any]:
+    return {
+        "cause": group.cause,
+        "works": len(group.entries),
+        "failed": group.failed,
+        "gave_up": group.gave_up,
+        "outcome": None if group.outcome is None else str(group.outcome),
+        "plugin": group.plugin,
+        "museum": None if group.plugin is None else museum_of(group.plugin),
+    }
+
+
+def _queued_work_fields(entry: QueueEntry) -> dict[str, Any]:
+    return {"title": entry.title, "acquisition": _acquisition_fields(entry.state)}
+
+
+def _retry_failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`POST /api/acquisitions/causes/retry`: a cause's Retry, the queue's own; fetches nothing in the call."""
+    result = services.acquisition_queue.retry_cause(arguments["cause"])
+    return ok(
+        cause=result.cause,
+        retried=result.retried,
+        refused=[{"reason": reason, "works": count} for reason, count in result.refused.items()],
+        notice=(
+            "Queued again; nothing was fetched in this call. art_catalogue(action='failures') shows what still "
+            "fails, and action='get' one work's progress under `acquisition`."
+        ),
+    )
 
 
 def _retry_notice(state: AcquisitionState) -> str:
@@ -446,7 +553,8 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
     placements = services.display.survey_themes()
-    return ok(themes=[_placement_fields(services, placement) for placement in placements], count=len(placements))
+    survey = services.clients.placements.survey()
+    return ok(themes=[_placement_fields(services, placement, survey) for placement in placements], count=len(placements))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -549,7 +657,7 @@ def _scene_wall_fields(wall: SceneWall) -> dict[str, Any]:
     return {
         "wall_id": wall.wall_id,
         "wall_name": wall.wall_name,
-        "work_id": wall.work_id,
+        "artwork_id": wall.work_id,
         "title": wall.title,
         "reached": wall.reached,
         "cannot_show": wall.cannot_show,
@@ -593,11 +701,16 @@ def _release_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str
 
 
 def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    done = services.display.not_this_one_again(arguments["artwork_id"], wall_id=arguments["wall_id"], scope=arguments["scope"])
+    # Off every wall, and only that: taking a work out of a theme is
+    # `art_theme(action='remove')`'s. The answer keeps `scope` and
+    # `left_theme` (null), so no key an existing reader reads disappears with it.
+    done = services.display.not_this_one_again(
+        arguments["artwork_id"], wall_id=arguments["wall_id"], scope=NotAgainScope.EVERY_WALL
+    )
     return ok(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall_view_fields(services, services.display.get_wall_view(done.wall_id)),
+        wall=_one_wall_fields(services, done.wall_id),
         left_theme=None if done.left_theme is None else _theme_fields(done.left_theme),
         excluded_at=None if done.exclusion is None else _moment(done.exclusion.excluded_at),
     )
@@ -625,6 +738,7 @@ def _history(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
     page = services.catalogue.list_events(
         kinds=arguments.get("kinds") or (),
         wall_id=arguments.get("wall_id"),
+        work_id=arguments.get("artwork_id"),
         limit=arguments.get("limit"),
         offset=arguments.get("offset", 0),
     )
@@ -680,7 +794,7 @@ def _start_discovery(services: Services, arguments: Mapping[str, Any]) -> dict[s
         initiated_by=InitiatedBy.MCP_CLIENT,
     )
     return ok(
-        **_run_fields(run),
+        **_run_fields(run, services.discovery),
         notice=(
             "The run is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes."
@@ -689,19 +803,19 @@ def _start_discovery(services: Services, arguments: Mapping[str, Any]) -> dict[s
 
 
 def _run_status(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.run_status(arguments["run_id"]))
+    return _run_view(services.runner.run_status(arguments["run_id"]), services.discovery)
 
 
 def _approve_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.approve(arguments["run_id"]))
+    return _run_view(services.runner.approve(arguments["run_id"]), services.discovery)
 
 
 def _decline_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.decline(arguments["run_id"]))
+    return _run_view(services.runner.decline(arguments["run_id"]), services.discovery)
 
 
 def _cancel_run(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _run_view(services.runner.cancel(arguments["run_id"]))
+    return _run_view(services.runner.cancel(arguments["run_id"]), services.discovery)
 
 
 def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -710,7 +824,7 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
         initiated_by=InitiatedBy.MCP_CLIENT,
     )
     return ok(
-        **_run_fields(run),
+        **_run_fields(run, services.discovery),
         notice=(
             "The re-search is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes. "
@@ -734,7 +848,7 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
             notice="Every item was skipped, so no Get started; `skipped` says why for each.",
         )
     return ok(
-        **_run_fields(outcome.run),
+        **_run_fields(outcome.run, services.discovery),
         skipped=skipped,
         notice=(
             "The Get is under way; this is a handle, not a result. Call "
@@ -839,7 +953,7 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         status=arguments.get("status"), kind=arguments.get("kind"), awaiting=bool(arguments.get("awaiting"))
     )
     return ok(
-        runs=[_run_summary(run) for run in listing.runs],
+        runs=[_run_summary(run, services.discovery) for run in listing.runs],
         # What is left to review: works with an image and no verdict, in all and
         # by listed run, as the HTTP listing carries them.
         awaiting_works=listing.awaiting_works,
@@ -944,6 +1058,8 @@ def _registry_artist(services: Services, arguments: Mapping[str, Any]) -> dict[s
                 "sitelinks": entry.sitelinks,
                 "image": entry.image,
                 "held_artwork_ids": list(view.held.get(entry.qid, ())),
+                # The held work the row pictures itself by, or null.
+                "pictured_artwork_id": services.catalogue.pictured(view.held.get(entry.qid, ())),
                 "wanted": entry.qid in view.wanted,
                 "in_review": _in_review_fields(view.waiting.get(entry.qid)),
             }
@@ -1043,6 +1159,7 @@ def _registry_topic(services: Services, arguments: Mapping[str, Any]) -> dict[st
                     "creator_unknown": entry.work.creator_unknown,
                     "state": str(entry.state),
                     "held_artwork_ids": list(entry.held),
+                    "pictured_artwork_id": services.catalogue.pictured(entry.held),
                     "wanted": entry.wanted,
                 }
                 for entry in works.works
@@ -1065,15 +1182,30 @@ def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[st
 
 def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     reading = health.reading
+    searches = health.searches
     return {
         "name": reading.name,
-        "museum": museum_name(reading.name, reading.identity.museum),
+        "museum": health.museum,
         "state": reading.state.value,
         "reason": reading.reason,
         "faults": reading.faults,
         "last_fault_at": _moment(reading.last_fault_at),
         "last_fault_age_seconds": health.last_fault_age_seconds,
         "last_fault": reading.last_fault,
+        # Since startup: how often it could not be asked, the last time and what
+        # it said then, and how often it answered.
+        "unasked": reading.unasked,
+        "last_unasked_at": _moment(reading.last_unasked_at),
+        "last_unasked_age_seconds": health.last_unasked_age_seconds,
+        "last_unasked": reading.last_unasked,
+        "answered": reading.answered,
+        # The search record's counts, which a restart keeps; zero for a plugin
+        # never searched, as `GET /api/sources` says it.
+        "searched": 0 if searches is None else searches.searched,
+        "searches_answered": 0 if searches is None else searches.answered,
+        "searches_unasked": 0 if searches is None else searches.unasked,
+        "searches_owed": 0 if searches is None else searches.owed,
+        "last_search_answered_at": None if searches is None else _moment(searches.last_answered_at),
         "description": health.describe(),
         "distribution": reading.identity.distribution,
         "version": reading.identity.version,
@@ -1098,7 +1230,61 @@ def _spend(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
         run_direct_cost_usd=None if report.run_direct_usd is None else str(report.run_direct_usd),
         year=report.year,
         month=report.month,
+        # Calls sent that never said what they cost: with any, cost_usd is a
+        # floor, and the summary says "at least".
+        unknown_cost_calls=report.unknown_cost_calls,
+        summary=report.summary,
     )
+
+
+def _spend_history(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/spend`: the months of spending, in `SpendHistoryOut`'s names (`test_surface_parity.py`)."""
+    return ok(**_spend_history_fields(spend_history.read(services.discovery)))
+
+
+def _spend_history_fields(history: spend_history.SpendHistory) -> dict[str, Any]:
+    return {
+        "months": [
+            {
+                "year": month.year,
+                "month": month.month,
+                **_spend_total_fields(month.total),
+                "categories": [
+                    {"category": str(each.category), "calls": each.calls, **_spend_total_fields(each.total)}
+                    for each in month.categories
+                ],
+                "gets": [
+                    {
+                        "run_id": each.run.id,
+                        "kind": str(each.run.kind),
+                        "intent": each.run.intent_text,
+                        "watch_id": each.run.watch_id,
+                        "started_at": _moment(each.run.started_at),
+                        "calls": each.calls,
+                        **_spend_total_fields(each.total),
+                    }
+                    for each in month.gets
+                ],
+                "unknown_calls": [
+                    {
+                        "spend_id": call.spend_id,
+                        "category": str(call.category),
+                        "occurred_at": _moment(call.occurred_at),
+                        "model_id": call.model_id,
+                        "run_id": call.run_id,
+                    }
+                    for call in month.unknown_calls
+                ],
+            }
+            for month in history.months
+        ],
+        "older_months": history.older_months,
+    }
+
+
+def _spend_total_fields(total: SpendTotal) -> dict[str, Any]:
+    """A total as every spend row says it: the figure, the calls whose cost is unknown, and the server's words."""
+    return {"cost_usd": str(total.cost_usd), "unknown_cost_calls": total.unknown_calls, "summary": total.words}
 
 
 def _list_candidate_works(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1338,7 +1524,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
         return None
     names = ", ".join(repr(artist.name) for artist in outcome.duplicate_candidates)
     return (
-        f"A new artist {minted.name!r} was recorded, and the catalogue already holds {names}. They may be "
+        f"A new artist {minted.name!r} was recorded, and the Library already holds {names}. They may be "
         "the same painter under different spellings; matching is exact, because a wrong merge puts another "
         "painter's name on a label and leaves no trace. Both rows stand until someone decides."
     )
@@ -1349,11 +1535,11 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
 #: `GET /api/health` is, and `test_surface_parity.py` compares these two names
 #: against every field of `HealthReading`, so a signal added to the panel has to
 #: be placed here or in `_STATUS_LEAVES` with a reason.
-_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
+_STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures", "players", "failed_fetches"})
 
 #: The panel's readings this action leaves out, and why.
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
-    "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
+    "backup": "the Library's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
     "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
 }
@@ -1373,6 +1559,7 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     """
     reading = services.health.observe()
     seen = reading.walls
+    waiting = walls_waiting(seen, reading.players)
     return ok(
         # The reading's own sentence, the same one the browser panel states.
         observation=reading.describe(),
@@ -1381,11 +1568,18 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
                 "wall_id": each.wall.id,
                 "wall_name": each.wall.name,
                 "observation": each.heartbeat.describe(),
-                "display_plane_has_reported": not each.heartbeat.absent,
+                # Whether the wall's Player has reported for it.
+                "has_reported": not each.heartbeat.absent,
                 "reported_at": _moment(each.heartbeat.reported_at),
                 "age_seconds": each.heartbeat.age_seconds,
                 "problem": each.heartbeat.problem,
                 "reported": each.heartbeat.contents,
+                # The wall's display state, as `art_display(action='walls')` and
+                # `GET /api/health` state it.
+                "display_state": _display_state_fields(each.state),
+                # Whom the wall waits for while its Player is set up, or None, in
+                # `GET /api/health`'s names.
+                "waiting_for": _wall_wait_fields(waiting.get(each.wall.id)),
             }
             for each in seen
         ],
@@ -1393,7 +1587,48 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
         # A store with no ceiling is watched, not bounded, and "is anything
         # wrong" includes a disk refusing it.
         pictures=_pictures_fields(reading.pictures),
+        # Each Player's state, the queue's failed
+        # fetches (null when it holds none), and the two lists the top bar is
+        # made of, each the reading's own: what needs attention, and the steps
+        # of setting up not yet taken, which are never a fault.
+        players=[_player_health_fields(view) for view in reading.players],
+        failed_fetches=None if reading.failed_fetches is None else _failed_fetches_fields(reading.failed_fetches),
+        troubles=[_trouble_fields(trouble) for trouble in reading.troubles()],
+        setup_steps=[_setup_step_fields(step) for step in reading.setup_steps()],
     )
+
+
+def _wall_wait_fields(wait: WallWait | None) -> dict[str, Any] | None:
+    """The Player a wall waits for, in `WallWaitOut`'s names (`test_surface_parity.py`), or None."""
+    if wait is None:
+        return None
+    return {"client_id": wait.client_id, "name": wait.name, "state": str(wait.state), "words": wait.words}
+
+
+def _player_health_fields(view: ClientView) -> dict[str, Any]:
+    """One Player on the status, in `GET /api/health`'s `players` names (`test_surface_parity.py`)."""
+    return {"client_id": view.client.id, "name": view.client.name, "state": _player_state_fields(view.player)}
+
+
+def _failed_fetches_fields(found: FailedFetches) -> dict[str, Any]:
+    """The queue's failed fetches, in `GET /api/health`'s `failed_fetches` names (`test_surface_parity.py`)."""
+    return {
+        "count": found.count,
+        "will_retry": found.will_retry,
+        "given_up": found.given_up,
+        "newest_failed_at": _moment(found.newest_failed_at),
+        "newest_age_seconds": found.newest_age_seconds,
+        "age_unknown": found.age_unknown,
+        "description": found.describe(),
+    }
+
+
+def _trouble_fields(trouble: Trouble) -> dict[str, Any]:
+    return {"about": str(trouble.about), "subject": trouble.subject, "state": trouble.state, "words": trouble.words}
+
+
+def _setup_step_fields(step: SetupStep) -> dict[str, Any]:
+    return {"about": str(step.about), "subject": step.subject, "state": step.state, "words": step.words}
 
 
 def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
@@ -1426,8 +1661,8 @@ def _preview(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]
 
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
-    views = services.display.survey_walls()
-    return ok(walls=[_wall_view_fields(services, view) for view in views], count=len(views))
+    now = services.health.observe_walls()
+    return ok(walls=[_wall_view_fields(services, view, now) for view in now.views], count=len(now.views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1492,6 +1727,7 @@ def _rename_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
 
 def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     released = services.clients.remove_client(arguments["client_id"])
+    survey = services.clients.placements.survey()
     names = ", ".join(repr(wall.name) for wall in released)
     affected = (
         f"{counted(len(released), 'wall')} it showed now {agree(len(released), 'has', 'have')} no client: {names}. "
@@ -1503,7 +1739,7 @@ def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
         client_id=arguments["client_id"],
         # Never omitted when empty, so "no wall was affected" is stated rather
         # than left to be inferred from an absent key.
-        released_walls=[_wall_fields(services, wall) for wall in released],
+        released_walls=[_wall_fields(services, wall, survey) for wall in released],
         notice=f"That client is forgotten and its token no longer works. {affected}",
     )
 
@@ -1614,6 +1850,23 @@ def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, 
                 for label in reading.label_outputs
             ],
         },
+        # The Player's state and each output's, the service's (`player_state.py`),
+        # and its settings page's address when it reported one that passes the
+        # contract's pattern; as `GET /api/clients` carries both.
+        "state": _player_state_fields(view.player),
+        "settings_url": reading.settings_url,
+    }
+
+
+def _player_state_fields(reading: PlayerReading) -> dict[str, Any]:
+    """A Player's state, in `PlayerStateOut`'s names (`test_surface_parity.py`)."""
+    return {
+        "state": str(reading.state),
+        "since": _moment(reading.since),
+        "outputs": [
+            {"kind": str(output.kind), "name": output.name, "state": str(output.state), "connected": output.connected}
+            for output in reading.outputs
+        ],
     }
 
 
@@ -1668,6 +1921,7 @@ def _unattended_fields(standing: Standing) -> dict[str, Any]:
         "may_start": standing.may_start,
         "refusal": None if standing.refusal is None else str(standing.refusal),
         "sentence": standing.sentence,
+        "summary": standing.summary,
     }
 
 
@@ -1755,6 +2009,7 @@ def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
         "in_flight": standing.in_flight,
         "spent_usd": f"{standing.spent_usd:.2f}",
         "sentence": standing.sentence,
+        "summary": standing.summary,
     }
 
 
@@ -1826,8 +2081,8 @@ def _built(services: Services, build: ManifestBuild, *, notice: str | None = Non
 
 
 def _show_now(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    work_id = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
-    return ok(**_republished_fields(arguments["wall_id"], work_id))
+    shown = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
+    return ok(**_republished_fields(arguments["wall_id"], shown))
 
 
 def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1872,6 +2127,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "archive"): _archive_artwork,
     ("art_catalogue", "restore"): _restore_artwork,
     ("art_catalogue", "retry_acquisition"): _retry_acquisition,
+    ("art_catalogue", "queue"): _queue,
+    ("art_catalogue", "failures"): _failures,
+    ("art_catalogue", "retry_failures"): _retry_failures,
     ("art_catalogue", "set_mat_color"): _set_mat_color,
     ("art_catalogue", "set_work_qid"): _set_work_qid,
     ("art_catalogue", "set_artist_qid"): _set_artist_qid,
@@ -1888,19 +2146,19 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
-    ("art_theme", "activate"): _activate_theme,
-    ("art_theme", "hang_selection"): _hang_selection,
-    ("art_theme", "not_again"): _not_again,
-    ("art_theme", "kept_off"): _kept_off,
-    ("art_theme", "allow_again"): _allow_again,
-    ("art_theme", "unhang"): _unhang,
-    ("art_theme", "scenes"): _scenes,
-    ("art_theme", "draft_scene"): _draft_scene,
-    ("art_theme", "pin_scene"): _pin_scene,
-    ("art_theme", "unpin_scene"): _unpin_scene,
-    ("art_theme", "discard_scene"): _discard_scene,
-    ("art_theme", "apply_scene"): _apply_scene,
-    ("art_theme", "release_scene"): _release_scene,
+    ("art_display", "activate"): _activate_theme,
+    ("art_display", "hang_selection"): _hang_selection,
+    ("art_display", "not_again"): _not_again,
+    ("art_display", "kept_off"): _kept_off,
+    ("art_display", "allow_again"): _allow_again,
+    ("art_display", "unhang"): _unhang,
+    ("art_display", "scenes"): _scenes,
+    ("art_display", "draft_scene"): _draft_scene,
+    ("art_display", "pin_scene"): _pin_scene,
+    ("art_display", "unpin_scene"): _unpin_scene,
+    ("art_display", "discard_scene"): _discard_scene,
+    ("art_display", "apply_scene"): _apply_scene,
+    ("art_display", "release_scene"): _release_scene,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "rename_wall"): _rename_wall,
@@ -1912,16 +2170,16 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
-    ("art_display", "clients"): _list_clients,
-    ("art_display", "add_client"): _add_client,
-    ("art_display", "rename_client"): _rename_client,
-    ("art_display", "remove_client"): _remove_client,
-    ("art_display", "issue_client_token"): _issue_client_token,
-    ("art_display", "assign_wall"): _assign_wall,
-    ("art_display", "unassign_wall"): _unassign_wall,
-    ("art_display", "assign_display"): _assign_display,
-    ("art_display", "add_label"): _add_label,
-    ("art_display", "remove_label"): _remove_label,
+    ("art_players", "clients"): _list_clients,
+    ("art_players", "add_client"): _add_client,
+    ("art_players", "rename_client"): _rename_client,
+    ("art_players", "remove_client"): _remove_client,
+    ("art_players", "issue_client_token"): _issue_client_token,
+    ("art_players", "assign_wall"): _assign_wall,
+    ("art_players", "unassign_wall"): _unassign_wall,
+    ("art_players", "assign_display"): _assign_display,
+    ("art_players", "add_label"): _add_label,
+    ("art_players", "remove_label"): _remove_label,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "brief"): _brief_taste,
     ("art_taste", "set"): _set_taste,
@@ -1934,6 +2192,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_watches", "create"): _create_watch,
     ("art_watches", "update"): _update_watch,
     ("art_watches", "delete"): _delete_watch,
+    ("art_spend", "history"): _spend_history,
 }
 
 
@@ -2094,12 +2353,13 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
+def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None = None) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, the display it is on and its labels.
 
-    Field names match `WallOut` on the browser surface.
+    Field names match `WallOut` on the browser surface. `survey` is who shows
+    what, read once for an answer naming several walls and taken here for one.
     """
-    survey = services.clients.placements.survey()
+    survey = services.clients.placements.survey() if survey is None else survey
     placement = survey.placement_of(wall)
     return {
         "wall_id": wall.id,
@@ -2121,7 +2381,7 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
         "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
         "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
-        **_size_fields(services.display.judge_sizes(wall.id)),
+        **_size_fields(services.display.judge_sizes_of(wall)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {
@@ -2179,10 +2439,21 @@ def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
     }
 
 
-def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
-    """One wall, what hangs on it, and whether its Player reads the feed."""
+def _one_wall_fields(services: Services, wall_id: str) -> dict[str, Any]:
+    """One wall's fields, from a reading of it taken now: after the act that answers with it has written."""
+    now = services.health.observe_walls(wall_id)
+    [view] = now.views
+    return _wall_view_fields(services, view, now)
+
+
+def _wall_view_fields(services: Services, view: WallView, now: WallsNow) -> dict[str, Any]:
+    """One wall, what hangs on it, and whether its Player reads the feed, every part from `now`.
+
+    `now` is `HealthService.observe_walls()`, the one reading `view` was built from, as
+    `GET /api/walls`' is (`http/api.py` `_wall` says why).
+    """
     return {
-        **_wall_fields(services, view.wall),
+        **_wall_fields(services, view.wall, now.survey),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
@@ -2193,14 +2464,16 @@ def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
         # The work it showed last, whatever its screen does now, and what its
         # schedule puts up next; in `GET /api/walls`' shape.
         "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
-        "upcoming": [{"work_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
+        "upcoming": [{"artwork_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
+        # Whom the wall waits for while its Player is set up, as `GET /api/walls` says it.
+        "waiting_for": _wall_wait_fields(now.waiting.get(view.wall.id)),
     }
 
 
 def _last_shown_fields(showing: Showing) -> dict[str, Any]:
     """A wall's last showing, as `LastShownOut` carries it: `until` is the end, or the last sight while it has none."""
     return {
-        "work_id": showing.work_id,
+        "artwork_id": showing.work_id,
         "started_at": _moment(showing.started_at),
         "until": _moment(showing.ended_at if showing.ended_at is not None else showing.last_seen_at),
         "ended": showing.ended_at is not None,
@@ -2212,23 +2485,26 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     last = shown.last
     return {
         "state": str(shown.state),
-        "work_id": shown.work_id,
+        "artwork_id": shown.work_id,
         "since": _moment(shown.since),
         "reported_at": _moment(shown.reported_at),
         "age_seconds": shown.age_seconds,
-        "last": None if last is None else {"state": str(last.state), "work_id": last.work_id, "since": _moment(last.since)},
+        "last": None if last is None else {"state": str(last.state), "artwork_id": last.work_id, "since": _moment(last.since)},
     }
 
 
-def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str, Any]:
-    """One theme and every wall showing it."""
-    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
+def _placement_fields(services: Services, placement: ThemePlacement, survey: PlacementSurvey) -> dict[str, Any]:
+    """One theme and every wall showing it, who shows each read once for the listing (`survey`)."""
+    return {
+        **_theme_fields(placement.theme),
+        "hanging_on": [_wall_fields(services, wall, survey) for wall in placement.walls],
+    }
 
 
-def _republished_fields(wall_id: str, work_id: str) -> dict[str, Any]:
+def _republished_fields(wall_id: str, artwork_id: str) -> dict[str, Any]:
     return {
         "wall_id": wall_id,
-        "work_id": work_id,
+        "artwork_id": artwork_id,
         # This action cannot observe the screen, so a result implying it had
         # changed would assert something the server has no way to know.
         "notice": "The wall's schedule is republished, starting with this work. "
@@ -2236,7 +2512,7 @@ def _republished_fields(wall_id: str, work_id: str) -> dict[str, Any]:
     }
 
 
-def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
+def _run_fields(run: DiscoveryRun, discovery: DiscoveryService) -> dict[str, Any]:
     """One run as a caller sees it.
 
     The terminal state is returned as itself and never collapsed into an
@@ -2261,6 +2537,8 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         "approval_required": run.approval_required,
         "estimated_cost_usd": None if run.estimated_cost_usd is None else str(run.estimated_cost_usd),
         "actual_cost_usd": None if run.actual_cost_usd is None else str(run.actual_cost_usd),
+        # The figure in words, the service's (`DiscoveryService.run_summary`).
+        "summary": discovery.run_summary(run),
         "unresolved_work_count": run.unresolved_work_count,
         "parent_run_id": run.parent_run_id,
         "started_at": _moment(run.started_at),
@@ -2296,7 +2574,7 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
 _RUN_DETAIL_ONLY: Final[frozenset[str]] = frozenset({"strategy"})
 
 
-def _run_summary(run: DiscoveryRun) -> dict[str, Any]:
+def _run_summary(run: DiscoveryRun, discovery: DiscoveryService) -> dict[str, Any]:
     """One run as a *listing* row shows it.
 
     Derived from `_run_fields` by subtraction rather than written out, so a field
@@ -2306,7 +2584,7 @@ def _run_summary(run: DiscoveryRun) -> dict[str, Any]:
     the candidate-work projections took four coordinated edits to maintain before
     they were collapsed into one.
     """
-    return {key: value for key, value in _run_fields(run).items() if key not in _RUN_DETAIL_ONLY}
+    return {key: value for key, value in _run_fields(run, discovery).items() if key not in _RUN_DETAIL_ONLY}
 
 
 def _runs_truncation_notice(listing: RunListing) -> str | None:
@@ -2719,11 +2997,11 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
     }
 
 
-def _run_view(view: RunView) -> dict[str, Any]:
+def _run_view(view: RunView, discovery: DiscoveryService) -> dict[str, Any]:
     """One run in full, with its works and what it has used of its search cap."""
     listed = list(view.works[:MAX_WORKS_LISTED])
     return ok(
-        **_run_fields(view.run),
+        **_run_fields(view.run, discovery),
         works={
             "total": view.work_count,
             # The curator asked for a work list of a stated size, and a supplement

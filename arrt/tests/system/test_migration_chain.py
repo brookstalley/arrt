@@ -23,7 +23,7 @@ from arrt.persistence import backup
 from arrt.persistence.catalogue import WorkQuery
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.file import open_configured_catalogue, this_release
-from arrt.persistence.records import ArtworkStatus, RenditionKind
+from arrt.persistence.records import ArtworkStatus, RenditionKind, Wall
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 
@@ -82,6 +82,41 @@ def test_there_are_dumps_of_at_least_two_releases_and_each_is_on_disk(catalogue_
     assert on_disk == {path.name for path in catalogue_dumps.values()}, "a dump is on disk that releases.json does not name"
 
 
+def test_every_release_old_catalogue_names_has_a_row_and_a_shared_one_names_an_earlier_dump(catalogue_dumps):
+    """`releases.json` holds every release in `RELEASES`, in order, so the chain opens the catalogue each one left.
+
+    A release whose schema is the one before it's shares that release's dump
+    (`old_catalogue.rows`); before 2026-11-19 it had no row at all, and the
+    chain held six of twelve releases. The change log's releases are held to
+    `RELEASES` by `tests/preferences/test_catalogue_release_dumps.py`.
+    """
+    import old_catalogue
+
+    assert list(catalogue_dumps) == list(old_catalogue.RELEASES)
+    order = list(catalogue_dumps)
+    own = [tag for tag, path in catalogue_dumps.items() if path.name == f"{tag}.sql"]
+    wrong = [
+        f"{tag}: {path.name}"
+        for tag, path in catalogue_dumps.items()
+        if (shared := path.name.removesuffix(".sql")) not in own or order.index(shared) > order.index(tag)
+    ]
+    assert wrong == [], f"rows naming no earlier release's own dump: {wrong}"
+
+
+def test_a_release_shares_a_dump_only_with_the_release_before_it_of_the_same_schema():
+    """`rows` against schemas that return to an earlier shape: a shape seen again is dumped again, never shared back."""
+    import old_catalogue
+
+    schemas = {"v1": ["a"], "v2": ["a"], "v3": ["b"], "v4": ["a"], "v5": ["a"]}
+    assert old_catalogue.rows(schemas) == {
+        "v1": "v1.sql",
+        "v2": "v1.sql",
+        "v3": "v3.sql",
+        "v4": "v4.sql",
+        "v5": "v4.sql",
+    }
+
+
 def test_the_dumps_hold_everything_the_chain_takes_away(catalogue_dumps):
     """So each retired column and table is exercised by some dump; a seed that lost one would pass the rest unread."""
     seen: set[str] = set()
@@ -92,6 +127,18 @@ def test_the_dumps_hold_everything_the_chain_takes_away(catalogue_dumps):
         connection.close()
 
     assert seen == {f"{table}.{column}" for table, column in RETIRED_COLUMNS} | {f"table {table}" for table in RETIRED_TABLES}
+
+
+def _the_hall_s_player_kept(catalogue: SqliteCatalogue, main_wall: Wall) -> None:
+    """The hall's Player, where the release had clients: the main wall on its first output, by a display record."""
+    clients = catalogue.list_clients()
+    if clients:
+        (client,) = clients
+        assert client.token_verifier == "verifier-of-the-hall-token"
+        assert main_wall.display_id is not None, "the main wall lost its display"
+        display = catalogue.get_display(main_wall.display_id)
+        assert display is not None, "the main wall's display record is gone"
+        assert (display.identity, display.client_id, display.output) == ("client-hall/hdmi-a-1", "client-hall", "hdmi-a-1")
 
 
 def _the_discovery_kept(discovery):
@@ -120,8 +167,12 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
             ("Rooms by the Sea", ArtworkStatus.ARCHIVED),
         }
         assert {work.artist_id for work in page.artworks} == {"artist-hopper"}
-        assert catalogue.get_artist("artist-hopper").name == "Edward Hopper"
-        assert catalogue.get_original("work-nighthawks").content_hash == "hash-nighthawks"
+        artist = catalogue.get_artist("artist-hopper")
+        assert artist is not None, "the artist did not survive the chain"
+        assert artist.name == "Edward Hopper"
+        original = catalogue.get_original("work-nighthawks")
+        assert original is not None, "the original did not survive the chain"
+        assert original.content_hash == "hash-nighthawks"
         assert [source.url for source in catalogue.list_sources("work-sunday")] == ["https://museum.example/work-sunday"]
         assert [mat.hex_rgb for mat in catalogue.list_mat_colors("work-nighthawks")] == ["#27285b"]
         assert [facet.value for facet in catalogue.list_facets("work-nighthawks")] == ["diner"]
@@ -133,7 +184,9 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
         # The themes, what each holds in what order, and the default.
         themes = {theme.name: theme for theme in catalogue.list_themes()}
         assert set(themes) == {"All works", "Late night", "Mornings"}
-        assert catalogue.get_default_theme().name == "All works"
+        default = catalogue.get_default_theme()
+        assert default is not None, "the default theme did not survive the chain"
+        assert default.name == "All works"
 
         def held(theme):
             return sorted((member.position, member.artwork_id) for member in catalogue.list_memberships(themes[theme].id))
@@ -151,14 +204,7 @@ def test_a_catalogue_a_past_release_left_opens_on_today_s_shape_holding_the_hous
         # Mornings hung nowhere, so its twenty minutes had no wall to go to.
         assert (walls["wall-study"].rotation_interval_seconds, walls["wall-study"].shuffle) == (None, None)
 
-        # The hall's Player, where the release had clients: the main wall on its first output, by a display record.
-        clients = catalogue.list_clients()
-        if clients:
-            (client,) = clients
-            assert client.token_verifier == "verifier-of-the-hall-token"
-            display = catalogue.get_display(walls["wall-main"].display_id)
-            assert (display.identity, display.client_id, display.output) == ("client-hall/hdmi-a-1", "client-hall", "hdmi-a-1")
-
+        _the_hall_s_player_kept(catalogue, walls["wall-main"])
         _the_discovery_kept(discovery)
     finally:
         store.close()

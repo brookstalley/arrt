@@ -21,8 +21,12 @@ re-syncs that environment and drops a group the pool installed. When that
 environment does not exist (a fresh clone), the test fails saying what to run,
 never as a type error.
 
+What the type check needs installed in the fallback's environment is
+`test_type_gate_in_the_fallback.py`'s (the pool's environment has the `browser` group; the
+fallback's has `dev` only).
+
 Reads `arrt/pyproject.toml`, `arrt/uv.lock`, `contract/pyproject.toml`,
-`.github/workflows/tests.yml` and `CLAUDE.md`.
+`contract/src/arrt_contract/py.typed`, `.github/workflows/tests.yml` and `CLAUDE.md`.
 """
 
 import fnmatch
@@ -70,11 +74,17 @@ STRICT_FLAGS = (
     "extra_checks",
 )
 
+#: What `[tool.mypy]` checks: the plane's source and, since 2026-11-20, the system
+#: tests, which run the server as a process. Until then it
+#: was `["src/arrt"]`, and the system tests held 26 errors nothing reported.
+CHECKED_FILES = ["src/arrt", "tests/system"]
+
 #: The tree's flags beyond mypy's defaults (the DECISION's five).
 TREE_FLAGS = ("check_untyped_defs", "warn_unused_ignores", "warn_redundant_casts", "strict_equality", "no_implicit_reexport")
 
-#: An error line as mypy prints it from a project's root: `src/<package path>.py:<line>: error:`.
-_ERROR_LINE = re.compile(r"^(src/[^:\s]+\.py):\d+: error:", re.MULTILINE)
+#: An error line as mypy prints it from a project's root: `<path>.py:<line>: error:`, under `src/`
+#: or in another file it checks or follows (`tests/system/`, `tests/`, `tools/`).
+_ERROR_LINE = re.compile(r"^([^:\s]+\.py):\d+: error:", re.MULTILINE)
 
 
 def _mypy_config(project: str = "arrt") -> dict:
@@ -155,6 +165,14 @@ def test_a_module_with_a_type_error_fails_the_gate_by_name():
     assert verdict and "['arrt.library', 'arrt.library.facade']" in verdict
 
 
+def test_a_system_test_with_a_type_error_fails_the_gate_by_name():
+    """The line is mypy's, copied from `cd arrt && uv run mypy src/arrt tests/system` at the 2026-11-20 reset point."""
+    out = 'tests/system/test_a_real_player.py:695: error: Value of type "dict[Any, Any] | None" is not indexable  [index]\n'
+    verdict = mypy_verdict("arrt", _done(1, out))
+
+    assert verdict and "['tests.system.test_a_real_player']" in verdict
+
+
 def test_a_missing_environment_says_what_to_run_not_a_type_error():
     stderr = "error: Failed to spawn: `mypy`\n  Caused by: No such file or directory (os error 2)\n"
     verdict = mypy_verdict("arrt", _done(2, stderr=stderr))
@@ -192,7 +210,44 @@ def test_the_tree_runs_the_decisions_flags_over_the_source():
     config = _mypy_config()
     off = [flag for flag in TREE_FLAGS if config.get(flag) is not True]
     assert not off, f"[tool.mypy] does not set {off}"
-    assert config.get("files") == ["src/arrt"], f"[tool.mypy] checks {config.get('files')}, not the plane's source"
+    assert config.get("files") == CHECKED_FILES, f"[tool.mypy] checks {config.get('files')}, not {CHECKED_FILES}"
+
+
+def _allowance(config: dict) -> list[str]:
+    """The modules `ignore_missing_imports` lets be missing, from every override that sets it."""
+    return [
+        module
+        for override in config.get("overrides", [])
+        if override.get("ignore_missing_imports")
+        for module in ([override["module"]] if isinstance(override["module"], str) else override["module"])
+    ]
+
+
+def check_the_allowance_names_no_module_of_ours(named: list[str]) -> None:
+    """Raise unless `named` is non-empty and none of it is this project's own code."""
+    assert named, "no override skips a foreign package's imports, so this check reads nothing: drop it with the override"
+    ours = [module for module in named if module == "arrt" or module.startswith("arrt.")]
+    assert not ours, f"an ignore_missing_imports override names this project's modules {ours}"
+
+
+def test_only_untyped_foreign_packages_may_skip_their_imports():
+    """`ignore_missing_imports` lets a package without types be imported as `Any`; it never names this project's code."""
+    check_the_allowance_names_no_module_of_ours(_allowance(_mypy_config()))
+
+
+@pytest.mark.parametrize("named", [["jsonschema", "arrt.library.facade"], ["arrt"], ["arrt.*"]])
+def test_an_allowance_naming_this_projects_code_is_refused(named):
+    with pytest.raises(AssertionError, match="names this project's modules"):
+        check_the_allowance_names_no_module_of_ours(named)
+
+
+def test_the_contract_package_ships_its_type_marker_so_the_allowance_does_not_name_it():
+    """The package ships `py.typed`; the type check is clean without an allowance for `arrt_contract` (measured on the pool's
+    environment and on a fresh sync of the fallback's groups alone, 167 files), so one would only hide a lost marker."""
+    marker = ROOT / "contract" / "src" / "arrt_contract" / "py.typed"
+    assert marker.is_file(), f"{marker.relative_to(ROOT)} is gone, so `arrt_contract` is untyped to the type check again"
+    named = [m for m in _allowance(_mypy_config()) if m == "arrt_contract" or m.startswith("arrt_contract.")]
+    assert not named, f"the allowance names {named}: the package is typed, so take it out and fix what mypy then says"
 
 
 def test_mypy_is_in_the_dev_group_and_the_lockfile():

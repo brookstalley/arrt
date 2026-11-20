@@ -56,7 +56,7 @@ REFERENCE_ROUTE = (
     # cannot hang anything, and the surface has to hand it one. That is the cost
     # of the confirmation naming the room, paid once per flow.
     "art_display(action='walls')",
-    "art_theme(action='activate')",
+    "art_display(action='activate')",
 )
 
 #: The route a caller takes to spend money responsibly: price the question,

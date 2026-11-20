@@ -26,7 +26,9 @@ from arrt.persistence.discovery_records import (
     ResolveRunWork,
     RunKind,
     RunStatus,
+    SearchTally,
     Sighting,
+    SourceSearch,
     SourceYield,
     SpendRecord,
     StoredSetting,
@@ -291,6 +293,30 @@ class DiscoveryStore(Protocol):
 
         Whether the catalogue holds the work is not this store's to say; the
         caller asks the catalogue.
+        """
+        ...
+
+    # -- searches ---------------------------------------------------------------
+
+    def record_search(self, search: SourceSearch) -> None:
+        """Keep the newest search of one work at one source, replacing the one before it.
+
+        One row per (work, source): a second search of the work at that source
+        leaves one row, its own. Raises `StorageError` for a work the file does
+        not hold.
+        """
+        ...
+
+    def searches_of(self, candidate_work_id: str) -> Mapping[str, SourceSearch]:
+        """The newest search of this work at each source asked, by source name; empty when none was."""
+        ...
+
+    def search_tallies(self, providers: Sequence[str]) -> Mapping[str, SearchTally]:
+        """What each named source's newest searches came to, by source name; a source never asked is absent.
+
+        Over its `SEARCHES_COUNTED` most recent searches, read from the search
+        record alone, so the cost is bounded by the sources named and not by the
+        works ever searched: Status reads it on every page.
         """
         ...
 

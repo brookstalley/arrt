@@ -30,6 +30,17 @@ CLIENT_HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "client-heartbeat-{client_id}.j
 #: The key carrying the instant, spelled as the wall heartbeat spells it.
 REPORTED_AT_KEY: Final[str] = "reported_at"
 
+#: How many outputs, and how many label outputs, one report may carry. Each one
+#: a report names can become a row the server keeps (`clients.py`), so a token
+#: holder could otherwise have it keep as many as a 256 KiB body holds.
+#: Far above any Player: a Pi drives two screens and a handful of
+#: panels. A rule of the contract's, not of its schema (`arrt_contract`'s
+#: `MAX_OUTPUTS_PER_REPORT`, since 1.3.0), quoted here because the server cannot
+#: read the package at run time; `tests/contract/test_client_surface.py` holds
+#: the two alike. A report over it is refused whole, by name, rather than read
+#: in part.
+MAX_OUTPUTS: Final[int] = 32
+
 #: The output kinds `player-contract.md` names: a Samsung Frame's own art store,
 #: and a screen the client draws to itself.
 OUTPUT_KINDS: Final[frozenset[str]] = frozenset({"frame", "framebuffer"})
@@ -41,6 +52,20 @@ LABEL_OUTPUT_KINDS: Final[frozenset[str]] = frozenset({"epaper"})
 #: schema refuse the same spellings.
 _INSTANT: Final[re.Pattern[str]] = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})"
+)
+
+#: The key carrying the Player's own settings page address (contract 1.2.0, optional).
+SETTINGS_URL_KEY: Final[str] = "settings_url"
+
+#: `settings_url`'s pattern in `client-heartbeat.v1.schema.json`, quoted without
+#: its anchors (matched whole): an absolute http or https URL with a host, an
+#: optional port and path, and no user information, query or fragment. The
+#: contract makes this check the server's obligation before it serves the address
+#: as a link, and `test_client_surface.py` holds the quote to the schema's
+#: pattern. None of `"<>` or a space can pass it, so an address that passes is
+#: also text no markup can be made of.
+SETTINGS_URL: Final[re.Pattern[str]] = re.compile(
+    r"https?://[A-Za-z0-9._~%!$&'()*+,;=:\[\]-]+(/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?"
 )
 
 
@@ -86,6 +111,11 @@ class ClientHeartbeatReading:
     #: Empty when none were reported, which is also what a client before label
     #: outputs existed says.
     label_outputs: Sequence[ReportedLabelOutput] = ()
+    #: The Player's own settings page, only when the last readable report carried
+    #: one that passes `SETTINGS_URL`; None otherwise. A report whose address
+    #: fails the check is kept with its outputs and serves no address
+    #: (`server_must_refuse: false` in the fixture index).
+    settings_url: str | None = None
 
     def output_names(self) -> set[str] | None:
         """The names of the outputs last reported, or None when none have been readably."""
@@ -122,6 +152,18 @@ def client_heartbeat_path_in(art_root: Path, client_id: str) -> Path:
     return art_root / CLIENT_HEARTBEAT_FILENAME_TEMPLATE.format(client_id=client_id)
 
 
+def settings_url_of(document: dict[str, Any]) -> str | None:
+    """The report's settings page address when it passes the contract's check, else None.
+
+    Not a reason to refuse the report: a Player's wrong guess at its own address
+    must not cost it its outputs (`client-heartbeat.v1.schema.json`).
+    """
+    address = document.get(SETTINGS_URL_KEY)
+    if isinstance(address, str) and SETTINGS_URL.fullmatch(address) is not None:
+        return address
+    return None
+
+
 def problem_with(document: object) -> str | None:
     """Why this is not a client heartbeat, in words a Player's operator can act on, or None."""
     if not isinstance(document, dict):
@@ -129,9 +171,14 @@ def problem_with(document: object) -> str | None:
     instant = document.get(REPORTED_AT_KEY)
     if not isinstance(instant, str) or _INSTANT.fullmatch(instant) is None:
         return f"it carries {REPORTED_AT_KEY!r} as an RFC 3339 timestamp with an offset."
-    outputs = document.get("outputs")
+    return _problem_with_outputs(document.get("outputs")) or _problem_with_label_outputs(document)
+
+
+def _problem_with_outputs(outputs: object) -> str | None:
     if not isinstance(outputs, list):
         return "it carries 'outputs', a list of the Player's outputs (which may be empty)."
+    if len(outputs) > MAX_OUTPUTS:
+        return f"a Player may report at most {MAX_OUTPUTS} outputs, and this report carries {len(outputs)}."
     seen: set[str] = set()
     for index, output in enumerate(outputs):
         problem = _problem_with_output(output)
@@ -140,7 +187,7 @@ def problem_with(document: object) -> str | None:
         if output["name"] in seen:
             return f"two outputs are both called {output['name']!r}; an output's name is how a wall is placed on it."
         seen.add(output["name"])
-    return _problem_with_label_outputs(document)
+    return None
 
 
 def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
@@ -149,6 +196,8 @@ def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
     label_outputs = document["label_outputs"]
     if not isinstance(label_outputs, list):
         return "'label_outputs' is a list of the Player's label outputs, when it carries one."
+    if len(label_outputs) > MAX_OUTPUTS:
+        return f"a Player may report at most {MAX_OUTPUTS} label outputs, and this report carries {len(label_outputs)}."
     seen: set[str] = set()
     for index, label_output in enumerate(label_outputs):
         problem = _problem_with_label_output(label_output)
@@ -210,11 +259,13 @@ def read(path: Path, *, now: datetime | None = None) -> ClientHeartbeatReading:
     problem = seen.problem
     outputs: list[ReportedOutput] = []
     label_outputs: list[ReportedLabelOutput] = []
+    settings_url = None
     if seen.contents is not None and problem is None:
         problem = problem_with(seen.contents)
         if problem is None:
             outputs = [_output(entry) for entry in seen.contents["outputs"]]
             label_outputs = [_label_output(entry) for entry in seen.contents.get("label_outputs", [])]
+            settings_url = settings_url_of(seen.contents)
     return ClientHeartbeatReading(
         path=seen.path,
         reported_at=seen.at,
@@ -223,6 +274,7 @@ def read(path: Path, *, now: datetime | None = None) -> ClientHeartbeatReading:
         problem=problem,
         absent=seen.absent,
         label_outputs=label_outputs,
+        settings_url=settings_url,
     )
 
 

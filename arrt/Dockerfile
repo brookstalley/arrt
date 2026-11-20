@@ -12,8 +12,21 @@
 #
 # The test target needs the repository root as a second context (`repo`): the
 # contract tests read `contract/`, the seed and mat-corpus tests read the 2024
-# index `all.json`, and the UX walk's tests read `.env.example`, all of which sit
-# beside `arrt/`, not in it. The app image needs none of them.
+# index `all.json`, the UX walk's tests read `.env.example`, and the plugin
+# tests read `docs/source-plugins.md`, all of which sit beside `arrt/`, not in
+# it. The app image needs none of them.
+#
+# CI builds the test target only on a pull request into `main` and by hand
+# (`.github/workflows/image.yml`); the pool builds it as the `image` suite of
+# `.testament.toml`, run from a machine doing the work and never by CI
+# (`tests/the_image_test_stage.py`, `docs/testing.md` § The image's test stage on
+# the pool). Before that, on every pull request,
+# `tests/test_the_image_carries_what_tests_read.py` reads the test stage's COPY
+# lines, and the stages it is built on, against every path the server's tests
+# and tools build from their own location: a test that reads a file this stage
+# does not carry fails there, naming the file and the COPY it needs. Keep the
+# layout a mirror of the repository's (`/app` is `arrt/`, `/` its root), one
+# COPY a line, as that test reads them.
 #
 # The art root is a volume at /art: the catalogue, the masters and every derived
 # file live there, so the image holds code only and a rollback is a different tag.
@@ -92,6 +105,9 @@ COPY --from=repo .env.example /.env.example
 # Where the tests look for it: three levels above a test file, which in the
 # image is the filesystem root.
 COPY --from=repo all.json /all.json
+# The plugin author's guide, whose tables `test_source_plugins.py` holds to the
+# code; read the same way, three levels above the test file.
+COPY --from=repo docs/source-plugins.md /docs/source-plugins.md
 # As the app stage's user, not root: root reads a file whatever its mode, so the
 # tests that make a file unreadable to prove it is reported would fail here, and
 # a suite run as root would vouch for permissions the app never has. It owns

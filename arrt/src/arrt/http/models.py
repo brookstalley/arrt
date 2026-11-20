@@ -116,6 +116,11 @@ class RegistryWorkOut(BaseModel):
     #: The library's works in circulation that are this one (matched by QID).
     #: Empty when not held; more than one is a duplicate for the curator to see.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
@@ -442,6 +447,11 @@ class TopicWorkOut(BaseModel):
     state: str
     #: The library's works in circulation that are it, by QID.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead (`CatalogueService.pictured`).
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.
@@ -704,6 +714,16 @@ class AcquisitionStateOut(BaseModel):
     since: str | None
     condition: str | None
     remedy: str | None
+    #: What the last failed fetch said, when it said more than that it failed:
+    #: `none_held`, `unasked`, `faulted`, `link_gone`, or `failed`; null for a
+    #: failure that was no fetch's or was recorded before outcomes were. It is
+    #: what decides when the work is tried again.
+    outcome: str | None
+    #: The source plugin that answered that fetch, by its name; null when none did.
+    plugin: str | None
+    #: When the last failure was recorded, the one the queue gave up on
+    #: included; null when the work has not failed or the time was not recorded.
+    failed_at: str | None
 
 
 class QueuePauseOut(BaseModel):
@@ -752,6 +772,13 @@ class FailureCauseOut(BaseModel):
     #: queue gave up on and wait for Retry.
     failed: int
     gave_up: int
+    #: When the cause is what one plugin's fetches said, that outcome and the
+    #: plugin, and the museum it answers for; all null for a cause grouped by
+    #: its own words. Works whose fetches said one thing at one plugin share a
+    #: cause however the holder worded each.
+    outcome: str | None
+    plugin: str | None
+    museum: str | None
 
 
 class FailureCausesOut(BaseModel):
@@ -788,6 +815,15 @@ class RetryCauseOut(BaseModel):
     refused: list[RefusedRetryOut]
 
 
+class WorkGetOut(BaseModel):
+    """The Get a work came from: its run, and when the work was accepted from it."""
+
+    #: The Get's run (`/api/runs/{run_id}`), which its review is reached by.
+    run_id: str
+    #: When the candidate was accepted and became this work.
+    accepted_at: str
+
+
 class WorkDetailOut(BaseModel):
     """One work in full."""
 
@@ -803,6 +839,12 @@ class WorkDetailOut(BaseModel):
     #: Where the work stands in the acquisition queue; null when the queue owes
     #: it nothing (its image is held and prepared, or it is archived).
     acquisition: AcquisitionStateOut | None = None
+    #: The Get that brought the work into the Library, from its acceptance in
+    #: the history; null for a work that came another way, or that was accepted
+    #: before the history was kept. On the detail rather than on `WorkOut`,
+    #: which every grid card carries: one history read per card for a fact
+    #: only the Work page shows.
+    get: WorkGetOut | None
 
 
 class ThemeOut(BaseModel):
@@ -1043,6 +1085,11 @@ class WallOut(BaseModel):
     #: Up to three works the wall's published schedule puts up next, in order,
     #: not counting the one on it now. Empty with no feed published.
     upcoming: list[UpcomingOut] = []
+    #: The Player the wall waits for while that Player is still being set up,
+    #: as `GET /api/health` says it (`services.health.walls_waiting`), or null:
+    #: `display_state` still reads `silent`, and this says nothing shows the
+    #: wall yet, which the question before a hang reads.
+    waiting_for: WallWaitOut | None = None
 
 
 class LastShownOut(BaseModel):
@@ -1122,6 +1169,40 @@ class ClientHeartbeatOut(BaseModel):
     label_outputs: list[ReportedLabelOutputOut]
 
 
+class OutputStateOut(BaseModel):
+    """One of a Player's outputs, a screen or a label panel, in the state its Player's report puts it in.
+
+    Per output, as well as per Player (the owner's ruling 8 of 2026-11-19): a
+    Player with several label panels and no screen has one of these per panel.
+    """
+
+    #: `display` (a screen a wall is shown on) or `label` (a label panel).
+    kind: str
+    #: The output's name, as the Player names it.
+    name: str
+    #: A `player_states` key (`contract/vocabulary.json`): its Player's state,
+    #: or `awaiting_report` for an output the server recorded that a reporting
+    #: Player's report does not list.
+    state: str
+    #: As the current report says, only while `state` is `reporting`; null otherwise.
+    connected: bool | None
+
+
+class PlayerStateOut(BaseModel):
+    """A Player's state (`programming/player_state.py`): one of the contract's `player_states` keys.
+
+    `no_token`, `awaiting_report`, `reporting`, `not_heard_from` or
+    `report_unreadable`. The first two are setup steps, never a fault; the words
+    for each are `vocabulary.json`'s, which the screens quote.
+    """
+
+    state: str
+    #: The last report's instant for `reporting` and `not_heard_from` ("Not heard
+    #: from since {date}"); null otherwise.
+    since: str | None
+    outputs: list[OutputStateOut]
+
+
 class ClientOut(BaseModel):
     """An installed Player: its name, when its token was issued, its walls and its last report.
 
@@ -1141,6 +1222,12 @@ class ClientOut(BaseModel):
     #: The display faults it is one side of, each naming every client involved.
     faults: list[DisplayFaultOut]
     heartbeat: ClientHeartbeatOut
+    #: Its state and each output's, so no screen derives them from `heartbeat`.
+    state: PlayerStateOut
+    #: The address of the Player's own settings page, as its last readable report
+    #: gave it, only when it passes `client-heartbeat.v1`'s check; null otherwise.
+    #: A link's address set as text, never markup (the contract's obligation).
+    settings_url: str | None
 
 
 class ClientListOut(BaseModel):
@@ -1305,6 +1392,18 @@ class BackupOut(BaseModel):
     reported: dict[str, Any] | None
 
 
+class WallWaitOut(BaseModel):
+    """The Player a wall waits for, while that Player is still being set up (`services.health.WallWait`)."""
+
+    client_id: str
+    name: str
+    #: The Player's setup state: `no_token` or `awaiting_report`.
+    state: str
+    #: The wait in the household's words, for the wall's own panel: "The hall
+    #: waits for The living room Pi, which has no token yet".
+    words: str
+
+
 class WallHeartbeatOut(BaseModel):
     """One wall and what the display serving it last said about itself.
 
@@ -1316,6 +1415,16 @@ class WallHeartbeatOut(BaseModel):
     wall_id: str
     wall_name: str
     heartbeat: HeartbeatOut
+    #: The wall's display state, the one Walls serves (`display_state_of`): what
+    #: a screen says of the wall, where `heartbeat` is the report handed through.
+    #: `unassigned` (no Player shows it) is a setup step, never a trouble.
+    display_state: DisplayStateOut
+    #: Set when the wall has not reported because the Player that shows it is
+    #: still being set up (`services.health.walls_waiting`): its display state
+    #: is still `silent`, and this says why, so a screen draws the wall as a
+    #: step that waits, never as a fault. That Player's setup step names the
+    #: wall; the wall is no step or trouble of its own. Null otherwise.
+    waiting_for: WallWaitOut | None
 
 
 class SourcePluginOut(BaseModel):
@@ -1334,6 +1443,26 @@ class SourcePluginOut(BaseModel):
     last_fault_at: str | None
     last_fault_age_seconds: float | None
     last_fault: str | None
+    #: Calls since startup that were "could not be asked" (the plugin's own
+    #: failure to ask, or a call past its deadline), counted apart from
+    #: `faults`, with when the last was, its age and what it said; and every
+    #: other answer the plugin gave. With `answered` 0 and `unasked` above it,
+    #: the plugin has said nothing since startup but that it could not be asked.
+    unasked: int
+    last_unasked_at: str | None
+    last_unasked_age_seconds: float | None
+    last_unasked: str | None
+    answered: int
+    #: From the search record, which a restart keeps: how many works phase 2
+    #: last searched this plugin for, and of those how many it answered, could
+    #: not be asked about, and still owes an answer about (it had not answered
+    #: when the run stopped waiting); and when it last answered one. Zeros and
+    #: null for a plugin never searched.
+    searched: int
+    searches_answered: int
+    searches_unasked: int
+    searches_owed: int
+    last_search_answered_at: str | None
     description: str
     #: The installed distribution that registers the plugin, and its version;
     #: null for a plugin registered by hand, or one two distributions both claim.
@@ -1373,6 +1502,68 @@ class PicturesOut(BaseModel):
     description: str
 
 
+class PlayerHealthOut(BaseModel):
+    """One Player and its state, for Status and the top bar."""
+
+    client_id: str
+    name: str
+    state: PlayerStateOut
+
+
+class FailedFetchesOut(BaseModel):
+    """The works whose picture the queue could not fetch: Activity › Queue's own figures, with the newest's age.
+
+    `newest_age_seconds` is the age of the newest failure among the works whose
+    failure instant is recorded; `age_unknown` counts those whose instant is
+    not (only works that failed before the queue recorded when, and that give
+    no next try to read it back from), so "2,000 failed, newest an hour ago" and
+    "2,000 failed, when is not recorded" read apart.
+    """
+
+    #: Every work the Queue lists as failed: `will_retry` plus `given_up`.
+    count: int
+    will_retry: int
+    given_up: int
+    newest_failed_at: str | None
+    newest_age_seconds: float | None
+    #: Of `count`, how many failed at an instant not recorded; equal to `count`
+    #: when the newest failure's age is not known at all.
+    age_unknown: int
+    description: str
+
+
+class TroubleOut(BaseModel):
+    """One fault the top bar and the System badge count, never a setup step (`HealthReading.troubles`)."""
+
+    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch` or
+    #: `failed_fetches`: what it is about, so a screen links it to where it is mended.
+    about: str
+    #: The wall's or Player's id, the plugin's name, or the display's identity;
+    #: null for the backup, a Watch and the failed fetches.
+    subject: str | None
+    #: The wall's display state or the Player's state, for those two; null otherwise.
+    state: str | None
+    #: A short phrase in the household's words.
+    words: str
+
+
+class SetupStepOut(BaseModel):
+    """One step of setting up not yet taken: never a fault, and never all well (`HealthReading.setup_steps`)."""
+
+    #: `no_wall` (the catalogue holds no wall), `wall` (no Player shows it) or
+    #: `player` (no token yet, or no report yet, naming in `words` the walls
+    #: that wait for it, which are no step of their own): what it is about, so
+    #: a screen links it to where the step is taken.
+    about: str
+    #: The wall's or Player's id; null for `no_wall`.
+    subject: str | None
+    #: A setup state, null for `no_wall`: a Player's own (`no_token`,
+    #: `awaiting_report`); `unassigned` for a wall (`HealthReading.setup_steps`).
+    state: str | None
+    #: A short phrase in the household's words.
+    words: str
+
+
 class WatchesHealthOut(BaseModel):
     """The Watches a person needs to know about: overdue ones, by their words, and a spent allowance holding one."""
 
@@ -1399,9 +1590,10 @@ class HealthOut(BaseModel):
     """
 
     walls: list[WallHeartbeatOut]
-    #: One sentence across every wall, naming the ones that have not reported.
-    #: An observation and never a verdict: no threshold is applied here, so this
-    #: says how long ago rather than whether that is too long.
+    #: One sentence across every wall a Player shows, naming the ones that are
+    #: not reporting (`display_state` `silent`) and never one with no Player. An
+    #: observation and never a verdict: the only threshold is the contract's
+    #: staleness, which Walls and Players share.
     description: str
     backup: BackupOut
     #: Every installed source plugin, most preferred first. Empty when none is
@@ -1410,6 +1602,19 @@ class HealthOut(BaseModel):
     pictures: PicturesOut
     #: What the Watches need a person to know, since nothing else will tell them.
     watches: WatchesHealthOut
+    #: Every Player with its state and each output's, in the order Players lists them.
+    players: list[PlayerHealthOut]
+    #: What the queue holds as failed; null when it holds no failed work.
+    failed_fetches: FailedFetchesOut | None
+    #: Every fault this reading holds, in one list: what the top bar and the
+    #: System badge count. Derived only from states whose setup flag is false.
+    troubles: list[TroubleOut]
+    #: Every step of setting up not yet taken, which the top bar states beside
+    #: the troubles and never counts as one: no wall recorded, a wall no Player
+    #: shows, a Player with no token or no report yet (one step, naming the walls
+    #: that wait for it). A household with no wall
+    #: carries `no_wall` here, so it is never read as all well.
+    setup_steps: list[SetupStepOut]
 
 
 class SourceYieldOut(BaseModel):
@@ -1475,6 +1680,10 @@ class RunOut(BaseModel):
     #: against, and then in a total nobody reconciles.
     estimated_cost_usd: str | None
     actual_cost_usd: str | None
+    #: `actual_cost_usd` in words (`DiscoveryService.run_summary`,
+    #: `SpendTotal.words`): "at least" when one of the run's own calls never said
+    #: what it cost. Null while the run record has no figure.
+    summary: str | None
     unresolved_work_count: int | None
     parent_run_id: str | None
     started_at: str
@@ -1707,6 +1916,79 @@ class SpendOut(BaseModel):
 
     year: int | None
     month: int | None
+    #: The calls in this scope that were sent and never said what they cost.
+    #: `cost_usd` sums the rest, so with any it is a floor and not the bill.
+    unknown_cost_calls: int
+    #: The figure in words, "at least" when any call's cost is unknown.
+    summary: str
+
+
+class SpendByCategoryOut(BaseModel):
+    """What one kind of spending cost in a month (`SpendCategory`)."""
+
+    category: str
+    #: The calls the ledger holds under it, the unknown ones included.
+    calls: int
+    cost_usd: str
+    unknown_cost_calls: int
+    #: The figure in words, the server's (`SpendTotal.words`): the only form a screen shows.
+    summary: str
+
+
+class SpendOnGetOut(BaseModel):
+    """What one Get spent itself in a month: its own calls, never its family's.
+
+    A re-search is a Get of its own and a family can span months, so a figure
+    that rolled the family up would count one call under two months. A Get's
+    whole cost is `GET /api/runs/{id}/spend`.
+    """
+
+    run_id: str
+    #: `discovery`, `resolve` or `get`, as `RunOut.kind` says it.
+    kind: str
+    intent: str | None
+    watch_id: str | None
+    started_at: str
+    calls: int
+    cost_usd: str
+    unknown_cost_calls: int
+    summary: str
+
+
+class UnknownCostCallOut(BaseModel):
+    """A call that was sent and never said what it cost: the provider may have billed it."""
+
+    spend_id: str
+    category: str
+    occurred_at: str
+    model_id: str | None
+    #: The Get it belonged to; null for one that belonged to none (an Ask reply, a mat).
+    run_id: str | None
+
+
+class SpendMonthOut(BaseModel):
+    """One UTC calendar month of spending, and what is not known about it."""
+
+    year: int
+    month: int
+    cost_usd: str
+    unknown_cost_calls: int
+    summary: str
+    categories: list[SpendByCategoryOut]
+    gets: list[SpendOnGetOut]
+    unknown_calls: list[UnknownCostCallOut]
+
+
+class SpendHistoryOut(BaseModel):
+    """The months of spending, newest first, the current one always the first.
+
+    **Attribution and history, never a ceiling**: the limit on spending is the
+    provider's, set on the key, and nothing here reads one or offers one.
+    """
+
+    months: list[SpendMonthOut]
+    #: Earlier months that spent something and are not listed.
+    older_months: int
 
 
 class InstanceOut(BaseModel):
@@ -2496,6 +2778,10 @@ class UnattendedOut(BaseModel):
     refusal: str | None
     #: One sentence saying which, for the screen.
     sentence: str
+    #: What this month's unattended work spent, in words (`Standing.summary`,
+    #: `SpendTotal.words`): "at least $0.42, and 2 calls whose cost is unknown"
+    #: when any call never said what it cost, where `spent_usd` is the floor.
+    summary: str
 
 
 class WatchOut(BaseModel):
@@ -2534,6 +2820,9 @@ class WatchOut(BaseModel):
     spent_usd: str
     #: One sentence for where it stands.
     sentence: str
+    #: What its runs spent this UTC month, in words (`WatchStanding.summary`,
+    #: `SpendTotal.words`): "at least" when a call's cost is unknown.
+    summary: str
 
 
 class WatchListOut(BaseModel):

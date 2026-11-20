@@ -38,6 +38,7 @@ from arrt.library.registry import (
     TopicKind,
 )
 from arrt.library.services.topics import OFFERED_TOPICS
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
@@ -159,6 +160,29 @@ async def route(server_url: str, path: str, **params) -> dict:
         return (await client.get(path, params=params)).raise_for_status().json()
 
 
+def _hold_a_master(service, artwork_id: str) -> None:
+    """Record a master image for the work, as an acquisition would leave it, so a row can picture itself by it."""
+    source = service.add_source(
+        artwork_id=artwork_id,
+        url=f"https://museum.example/{artwork_id}.jpg",
+        provider="gallery_site",
+        source_class=SourceClass.CONTEMPORARY_WEB,
+        acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=artwork_id,
+        source_id=source.id,
+        path=f"raw/{artwork_id}.jpg",
+        width=4000,
+        height=3000,
+        byte_size=1_000,
+        content_hash=f"hash-{artwork_id}",
+        fetch_status=FetchStatus.OK,
+    )
+
+
 async def test_search_is_the_results_pages_search(server_url, held):
     payload = await call(server_url, action="search", q="bruegel")
 
@@ -181,8 +205,10 @@ async def test_an_artist_not_held_is_their_page_by_qid(server_url, held):
     assert [work["qid"] for work in payload["works"]] == [HUNTERS]
 
 
-async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server_url, held):
+async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server_url, held, service):
     rothko, kept = held
+    # A master, so the held row pictures itself by the work and `pictured_artwork_id` is a value, not the null default.
+    _hold_a_master(service, kept.id)
 
     payload = await call(server_url, action="artist", qid=ROTHKO)
     page = await route(server_url, f"/api/artists/{rothko.id}/registry")
@@ -190,7 +216,9 @@ async def test_a_held_artist_is_their_own_pages_registry_half_naming_them(server
     # The page by QID says only "held" and asks nothing; the tool must not.
     assert payload["state"] == "known"
     assert payload == {**page, "artist_id": rothko.id}
-    assert [(work["qid"], work["held_artwork_ids"]) for work in payload["works"]] == [(HELD_ROTHKO, [kept.id])]
+    assert [(work["qid"], work["held_artwork_ids"], work["pictured_artwork_id"]) for work in payload["works"]] == [
+        (HELD_ROTHKO, [kept.id], kept.id)
+    ]
 
 
 async def test_similar_artists_are_the_pages_section(server_url, held):

@@ -47,8 +47,8 @@ MARKER_NAME = ".curation-art-root"
 MARKER_TEXT = (
     "This directory is a curation art root.\n"
     "\n"
-    "The curation plane refuses to start against a directory that has neither this\n"
-    "file nor a catalogue, so that a mistyped ART_ROOT reports an error instead of\n"
+    "Arrt refuses to start against a directory that has neither this file nor a\n"
+    "catalogue, so that a mistyped ART_ROOT reports an error instead of\n"
     "quietly creating a second, empty collection. Delete this file only if you mean\n"
     "to stop this directory being an art root.\n"
 )

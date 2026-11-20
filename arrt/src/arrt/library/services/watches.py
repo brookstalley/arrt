@@ -29,6 +29,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Final
 
+from arrt.library.services.discovery import SpendTotal
 from arrt.library.services.settings import (
     UNATTENDED_ALLOWANCE,
     UNATTENDED_CADENCE,
@@ -40,7 +41,7 @@ from arrt.library.services.settings import (
 from arrt.library.services.unattended import Refusal, UnattendedAllowance
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy, RunStatus, Watch
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
@@ -110,6 +111,14 @@ class WatchStanding:
     in_flight: bool
     #: One sentence for the screen and the tool.
     sentence: str
+    #: Calls of its runs this month that were sent and never said what they
+    #: cost; `spent_usd` sums the rest, so with any it is a floor.
+    unknown_cost_calls: int = 0
+
+    @property
+    def summary(self) -> str:
+        """What its runs spent this month, in words (`SpendTotal.words`): "at least" when a call's cost is unknown."""
+        return SpendTotal(cost_usd=self.spent_usd, unknown_calls=self.unknown_cost_calls).words
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +173,7 @@ class WatchService:
     def get(self, watch_id: str) -> Watch:
         found = self._store.get_watch(watch_id)
         if found is None:
-            raise ServiceError(f"No Watch with id {watch_id!r}.")
+            raise NotFound(f"No Watch with id {watch_id!r}.")
         return found
 
     def cadence_of(self, watch: Watch) -> Cadence:
@@ -204,16 +213,18 @@ class WatchService:
         overdue = (
             due_at is not None and now - max(due_at, watch.updated_at) > OVERDUE_AFTER and self._unattended.standing().switched_on
         )
+        spend = self._unattended.spend_by_watch_this_month(watch.id)
         return WatchStanding(
             watch=watch,
             cadence=cadence,
             last_run_status=last_status,
             next_due_at=due_at,
             overdue=overdue,
-            spent_usd=self._unattended.spent_by_watch_this_month(watch.id),
+            spent_usd=spend.cost_usd,
             cap_usd=self.effective_cap(watch),
             in_flight=in_flight,
             sentence=_sentence(watch, last_status, in_flight=in_flight, overdue=overdue),
+            unknown_cost_calls=spend.unknown_calls,
         )
 
     def reading(self) -> WatchesReading:

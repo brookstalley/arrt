@@ -10,6 +10,7 @@ import ast
 import importlib.metadata
 import logging
 import pathlib
+import re
 from datetime import UTC, datetime, timedelta
 
 import plugin_fakes
@@ -18,8 +19,9 @@ from fakes import FakeRegistry
 from plugin_fakes import Answers, StubCollection, StubFinder, StubReader, claims_example
 
 from arrt.http.api import _health
+from arrt.library import sources as sources_interface
 from arrt.library.discovery.browse import CollectionBrowseFailure
-from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
+from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure, LinkGone
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
@@ -27,12 +29,14 @@ from arrt.library.sources import API_VERSION, Declined, SourceContext, SourcePar
 from arrt.library.sources.loading import (
     ENTRY_POINT_GROUP,
     FAULT_LOGGER,
+    PluginFaulted,
     PluginIdentity,
     PluginPart,
     PluginState,
     SourceRoster,
     load_sources,
 )
+from arrt.programming.clients import PlacementSurvey, WallsReading
 from arrt.services.health import HealthReading, HealthService
 
 SOURCES = pathlib.Path(__file__).resolve().parents[2] / "src" / "arrt" / "library" / "sources"
@@ -540,24 +544,94 @@ def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     ]
 
 
+#: Every module in the sources package that is not a built-in plugin, by name, with
+#: why the rule below does not bind it. A module added here is a decision; one added
+#: to the package and listed in neither this table nor the entry points fails
+#: `test_every_module_of_the_package_is_a_built_in_or_named_as_not_one`.
+NOT_A_PLUGIN: dict[str, str] = {
+    "__init__.py": "the interface itself: it re-exports from where Arrt keeps each name",
+    "plugin.py": "the interface's types, which import the types they are made of",
+    "reading.py": "the interface's reader types",
+    "iiif.py": "the IIIF parsers a plugin may use (1.3), which import the interface's failure and locator from where they live",
+    "names.py": "the host's museum names, read by every sentence the server writes; gathers the built-ins' own",
+    "loading.py": "the host's loader and containment: Arrt's own, never imported by a plugin",
+    "testing.py": (
+        "the helper plugin authors' tests import (`source-plugins.md` § Testing): it runs the host's own phase "
+        "two, pool, loader and acquisition so that a test of a plugin reaches the host's verdicts, which is "
+        "reaching past the interface by design. No plugin imports it, and the interface does not"
+    ),
+}
+
+#: The modules above that import nothing from `arrt`: the rule has nothing to say of them,
+#: and they are named only so the list is whole.
+IMPORTS_NOTHING: frozenset[str] = frozenset({"reading.py"})
+
+
+def _offences(module: str, source: str) -> list[str]:
+    """How `source`, the text of `module`, imports from `arrt` anything but the interface."""
+    offences = []
+    for node in ast.walk(ast.parse(source)):
+        names = []
+        if isinstance(node, ast.ImportFrom) and node.level > 0:
+            # `from .loading import …` reaches past the interface as surely as
+            # the absolute spelling does, and reads nothing like it.
+            offences.append(f"{module} imports {'.' * node.level}{node.module or ''} relatively")
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names = [node.module]
+        elif isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        offences += [f"{module} imports {n}" for n in names if n.split(".")[0] == "arrt" and n != "arrt.library.sources"]
+    return offences
+
+
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():
     """They are the examples a plugin author copies, so they may not reach past it."""
     offences = []
     for module in _built_in_modules():
-        tree = ast.parse((SOURCES / module).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.ImportFrom) and node.level > 0:
-                # `from .loading import …` reaches past the interface as surely as
-                # the absolute spelling does, and reads nothing like it.
-                offences.append(f"{module} imports {'.' * node.level}{node.module or ''} relatively")
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                names = [node.module]
-            elif isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            offences += [f"{module} imports {n}" for n in names if n.split(".")[0] == "arrt" and n != "arrt.library.sources"]
+        offences += _offences(module, (SOURCES / module).read_text(encoding="utf-8"))
 
     assert offences == []
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        "from arrt.library.discovery.phase_two import _confidence",
+        "import arrt.library.discovery.phase_two",
+        "from arrt.library.sources.loading import load_sources",
+        "from arrt.library.sources.testing import host",
+        "from .loading import load_sources",
+    ],
+)
+def test_a_built_in_reaching_past_the_interface_is_refused_however_it_spells_it(planted):
+    """The rule above is red with one planted: phase two's internals, the loader, the helper, a relative import."""
+    assert _offences("planted.py", planted) != []
+
+
+def test_the_interface_itself_is_not_an_offence():
+    assert _offences("fine.py", "from arrt.library.sources import FoundImage, ImageQuery\nimport httpx") == []
+
+
+def test_every_module_of_the_package_is_a_built_in_or_named_as_not_one():
+    """The rule's exclusions are by name: a module in neither list is a decision nobody made."""
+    present = {path.name for path in SOURCES.glob("*.py")}
+
+    assert present == set(_built_in_modules()) | set(NOT_A_PLUGIN)
+    assert not set(NOT_A_PLUGIN) & set(_built_in_modules()), "a built-in is never excused from the rule"
+
+
+@pytest.mark.parametrize("module", sorted(IMPORTS_NOTHING))
+def test_a_module_excused_for_importing_nothing_imports_nothing(module):
+    assert _offences(module, (SOURCES / module).read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize("module", sorted(set(NOT_A_PLUGIN) - IMPORTS_NOTHING))
+def test_a_module_excused_by_reaching_past_the_interface_still_does(module):
+    """An excuse nothing needs is a hole in the rule nobody remembers: the helper is excused because it reaches phase two."""
+    assert len(NOT_A_PLUGIN[module]) > 20
+    assert _offences(
+        module, (SOURCES / module).read_text(encoding="utf-8")
+    ), f"{module} imports nothing past the interface: take it out of NOT_A_PLUGIN so the rule binds it"
 
 
 # -- helpers ------------------------------------------------------------------
@@ -579,10 +653,12 @@ class _Fixed:
 
 
 class _NoWalls:
-    """The one display question the health service asks, answered with no walls."""
+    """The one display question the health service asks, answered with no walls and no Players."""
 
-    def survey_wall_status(self) -> list:
-        return []
+    def read_wall_reports(self) -> WallsReading:
+        return WallsReading(
+            survey=PlacementSurvey(clients={}, displays={}, walls=[], label_outputs=[], readings={}, faults={}), reports={}
+        )
 
 
 #: A tree no file is ever written to, inside this one: what the health service
@@ -906,11 +982,11 @@ def test_one_plugin_claiming_a_url_says_nothing_of_overlap(caplog):
 # -- 1.5: a plugin says which minor it needs ------------------------------------------
 
 
-def test_the_interface_is_1_5():
-    assert API_VERSION == (1, 5)
+def test_the_interface_is_1_6():
+    assert API_VERSION == (1, 6)
 
 
-@pytest.mark.parametrize(("minor", "loads"), [(0, True), (4, True), (5, True), (6, False)])
+@pytest.mark.parametrize(("minor", "loads"), [(0, True), (4, True), (5, True), (6, True), (7, False)])
 def test_a_plugin_needing_a_newer_minor_is_refused_naming_both_versions(minor, loads):
     plugin = SourcePlugin(api_major=1, create=plugin_fakes._good, api_minor=minor)
 
@@ -921,7 +997,7 @@ def test_a_plugin_needing_a_newer_minor_is_refused_naming_both_versions(minor, l
         assert (state, reason) == (PluginState.LOADED, None)
     else:
         assert state is PluginState.FAILED
-        assert reason == "it needs source interface 1.6, and this Arrt is 1.5"
+        assert reason == "it needs source interface 1.7, and this Arrt is 1.6"
         assert roster.finders == ()
 
 
@@ -948,7 +1024,7 @@ def test_a_plugin_passing_a_keyword_this_arrt_does_not_take_is_told_it_may_need_
     assert state is PluginState.FAILED
     assert reason.startswith("it could not be imported: TypeError")
     assert "unexpected keyword argument 'api_wish'" in reason
-    assert reason.endswith("; it may need a newer Arrt than this one, which provides source interface 1.5")
+    assert reason.endswith("; it may need a newer Arrt than this one, which provides source interface 1.6")
 
 
 def test_a_plugin_that_cannot_be_imported_for_another_reason_is_not_told_about_versions():
@@ -1016,3 +1092,109 @@ def test_a_plugin_with_faults_and_nothing_else_says_it_has_answered_nothing_else
 
     assert out.description.startswith("The broken plugin is loaded, with 1 fault since startup, the last 3 seconds ago")
     assert out.description.endswith(" It has answered nothing else since startup.")
+
+
+# -- 1.6: the page is gone ------------------------------------------------------------
+
+
+def _reading(roster, name):
+    return next(reading for reading in roster.observe() if reading.name == name)
+
+
+def test_link_gone_is_in_the_interface_and_is_a_failure_to_ask_to_anything_that_knows_no_better():
+    """One word for a plugin to change, and an Arrt that predates it reads the dead link as before."""
+    assert "LinkGone" in sources_interface.__all__
+    assert issubclass(sources_interface.LinkGone, ImageSearchFailure)
+    assert "PluginFaulted" not in sources_interface.__all__, "the host's own word, never a plugin's"
+
+
+def test_a_finder_s_link_gone_passes_the_containment_as_itself_and_counts_as_an_answer():
+    finder = StubFinder("good", raises=LinkGone("every Gallery page for Q1 answered 404"))
+    roster = SourceRoster.of(finders=[finder])
+
+    with pytest.raises(LinkGone, match="answered 404"):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    reading = _reading(roster, "good")
+    assert (reading.answered, reading.unasked, reading.faults) == (1, 0, 0)
+
+
+def test_a_finder_s_link_gone_carrying_a_key_is_scrubbed_and_keeps_its_kind():
+    finder = StubFinder("good", raises=LinkGone("https://gallery.example/q?key=SECRET answered 410"))
+    roster = SourceRoster.of(finders=[finder])
+
+    with pytest.raises(LinkGone) as raised:
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    assert "SECRET" not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("raises", "kind", "counted"),
+    [
+        (LinkGone("the page answered 410"), LinkGone, "answered"),
+        (ImageSearchFailure("the museum is down"), ImageSearchFailure, "unasked"),
+        pytest.param(KeyError("image_id"), PluginFaulted, "faults", marks=pytest.mark.plugin_fault_expected),
+    ],
+    ids=["link-gone", "unasked", "fault"],
+)
+def test_a_reader_s_answer_reaches_acquisition_as_its_own_kind(raises, kind, counted):
+    roster = SourceRoster.of(readers={"good": (claims_example, StubReader(raises=raises))})
+    reader = roster.route("https://example.org/works/1").reader
+
+    with pytest.raises(ImageSearchFailure) as raised:
+        reader.read("https://example.org/works/1")
+
+    assert type(raised.value) is kind, "acquisition tells these three apart by kind alone"
+    reading = _reading(roster, "good")
+    assert {name: getattr(reading, name) for name in ("answered", "unasked", "faults")} == {
+        name: int(name == counted) for name in ("answered", "unasked", "faults")
+    }
+
+
+@pytest.mark.plugin_fault_expected
+def test_a_finder_s_fault_is_a_plugin_fault_which_the_pool_reads_as_could_not_be_asked():
+    roster = SourceRoster.of(finders=[StubFinder("good", raises=KeyError("title")), StubFinder("other")])
+
+    with pytest.raises(PluginFaulted):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Nighthawks"))
+
+    assert (answer.unreachable, answer.gone) == (("good",), ())
+
+
+# -- the guide's tables, held to the code ---------------------------------------------
+
+#: The plugin author's guide. Outside `arrt/`: the image's test stage must carry it
+#: (`arrt/Dockerfile`), three levels above this file as every root file it carries is.
+GUIDE = pathlib.Path(__file__).resolve().parents[3] / "docs" / "source-plugins.md"
+
+
+def _table_after(text: str, header: str) -> list[list[str]]:
+    """The rows of the Markdown table whose header line is `header`, each cell stripped."""
+    lines = text.splitlines()
+    start = lines.index(header)
+    rows = []
+    for line in lines[start + 2 :]:
+        if not line.startswith("|"):
+            break
+        rows.append([cell.strip() for cell in line.strip("|").split("|")])
+    return rows
+
+
+def test_the_guide_states_the_interface_version_this_arrt_provides():
+    text = GUIDE.read_text(encoding="utf-8")
+
+    stated = re.findall(r"`API_VERSION` is `\((\d+), (\d+)\)`", text)
+
+    assert stated == [tuple(str(part) for part in API_VERSION)], "the guide's version is the code's, said once"
+
+
+def test_the_guide_s_outcomes_table_is_the_queue_s_rules_and_the_coarse_status_beside_each():
+    from arrt.library.acquisition.queue import RETRY_RULES
+    from arrt.persistence.records import FetchOutcome
+
+    rows = _table_after(GUIDE.read_text(encoding="utf-8"), "| Outcome | From | Coarse status | Asked again |")
+
+    tabled = {outcome.strip("`"): (status.strip("`"), rule.strip("`")) for outcome, _from, status, rule in rows}
+    assert tabled == {str(outcome): (str(outcome.fetch_status), str(RETRY_RULES[outcome])) for outcome in FetchOutcome}

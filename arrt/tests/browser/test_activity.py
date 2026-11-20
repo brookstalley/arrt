@@ -171,24 +171,24 @@ def _serve_failures(ui, causes: list[dict]) -> None:
 
 
 def test_a_retry_over_a_handful_of_works_asks_first_naming_the_count(ui):
-    """`Retry 2000` is two thousand museum requests: it names them and sends nothing until agreed."""
+    """`Retry 2,000` is two thousand museum requests: it names them and sends nothing until agreed."""
     _serve_failures(ui, [_cause("the museum answered 404.", 2000)])
     ui.open("#queue")
-    retry = ui.page.locator(".failure-cause button:text-is('Retry 2000')")
+    retry = ui.page.locator(".failure-cause button:text-is('Retry 2,000')")
     expect(retry).to_be_visible()
 
     retry.click()
 
     dialog = ui.page.locator("dialog.confirm[open]")
-    expect(dialog.locator("h2")).to_have_text("Retry 2000 works?")
+    expect(dialog.locator("h2")).to_have_text("Retry 2,000 works?")
     assert ui.requests_matching("/causes/retry") == [], "the retry was sent before it was agreed to"
     dialog.locator("button:text-is('Cancel')").click()
     expect(dialog).to_have_count(0)
     assert ui.requests_matching("/causes/retry") == [], "declining sent the retry"
 
     retry.click()
-    ui.page.locator("dialog.confirm[open] button:text-is('Retry 2000')").click()
-    expect(ui.page.locator(".retry-all-said")).to_have_text("2000 works put back in line.")
+    ui.page.locator("dialog.confirm[open] button:text-is('Retry 2,000')").click()
+    expect(ui.page.locator(".retry-all-said")).to_have_text("2,000 works put back in line.")
     assert len(ui.requests_matching("/causes/retry")) == 1
 
 
@@ -211,7 +211,7 @@ def test_the_page_holds_one_filled_act_and_it_is_the_one_cause_s_retry(ui):
 
     filled = ui.page.locator("#view .action:not(.quiet)")
     expect(filled).to_have_count(1)
-    expect(filled).to_have_text("Retry 2000")
+    expect(filled).to_have_text("Retry 2,000")
     # The way on is quiet beside it: two filled acts and neither is.
     expect(ui.page.locator("#view a.action:has-text('Go to Ask')")).to_have_class("action quiet")
 
@@ -230,6 +230,6 @@ def test_the_failures_have_no_heading_that_says_the_count_a_third_time(ui):
     ui.open("#queue")
     ui.page.wait_for_selector(".failure-cause")
 
-    expect(ui.page.get_by_role("heading", name="Fetching images (2000)")).to_have_count(1)
-    expect(ui.page.locator(".acquisition-summary")).to_have_text("2000 works failed")
+    expect(ui.page.get_by_role("heading", name="Fetching images (2,000)")).to_have_count(1)
+    expect(ui.page.locator(".acquisition-summary")).to_have_text("2,000 works failed")
     expect(ui.page.locator("#view h3")).to_have_count(0)

@@ -14,7 +14,7 @@ from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from arrt.library.sources import SourceContext
+from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
 
 
@@ -43,7 +43,7 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
     listing = (await request("GET", f"{server_url}/api/sources")).json()
     by_name = {source["name"]: source for source in listing["sources"]}
 
-    assert listing["interface_version"] == "1.5"
+    assert listing["interface_version"] == "{}.{}".format(*API_VERSION)
     # 1.4: every plugin carries the name a curator knows it by.
     assert by_name["met"]["museum"] == "Metropolitan Museum of Art"
     assert all(source["museum"] for source in listing["sources"])
@@ -57,6 +57,17 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
         "last_fault_at": None,
         "last_fault_age_seconds": None,
         "last_fault": None,
+        "unasked": 0,
+        "last_unasked_at": None,
+        "last_unasked_age_seconds": None,
+        "last_unasked": None,
+        "answered": 0,
+        # Never searched: the search record holds nothing of it.
+        "searched": 0,
+        "searches_answered": 0,
+        "searches_unasked": 0,
+        "searches_owed": 0,
+        "last_search_answered_at": None,
         "description": None,
         "distribution": "arrt",
         "version": importlib.metadata.version("arrt"),
@@ -76,5 +87,7 @@ async def test_the_tool_answers_what_the_route_answers(server_url):
 
     assert model["success"] is True
     assert model["interface_version"] == browser["interface_version"]
+    # Every field alike, the counts since startup and the search record's
+    # included: the tool carries them.
     assert model["sources"] == browser["sources"]
     assert model["count"] == len(browser["sources"])

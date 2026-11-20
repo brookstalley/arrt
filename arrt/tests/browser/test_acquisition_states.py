@@ -19,7 +19,7 @@ from payloads import a_candidate, a_candidate_page, a_card
 
 from arrt.library.acquisition.queue import QueuePause
 from arrt.library.acquisition.service import remedy_for
-from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
 
 expect = pytest.importorskip(
     "playwright.sync_api",
@@ -241,7 +241,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     head = ui.page.locator(".failure-cause")
     expect(head).to_have_count(1)
     expect(head).to_contain_text("The work has no source to acquire from.", use_inner_text=True)
-    expect(head).to_contain_text("2000 works", use_inner_text=True)
+    expect(head).to_contain_text("2,000 works", use_inner_text=True)
     # At most 25 rows: there is no 26th.
     expect(
         ui.page.locator(".acquisitions tbody tr").nth(25), "a failure was drawn as a row before its group opened"
@@ -254,7 +254,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
 
     rows = ui.page.locator(".failure-cause-works tbody tr")
     expect(rows).to_have_count(25)
-    expect(ui.page.locator(".acquisitions")).to_contain_text("1–25 of 2000", use_inner_text=True)
+    expect(ui.page.locator(".acquisitions")).to_contain_text("1–25 of 2,000", use_inner_text=True)
     # No pattern of two thousand ids is written for `not_to_contain_text`: the
     # panel's words are read once, after the expects above have drawn it whole.
     shown = ui.page.inner_text(
@@ -262,7 +262,7 @@ def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, s
     )  # one-shot: membership of 2,000 ids in the settled panel, which has no retrying form
     assert not any(work.id in shown for work in works), "a work was named by its id"
     ui.page.click(".failure-cause-works a:has-text('Next')")
-    ui.page.wait_for_selector(".failure-cause-works :text('26–50 of 2000')")
+    ui.page.wait_for_selector(".failure-cause-works :text('26–50 of 2,000')")
     expect(rows).to_have_count(25)
 
     # On a phone the group and its opened works fit across: no sideways scroll.
@@ -478,3 +478,77 @@ def test_the_fetches_section_says_what_it_holds_before_its_parts(ui):
         ".map((n) => n.tagName === 'P' ? 'summary' : n.tagName)"
     )
     assert order[:3] == ["H2", "summary", "H3"]
+
+
+# -- what the fetch said ----------------------------------------------------------------
+
+
+def _said(store, work, outcome, detail, *, failures=1, plugin="artic"):
+    """A failure as the queue records one whose fetch said `outcome`: no next try unless the schedule sets one."""
+    store.set_queued_acquisition(
+        QueuedAcquisition(
+            artwork_id=work.id,
+            failures=failures,
+            detail=detail,
+            outcome=outcome,
+            plugin=plugin,
+            failed_at=datetime.now(UTC),
+        )
+    )
+
+
+def test_works_that_could_not_be_asked_at_one_museum_are_one_group_labelled_by_it(ui, accepted, store):
+    """#318: two wordings of one cause were two groups. The group says what the fetches said, and where."""
+    for title, said in (("First", "Art Institute answered 503"), ("Second", "Art Institute took 240 s")):
+        _said(store, accepted(title), FetchOutcome.UNASKED, f"the plugin could not read this source: {said}")
+
+    ui.open("#queue")
+    ui.page.wait_for_selector(".failure-cause")
+
+    group = ui.page.locator(".failure-cause:has-text('Art Institute of Chicago')")
+    expect(group).to_have_count(1)
+    expect(group.locator(".failure-cause-count")).to_have_text(
+        "Could not be asked · Art Institute of Chicago · 2 works", use_inner_text=True
+    )
+    expect(group.locator("button")).to_have_text(["Retry 2"])
+
+    group.locator("a:has-text('Show the works')").click()
+    row = ui.page.locator(".failure-cause-works tbody tr:has-text('First')")
+    expect(row, "a work waiting for the next pass has no moment and no count of four").to_contain_text(
+        "Try 1 failed. It is asked again on the queue's next pass.", use_inner_text=True
+    )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "said"),
+    [
+        (
+            FetchOutcome.FAULTED,
+            "Try 1 failed: the plugin faulted. It is asked again once Arrt next starts and loads its plugins.",
+        ),
+        (FetchOutcome.UNASKED, "Try 1 failed: the plugin faulted. It is asked again on the queue's next pass."),
+    ],
+)
+def test_a_work_waiting_for_a_pass_or_a_start_says_which_on_its_page(ui, accepted, store, outcome, said):
+    work = accepted()
+    _said(store, work, outcome, "the plugin faulted")
+
+    open_work(ui, work)
+
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text(said, use_inner_text=True)
+    expect(line, "no next try was set, so none is promised").not_to_contain_text("tries again at", use_inner_text=True)
+
+
+def test_a_settled_work_says_what_brings_it_back(ui, accepted, store):
+    work = accepted()
+    _said(store, work, FetchOutcome.LINK_GONE, "the page answered 410")
+
+    open_work(ui, work)
+
+    line = ui.page.locator(".acquisition-line")
+    expect(line).to_contain_text(
+        "Settled after 1 try: the page answered 410. Nothing tries again until you retry, or until its Wikidata item changes.",
+        use_inner_text=True,
+    )
+    expect(ui.page.locator(".acquisition-line button:has-text('Retry')")).to_have_count(1)

@@ -41,6 +41,7 @@ from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_C
 from arrt.ask.cards import cards_for
 from arrt.ask.prompt import ASK_SCOPE, ask_system
 from arrt.library.discovery.openrouter import budget_spent, names_the_key_limit
+from arrt.library.services.discovery import SpendTotal
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.server import tool_definitions
@@ -64,6 +65,11 @@ BUDGET_SPENT_CODE: Final[str] = "BUDGET_SPENT"
 #: spent (`openrouter-api-findings.md` § Exhaustion is 403).
 _KEY_SPENT_STATUS: Final[int] = 403
 
+#: The statuses with which a provider has not said a call cost nothing: a
+#: gateway or the provider gave up on it, and the model may have run.
+_UNSETTLED_FROM: Final[int] = 500
+_REQUEST_TIMEOUT: Final[int] = 408
+
 #: How many of a thread's turns the model is sent and the thread keeps. Every
 #: reply resends what the thread holds, tool results included, so an unbounded
 #: thread would cost more each reply and in time pass the model's context. Ten
@@ -84,8 +90,10 @@ Dispatch = Callable[[str, Mapping[str, Any]], dict[str, Any]]
 class ReplyCost:
     """What one reply was billed, summed over its model calls, as the provider reported it.
 
-    A call that reported no cost adds nothing here; the reply's log line counts
-    those as `uncosted`, so a short figure is visible rather than silent.
+    A call that reported no cost adds nothing to `cost_usd` and is one of
+    `unknown_calls`: the provider answered it and never said what it cost, so it
+    may have been billed, and the ledger records it as unknown, never as a
+    known $0.
     """
 
     cost_usd: Decimal
@@ -94,6 +102,14 @@ class ReplyCost:
     model_id: str | None
     input_tokens: int | None
     output_tokens: int | None
+    #: The model calls whose cost is not known: those answered with no cost on
+    #: them (`_Tally.uncosted`), and those sent and never answered (the reply
+    #: was cancelled or failed while they ran, with no refusal from the provider
+    #: to say they cost nothing). Each may have been billed; none is in `cost_usd`.
+    unknown_calls: int = 0
+    #: The model those calls named, the one answering or the one asked for,
+    #: when they all named the same one.
+    unknown_model_id: str | None = None
 
 
 #: Where a reply's cost is written: the spend ledger, so the month's total
@@ -216,6 +232,9 @@ class Ask:
         tally = _Tally()
         sent = [*_recent(thread.messages, TURNS_REMEMBERED - 1), HumanMessage(words)]
         ended = "answered"
+        # What ended the reply other than an answer, read for whether a call
+        # still running then was answered (`_answered`).
+        stopped_by: BaseException | None = None
         try:
             await stream.start()
             # On a worker thread, as every tool call is: the service layer is synchronous.
@@ -239,18 +258,24 @@ class Ask:
                 metadata={
                     "cost_usd": tally.cost_usd,
                     "uncosted": tally.uncosted,
+                    # The figure in words, the one writer's (`SpendTotal.words`):
+                    # "at least" when a call reported no cost.
+                    "summary": tally.spend.words,
                     "steps": tally.steps,
                     "cards": cards_for(answer, tally.payloads),
                 }
             )
-        except ModelCallLimitExceededError:
+        except ModelCallLimitExceededError as exc:
+            stopped_by = exc
             ended = "step_limit"
             await stream.error(code=STEP_LIMIT_CODE, message=_stopped_sentence(self._step_limit, tally))
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
+            stopped_by = exc
             ended = "cancelled"
             await stream.error(code=CANCELLED_ERROR_CODE, message="The reply was stopped.")
             raise
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- reply boundary: a fault ends the stream with an error
+            stopped_by = exc
             if _refused_at_the_cap(exc):
                 ended = "budget_spent"
                 await stream.error(code=BUDGET_SPENT_CODE, message=budget_spent(str(getattr(exc, "message", exc))))
@@ -264,6 +289,7 @@ class Ask:
             # may refuse; so it says what happened instead.
             said = stream.accumulated_content or f"(I stopped without answering: {ended}.)"
             thread.messages = _recent(tally.messages or [*sent, AIMessage(said)], TURNS_REMEMBERED)
+            tally.settle_open_calls(stopped_by)
             try:
                 # However the reply ended, what its calls were billed was spent: a
                 # reply stopped at the step limit, refused, or abandoned by its
@@ -275,7 +301,8 @@ class Ask:
 
     def _log_reply(self, thread: Thread, ended: str, tally: _Tally, started: float) -> None:
         log.info(
-            "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
+            "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d "
+            "unanswered=%d seconds=%.1f",
             thread.id,
             ended,
             tally.steps,
@@ -283,15 +310,18 @@ class Ask:
             tally.taste_writes,
             tally.cost_usd,
             tally.uncosted,
+            tally.unanswered,
             time.monotonic() - started,
         )
 
     def _record(self, tally: _Tally, thread: Thread) -> None:
-        """Write the reply's cost to the spend ledger, if it was billed anything.
+        """Write the reply's cost to the spend ledger, if it was billed anything or may have been.
 
-        Called synchronously, from the reply's last step: it is one row, and a
+        Called synchronously, from the reply's last step: it is a row or two, and a
         reply being cancelled must not cancel the record of what it spent, which
-        awaiting a worker thread from a cancelled task could.
+        awaiting a worker thread from a cancelled task could. A call the reply
+        left running when it stopped is recorded too, as one whose cost is
+        unknown (`ReplyCost.unknown_calls`).
 
         Any failure is logged and the reply still ends. The store refuses in more
         than one vocabulary (a `ServiceError` for what it understands, the
@@ -299,7 +329,7 @@ class Ask:
         either escaping here would leave the client's stream without its last
         line and the thread claimed.
         """
-        if tally.cost <= 0:
+        if tally.cost <= 0 and not tally.spend.unknown_calls:
             return
         try:
             self._record_cost(tally.reply_cost())
@@ -318,6 +348,20 @@ def _refused_at_the_cap(exc: Exception) -> bool:
     network is its.
     """
     return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS and names_the_key_limit(str(getattr(exc, "message", "")))
+
+
+def _answered(stopped_by: BaseException | None) -> bool:
+    """Whether what stopped a reply was the provider answering the call it stopped in.
+
+    An error carrying a status below 500, other than 408, is the provider's
+    refusal (a 403 at the key's limit, a 400, a 429): answered, and a refused
+    call costs nothing. No status (a timeout, a dropped connection, a
+    cancellation), a 5xx or a 408 is a call that may have run and been billed
+    with nobody told: unanswered. Read off the error, not its type, for the
+    reason `_refused_at_the_cap` is.
+    """
+    status = getattr(stopped_by, "status_code", None)
+    return isinstance(status, int) and status < _UNSETTLED_FROM and status != _REQUEST_TIMEOUT
 
 
 def _release(thread: Thread, claim: object) -> None:
@@ -360,7 +404,14 @@ class _Tally:
     #: What the calls that reported a cost were billed, summed exactly: the
     #: ledger holds money as Decimal, and the stream shows its float.
     cost: Decimal = Decimal(0)
+    #: Calls the provider answered without saying what they cost, and the
+    #: models that answered them: each may have been billed, unknown how much.
     uncosted: int = 0
+    uncosted_models: set[str] = field(default_factory=set)
+    #: Calls left running when the reply stopped and not answered by the
+    #: provider (`settle_open_calls`): each may have been billed, unknown how much.
+    unanswered: int = 0
+    unanswered_models: set[str] = field(default_factory=set)
     #: Every model the provider said answered one of this reply's calls.
     models: set[str] = field(default_factory=set)
     input_tokens: int | None = None
@@ -368,6 +419,9 @@ class _Tally:
     payloads: list[object] = field(default_factory=list)
     messages: list[AnyMessage] = field(default_factory=list)
     _started: dict[str, float] = field(default_factory=dict)
+    #: Each model call started and not yet ended, by run id, with the model it
+    #: asked for when the binding said.
+    _calling: dict[str, str | None] = field(default_factory=dict)
 
     async def take(self, event: Mapping[str, Any], stream: StreamingResponse) -> None:
         kind = event["event"]
@@ -376,7 +430,11 @@ class _Tally:
             token = _text_of(data["chunk"].content)
             if token:
                 await stream.emit_token(token)
+        elif kind == "on_chat_model_start":
+            asked = (event.get("metadata") or {}).get("ls_model_name")
+            self._calling[event["run_id"]] = asked if isinstance(asked, str) and asked else None
         elif kind == "on_chat_model_end":
+            self._calling.pop(event["run_id"], None)
             self._count_call(data.get("output"))
         elif kind == "on_tool_start":
             self.tool_calls += 1
@@ -402,26 +460,60 @@ class _Tally:
         self.steps += 1
         metadata = getattr(output, "response_metadata", None) or {}
         cost = metadata.get("cost")
+        name = metadata.get("model_name")
+        named = name if isinstance(name, str) and name else None
         if isinstance(cost, int | float):
             # Through its text, so 0.0012 is recorded as 0.0012 and not as the double nearest it.
             self.cost += Decimal(str(cost))
         else:
             self.uncosted += 1
-        if isinstance(name := metadata.get("model_name"), str) and name:
-            self.models.add(name)
+            if named is not None:
+                self.uncosted_models.add(named)
+        if named is not None:
+            self.models.add(named)
         usage = getattr(output, "usage_metadata", None) or {}
         self.input_tokens = _added(self.input_tokens, usage.get("input_tokens"))
         self.output_tokens = _added(self.output_tokens, usage.get("output_tokens"))
+
+    def settle_open_calls(self, stopped_by: BaseException | None) -> None:
+        """Count the calls still running when the reply stopped as unanswered, unless the provider answered.
+
+        Once, at the reply's end. A reply that answered has no call running; one
+        stopped by the provider's refusal had its last call answered, at no cost.
+        """
+        if self._calling and not _answered(stopped_by):
+            self.unanswered += len(self._calling)
+            self.unanswered_models.update(model for model in self._calling.values() if model)
+        self._calling.clear()
 
     @property
     def cost_usd(self) -> float:
         return float(self.cost)
 
+    @property
+    def spend(self) -> SpendTotal:
+        """What the reply was billed and how sure that is: every call whose cost is not known counted apart.
+
+        The one writer's figure (`SpendTotal.words`) for every sentence about the
+        reply's cost, the stream's `summary` and the step limit's alike, and the
+        count the ledger's unknown rows are written from (`reply_cost`).
+        """
+        return SpendTotal(cost_usd=self.cost, unknown_calls=self.uncosted + self.unanswered)
+
     def reply_cost(self) -> ReplyCost:
         # One model when every call named the same one. A row naming the last of
         # several would attribute the whole reply's cost to it.
         model_id = next(iter(self.models)) if len(self.models) == 1 else None
-        return ReplyCost(cost_usd=self.cost, model_id=model_id, input_tokens=self.input_tokens, output_tokens=self.output_tokens)
+        unknown_models = self.unanswered_models | self.uncosted_models
+        asked = next(iter(unknown_models)) if len(unknown_models) == 1 else None
+        return ReplyCost(
+            cost_usd=self.cost,
+            model_id=model_id,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            unknown_calls=self.spend.unknown_calls,
+            unknown_model_id=asked,
+        )
 
 
 def _added(total: int | None, count: object) -> int | None:
@@ -515,7 +607,8 @@ def said(tool: str, arguments: object) -> str:
 
 
 def _stopped_sentence(limit: int, tally: _Tally) -> str:
-    spent = f" It cost ${tally.cost_usd:.4f}." if tally.steps else ""
+    # The one writer's figure (`SpendTotal.words`): "at least" when a step said no cost.
+    spent = f" It cost {tally.spend.words}." if tally.steps else ""
     return f"Ask stopped after {limit} steps without finishing an answer. Try asking for less at once.{spent}"
 
 

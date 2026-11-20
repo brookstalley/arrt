@@ -57,13 +57,18 @@ def clients(services):
 
 
 @pytest.fixture
-def pi(clients):
-    return clients.add_client(name="The Pi in the hall")
+def pi(services, clients):
+    pi = clients.add_client(name="The Pi in the hall")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(pi.id)
+    return pi
 
 
 @pytest.fixture
-def mac(clients):
-    return clients.add_client(name="The Mac in the study")
+def mac(services, clients):
+    mac = clients.add_client(name="The Mac in the study")
+    services.access.issue(mac.id)
+    return mac
 
 
 def displays_of(store, client_id):

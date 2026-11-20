@@ -33,7 +33,7 @@ from typing import Final, cast
 from arrt.library.dimensions import Units
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import InitiatedBy, StoredSetting
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_member
 from arrt.services.store import store_write
 
@@ -383,7 +383,7 @@ class SettingsService:
     def _known(self, key: str) -> Setting[object]:
         setting = SETTINGS_BY_KEY.get(key)
         if setting is None:
-            raise ServiceError(f"There is no setting {key!r}. The settings are {', '.join(SETTINGS_BY_KEY)}.")
+            raise NotFound(f"There is no setting {key!r}. The settings are {', '.join(SETTINGS_BY_KEY)}.")
         return setting
 
     def _state(self, setting: Setting[object]) -> SettingState:

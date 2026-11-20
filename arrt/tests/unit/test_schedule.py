@@ -364,11 +364,13 @@ def test_a_wall_never_clashes_with_its_own_published_slots():
 HOUR = 3600
 
 
-def _household_pass(walls, *, target, now, published, start=None):
+def _household_pass(walls, *, target, now, published, start=None, refused=()):
     """Rebuild `target` and every other wall in `walls` as one pass, through the pass the service runs.
 
     `run_household_pass` makes the builds; this says only how one wall is built,
-    in the theme's order from its id as seed. Returns every wall's schedule.
+    in the theme's order from its id as seed. A wall in `refused` cannot be
+    rebuilt, as when its theme cannot be read, and keeps its published slots.
+    Returns every wall's schedule that was rebuilt.
     """
     neighbours = sorted(wall for wall in walls if wall != target)
     works = {wall_id: work_ids for wall_id, (work_ids, _) in walls.items()}
@@ -398,7 +400,7 @@ def _household_pass(walls, *, target, now, published, start=None):
         works=works,
         published=published,
         build_republished=lambda view, start, also: _build(target, view, start=start, also=also),
-        build_neighbour=lambda wall_id, view: _build(wall_id, view, start=Keep()),
+        build_neighbour=lambda wall_id, view: None if wall_id in refused else _build(wall_id, view, start=Keep()),
     )
 
 
@@ -711,6 +713,47 @@ def test_two_slower_neighbours_sharing_works_line_up_with_each_other(offsets):
     built = _household_pass(walls, target="hall", now=NOW, published=first)
 
     assert _apart_after_now(built, AT) == []
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    hall=st.permutations(["x", "y"]),
+    study=st.permutations(["x", "y"]),
+    base=st.sampled_from([900, 1800, HOUR]),
+    times=st.sampled_from([2, 3, 4]),
+    study_offset=st.integers(min_value=0, max_value=4 * HOUR),
+    start=st.sampled_from([Keep(), StartFresh(), StartFresh("x"), StartFresh("y")]),
+)
+def test_a_slower_neighbour_that_cannot_be_rebuilt_is_stepped_aside_from_by_the_wall_republished(
+    hall, study, base, times, study_offset, start
+):
+    """The study, slower, is built first and refused; it keeps its published slots, and the hall steps aside from them.
+
+    The two were published at different moments, as two walls hung by hand
+    always are, so the study's slots start `study_offset` seconds off the
+    hall's. Built against them with its own slots out of step, every hall slot
+    spanning one of the study's boundaries meets both works the two share, and
+    there is no stepping aside: half the hall's horizon clashes. Lined up with
+    the study's published slots (`run_household_pass`), the hall's slot now
+    runs on to the study's next boundary, and each slot after falls inside one
+    of the study's. The hall's slot now is left out, as its picture is the
+    act's to choose. Slower only: a neighbour at the hall's own pace is built
+    after it, against its whole schedule, so its refusal leaves the hall built
+    as if it would step aside (#436's kind of limit, not this one).
+    """
+    walls = {"hall": (hall, base), "study": (study, base * times)}
+    published = _fresh(walls, {"hall": HOUR // 7, "study": study_offset})
+
+    built = _household_pass(walls, target="hall", now=NOW, published=published, start=start, refused={"study"})
+
+    assert set(built) == {"hall"}
+    _contract_rules_hold(built["hall"])
+    assert [
+        slot
+        for slot in built["hall"].slots
+        if not slot.covers(AT)
+        and any(s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) for s in published["study"])
+    ] == []
 
 
 @settings(max_examples=100, deadline=None)

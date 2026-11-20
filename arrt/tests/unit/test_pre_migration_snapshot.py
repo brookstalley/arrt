@@ -182,12 +182,65 @@ def _disk_full_at_sync(monkeypatch):
     monkeypatch.setattr(atomic, "sync_file", refuse)
 
 
+def _generation(path):
+    """The shape generation the file's record of its last open holds; None for a file with no record."""
+    if not _query(path, "SELECT 1 FROM sqlite_master WHERE name = 'catalogue_opened'"):
+        return None
+    ((generation,),) = _query(path, "SELECT schema_generation FROM catalogue_opened WHERE id = 1")
+    return generation
+
+
+def _what_goes(path, retired):
+    """What the open that copies first takes or moves: the retired columns still present, and the recorded generation."""
+    columns = {f"{table}.{column}" for table, column in retired if column in _columns(path, table)}
+    return columns, _generation(path)
+
+
+def _opened_by_this_code(path, clock):
+    _open(path, clock)
+    return path
+
+
+#: What an open that must copy first does, and how its refusal says it: a column
+#: dropped, the shape generation raised (a later release, which is this code with
+#: its generation one higher), or both. The file, the columns it loses, whether
+#: the generation rises, and the clause the sentence must carry. A rise is said
+#: as one, "raises ... from N to M", never "drops catalogue shape generation
+#: N", which reads as the generation falling.
+_RISE = f"raises the catalogue shape generation from {file.SCHEMA_GENERATION} to {file.SCHEMA_GENERATION + 1}"
+REPLACED = {
+    "a dropped column": (
+        lambda path, clock: _single_wall_file(path, "Late night"),
+        (("themes", "is_active"),),
+        False,
+        "needs a migration that drops themes.is_active, table directive, and the copy taken first",
+    ),
+    "a generation rise": (
+        _opened_by_this_code,
+        (),
+        True,
+        f"needs a migration that {_RISE}, and the copy taken first",
+    ),
+    "both": (
+        lambda path, clock: _with_retired_columns(path, clock, "walls", ("token_verifier", "token_issued_at"), "v-9f2"),
+        (("walls", "token_verifier"), ("walls", "token_issued_at")),
+        True,
+        f"needs a migration that drops walls.token_verifier, walls.token_issued_at and {_RISE}, and the copy taken first",
+    ),
+}
+
+
 @pytest.mark.skipif(os.geteuid() == 0, reason="a read-only directory does not refuse root")
 @pytest.mark.parametrize("fault", ["read-only directory", "disk full"])
-def test_a_copy_that_cannot_be_written_stops_the_open_and_changes_nothing(tmp_path, monkeypatch, fault):
-    """No column is dropped without its copy, and the message says what to do."""
-    path = _single_wall_file(tmp_path / "catalogue.sqlite", "Late night")
+@pytest.mark.parametrize("replaced", REPLACED, ids=list(REPLACED))
+def test_a_copy_that_cannot_be_written_stops_the_open_and_changes_nothing(tmp_path, monkeypatch, fault, replaced):
+    """Nothing is dropped or moved to a higher generation without its copy, and the message says which and what to do."""
+    make, retired, rises, said = REPLACED[replaced]
+    path = make(tmp_path / "catalogue.sqlite", Clock(START - timedelta(days=1)))
+    if rises:
+        monkeypatch.setattr(file, "SCHEMA_GENERATION", file.SCHEMA_GENERATION + 1)
     before = hashlib.sha256(path.read_bytes()).hexdigest()
+    held = _what_goes(path, retired)
     real_sync = atomic.sync_file
     if fault == "read-only directory":
         snapshots = _read_only(tmp_path / "backups")
@@ -204,18 +257,19 @@ def test_a_copy_that_cannot_be_written_stops_the_open_and_changes_nothing(tmp_pa
             snapshots.chmod(stat.S_IRWXU)
 
     message = str(refused.value)
-    assert "drops themes.is_active" in message
+    assert said in message
+    assert "drops catalogue shape generation" not in message
     assert "Nothing in the catalogue has been changed" in message
     assert "Free space there or make it writable" in message
     assert hashlib.sha256(path.read_bytes()).hexdigest() == before
-    assert "is_active" in _columns(path, "themes")
+    assert _what_goes(path, retired) == held
     assert left == [], "a half copy was left where a restorer would find it"
 
     # And once the directory takes it, the next start copies and migrates.
     monkeypatch.setattr(atomic, "sync_file", real_sync)
     _open(path, Clock(START + timedelta(hours=1)), snapshot_directory=snapshots)
     assert len(_snapshots(snapshots)) == 1
-    assert "is_active" not in _columns(path, "themes")
+    assert _what_goes(path, retired) == (set(), file.SCHEMA_GENERATION)
 
 
 def _marked(path, mark):

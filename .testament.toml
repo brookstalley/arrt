@@ -44,6 +44,21 @@ command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/p
 default_selection = ["arrt/tests/unit", "arrt/tests/integration", "arrt/tests/contract", "arrt/tests/system", "arrt/tests/eval", "arrt/tests/test_scaffold.py"]
 default_for_paths = true
 
+# The curation suite's areas, one per test directory (`testament guide project`, "Areas
+# within a suite"). They change nothing about how the suite runs: no cache key, batch or
+# duration moves. What they add: `testament run --suite curation --area unit` (or
+# `--not-area system`) selects by them, a run's report breaks the suite down by them, and
+# `testament time --by area` and `trend --by area` divide its history. First match wins, so
+# `other` takes whatever a later directory adds until it is given an area of its own.
+[suites.curation.areas]
+unit = ["arrt/tests/unit/**"]
+integration = ["arrt/tests/integration/**"]
+contract = ["arrt/tests/contract/**"]
+system = ["arrt/tests/system/**"]
+eval = ["arrt/tests/eval/**"]
+scaffold = ["arrt/tests/test_scaffold.py"]
+other = ["arrt/tests/**"]
+
 # The browser suite: the shipped client in Chromium, on the runners that carry it.
 [suites.browser]
 adapter = "pytest"
@@ -51,8 +66,59 @@ command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/p
 default_selection = ["arrt/tests/browser"]
 requires = ["chrome"]
 
+# The real-Player test: a real Arrt Player, installed from GitHub at the commit
+# `arrt/tests/system/player-ref.txt` names, against the server as a process
+# (`docs/testing.md` § The real-Player test). A suite of its own so that `tests.yml`,
+# which runs every suite this file declares, runs it on every pull request inside
+# the required check. It is the
+# curation suite's command with `-m player_e2e`: the curation plane's addopts
+# deselect it from every other run, and this `-m` replaces theirs.
+#
+# No `requires`: every runner may take it. It runs in this project's container, which
+# carries `git` and `uv` (`.devcontainer/Dockerfile`), and needs from the host only the
+# network to GitHub and to uv's Python downloads (the Player's 3.13). It passed on five
+# of the pool's six runners, x86_64 and arm64, on 2026-11-19 and -20; the sixth was
+# draining. No fact testament detects stands for "reaches GitHub": if a runner without
+# the network joins, its operator labels the ones that have it, and the label goes here.
+#
+# It is the pool's alone: CI's fallback never runs it on GitHub's runner and says so by
+# name (`POOL_ONLY` in `.github/scripts/pool_or_fallback.py`; the owner's ruling of
+# 2026-11-20). Cost: about 65-80 s warm and 210 s cold (the first run after
+# `player-ref.txt` moves) beside the other suites, and a pin that will not install, or
+# a fetch from GitHub that fails, turns the required check red rather than falling back.
+[suites.player]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/pyproject.toml", "--rootdir=.", "-n", "0", "-q", "-m", "player_e2e"]
+default_selection = ["arrt/tests/system/test_a_real_player.py"]
+
 # The contract package Arrt Player pins.
 [suites.contract]
 adapter = "pytest"
 command = ["uv", "run", "--frozen", "--project", "contract", "pytest", "-c", "contract/pyproject.toml", "--rootdir=.", "-q"]
 default_selection = ["contract/tests"]
+
+# The server image's test stage: `arrt/Dockerfile`'s `test` target, built as `image.yml`
+# builds it, by `tests/the_image_test_stage.py` (`docs/testing.md` § The image's test stage
+# on the pool). A host suite, because a container suite has no Docker daemon; the pool's
+# allowlist gives this project the host executor (the owner's ruling of 2026-11-20). It
+# runs only for a run signed with the submitter's owner secret, and only on that person's
+# own runners; a machine with none gets `no_owner_secret` and a red, never a pass.
+# `docker-heavy`, the label a runner's operator declares for work that drives Docker hard;
+# `arch:x86_64` because the image is amd64-only (`image.yml`) and an arm64 host would build
+# it under emulation; one batch a runner because the build uses one builder per host.
+#
+# CI never asks for it, in either mode: its key holds no owner secret (`NOT_CI` in
+# `.github/scripts/pool_or_fallback.py`). Cost, measured 2026-11-20 on a runner with Docker:
+# 147 s cold (a builder with no cache), about 125 s when the code changed and the
+# dependency layers are cached, which is nearly every run; 2 s when nothing the stage
+# copies changed. It runs beside the other suites and was not a full run's long pole.
+[suites.image]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "pytest", "-q"]
+default_selection = ["tests/the_image_test_stage.py"]
+executor = "host"
+env = {}
+requires = ["docker", "docker-heavy", "arch:x86_64"]
+max_batches_per_runner = 1
+[suites.image.setup]
+steps = [["uv", "sync", "--frozen"]]

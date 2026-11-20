@@ -109,7 +109,7 @@ class TestHangingASelection:
         empty = http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": []})
         unknown = http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": ["no-such-work"]})
 
-        assert (empty.status_code, unknown.status_code) == (400, 400)
+        assert (empty.status_code, unknown.status_code) == (400, 404)
         assert http.get("/api/walls").json()["walls"][0]["theme"] is None
         assert events(http, "wall.hung") == []
 
@@ -129,7 +129,7 @@ class TestASelectionLivesWhileItHangs:
 
         hang(http, a_theme_holding(http, "Late night", work), the_wall)
 
-        assert http.get(f"/api/themes/{selection}").status_code == 400
+        assert http.get(f"/api/themes/{selection}").status_code == 404
         assert http.get(f"/api/works/{work.id}").status_code == 200
 
     def test_a_new_selection_over_an_old_one_deletes_the_old_one(self, http, ready_work, the_wall):
@@ -137,7 +137,7 @@ class TestASelectionLivesWhileItHangs:
 
         second = self.selection_on(http, the_wall, ready_work("Chop Suey"))
 
-        assert http.get(f"/api/themes/{first}").status_code == 400
+        assert http.get(f"/api/themes/{first}").status_code == 404
         assert http.get(f"/api/themes/{second}").status_code == 200
 
     def test_taking_a_selection_down_deletes_it(self, http, ready_work, the_wall):
@@ -145,7 +145,7 @@ class TestASelectionLivesWhileItHangs:
 
         assert http.delete(f"/api/walls/{the_wall['wall_id']}/theme").status_code == 200
 
-        assert http.get(f"/api/themes/{selection}").status_code == 400
+        assert http.get(f"/api/themes/{selection}").status_code == 404
 
     def test_a_selection_still_hanging_on_another_wall_is_kept(self, http, ready_work, the_wall):
         study = http.post("/api/walls", json={"name": "The study"}).json()
@@ -189,7 +189,7 @@ class TestASelectionLivesWhileItHangs:
         work = ready_work("Automat")
         walls, _ = await call(server_url, "art_display", action="walls")
         hung, _ = await call(
-            server_url, "art_theme", action="hang_selection", wall_id=walls["walls"][0]["wall_id"], artwork_ids=[work.id]
+            server_url, "art_display", action="hang_selection", wall_id=walls["walls"][0]["wall_id"], artwork_ids=[work.id]
         )
 
         refused, error = await call(
@@ -329,25 +329,23 @@ class TestTheToolSurface:
         walls, _ = await call(server_url, "art_display", action="walls")
         wall_id = walls["walls"][0]["wall_id"]
 
-        hung, error = await call(server_url, "art_theme", action="hang_selection", wall_id=wall_id, artwork_ids=[work.id])
+        hung, error = await call(server_url, "art_display", action="hang_selection", wall_id=wall_id, artwork_ids=[work.id])
         assert not error, hung
         assert hung["theme"]["hidden"] is True
         assert published(settings, wall_id) == {work.id}
         listed, _ = await call(server_url, "art_theme", action="list")
         assert listed["themes"] == []
 
-        kept, error = await call(
-            server_url, "art_theme", action="not_again", wall_id=wall_id, artwork_id=work.id, scope="every_wall"
-        )
+        kept, error = await call(server_url, "art_display", action="not_again", wall_id=wall_id, artwork_id=work.id)
         assert not error, kept
         assert kept["excluded_at"] is not None
         assert published(settings, wall_id) == set()
-        off, _ = await call(server_url, "art_theme", action="kept_off")
+        off, _ = await call(server_url, "art_display", action="kept_off")
         assert [row["artwork_id"] for row in off["exclusions"]] == [work.id]
 
-        allowed, error = await call(server_url, "art_theme", action="allow_again", artwork_id=work.id)
+        allowed, error = await call(server_url, "art_display", action="allow_again", artwork_id=work.id)
         assert not error, allowed
-        off, _ = await call(server_url, "art_theme", action="kept_off")
+        off, _ = await call(server_url, "art_display", action="kept_off")
         assert off["exclusions"] == []
 
         told, error = await call(server_url, "art_catalogue", action="history", wall_id=wall_id)
@@ -356,14 +354,31 @@ class TestTheToolSurface:
         everything, _ = await call(server_url, "art_catalogue", action="history", kinds=["work.allowed"])
         assert [event["artwork_id"] for event in everything["events"]] == [work.id]
 
-    async def test_from_this_theme_over_the_tool_names_the_theme_it_left(self, server_url, ready_work):
+    async def test_from_this_theme_over_the_tool_is_the_themes_remove_and_the_old_scope_names_it(
+        self, server_url, settings, ready_work
+    ):
+        """*From this theme* was `not_again(scope='theme')` before the MCP break, a second name for `art_theme`'s `remove`.
+
+        The old call is refused naming the one that does it, and that one takes the
+        work out of the hidden theme a selection hangs as, by the id the wall answers.
+        """
         work, other = ready_work("Automat"), ready_work("Chop Suey")
         walls, _ = await call(server_url, "art_display", action="walls")
         wall_id = walls["walls"][0]["wall_id"]
-        await call(server_url, "art_theme", action="hang_selection", wall_id=wall_id, artwork_ids=[work.id, other.id])
+        await call(server_url, "art_display", action="hang_selection", wall_id=wall_id, artwork_ids=[work.id, other.id])
 
-        left, error = await call(server_url, "art_theme", action="not_again", wall_id=wall_id, artwork_id=work.id, scope="theme")
+        refused, error = await call(
+            server_url, "art_display", action="not_again", wall_id=wall_id, artwork_id=work.id, scope="theme"
+        )
+        assert error, refused
+        assert "art_theme(action='remove'" in refused["error"]
+        assert published(settings, wall_id) == {work.id, other.id}
+
+        walls, _ = await call(server_url, "art_display", action="walls")
+        hanging = walls["walls"][0]["hanging"]
+        assert hanging["hidden"] is True
+        left, error = await call(server_url, "art_theme", action="remove", theme_id=hanging["theme_id"], artwork_id=work.id)
 
         assert not error, left
-        assert left["left_theme"]["hidden"] is True
-        assert left["excluded_at"] is None
+        assert left["theme_id"] == hanging["theme_id"]
+        assert published(settings, wall_id) == {other.id}

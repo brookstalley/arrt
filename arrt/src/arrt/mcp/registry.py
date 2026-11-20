@@ -107,13 +107,26 @@ class Param:
 
 @dataclass(frozen=True, slots=True)
 class Action:
-    """One operation a tool can be asked to perform."""
+    """One operation a tool can be asked to perform.
+
+    `retired` names arguments this action no longer takes, or never took under
+    that name, each with what to send instead. A caller still sending one is
+    refused with that sentence rather than with the bare "does not take": the
+    surface broke once (the owner's ruling 3 of 2026-11-19), and an
+    agent or a household's script written before it learns the new form from
+    the refusal itself. Never a shim: the call is refused, not translated.
+    """
 
     name: str
     description: str
     example: str
     params: tuple[Param, ...] = ()
     tips: tuple[str, ...] = ()
+    retired: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if clash := sorted(set(self.retired) & {param.name for param in self.params}):
+            raise RegistryError(f"Action {self.name!r} both takes and retires {clash}.")
 
     @property
     def required_params(self) -> tuple[Param, ...]:
@@ -132,6 +145,11 @@ class ToolRecord:
     have not been built. Registering the name from the start is deliberate —
     tool names are a frozen contract, so they are all claimed at once rather
     than appearing one at a time and tempting a rename along the way.
+
+    `moved` names actions this tool took once and another tool takes now, each
+    with that tool's name. A call to one is refused naming where it went, never
+    answered "unknown action" (which reads as "it does not exist") and never
+    forwarded. `tools.py` checks at import that each destination declares it.
     """
 
     name: str
@@ -142,6 +160,7 @@ class ToolRecord:
     open_world: bool
     actions: tuple[Action, ...] = ()
     unavailable_note: str | None = None
+    moved: Mapping[str, str] = field(default_factory=dict)
     _by_name: dict[str, Action] = field(default_factory=dict, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -152,6 +171,10 @@ class ToolRecord:
                 raise RegistryError(f"{self.name} declares action {action.name!r} twice.")
             seen[action.name] = action
         self._by_name.update(seen)
+        if still_here := sorted(set(self.moved) & set(seen)):
+            raise RegistryError(f"{self.name} declares {still_here} and records them as moved away.")
+        if to_itself := sorted(name for name, tool in self.moved.items() if tool == self.name):
+            raise RegistryError(f"{self.name} records {to_itself} as moved to itself.")
         # A tool marked unavailable refuses every action but `help`, so actions
         # declared alongside the note are unreachable — the half-finished state
         # of flipping a tool from unbuilt to built. Silent otherwise: the tool
@@ -168,7 +191,7 @@ class ToolRecord:
             name=HELP_ACTION,
             description="List every action this tool takes, with its parameters, an example, and tips.",
             example=f"{self.name}(action='help')",
-            tips=("help never reads the catalogue, so it works even when nothing has been curated yet.",),
+            tips=("help never reads the Library, so it works even when nothing has been curated yet.",),
         )
 
     def _check_params_agree(self) -> None:
@@ -272,6 +295,9 @@ def help_payload(tool: ToolRecord) -> dict[str, object]:
         "available": tool.available,
         "note": tool.unavailable_note,
         "actions": [_action_help(tool.action(name)) for name in tool.action_names],  # type: ignore[arg-type]
+        # Where each action this tool no longer takes went, so a caller reading
+        # help after a refusal finds it here too.
+        "moved": dict(tool.moved),
     }
 
 
@@ -367,6 +393,15 @@ def resolve_action(tool: ToolRecord, arguments: Mapping[str, object]) -> Action:
             example=help_example,
         )
 
+    moved_to = tool.moved.get(raw)
+    if moved_to is not None:
+        raise ArgumentError(
+            f"{tool.name}(action={raw!r}) has moved: call {moved_to}(action={raw!r}) instead. "
+            f"{moved_to}(action='help') shows its parameters.",
+            enumeration={**valid, "moved_to": {raw: moved_to}},
+            example=f"{moved_to}(action='help')",
+        )
+
     action = tool.action(raw)
     if action is None:
         raise ArgumentError(f"Unknown action: {raw!r}", enumeration=valid, example=help_example)
@@ -382,6 +417,14 @@ def validate(tool: ToolRecord, action: Action, arguments: Mapping[str, object]) 
     """
     declared = {param.name: param for param in action.params}
     supplied = {name: value for name, value in arguments.items() if name != "action"}
+
+    retired = sorted(name for name in supplied if name in action.retired)
+    if retired:
+        raise ArgumentError(
+            " ".join(f"{tool.name}(action={action.name!r}) no longer takes {name!r}: {action.retired[name]}" for name in retired),
+            enumeration=_parameter_enumeration(action),
+            example=action.example,
+        )
 
     unknown = sorted(set(supplied) - set(declared))
     if unknown:

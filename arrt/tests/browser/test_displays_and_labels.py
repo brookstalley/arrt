@@ -47,7 +47,11 @@ def report(services, client, document=EVERYTHING):
 
 @pytest.fixture
 def hall(services):
-    return services.clients.add_client(name="Hall Pi")
+    # With its token: a Player reports only with one, and one with none is "No
+    # token yet" whatever its report says (`player_state.py`).
+    hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
+    return hall
 
 
 @pytest.fixture
@@ -186,6 +190,7 @@ def test_a_player_with_no_panel_says_it_reported_none(ui, services, hall):
 def test_a_frame_two_players_report_is_a_fault_both_pages_name(ui, services, hall, three_walls):
     living, *_ = three_walls
     study_mac = services.clients.add_client(name="Study Mac")
+    services.access.issue(study_mac.id)
     report(services, study_mac, {"outputs": [EVERYTHING["outputs"][2]]})
 
     open_players(ui)

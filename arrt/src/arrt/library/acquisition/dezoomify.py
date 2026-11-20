@@ -28,6 +28,15 @@ destination up front — which the binary's refusal to overwrite invites — wou
 a re-fetch that then failed had already destroyed the image the work was
 displaying, while its `Original` row went on naming the deleted file.
 
+**A full disk is the disk's fault, not the work's.** Observed at 2.18.1 on a
+1 MiB volume (2026-11-20): the binary exits 1, its last line is
+`[ERROR] Input/Output error: No space left on device (os error 28)`, and it
+leaves a truncated, non-empty file, which by the file alone would read as a
+partial image. So the `[ERROR]` line's `os error` is read first: a disk fault
+(`atomic.DISK_FAULT_ERRNOS`) discards the file and raises the `OSError` the
+acquisition queue pauses on, as a direct fetch's full disk does, with words
+that say the disk is full.
+
 **The binary is never given a shell, and never an unvalidated argument.** Its input
 argument accepts a local path as readily as a URL, so callers pass URLs that have
 already been through the fetch policy. `stdin` is closed and `--image-index` is
@@ -36,6 +45,7 @@ missing and when a source offers several images — a prompt a service would eit
 block on or answer with EOF, which it reports as a silent success.
 """
 
+import errno
 import logging
 import re
 import shutil
@@ -43,7 +53,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from arrt import atomic
 
@@ -52,6 +62,17 @@ log = logging.getLogger(__name__)
 #: How the binary announces a partial result. Read to report *how* partial, never
 #: to decide whether the fetch worked — that question is answered by the file.
 _PARTIAL: Final[re.Pattern[str]] = re.compile(r"Only (\d+) tiles? out of (\d+) could be downloaded")
+
+#: The operating system's error the binary's own `[ERROR]` line ends with, as Rust
+#: words an `io::Error`: `… No space left on device (os error 28)` (observed at
+#: 2.18.1; the number is this machine's `errno`, which the binary shares).
+_OS_ERROR: Final[re.Pattern[str]] = re.compile(r"\(os error (\d+)\)")
+
+#: What a disk fault the binary met is called, in the household's words.
+_DISK_FAULT_WORDS: Final[dict[int, str]] = {
+    errno.ENOSPC: "the disk is full",
+    errno.EROFS: "the disk can no longer be written to",
+}
 
 #: Which image to take when a source offers several. Always passed: omitting it is
 #: what sends the binary to an interactive prompt inside a service.
@@ -81,6 +102,24 @@ class TileResult:
     def usable(self) -> bool:
         """Whether an image exists to record, partial or not."""
         return self.outcome in (TileOutcome.COMPLETE, TileOutcome.PARTIAL)
+
+
+class TileFetcher(Protocol):
+    """What fetches a tiled image for acquisition: `tile_fetch`, unless a caller hands in another."""
+
+    def __call__(
+        self,
+        url: str,
+        *,
+        destination: Path,
+        tile_cache: Path,
+        binary: str,
+        user_agent: str,
+        max_width: int,
+        max_height: int,
+        timeout_seconds: int,
+        referer: str | None = None,
+    ) -> TileResult: ...
 
 
 class DezoomifyUnavailable(RuntimeError):
@@ -186,6 +225,12 @@ def tile_fetch(
         )
 
     messages = completed.stderr.decode("utf-8", errors="replace")
+    disk = _disk_fault(messages) if completed.returncode != 0 else None
+    if disk is not None:
+        # Before the file is judged: what the binary left is truncated, and an
+        # image read from it would be recorded as this work's.
+        _discard(staged)
+        raise OSError(disk, f"{_DISK_FAULT_WORDS[disk]}: the tile fetch could not write the image ({_last_error(messages)})")
     fetched, expected = _tile_counts(messages)
     size = staged.stat().st_size if staged.exists() else 0
 
@@ -273,13 +318,34 @@ def _tile_counts(messages: str) -> tuple[int | None, int | None]:
     return int(match.group(1)), int(match.group(2))
 
 
-def _failure_detail(messages: str, returncode: int) -> str:
-    """The binary's own last word on why, so a recorded failure is readable."""
+def _last_error(messages: str) -> str | None:
+    """The binary's own last `[ERROR]` line, without its tag; None when it printed none."""
     lines = [line for line in messages.splitlines() if line.strip()]
     for line in reversed(lines):
         if "[ERROR]" in line:
             return line.split("[ERROR]", 1)[1].strip()
-    return f"the tile fetch failed (exit {returncode}) and wrote no image"
+    return None
+
+
+def _disk_fault(messages: str) -> int | None:
+    """The disk fault's `errno` the binary's last `[ERROR]` line names, or None for any other ending.
+
+    Only the `[ERROR]` line: a warning that one tile could not be cached on a
+    full disk is followed by a finished image when the output fits, and that
+    fetch worked.
+    """
+    said = _last_error(messages)
+    found = None if said is None else _OS_ERROR.search(said)
+    if found is None:
+        return None
+    number = int(found.group(1))
+    return number if number in atomic.DISK_FAULT_ERRNOS else None
+
+
+def _failure_detail(messages: str, returncode: int) -> str:
+    """The binary's own last word on why, so a recorded failure is readable."""
+    said = _last_error(messages)
+    return said if said is not None else f"the tile fetch failed (exit {returncode}) and wrote no image"
 
 
 def _discard(path: Path) -> None:

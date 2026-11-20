@@ -29,7 +29,8 @@ Rules for working here:
 
 ## Dev commands
 
-Three independent projects, three suites.
+Three independent projects, each with its own commands below (the table's columns);
+on the pool their tests run as six suites (next paragraph).
 
 | | governance (repo root) | curation plane | contract package |
 |---|---|---|---|
@@ -39,14 +40,21 @@ Three independent projects, three suites.
 | Format | `uv run black .` | `cd arrt && uv run black .` | `cd contract && uv run black .` |
 
 **Run the suites through testament** (`AGENTS.md` § Running tests): `testament
-run --json` runs all four on the pool, the browser suite on the runners with
-Chromium; `--suite governance|curation|browser|contract` picks one, and a path
-after `--` picks tests. `.testament.toml` says how each runs. CI runs every suite
-on the pool (`.github/workflows/tests.yml`); when the pool cannot answer for ten
+run --json` runs all six on the pool, the browser suite on the runners with
+Chromium; `--suite governance|curation|browser|player|contract|image` picks one, and a
+path after `--` picks tests. `player` is the real-Player test, a real Arrt Player
+against the server (`docs/testing.md` § The real-Player test). `image` builds the
+server image's test stage on a runner's host, which the pool does only for a run
+signed with its submitter's owner secret: a machine with none gets one red verdict
+for the run (`error.code: no_warrant`, `setup.state: no_owner_secret`), with the other
+suites' results inside it (`docs/testing.md` § The image's test stage on the pool).
+`.testament.toml` says how each runs. CI's required check, "Lint, then every suite",
+runs the other five on the pool, never `image`, whose owner secret its key does not
+hold (`.github/workflows/tests.yml`); when the pool cannot answer for ten
 minutes it runs lint and the governance, curation and contract suites on the
-GitHub runner instead, never the browser suite; its summary says so, and the
-non-required check "The browser suite ran on the pool" goes red (`docs/testing.md`
-§ The browser suite). The commands above are the local
+GitHub runner instead, never the browser or real-Player suite; its summary says
+so, and the non-required check "The browser suite ran on the pool" goes red
+(`docs/testing.md` § The browser suite). The commands above are the local
 equivalents, and testament's own fallback runs `.testament.toml`'s commands here. The live suites
 (`live_*`, `llm_eval`) are not on the pool and stay on this machine.
 
@@ -93,10 +101,14 @@ Each is an instruction. Why it holds is in `docs/testing.md`.
 - In `arrt/`, sync with the groups the run needs (`uv sync --group browser`),
   never a bare `uv sync`.
 - After touching `arrt/src/arrt/http/static/`, run the browser tests for the
-  screens you changed. The whole browser suite runs on the integrated branch, by
+  screens you changed, and the two curation guards that read the client and its
+  browser tests: `arrt/tests/unit/test_browser_reads_retry.py` and
+  `arrt/tests/unit/test_client_vocabulary.py`. The whole browser suite runs on the integrated branch, by
   the coordinator (`project-preferences.md` § Workflow, `Delegate verification`).
 - The root suite is not optional, even for a change made entirely inside `arrt/`.
 - The live markers (`live_museum`, `live_binary`, `live_api`, `llm_eval`) run by
   hand, as `uv run pytest … -n0` on this machine, never through testament.
+- `release_tags` (in `contract/`) compares each frozen release with its git tag. Run it
+  by hand after a freeze: `git fetch origin --tags && cd contract && uv run pytest -m release_tags`.
 - The mutation sweep runs per project.
 - Whether the UI is good to use: follow `docs/ux-walkthrough.md`.

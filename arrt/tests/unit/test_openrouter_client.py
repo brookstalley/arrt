@@ -10,6 +10,8 @@ with its real request-building — only the socket is replaced.
 """
 
 import json
+import socket
+import threading
 from decimal import Decimal
 
 import httpx
@@ -19,6 +21,7 @@ from arrt.library.discovery.openrouter import (
     BASE_URL,
     COMPLETION_TIMEOUT_SECONDS,
     KEY_TIMEOUT_SECONDS,
+    CostUnknown,
     KeyExhausted,
     OpenRouterClient,
     OpenRouterError,
@@ -618,3 +621,196 @@ def test_spend_is_booked_to_the_model_asked_when_the_provider_does_not_say_which
 
     assert client.complete(prompt="p", model="some-lab/a-cheaper-model").model_id == "some-lab/a-cheaper-model"
     assert client.complete(prompt="p").model_id == "deepseek/deepseek-v4-flash"
+
+
+# -- a call that fails after it was sent ------------------------------------------
+#
+# The one failure that may have been billed: the provider had the
+# whole request, and nothing came back saying what it cost. `CostUnknown` is what
+# a caller that records spend catches; every other failure costs nothing.
+
+
+def failing_with(error: Exception):
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise error
+
+    return handler
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ReadTimeout("timed out"),
+        httpx.ReadError("connection reset by peer"),
+        httpx.RemoteProtocolError("Server disconnected without sending a response."),
+        httpx.WriteTimeout("timed out"),
+        httpx.WriteError("broken pipe"),
+    ],
+    ids=["read timeout", "read error", "dropped mid-response", "write timeout", "write error"],
+)
+def test_a_transport_failure_after_the_request_went_out_is_a_cost_unknown_naming_the_model_asked(error):
+    with pytest.raises(CostUnknown) as raised:
+        client_over(failing_with(error)).complete(prompt="p", model="some-lab/a-cheaper-model")
+
+    assert raised.value.model_id == "some-lab/a-cheaper-model"
+    assert "unknown" in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ConnectError("no route to host"),
+        httpx.ConnectTimeout("timed out"),
+        httpx.PoolTimeout("timed out"),
+        httpx.ProxyError("the proxy refused"),
+    ],
+    ids=["connect error", "connect timeout", "pool timeout", "proxy"],
+)
+def test_a_failure_before_the_request_went_out_costs_nothing_and_is_a_plain_error(error):
+    with pytest.raises(OpenRouterError, match="Could not reach OpenRouter") as raised:
+        client_over(failing_with(error)).complete(prompt="p")
+
+    assert not isinstance(raised.value, CostUnknown)
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504, 524, 408])
+def test_a_gateway_giving_up_on_a_call_is_a_cost_unknown(status):
+    """A 5xx or a 408 says nothing about whether the model ran: the provider or a proxy gave up waiting."""
+    with pytest.raises(CostUnknown) as raised:
+        client_over(responding({"error": {"message": "upstream gave up"}}, status=status)).complete(prompt="p")
+
+    assert str(status) in str(raised.value)
+    assert raised.value.model_id == "deepseek/deepseek-v4-flash"
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (400, EDGE_400),
+        (402, {"error": {"message": "You requested up to 8000 tokens, but can only afford 3333."}}),
+        (403, {"error": {"message": "Key limit exceeded (total limit)"}}),
+        (403, {"error": {"message": "Your input was flagged"}}),
+        (429, {"error": {"message": "Rate limited"}}),
+    ],
+    ids=["400", "402", "403 spent", "403 flagged", "429"],
+)
+def test_an_answered_refusal_is_never_a_cost_unknown(status, body):
+    """The provider answered and refused before generating: nothing was billed (`openrouter-api-findings.md`)."""
+    with pytest.raises(OpenRouterError) as raised:
+        client_over(responding(body, status=status)).complete(prompt="p")
+
+    assert not isinstance(raised.value, CostUnknown)
+
+
+@pytest.mark.parametrize("text", ["<html>a proxy's page</html>", "[1, 2]"], ids=["not JSON", "not an object"])
+def test_a_success_whose_body_cannot_be_read_is_a_cost_unknown(text):
+    """A 2xx was billed, and a body that cannot be read says nothing of what for."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text)
+
+    with pytest.raises(CostUnknown):
+        client_over(handler).complete(prompt="p")
+
+
+def test_the_key_endpoint_never_raises_cost_unknown():
+    """Reading the key is not billed, so its failures stay plain errors whatever their phase."""
+    with pytest.raises(OpenRouterError) as raised:
+        client_over(failing_with(httpx.ReadTimeout("timed out"))).key_status()
+
+    assert not isinstance(raised.value, CostUnknown)
+
+
+def test_cost_unknown_is_still_an_openrouter_error():
+    """Every caller catching `OpenRouterError` (the mat, phase one, the budget) catches it as before."""
+    assert issubclass(CostUnknown, OpenRouterError)
+    assert not issubclass(CostUnknown, (KeyExhausted, RequestUnaffordable))
+
+
+# -- the same, over a real socket: which error httpx actually raises --------------
+#
+# The parametrised cases above raise httpx's exceptions by hand. These drive the
+# real transport against a local socket, rewritten from the provider's address
+# so nothing leaves the machine, to see which exception a real hang, a real
+# reset and a real refused connection produce.
+
+
+class _ToLocalhost(httpx.BaseTransport):
+    """Sends every request to `port` on this machine instead, with a short read budget."""
+
+    def __init__(self, port: int) -> None:
+        self._port = port
+        self._real = httpx.HTTPTransport()
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        request.url = request.url.copy_with(scheme="http", host="127.0.0.1", port=self._port)
+        request.extensions["timeout"] = {"connect": 1.0, "read": 0.5, "write": 1.0, "pool": 1.0}
+        return self._real.handle_request(request)
+
+
+def _local_server(behaviour):
+    """A one-connection server that reads the request whole, then does `behaviour(conn)`."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    done = threading.Event()
+
+    def serve():
+        conn, _ = listener.accept()
+        with conn:
+            conn.settimeout(5)
+            received = b""
+            while b"\r\n\r\n" not in received:
+                received += conn.recv(65536)
+            head, _, rest = received.partition(b"\r\n\r\n")
+            length = next(int(line.split(b":")[1]) for line in head.split(b"\r\n") if line.lower().startswith(b"content-length"))
+            while len(rest) < length:
+                rest += conn.recv(65536)
+            behaviour(conn)
+        done.set()
+
+    threading.Thread(target=serve, daemon=True).start()
+    return listener, done
+
+
+def _over_localhost(port: int) -> OpenRouterClient:
+    return OpenRouterClient(
+        "sk-or-v1-test",
+        model="deepseek/deepseek-v4-flash",
+        max_output_tokens=8000,
+        client=httpx.Client(transport=_ToLocalhost(port)),
+    )
+
+
+def test_a_real_server_that_takes_the_request_and_never_answers_is_a_cost_unknown():
+    hold = threading.Event()
+    listener, done = _local_server(lambda conn: hold.wait(5))
+    try:
+        with pytest.raises(CostUnknown, match="ReadTimeout"):
+            _over_localhost(listener.getsockname()[1]).complete(prompt="p")
+    finally:
+        hold.set()
+        done.wait(5)
+        listener.close()
+
+
+def test_a_real_server_that_takes_the_request_and_hangs_up_is_a_cost_unknown():
+    listener, done = _local_server(lambda conn: None)
+    try:
+        with pytest.raises(CostUnknown, match="RemoteProtocolError"):
+            _over_localhost(listener.getsockname()[1]).complete(prompt="p")
+    finally:
+        done.wait(5)
+        listener.close()
+
+
+def test_a_real_port_nobody_listens_on_is_a_plain_error():
+    closed = socket.socket()
+    closed.bind(("127.0.0.1", 0))
+    port = closed.getsockname()[1]
+    closed.close()
+
+    with pytest.raises(OpenRouterError, match="Could not reach OpenRouter") as raised:
+        _over_localhost(port).complete(prompt="p")
+
+    assert not isinstance(raised.value, CostUnknown)

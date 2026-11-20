@@ -56,6 +56,14 @@ that call the router rather than by links, so on each page the harness clicks a
 sample of buttons (up to `--clicks-per-page`, 30 by default, and as many of each
 kind as `--per-screen`, two by default) and keeps those that change the address.
 `--clicks-per-page 0` follows links only and clicks nothing.
+**A few states are walked whatever `--per-screen` says** (`NAMED_STATES` in
+`arrt/tools/ux_walk.py`, audit wave 2b): History for one work, Walls at one wall,
+Artworks searched, and Artworks choosing works for a wall. Each is its own screen to a
+person, with its own sentences and controls, and a cap of one used to drop it without a
+word, so each is admitted once past the cap. Artworks searched needs no id, so when no
+link reached it the walk asks for it by address (`?q=night`); the others are reached by
+the link that names their work or wall. The summary lists any the walk did not reach,
+as `named_states_not_visited`, so a missing one is a finding, never silence.
 A write such a click attempts is refused and tagged with the button; a write a
 page attempts merely by being viewed is listed apart, and is a finding. After a
 run against the real library, confirm on the server that nothing a probe

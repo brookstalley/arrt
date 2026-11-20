@@ -9,6 +9,9 @@ a theme changes when a curator changes their mind about an evening.
 collaborator over one store, and each public method is a one-line delegation to
 the collaborator that holds the rule:
 
+- `Lookups` (`lookups.py`): a wall, a theme, what hangs on a wall and the
+  draft, found or refused in one set of words, for every collaborator below
+  and for the facade's own `get_wall` and `get_theme`.
 - `FeedPublisher` (`feeds.py`): each wall's feed, built, staged, published, and
   kept true to the Library. Every collaborator below publishes through this one
   publisher, in its transaction, so one act has one transaction and one set of
@@ -24,7 +27,7 @@ Each collaborator calls only those above it in that list. The facade itself
 keeps one rule, `on_work_changed`, because it composes the publisher's
 `reconcile` with the themes' `offer_destinations`. The types and constants the
 collaborators define are re-exported here (`__all__`), so no caller changed
-when they moved.
+when they moved; `DisplaySettings` is one of them (`settings.py`).
 
 **This service depends on the Library and never the reverse**, and only through
 `arrt.library.facade`. A theme is a grouping of works, so building one
@@ -38,9 +41,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from arrt.library.facade import (
@@ -56,11 +57,11 @@ from arrt.persistence.records import (
     Wall,
     WorkExclusion,
 )
+from arrt.programming.clients import WallsReading
 from arrt.programming.display_state import ReportedState
 from arrt.programming.feeds import FeedPublisher, Reconciliation
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest.builder import ManifestBuild
-from arrt.programming.manifest.heartbeat import heartbeat_path_in
-from arrt.programming.manifest.v2 import manifest_v2_path_in
 from arrt.programming.reports import (
     SCREEN_MEMORY,
     SCREEN_REFRESH,
@@ -69,8 +70,10 @@ from arrt.programming.reports import (
     Unjudged,
     WallHeartbeat,
     describe_wall_status,
+    wall_statuses,
 )
 from arrt.programming.scenes import MAX_PREVIEW_MINUTES, PREVIEW_MINUTES, Scenes, SceneView, SceneWall
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import UNSET, NotAgain, NotAgainScope, ThemeCount, ThemePlacement, Themes, Unset, WorkPlacements
 from arrt.programming.walls import (
@@ -82,6 +85,7 @@ from arrt.programming.walls import (
     UPCOMING,
     MatMode,
     Walls,
+    WallsSeen,
     WallView,
     feed_notice,
 )
@@ -114,62 +118,32 @@ __all__ = [
     "Unset",
     "WallHeartbeat",
     "WallView",
+    "WallsSeen",
     "WorkPlacements",
     "describe_wall_status",
     "feed_notice",
+    "wall_statuses",
 ]
-
-
-@dataclass(frozen=True, slots=True)
-class DisplaySettings:
-    """The deployment facts the walls' operations need.
-
-    **Named for the service rather than for a wall**, because a wall is now a
-    first-class entity with a name and an id: a type called `WallSettings` beside
-    `Services.bind(wall=…)` read as though the container were being handed a
-    wall, when what it is handed is where this installation publishes and the
-    pace a theme inherits when it has expressed none of its own.
-
-    Passed in rather than read from the environment here, because a service that
-    resolved its own configuration could not be tested against two deployments
-    and would make every caller share one.
-    """
-
-    #: The art root, where this server keeps each wall's feed and heartbeat. They
-    #: are named from it **per wall**, so this holds the root and not a file: the catalogue
-    #: names as many walls as the curator has rooms, and each one has its own
-    #: pair of files.
-    art_root: Path
-    #: What a wall that has chosen no pace of its own plays at.
-    rotation_interval_seconds: int
-    shuffle: bool
-
-    def manifest_v2_path(self, wall_id: str) -> Path:
-        """Where this server publishes one wall's feed."""
-        return manifest_v2_path_in(self.art_root, wall_id)
-
-    def heartbeat_path(self, wall_id: str) -> Path:
-        """Where one wall's last heartbeat is kept: written by `record_heartbeat`, from what its Player POSTs."""
-        return heartbeat_path_in(self.art_root, wall_id)
 
 
 class DisplayService:
     """Read and write the themes, memberships, walls, scenes and feeds the walls run on, through its collaborators."""
 
     def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
-        self._store = store
-        self._library = library
-        self._settings = settings
+        # The store, the Library and the settings are the collaborators'; the
+        # facade keeps none of them, since none of its own rules reads one.
+        #: Every collaborator's wall, theme, hang and draft lookup, over the one store (`lookups.py`).
+        self._lookups = Lookups(store)
         #: Everything that builds, stages and publishes a wall's feed (`feeds.py`).
-        self._feeds = FeedPublisher(store, library, settings)
+        self._feeds = FeedPublisher(store, library, settings, self._lookups)
         #: Themes, their membership, what hangs where, and the works kept off every wall (`themes.py`).
-        self._themes = Themes(store, library, self._feeds)
+        self._themes = Themes(store, library, self._lookups, self._feeds)
         #: Walls, their settings, and what each shows now (`walls.py`).
-        self._walls = Walls(store, settings, self._feeds, self._themes)
+        self._walls = Walls(store, settings, self._lookups, self._feeds, self._themes)
         #: Scenes (`scenes.py`).
-        self._scenes = Scenes(store, library, settings, self._feeds, self._themes, self._walls)
+        self._scenes = Scenes(store, library, settings, self._lookups, self._feeds, self._themes, self._walls)
         #: What each wall's Player reports, and what is answered from it (`reports.py`).
-        self._reports = Reports(store, settings, self._feeds, self._themes, self._scenes)
+        self._reports = Reports(store, settings, self._lookups, self._feeds, self._themes, self._scenes)
 
     # -- reads: themes --------------------------------------------------------
 
@@ -178,8 +152,8 @@ class DisplayService:
         return self._themes.list_themes()
 
     def get_theme(self, theme_id: str) -> Theme:
-        """Return one theme."""
-        return self._feeds.get_theme(theme_id)
+        """Return one theme (`Lookups.get_theme`)."""
+        return self._lookups.get_theme(theme_id)
 
     def get_listed_theme(self, theme_id: str) -> Theme:
         """A theme a curator can name: any theme but a hung selection."""
@@ -196,8 +170,8 @@ class DisplayService:
     # -- reads: walls and what hangs on them -----------------------------------
 
     def get_wall(self, wall_id: str) -> Wall:
-        """Return one wall."""
-        return self._feeds.get_wall(wall_id)
+        """Return one wall (`Lookups.get_wall`)."""
+        return self._lookups.get_wall(wall_id)
 
     def hanging_on(self, wall_id: str) -> Theme | None:
         """The theme hanging on this wall, or None while nothing is."""
@@ -214,6 +188,10 @@ class DisplayService:
     def get_wall_view(self, wall_id: str) -> WallView:
         """One wall with what hangs on it and what its screen is doing."""
         return self._walls.get_wall_view(wall_id)
+
+    def read_walls(self, wall_id: str | None = None) -> WallsSeen:
+        """Every wall, or the one named, with the one reading of reports and placements its views were built from."""
+        return self._walls.read_walls(wall_id)
 
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it."""
@@ -361,6 +339,10 @@ class DisplayService:
         """Every wall with whatever the display serving it last said."""
         return self._reports.survey_wall_status()
 
+    def read_wall_reports(self) -> WallsReading:
+        """Every wall's report, who shows it and every Player's, each file read once (`WallsReading`)."""
+        return self._reports.read_wall_reports()
+
     # -- writes: what the wall shows now ---------------------------------------
 
     def step_display(self, wall_id: str) -> str:
@@ -452,6 +434,10 @@ class DisplayService:
     def judge_sizes(self, wall_id: str) -> SizeJudgement:
         """Which works on the wall's feed are too small for its largest recent screen (`adequacy.py`)."""
         return self._reports.judge_sizes(wall_id)
+
+    def judge_sizes_of(self, wall: Wall) -> SizeJudgement:
+        """`judge_sizes` for a wall already read, by the display its row names (`Reports.judge_sizes_of`)."""
+        return self._reports.judge_sizes_of(wall)
 
     def too_small_on(self, wall_id: str) -> frozenset[str]:
         """The works too small for the wall; empty both when all are fine and when none was judged (`judge_sizes`)."""

@@ -13,7 +13,7 @@
 import { attempt } from "../core/acting.js";
 import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
-import { agree, agreePartitive, counted } from "../core/counting.js";
+import { agree, agreePartitive, counted, number } from "../core/counting.js";
 import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
@@ -180,7 +180,7 @@ function worksBySource(works, reviewPage) {
   if (asked.length) {
     sections.push(
       el("section", { class: "asked-for" }, [
-        el("h3", { text: `Asked for (${asked.length})` }),
+        el("h3", { text: `Asked for (${number(asked.length)})` }),
         table(
           "The works this Get was asked for, each with the picture found for it and why the run named it.",
           ["Picture", "Title", "Artist", "Image", "Why it is here"],
@@ -193,7 +193,7 @@ function worksBySource(works, reviewPage) {
   for (const [museum, offered] of offeredBy) {
     sections.push(
       el("section", { class: "offered" }, [
-        el("h3", { text: `Also offered by ${museum} (${offered.length})` }),
+        el("h3", { text: `Also offered by ${museum} (${number(offered.length)})` }),
         table(
           `Works ${museum} offered on top of the ones asked for, each with its picture.`,
           ["Picture", "Title", "Artist", "Image"],
@@ -295,18 +295,29 @@ function scheduleRunPoll(runId, generation, { done }) {
 
 /* The Cost row's words: this Get's own spend, and the family's where it
  * differs. A finished Get with nothing recorded says so; one still running and
- * not yet billed leaves the row out, its estimate standing below. */
-function costWords(own, family, finished) {
-  const retried = family && Number(family.cost_usd) > 0 ? dollars(family.cost_usd) : null;
+ * not yet billed leaves the row out, its estimate standing below.
+ *
+ * **The family's figure is the server's sentence** (`SpendOut.summary`), never
+ * one formatted here from `cost_usd`: with a call whose cost is unknown it reads
+ * "at least $0.42, and 2 calls whose cost is unknown", and a client that worded
+ * the figure itself would say the Get cost less than the server knows it may
+ * have. The Get's own figure is the run record's, said in the server's words
+ * too (`RunOut.summary`, "at least" when one of its own calls never said what
+ * it cost), and alone only where the family has no unknown
+ * call: otherwise the family's sentence stands for the whole. */
+function costWords(own, ownWords, family, finished) {
+  const unknown = family ? family.unknown_cost_calls > 0 : false;
+  const retriedCost = family && Number(family.cost_usd) > 0;
   if (own === null || own === undefined) {
     // A cancelled Get can record nothing of its own while the Gets that retried
     // it spent; that total must not vanish with the empty row.
-    if (retried) return `None recorded for this Get, ${retried} with the Gets that retried it`;
+    if (retriedCost) return `None recorded for this Get, ${family.summary} with the Gets that retried it`;
+    if (unknown) return family.summary;
     return finished ? "None recorded" : null;
   }
-  const mine = dollars(own);
-  if (!family || dollars(family.cost_usd) === mine) return mine;
-  return `${mine}, ${dollars(family.cost_usd)} with the Gets that retried it`;
+  if (!family) return ownWords;
+  if (Number(family.cost_usd) === Number(own)) return unknown ? family.summary : ownWords;
+  return `${ownWords}, ${family.summary} with the Gets that retried it`;
 }
 
 /* The Get's works section this screen last painted, and under which navigation.
@@ -544,7 +555,7 @@ export async function viewRun(runId, generation) {
         // Gets that retried it — joins the row only where it says something
         // more: a Get billed little whose retries cost ten times as much is the
         // case it exists for, and an equal one is the same number twice.
-        ["Cost", costWords(run.actual_cost_usd, familySpend, run.is_terminal)],
+        ["Cost", costWords(run.actual_cost_usd, run.summary || dollars(run.actual_cost_usd), familySpend, run.is_terminal)],
         // Only while it runs: the estimate prices what is still to come, and
         // the lookups are the model's own while it chooses, its allowance the
         // deployment's setting. Once it has finished, the cost above is the
@@ -565,7 +576,7 @@ export async function viewRun(runId, generation) {
   let section = null;
   if (run.kind === "get") {
     section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
-      el("h2", { text: `Works (${tally.total})` }),
+      el("h2", { text: `Works (${number(tally.total)})` }),
       el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
       reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
       ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
@@ -576,7 +587,7 @@ export async function viewRun(runId, generation) {
     const toReview = view.works.length ? reviewLink(runId, reviewPage) : null;
     panels.push(
       el("div", { class: "panel" }, [
-        el("h2", { text: `Works (${tally.total})` }),
+        el("h2", { text: `Works (${number(tally.total)})` }),
         // The way from watching a run to judging what it brought back. Offered
         // only once the run holds works: a button onto an empty grid is a promise
         // the next screen cannot keep.

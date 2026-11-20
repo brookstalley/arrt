@@ -911,6 +911,36 @@ the only channel through which it can behave responsibly.
 The estimate must be *bounded* rather than *typical*, which is what the per-run
 search cap is for. A number a run can freely exceed is not an estimate.
 
+> **A cost nobody was told is reported as unknown, never as nothing** *(audit wave 2b,
+> 2026-11-20, Chunks 35, 36 and 60)*. A paid call that was sent and ended without an
+> answer saying what it cost (a read timeout, a dropped connection, a 5xx or 408, an
+> unreadable 2xx body) records a spend row whose `cost_status` is `unknown`
+> (`data-model.md` § SpendRecord), and every figure that sums the ledger counts those
+> calls apart: one function words each figure, `SpendTotal.words`
+> (`arrt/src/arrt/library/services/discovery.py`), "$0.42" or "at least $0.42, and 2
+> calls whose cost is unknown". A run's cost, its family's, a month's, the unattended
+> allowance's and a Watch's say it that way on both surfaces (`summary` on `SpendOut`,
+> `RunOut`, `UnattendedOut` and `WatchOut`), and **System › Spend** (`#spend`,
+> `GET /api/spend`, `art_spend(action='history')`) lists each month's categories, each
+> Get's own calls, and every call whose cost is unknown, so a person can set them
+> against the provider's activity page. Nothing here enforces a ceiling: the ceiling is
+> still the provider's credit limit on the key (§ Direction). An answered refusal (402,
+> 403, any other 4xx but 408) is not counted, on the assumption, measured only for 402
+> and 403, that a refused call is not billed. **Ask records a call of unknown cost as
+> unknown, never as a known $0** (Chunk 62, `app._record_ask_cost`): one row for what
+> the reply's calls were billed, and one row marked unknown for each call the provider
+> answered without a cost or that was sent and never answered. **Every cost a person
+> reads is `SpendTotal.words`**, the server's `summary` shown as sent: Ask's reply,
+> General's allowance, each Watch and a Get's figure included. The words round down, to
+> the cent from a dollar up, grouped by thousands ("$1,234.56"), and to a hundredth of a
+> cent below one, so a figure that some screens said as "under $0.01" now reads, for
+> example, "$0.0024". Something spent below a hundredth of a cent is never said as
+> nothing: it reads "under $0.0001", and beside calls whose cost is unknown "more than
+> $0.00, and N calls whose cost is unknown" (Chunk 66). A figure the server
+> sends bare (an estimate, a cap, what is left) goes through the client's one helper,
+> `dollars()` in `core/spend.js`; `arrt/tests/unit/test_one_cost_formatter.py` refuses a
+> dollar formatted in any other client module.
+
 ### Decided — engine choice: Parallel (2026-08-02)
 
 **Discovery pins `parallel`, and the reasoning came out the opposite way round

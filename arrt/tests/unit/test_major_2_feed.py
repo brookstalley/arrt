@@ -317,7 +317,7 @@ def _age(wall_settings, wall_id, *, by):
 
 
 def test_a_heartbeat_with_under_two_days_left_rolls_the_horizon_forward(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
     _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
@@ -334,7 +334,7 @@ def test_a_heartbeat_with_under_two_days_left_rolls_the_horizon_forward(
 
 
 def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_named(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """A feed names only what its horizon schedules, so a roll that cycled those alone narrowed the theme for good."""
     works = [mastered(title) for title in "ABCDEF"]
@@ -349,7 +349,7 @@ def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_
 
 
 def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
-    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed
+    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """An announcement lost to a crash: the next roll builds the hung theme, so the work arrives within a day."""
     theme = theme_of(mastered("A"))
@@ -366,7 +366,7 @@ def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
 
 
 def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(
-    display, mastered, theme_of, wall_id, wall_settings, feed
+    display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
 ):
     """A wall whose theme was taken down keeps showing what it was showing; a roll does not empty it."""
     works = {mastered("A").id, mastered("B").id}
@@ -383,7 +383,9 @@ def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(
     assert feed(wall_id).horizon_until - _now() > timedelta(days=2, hours=23)
 
 
-def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(display, mastered, theme_of, wall_id, wall_settings):
+def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(
+    display, mastered, theme_of, wall_id, wall_settings, shown_by_a_client
+):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
     _age(wall_settings, wall_id, by=timedelta(hours=23))
     before = wall_settings.manifest_v2_path(wall_id).read_bytes()
@@ -956,6 +958,44 @@ def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_eac
     assert sorted(writes) == sorted([wall_id, study])
 
 
+def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered, theme_of, wall_id, monkeypatch):
+    """The study, rebuilt beside the hall, is built from the hall's *now*, however slowly the pass runs.
+
+    Read again for the study, *now* could fall past one of its slot boundaries
+    that the hall's first slot was built against, and the two walls would be
+    scheduled for different moments in one act. The clock here moves a second
+    at every reading, as a slow machine's may between two of them.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    readings = []
+
+    class Slow(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            readings.append(None)
+            return datetime.now(tz) + timedelta(seconds=len(readings))
+
+    builds = []
+    build = feeds_module.build_schedule
+
+    def recording_build(**arguments):
+        builds.append((arguments["wall_id"], arguments["now"]))
+        return build(**arguments)
+
+    monkeypatch.setattr(feeds_module, "datetime", Slow)
+    monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
+
+    display.show_work_now(wall_id, a.id)
+
+    assert [wall for wall, _ in builds] == [wall_id, study, wall_id]
+    assert len({now for _, now in builds}) == 1, builds
+
+
 @pytest.mark.parametrize("first_by_id", ["the wall with three works", "the wall with two"])
 def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour_without(
     display, mastered, theme_of, wall_id, feed, first_by_id
@@ -985,7 +1025,9 @@ def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour
         assert [slot for slot in _overlaps(feeds[here], feeds[there]) if not slot.covers(now)] == [], (here, there)
 
 
-def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(store, display, mastered, theme_of, wall_id, wall_settings, feed):
+def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(
+    store, display, mastered, theme_of, wall_id, wall_settings, feed, shown_by_a_client
+):
     """The wall's own roll publishes what the store says hangs there, unlike a pass beside another wall."""
     display.activate_theme(theme_of(mastered("A"), name="Published").id, wall_id=wall_id)
     hung = theme_of(mastered("B"), name="Hung")
@@ -1058,13 +1100,22 @@ def test_a_neighbour_that_cannot_be_rebuilt_leaves_the_act_done_and_says_why(
 
 
 def test_a_slower_neighbour_that_cannot_be_rebuilt_keeps_its_schedule_and_the_hall_steps_aside_from_it(
-    display, mastered, theme_of, wall_id, feed, monkeypatch, caplog
+    display, mastered, theme_of, wall_id, wall_settings, feed, monkeypatch, caplog
 ):
-    """Rebuilt before the hall, as a slower wall is; refused, it goes on as it was, and the hall is built against that."""
+    """Rebuilt before the hall, as a slower wall is; refused, it goes on as it was, and the hall is built against that.
+
+    The study was hung a while before the hall, as two walls hung by hand
+    always are, so its slots start off the hall's. Hung within one wall-clock
+    second, as the suite once left them, the two lined up by chance and the
+    hall stepped aside without lining up; a second apart, every hall slot
+    spanning one of the study's boundaries met both works, and half the
+    horizon clashed (`schedule.run_household_pass` lines it up now).
+    """
     x, y = mastered("X"), mastered("Y")
     study = display.add_wall(name="Study").id
     display.set_playback(study, rotation_interval_seconds=2 * HOUR, shuffle=False)
     display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=97))
     before = feed(study).slots
     hall = theme_of(x, y, name="Hall's", interval=HOUR)
     built = display._feeds.build_manifest
@@ -1246,6 +1297,8 @@ def test_a_catalogue_file_from_before_the_mat_mode_gains_it_and_keeps_its_walls(
 def shown_by_a_client(services, wall_id):
     """The wall on a client's HDMI output, so it has a display to remember screens against."""
     client = services.clients.add_client(name="Hall Pi")
+    # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).
+    services.access.issue(client.id)
     services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
     return services.display.get_wall(wall_id)
 
@@ -1321,7 +1374,20 @@ def test_judging_a_work_too_small_takes_nothing_off_the_schedule(display, master
     assert tiny.id in feed(wall_id).works
 
 
-def test_a_wall_with_no_display_remembers_no_screen(display, mastered, theme_of, wall_id, store):
+def test_a_wall_unassigned_between_the_route_and_the_transaction_keeps_no_screen_and_the_report_still_lands(
+    display, mastered, theme_of, wall_id, store
+):
+    """The guard in `Reports._record_screen` that makes a wall unassigned mid-report harmless.
+
+    The route admits a report only from a Player whose output shows the wall
+    (`_admitted_to_the_wall`), and the screen is written in a later transaction that reads the wall
+    again (`wall.display_id`). A wall unassigned between the two (a race: the curator moves its
+    output, a Player is forgotten) has no display there, and a size written for it would break
+    `reported_screens.display_id`'s NOT NULL.
+    Here the wall is simply on none, which is the state the transaction meets after that race;
+    ordinarily it is unreachable, which is why it is held by name and not by chance. Without the
+    guard the report fails with `NOT NULL constraint failed: reported_screens.display_id`.
+    """
     display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
 
     display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))

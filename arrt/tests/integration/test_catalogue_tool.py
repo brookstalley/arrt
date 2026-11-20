@@ -12,6 +12,7 @@ rather than once per module.
 
 import json
 
+import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -111,6 +112,9 @@ async def test_help_works_without_arguments_and_without_the_catalogue(server_url
         "archive",
         "restore",
         "retry_acquisition",
+        "queue",
+        "failures",
+        "retry_failures",
         "set_mat_color",
         "set_work_qid",
         "set_artist_qid",
@@ -169,6 +173,9 @@ async def test_an_unknown_action_is_an_error_result_that_enumerates_the_valid_se
         "archive",
         "restore",
         "retry_acquisition",
+        "queue",
+        "failures",
+        "retry_failures",
         "set_mat_color",
         "set_work_qid",
         "set_artist_qid",
@@ -247,8 +254,10 @@ async def test_an_unknown_tool_is_reported_with_the_names_that_do_exist(server_u
         "art_catalogue",
         "art_discovery",
         "art_display",
+        "art_players",
         "art_review",
         "art_settings",
+        "art_spend",
         "art_taste",
         "art_theme",
         "art_watches",
@@ -455,8 +464,8 @@ async def test_a_missing_tile_binary_pauses_the_queue_and_names_its_remedy(serve
 
     assert state["phase"] == "paused"
     assert state["condition"] == "DezoomifyUnavailable"
-    assert "deployment problem" in state["remedy"]
-    assert "DEZOOMIFY_PATH" in state["remedy"]
+    assert "This server is not set up to fetch pictures a museum serves in tiles" in state["remedy"]
+    assert "no source is at fault" in state["remedy"]
     assert state["failures"] == 0, "a deployment fault was counted against the work"
 
 
@@ -475,7 +484,7 @@ async def test_an_unresolvable_provider_pauses_the_queue_and_names_its_remedy(se
     state = await _paused_on(server_url, services, work, primary)
 
     assert state["phase"] == "paused"
-    assert "ARTIC_USER_AGENT" in state["remedy"]
+    assert "System › Status lists the plugin and what it is missing" in state["remedy"]
     # The remedy has to say the sources are fine, or its reader goes to the museum.
     assert "no source is at fault" in state["remedy"]
 
@@ -868,3 +877,170 @@ _AN_OBJECT_PAGE = "https://www.artic.edu/artworks/91194/golden-bird"
 
 def _artic_declined() -> SourceRoster:
     return SourceRoster.of(unavailable={"artic": (artic_claims, "ARTIC_USER_AGENT is unset")})
+
+
+# -- the queue: Activity › Queue's twins -----------------------------------------------------
+
+
+def _failing(services, store, count: int, detail: str) -> list[str]:
+    """`count` works with a source, each failed once for `detail`, as the queue's worker would leave them."""
+    from datetime import UTC, datetime
+
+    from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
+
+    ids = []
+    for number in range(count):
+        work = services.catalogue.add_artwork(title=f"{detail} {number}")
+        services.catalogue.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}.jpg",
+            provider="gallery_site",
+            source_class=SourceClass.CONTEMPORARY_WEB,
+            acquisition_method=AcquisitionMethod.DIRECT_HTTP,
+            rights_status=RightsStatus.UNKNOWN,
+            is_primary=True,
+        )
+        store.set_queued_acquisition(
+            QueuedAcquisition(artwork_id=work.id, failures=1, next_try_at=datetime(2026, 12, 1, tzinfo=UTC), detail=detail)
+        )
+        ids.append(work.id)
+    return ids
+
+
+async def _route(server_url: str, path: str, **params) -> dict:
+    import httpx
+
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        return (await client.get(path, params=params)).raise_for_status().json()
+
+
+async def test_the_queue_its_causes_and_a_causes_works_are_the_routes_answers(server_url, services, store):
+    """`queue`, `failures` and `failures(cause=…)` against `/api/acquisitions`, `/causes` and `/causes/works`, whole.
+
+    Two causes of different sizes, so the order (the largest first) and each
+    count are values, and a page past the first, so `offset` reaches the slice.
+    """
+    _failing(services, store, 3, "a 404.")
+    _failing(services, store, 1, "reset.")
+
+    queue, _ = await call(server_url, "art_catalogue", action="queue")
+    causes, _ = await call(server_url, "art_catalogue", action="failures")
+    page, _ = await call(server_url, "art_catalogue", action="failures", cause="a 404.", limit=2, offset=1)
+
+    assert {k: v for k, v in queue.items() if k != "success"} == await _route(server_url, "/api/acquisitions")
+    assert {k: v for k, v in causes.items() if k != "success"} == await _route(server_url, "/api/acquisitions/causes")
+    assert {k: v for k, v in page.items() if k != "success"} == await _route(
+        server_url, "/api/acquisitions/causes/works", cause="a 404.", limit=2, offset=1
+    )
+    assert (queue["failing"], queue["causes"]) == (4, 2)
+    assert [(row["cause"], row["works"]) for row in causes["causes"]] == [("a 404.", 3), ("reset.", 1)]
+    assert (page["total"], len(page["works"]), page["offset"]) == (3, 2, 1)
+    assert page["works"][0]["acquisition"]["phase"] == "failed"
+
+
+async def test_the_queues_two_counts_are_the_listings_own_on_both_surfaces(server_url, services, store, monkeypatch):
+    """`failing` and `causes` are `QueueListing.failing` and `.cause_count`, rendered by the route and by MCP, not counted twice.
+
+    The listing's counts are checked against what it lists, then replaced, so a
+    surface still counting for itself would answer the real figures.
+    """
+    from arrt.library.acquisition.queue import QueueListing
+
+    _failing(services, store, 3, "a 404.")
+    _failing(services, store, 1, "reset.")
+    listing = services.acquisition_queue.listing()
+    assert (listing.failing, listing.cause_count) == (sum(len(group.entries) for group in listing.causes), len(listing.causes))
+    assert (listing.failing, listing.cause_count) == (4, 2)
+
+    monkeypatch.setattr(QueueListing, "failing", property(lambda _listing: 41))
+    monkeypatch.setattr(QueueListing, "cause_count", property(lambda _listing: 7))
+    queue, _ = await call(server_url, "art_catalogue", action="queue")
+    route = await _route(server_url, "/api/acquisitions")
+
+    assert (queue["failing"], queue["causes"]) == (route["failing"], route["causes"]) == (41, 7)
+
+
+async def test_a_causes_retry_queues_its_works_and_answers_as_the_route_does(server_url, services, store):
+    failed = _failing(services, store, 2, "a 404.")
+
+    retried, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+
+    assert errored is False
+    assert (retried["cause"], retried["retried"], retried["refused"]) == ("a 404.", 2, [])
+    assert "nothing was fetched" in retried["notice"]
+    states = services.acquisition_queue.state_of(failed)
+    assert {str(states[work].phase) for work in failed} == {"queued"}
+    # The second press finds no work failing for it, and is refused in the service's words.
+    again, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+    assert errored is True
+    assert again["error"].startswith("No work in the queue failed for that reason now")
+
+
+async def test_retrying_one_cause_leaves_the_other_causes_works_exactly_as_they_were(server_url, services, store):
+    """Two causes; one is retried over MCP. The other's works answer byte for byte as before, and each keeps its row.
+
+    The retried cause holds a work with no source, which the queue refuses,
+    so the answer's `refused` names that reason and how many it held back.
+    """
+    from datetime import UTC, datetime
+
+    import httpx
+
+    from arrt.persistence.records import QueuedAcquisition
+
+    retried_ids = _failing(services, store, 2, "a 404.")
+    sourceless = services.catalogue.add_artwork(title="Nothing to fetch it from").id
+    store.set_queued_acquisition(
+        QueuedAcquisition(artwork_id=sourceless, failures=1, next_try_at=datetime(2026, 12, 1, tzinfo=UTC), detail="a 404.")
+    )
+    other = _failing(services, store, 2, "reset.")
+    rows_before = {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other}
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        before = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+
+        answer, errored = await call(server_url, "art_catalogue", action="retry_failures", cause="a 404.")
+
+        after = (await client.get("/api/acquisitions/causes/works", params={"cause": "reset."})).raise_for_status().content
+    assert errored is False
+    assert (answer["retried"], answer["refused"]) == (2, [{"reason": "The work has no source to acquire from.", "works": 1}])
+    assert {str(state.phase) for state in services.acquisition_queue.state_of(retried_ids).values()} == {"queued"}
+    assert json.loads(before)["total"] == 2
+    assert after == before
+    assert {artwork_id: store.get_queued_acquisition(artwork_id) for artwork_id in other} == rows_before
+
+
+# -- a thing that does not exist: the service's own sentence, on both surfaces ------------------
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "path"),
+    [
+        ("art_catalogue", {"action": "get", "artwork_id": "awk_none"}, "/api/works/awk_none"),
+        ("art_theme", {"action": "get", "theme_id": "thm_none"}, "/api/themes/thm_none"),
+        ("art_display", {"action": "preview", "wall_id": "wal_none"}, "/api/manifest?wall_id=wal_none"),
+        ("art_catalogue", {"action": "history", "artwork_id": "awk_none"}, "/api/history?artwork_id=awk_none"),
+    ],
+    ids=["work", "theme", "wall", "a work's history"],
+)
+async def test_a_missing_thing_is_refused_in_the_services_words_as_the_route_refuses_it(server_url, tool, arguments, path):
+    """The binding passes the service's refusal through and writes none of its own (`server.dispatch`).
+
+    The status the route answers is not asserted: not found is its own status,
+    decided in one place (`programming/lookups.py`), and what this holds is the sentence,
+    which both surfaces take from the service.
+    A work's history is the case where neither refuses: no work by that id has
+    any, so both answer an empty page.
+    """
+    import httpx
+
+    payload, errored = await call(server_url, tool, **arguments)
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        answered = await client.get(path)
+
+    if answered.is_success:
+        assert errored is False
+        assert payload["events"] == answered.json()["events"] == []
+        return
+    assert errored is True
+    assert payload["error"] == answered.json()["error"]
+    assert arguments.get("artwork_id", arguments.get("theme_id", arguments.get("wall_id"))) in payload["error"]

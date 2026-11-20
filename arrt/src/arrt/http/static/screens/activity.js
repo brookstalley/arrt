@@ -23,12 +23,13 @@ import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
 import { wallLink } from "../core/places.js";
 import { table } from "../core/badges.js";
-import { counted } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { hold, heldFor, showHold } from "../core/holding.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
+import { OUTCOME_WORDS } from "../core/providers.js";
 import { go, link } from "../core/router.js";
 import { runKind, STATE_WORDS } from "../core/runs.js";
 import { tierMark } from "../core/spend.js";
@@ -71,7 +72,7 @@ function truncation(runs, which) {
   return el("p", {
     class: "note",
     text:
-      `${which} among the ${runs.count} most recent of ${runs.total} Gets. ` +
+      `${which} among the ${number(runs.count)} most recent of ${number(runs.total)} Gets. ` +
       "Older ones are still here and still open at their own address; this list does not page.",
   });
 }
@@ -129,7 +130,7 @@ export async function viewToReview(generation) {
 function acquisitionPanel(listing, causes, opened, generation) {
   const owed = listing.total + listing.failing;
   return el("div", { class: "panel acquisitions" }, [
-    el("h2", { text: `Fetching images (${owed})` }),
+    el("h2", { text: `Fetching images (${number(owed)})` }),
     retryAllSaid ? el("p", { class: "note retry-all-said", role: "status", text: takeRetryAllSaid() }) : null,
     listing.pause
       ? el("p", { class: "note acquisition-pause" }, [
@@ -184,7 +185,7 @@ function failurePanel(listing, causes, opened, generation) {
       const agreed = await confirmAct({
         title: `Retry ${counted(group.works, "work")}?`,
         consequence: `They go back in line and are fetched again, one at a time, each asking its museum for the image. They failed because: ${group.cause}`,
-        confirmLabel: `Retry ${group.works}`,
+        confirmLabel: `Retry ${number(group.works)}`,
       });
       if (!agreed) return;
     }
@@ -203,6 +204,9 @@ function failurePanel(listing, causes, opened, generation) {
   const rows = causes.causes.map((group) => {
     const isOpen = opened && opened.cause === group.cause;
     const split = group.gave_up && group.failed ? ` (${group.failed} failed, ${group.gave_up} gave up)` : "";
+    // A cause that is what one plugin's fetches said is labelled by it and the
+    // museum, so "could not be asked at Tate" reads at a glance beside its sentence.
+    const said = group.outcome ? `${OUTCOME_WORDS[group.outcome] || group.outcome} · ${group.museum || group.plugin} · ` : "";
     return el("li", { class: "failure-cause" }, [
       el("div", { class: "failure-cause-head" }, [
         el("p", { class: "failure-cause-why" }, [
@@ -210,7 +214,7 @@ function failurePanel(listing, causes, opened, generation) {
           " ",
           el("span", { text: group.cause }),
         ]),
-        el("p", { class: "muted failure-cause-count", text: `${counted(group.works, "work")}${split}` }),
+        el("p", { class: "muted failure-cause-count", text: `${said}${counted(group.works, "work")}${split}` }),
         el("div", { class: "row" }, [
           link(
             { view: "queue", params: { ...params, cause: isOpen ? "" : group.cause, cause_offset: "" } },
@@ -224,7 +228,7 @@ function failurePanel(listing, causes, opened, generation) {
           el("button", {
             class: only ? "action" : "action quiet",
             type: "button",
-            text: group.works === 1 ? "Retry" : `Retry ${group.works}`,
+            text: group.works === 1 ? "Retry" : `Retry ${number(group.works)}`,
             "aria-label": `Retry the ${counted(group.works, "work")} that failed: ${group.cause}`,
             onclick: (event) => retryGroup(event.currentTarget, group),
           }),
@@ -274,7 +278,7 @@ function inLinePanel(listing, generation) {
     ]),
   ]);
   return el("section", { class: "in-line", "aria-label": "In line" }, [
-    el("h3", { text: `In line (${listing.total})` }),
+    el("h3", { text: `In line (${number(listing.total)})` }),
     table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows, { stacked: true }),
     pager(listing, "offset", listing.works.length, "works"),
   ]);
@@ -290,7 +294,7 @@ function pager(page, key, shown, things) {
   return el("div", { class: "row queue-paging" }, [
     earlier ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Previous", "aria-label": `Previous ${things}` }) : null,
     later ? link(at(page.offset + page.limit), { class: "action quiet", text: "Next", "aria-label": `Next ${things}` }) : null,
-    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + shown} of ${page.total}` }),
+    el("span", { class: "muted", text: `${number(page.offset + 1)}–${number(page.offset + shown)} of ${number(page.total)}` }),
   ]);
 }
 
@@ -324,7 +328,7 @@ export async function viewQueue(generation) {
     // rather than that nothing is in flight. "No Get", not "nothing": the
     // fetches below may be.
     const nothing = runs.truncated
-      ? `No Get is in flight among the ${runs.count} most recent Gets.`
+      ? `No Get is in flight among the ${number(runs.count)} most recent Gets.`
       : "No Get is in flight.";
     panels.push(
       emptyState(nothing, "A Get you start in Ask, or on works you chose, shows here while it works.", [
@@ -336,7 +340,7 @@ export async function viewQueue(generation) {
   } else {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h2", { text: `In flight (${active.length})` }),
+        el("h2", { text: `In flight (${number(active.length)})` }),
         runTable("Every Get not yet ended, newest first.", active, themes),
       ]),
     );
@@ -352,7 +356,9 @@ export async function viewQueue(generation) {
  * or a restore, and every hang and *Not this one again* — as one sentence with
  * how long ago it was, the readable date a hover away. Filtered by kind with
  * links, so a filtered history is an address a curator can keep; `?wall=` is one
- * wall's history, which its card on Walls opens.
+ * wall's history, which its card on Walls opens, and `?artwork_id=` is one
+ * work's (the Get it was accepted from, its archive and restore, what kept it off
+ * walls), which its own page opens.
  *
  * **Every id in an event may no longer resolve**, so the sentence is built from
  * the words the event carries (`detail`), and only where those are missing from
@@ -366,12 +372,27 @@ export async function viewHistory(generation) {
   const query = new URLSearchParams({ limit: String(HISTORY_PAGE), offset: String(offset) });
   for (const kind of group ? group.kinds : []) query.append("kind", kind);
   if (params.wall) query.set("wall_id", params.wall);
+  if (params.artwork_id) query.set("artwork_id", params.artwork_id);
   const [page, walls] = await Promise.all([api(`/api/history?${query}`), api("/api/walls")]);
   const wallNames = new Map(walls.walls.map((wall) => [wall.wall_id, wall.name]));
-  const titles = await titlesFor(page.events);
+  const titles = await titlesFor(page.events, params.artwork_id);
 
   const wallName = params.wall ? wallNames.get(params.wall) || "a wall no longer recorded" : null;
-  const panels = [el("h1", { text: wallName ? `History of ${wallName}` : "History" })];
+  // One work's history: its title is read the way an event's is (a work the
+  // library no longer answers for is said to be one), and its page is the way back.
+  const workTitle = params.artwork_id ? titles.get(params.artwork_id) || null : null;
+  const aboutAWork = Boolean(params.artwork_id);
+  const subject = aboutAWork ? workTitle || "a work the Library no longer holds" : wallName;
+  const panels = [el("h1", { text: subject ? `History of ${subject}` : "History" })];
+  if (aboutAWork) {
+    panels.push(
+      el("p", { class: "muted" }, [
+        "What happened to it: the Get it came from, and what was done with it since. ",
+        workTitle ? [link({ view: "work", id: params.artwork_id }, { class: "link", text: `${workTitle} on its own page` }), " · "] : null,
+        link({ view: "history", params: { kind: params.kind || "" } }, { text: "All history" }),
+      ].flat()),
+    );
+  }
   if (wallName) {
     panels.push(
       el("p", { class: "muted" }, [
@@ -391,7 +412,7 @@ export async function viewHistory(generation) {
     panels.push(
       offset
         ? emptyState("Nothing older than this.")
-        : group || wallName
+        : group || wallName || aboutAWork
           ? emptyState("Nothing of this kind has happened yet.")
           : emptyState(
               "Nothing has happened yet.",
@@ -430,7 +451,7 @@ const HISTORY_GROUPS = [
 ];
 
 function kindFilter(group, params) {
-  const target = (key) => ({ view: "history", params: { wall: params.wall || "", kind: key } });
+  const target = (key) => ({ view: "history", params: { wall: params.wall || "", artwork_id: params.artwork_id || "", kind: key } });
   const item = (key, label, current) =>
     el("li", {}, [link(target(key), { class: "link", text: label, "aria-current": current ? "page" : null })]);
   return el("ul", { class: "history-kinds", "aria-label": "Show" }, [
@@ -448,7 +469,7 @@ function paging(page, params) {
   return el("div", { class: "row history-paging" }, [
     newer ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Newer" }) : null,
     older ? link(at(page.offset + page.limit), { class: "action quiet", text: "Older" }) : null,
-    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + page.events.length} of ${page.total}` }),
+    el("span", { class: "muted", text: `${number(page.offset + 1)}–${number(page.offset + page.events.length)} of ${number(page.total)}` }),
   ]);
 }
 
@@ -461,8 +482,11 @@ function when(iso) {
 /* A title for every event that names a work and carries no title of its own
  * (*Not this one again* and its undo are recorded by the walls, which do not
  * hold works' titles), each work asked for once. */
-async function titlesFor(events) {
-  const wanted = [...new Set(events.filter((event) => event.artwork_id && !event.detail.title).map((event) => event.artwork_id))];
+async function titlesFor(events, subject = null) {
+  // The work a history is about is always asked for, whatever its events carry:
+  // its heading names it, and a history with no events still has a subject.
+  const untitled = events.filter((event) => event.artwork_id && !event.detail.title).map((event) => event.artwork_id);
+  const wanted = [...new Set(subject ? [subject, ...untitled] : untitled)];
   const answers = await Promise.all(
     wanted.map(async (id) => {
       try {
@@ -518,7 +542,7 @@ function verdictRun(run, wallNames, titles) {
 /* A work in a run of verdicts: a link while the library holds it (an accepted
  * work), else its title, as the event recorded it. */
 function verdictWork(event, titles) {
-  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the library";
+  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the Library";
   return event.kind === "work.accepted" && event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title;
 }
 
@@ -544,7 +568,7 @@ const ENDINGS = {
 /* One event as a sentence: text, with links to what can still be opened. */
 function sentence(event, wallNames, titles) {
   const detail = event.detail || {};
-  const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the library";
+  const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the Library";
   const work = () => (event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title);
   // A wall still recorded is a link to it; one since removed is its name, as
   // the event recorded it.
@@ -761,7 +785,7 @@ function getAll(control, works, slot) {
       } catch (failure) {
         // A refusal is the server's sentence for the curator; anything else
         // (the network, a fault) is not ours to swallow.
-        if (failure.status !== 400) throw failure;
+        if (failure.status !== 400 && failure.status !== 404) throw failure;
         refused.push(failure.message);
       }
     }

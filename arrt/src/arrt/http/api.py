@@ -22,7 +22,7 @@ that safe.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -72,6 +72,7 @@ from arrt.http.models import (
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
+    FailedFetchesOut,
     FailureCauseOut,
     FailureCausesOut,
     FitOut,
@@ -105,9 +106,12 @@ from arrt.http.models import (
     NotAgainRequest,
     OfferedTopicOut,
     OriginalOut,
+    OutputStateOut,
     PickItem,
     PicturesOut,
     PinScene,
+    PlayerHealthOut,
+    PlayerStateOut,
     QueuedWorkOut,
     QueuePauseOut,
     RefusedRetryOut,
@@ -143,6 +147,7 @@ from arrt.http.models import (
     SetSetting,
     SettingListOut,
     SettingOut,
+    SetupStepOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -155,6 +160,10 @@ from arrt.http.models import (
     SourcesOut,
     SourceYieldOut,
     SourceYieldsOut,
+    SpendByCategoryOut,
+    SpendHistoryOut,
+    SpendMonthOut,
+    SpendOnGetOut,
     SpendOut,
     StartGet,
     StartResolve,
@@ -176,7 +185,9 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    TroubleOut,
     UnattendedOut,
+    UnknownCostCallOut,
     UnlinkedArtistOut,
     UpcomingOut,
     UpdateWatch,
@@ -187,6 +198,7 @@ from arrt.http.models import (
     WallListOut,
     WallOut,
     WallRefOut,
+    WallWaitOut,
     WantedListingOut,
     WantedWorkOut,
     WantWork,
@@ -195,6 +207,7 @@ from arrt.http.models import (
     WatchOut,
     WorkDetailOut,
     WorkFacetOut,
+    WorkGetOut,
     WorkMatchesOut,
     WorkMatchOut,
     WorkMatOut,
@@ -206,9 +219,10 @@ from arrt.http.models import (
 )
 from arrt.library.acquisition.mat import MAT_PRESETS
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
+from arrt.library.services import spend_history
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
-from arrt.library.services.discovery import VerdictOutcome
+from arrt.library.services.discovery import DiscoveryService, VerdictOutcome
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
@@ -221,7 +235,6 @@ from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
-from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     Affinity,
@@ -251,10 +264,11 @@ from arrt.programming.display import UNSET, SceneView, SizeJudgement, ThemeCount
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
+from arrt.programming.player_state import PlayerReading
 from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
-from arrt.services.health import HealthReading, PicturesReading, SourceHealth
+from arrt.services.health import FailedFetches, HealthReading, PicturesReading, SourceHealth, WallsNow, WallWait, walls_waiting
 from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
@@ -458,8 +472,9 @@ def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
 
 @router.get("/works/{artwork_id}")
 def get_work(request: Request, artwork_id: str) -> WorkDetailOut:
-    """One work in full — metadata, artist, sources, renditions and mats."""
-    return _dossier(_services(request).survey.get_work(artwork_id))
+    """One work in full — metadata, artist, sources, renditions and mats, and the Get it came from."""
+    services = _services(request)
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/acquisition/retry")
@@ -493,8 +508,8 @@ def list_acquisitions(
         total=len(in_line),
         limit=limit,
         offset=offset,
-        failing=len(listing.entries) - len(in_line),
-        causes=len(listing.causes),
+        failing=listing.failing,
+        causes=listing.cause_count,
     )
 
 
@@ -509,9 +524,12 @@ def list_failure_causes(
     Grouped by the reason's words with the work's own name taken out, so works
     that failed the same way share a row whatever they are called.
     """
-    causes = _services(request).acquisition_queue.listing().causes
+    services = _services(request)
+    causes = services.acquisition_queue.listing().causes
     limit, page = _queue_page(causes, limit, offset)
-    return FailureCausesOut(causes=[_failure_cause(each) for each in page], total=len(causes), limit=limit, offset=offset)
+    return FailureCausesOut(
+        causes=[_failure_cause(each, services.health.museum_of) for each in page], total=len(causes), limit=limit, offset=offset
+    )
 
 
 @router.get("/acquisitions/causes/works")
@@ -558,7 +576,7 @@ def set_work_identity(request: Request, artwork_id: str, body: SetIdentity) -> W
     """
     services = _services(request)
     services.identity.set_work_identity(artwork_id, body.qid)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.get("/artists")
@@ -591,7 +609,8 @@ def get_artist_registry(request: Request, artist_id: str) -> ArtistRegistryOut:
     configured, cannot be asked, or has nothing for this artist is a state the
     page shows, named in `state` and said in `note`.
     """
-    return _artist_registry(_services(request).artists.registry_view(artist_id))
+    services = _services(request)
+    return _artist_registry(services.artists.registry_view(artist_id), pictured=services.catalogue.pictured)
 
 
 @router.get("/registry/artists/{qid}")
@@ -604,7 +623,7 @@ def get_registry_artist(request: Request, qid: str) -> ArtistRegistryOut:
     asked. A malformed QID is a 400.
     """
     held, view = _services(request).artists.registry_view_by_qid(qid)
-    return _artist_registry(view, artist_id=held)
+    return _artist_registry(view, artist_id=held, pictured=_services(request).catalogue.pictured)
 
 
 @router.get("/registry/search")
@@ -844,17 +863,18 @@ def get_topic_works(request: Request, qid: str) -> Response:
     at once. Anything else asking gets the last line alone, as JSON.
     """
     stages = _services(request).topics.works_in_stages(qid)
+    pictured = _services(request).catalogue.pictured
     if NDJSON not in request.headers.get("accept", ""):
         last = next(stages)
         for view in stages:
             last = view
-        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+        return JSONResponse(_topic_works(last, pictured).model_dump(mode="json"))
     # A sync generator, so Starlette runs each step in its thread pool: the
     # registry's questions block, and the event loop must not wait on them.
-    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+    return StreamingResponse((_topic_works(view, pictured).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
 
 
-def _topic_works(view: TopicWorksView) -> TopicWorksOut:
+def _topic_works(view: TopicWorksView, pictured: Callable[[Sequence[str]], str | None]) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
@@ -873,6 +893,7 @@ def _topic_works(view: TopicWorksView) -> TopicWorksOut:
                 creator_unknown=entry.work.creator_unknown,
                 state=str(entry.state),
                 held_artwork_ids=list(entry.held),
+                pictured_artwork_id=pictured(entry.held),
                 wanted=entry.wanted,
             )
             for entry in view.works
@@ -928,7 +949,9 @@ def _in_review(waiting: InReview | None) -> InReviewOut | None:
     return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
 
 
-def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
+def _artist_registry(
+    view: RegistryView, *, pictured: Callable[[Sequence[str]], str | None], artist_id: str | None = None
+) -> ArtistRegistryOut:
     known = view.known
     return ArtistRegistryOut(
         state=str(view.state),
@@ -951,6 +974,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     sitelinks=entry.sitelinks,
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
+                    pictured_artwork_id=pictured(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
                     in_review=_in_review(view.waiting.get(entry.qid)),
                 )
@@ -1005,7 +1029,7 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.archive_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 @router.post("/works/{artwork_id}/restore")
@@ -1018,7 +1042,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """
     services = _services(request)
     services.catalogue.restore_artwork(artwork_id)
-    return _dossier(services.survey.get_work(artwork_id))
+    return _work_detail(services, artwork_id)
 
 
 # -- themes -------------------------------------------------------------------
@@ -1158,8 +1182,7 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 @router.get("/walls")
 def list_walls(request: Request) -> WallListOut:
     """Every wall, what is hanging on each, and where each is shown."""
-    services = _services(request)
-    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
+    return _walls(_services(request))
 
 
 @router.post("/walls")
@@ -1174,7 +1197,7 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     a second wall overwrote it silently.
     """
     services = _services(request)
-    return _wall(services, services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+    return _one_wall(services, services.display.add_wall(name=body.name).id)
 
 
 @router.post("/walls/{wall_id}")
@@ -1182,7 +1205,7 @@ def rename_wall(request: Request, wall_id: str, body: CreateWall) -> WallOut:
     """Rename a wall. Nothing a Player reads carries the name, so nothing is republished."""
     services = _services(request)
     services.display.rename_wall(wall_id, name=body.name)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}")
@@ -1194,7 +1217,7 @@ def delete_wall(request: Request, wall_id: str) -> WallListOut:
     """
     services = _services(request)
     services.display.delete_wall(wall_id)
-    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
+    return _walls(services)
 
 
 @router.post("/walls/{wall_id}/client")
@@ -1207,7 +1230,7 @@ def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignm
     """
     services = _services(request)
     assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
-    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_one_wall(services, wall_id), notice=assignment.notice)
 
 
 @router.post("/walls/{wall_id}/display")
@@ -1218,7 +1241,7 @@ def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallA
     """
     services = _services(request)
     assignment = services.clients.assign_display(wall_id, display_id=body.display_id)
-    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_one_wall(services, wall_id), notice=assignment.notice)
 
 
 @router.get("/works/{artwork_id}/mat")
@@ -1278,7 +1301,7 @@ def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
     """
     services = _services(request)
     services.display.set_mat_mode(wall_id, body.mode)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.put("/walls/{wall_id}/playback")
@@ -1297,7 +1320,7 @@ def set_playback(request: Request, wall_id: str, body: SetPlayback) -> WallOut:
         wall_id,
         **{field: getattr(body, field) if field in sent else UNSET for field in SetPlayback.model_fields},
     )
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.post("/walls/{wall_id}/labels")
@@ -1305,9 +1328,7 @@ def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignment
     """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
     services = _services(request)
     assignment = services.clients.add_label(wall_id, client_id=body.client_id, output=body.output)
-    return LabelAssignmentOut(
-        wall=_wall(services, services.display.get_wall_view(wall_id)), label_id=assignment.label.id, notice=assignment.notice
-    )
+    return LabelAssignmentOut(wall=_one_wall(services, wall_id), label_id=assignment.label.id, notice=assignment.notice)
 
 
 @router.delete("/walls/{wall_id}/labels/{label_id}")
@@ -1315,7 +1336,7 @@ def remove_label(request: Request, wall_id: str, label_id: str) -> WallOut:
     """Stop a label output captioning this wall. The label output stays recorded, captioning nothing."""
     services = _services(request)
     services.clients.remove_label(wall_id, label_id=label_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}/client")
@@ -1323,7 +1344,7 @@ def unassign_wall(request: Request, wall_id: str) -> WallOut:
     """Take the wall off whichever client showed it. Its theme stays hung."""
     services = _services(request)
     services.clients.unassign_wall(wall_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -1340,7 +1361,7 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     """
     services = _services(request)
     services.display.clear_wall(wall_id)
-    return _wall(services, services.display.get_wall_view(wall_id))
+    return _one_wall(services, wall_id)
 
 
 @router.post("/walls/{wall_id}/selection")
@@ -1367,7 +1388,7 @@ def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) ->
     return NotAgainOut(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
-        wall=_wall(services, services.display.get_wall_view(wall_id)),
+        wall=_one_wall(services, wall_id),
         left_theme=None if done.left_theme is None else _theme(done.left_theme),
         excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
     )
@@ -1427,6 +1448,7 @@ def list_history(
     request: Request,
     kind: Annotated[list[str] | None, Query()] = None,
     wall_id: Annotated[str | None, Query()] = None,
+    artwork_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int | None, Query()] = None,
     offset: Annotated[int, Query()] = 0,
 ) -> HistoryPageOut:
@@ -1434,10 +1456,14 @@ def list_history(
 
     `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
     work.rejected`); none named is every kind. `wall_id` narrows to one wall's
-    history: what was hung there, and what was kept off from there. Events are
+    history: what was hung there, and what was kept off from there. `artwork_id`
+    narrows to one work's: the Get it was accepted from, its archive and restore,
+    and what kept it off walls; both together are what both name. Events are
     recorded from the day the history arrived, and nothing earlier is recovered.
     """
-    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    page = _services(request).catalogue.list_events(
+        kinds=kind or (), wall_id=wall_id, work_id=artwork_id, limit=limit, offset=offset
+    )
     return HistoryPageOut(
         events=[_history_event(event) for event in page.events],
         total=page.total,
@@ -1687,14 +1713,16 @@ def start_run(request: Request, body: StartRun) -> RunOut:
     hold the request open for the minutes the search takes, which no browser will
     sit through — so the client is handed an id and follows it.
     """
+    services = _services(request)
     return _run(
-        _services(request).runner.start(
+        services.runner.start(
             intent_text=body.intent,
             # Provenance, never authorisation: every surface has identical
             # authority, and this records which one asked so that "who wanted
             # forty Dalí candidates" is answerable from the data afterwards.
             initiated_by=InitiatedBy.WEB_UI,
-        )
+        ),
+        services.discovery,
     )
 
 
@@ -1715,7 +1743,7 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     destination = None if body.theme_id is None else services.display.get_listed_theme(body.theme_id).id
     outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
-        run=None if outcome.run is None else _run(outcome.run),
+        run=None if outcome.run is None else _run(outcome.run, services.discovery),
         skipped=[SkippedOut(qid=entry.qid, reason=str(entry.reason)) for entry in outcome.skipped],
     )
 
@@ -1746,9 +1774,10 @@ def list_runs(
     a caller reaches it. A `limit`/`offset` pair would change the contract of a
     shipped surface and earns its own review rather than riding along here.
     """
-    listing = _services(request).runner.list_runs(status=status, kind=kind, awaiting=awaiting)
+    services = _services(request)
+    listing = services.runner.list_runs(status=status, kind=kind, awaiting=awaiting)
     return RunListOut(
-        runs=[_run(run) for run in listing.runs],
+        runs=[_run(run, services.discovery) for run in listing.runs],
         awaiting_works=listing.awaiting_works,
         awaiting={run.id: listing.awaiting[run.id] for run in listing.runs if run.id in listing.awaiting},
         count=len(listing.runs),
@@ -1769,25 +1798,35 @@ def get_run(request: Request, run_id: str) -> RunViewOut:
     open that starves the same pool that serves thumbnails. The client asks
     again; nothing is lost but the hold.
     """
-    return _run_view(_services(request).runner.run_status(run_id, wait=False))
+    services = _services(request)
+    return _run_view(services.runner.run_status(run_id, wait=False), services.discovery)
 
 
 @router.post("/runs/{run_id}/approve")
 def approve_run(request: Request, run_id: str) -> RunViewOut:
     """Accept the work list and its price; phase 2 begins behind the response."""
-    return _run_view(_services(request).runner.approve(run_id))
+    services = _services(request)
+    return _run_view(services.runner.approve(run_id), services.discovery)
 
 
 @router.post("/runs/{run_id}/decline")
 def decline_run(request: Request, run_id: str) -> RunViewOut:
     """Refuse the work list. The run ends without phase 2 ever spending."""
-    return _run_view(_services(request).runner.decline(run_id))
+    services = _services(request)
+    return _run_view(services.runner.decline(run_id), services.discovery)
 
 
 @router.post("/runs/{run_id}/cancel")
 def cancel_run(request: Request, run_id: str) -> RunViewOut:
     """Stop a run from wherever it is. Money already spent stays recorded."""
-    return _run_view(_services(request).runner.cancel(run_id))
+    services = _services(request)
+    return _run_view(services.runner.cancel(run_id), services.discovery)
+
+
+@router.get("/spend")
+def get_spend_history(request: Request) -> SpendHistoryOut:
+    """Months of spending, newest first: where it went, which Gets spent it, and the calls whose cost is unknown."""
+    return _spend_history(spend_history.read(_services(request).discovery))
 
 
 @router.get("/runs/{run_id}/spend")
@@ -1809,11 +1848,13 @@ def start_resolve_run(request: Request, body: StartResolve) -> RunOut:
     paths do not overlap, since nothing serves `POST /api/runs/{id}`. It sits here
     because it is the third way a run begins and belongs beside the other two.
     """
+    services = _services(request)
     return _run(
-        _services(request).runner.resolve_images(
+        services.runner.resolve_images(
             candidate_work_ids=body.work_ids,
             initiated_by=InitiatedBy.WEB_UI,
-        )
+        ),
+        services.discovery,
     )
 
 
@@ -1836,7 +1877,8 @@ def list_candidates(
     """
     # `pictures=False`: this surface fetches each picture by URL, so inlining
     # them here would re-encode thirty images per page and discard the output.
-    return _candidate_page(_services(request).review.list_works(run_id, limit=limit, offset=offset, pictures=False))
+    services = _services(request)
+    return _candidate_page(services.review.list_works(run_id, limit=limit, offset=offset, pictures=False), services.discovery)
 
 
 @router.get("/candidates/{work_id}")
@@ -2043,15 +2085,17 @@ def _matches(header: str | None, etag: str) -> bool:
 # -- shaping ------------------------------------------------------------------
 
 
-def service_error_response(message: str) -> JSONResponse:
-    """The one error shape this surface returns.
+def service_error_response(message: str, *, not_found: bool = False) -> JSONResponse:
+    """The one error shape this surface returns: `404` for a thing named that is not there, `400` for every other refusal.
 
-    A single status for every refusal, because the service layer raises a single
-    type by design and a per-error translation table here is what turns a thin
-    binding into a thick one. The message is written to be shown: it names what
-    was wrong and, where there is one, the thing to do instead.
+    Two statuses and no more, because the service layer draws one distinction
+    (`NotFound`, a `ServiceError` naming a thing that does not exist) and a
+    per-error translation table here is what turns a thin binding into a thick
+    one. The message is written to be shown either way: it names what was wrong
+    and, where there is one, the thing to do instead. The caller says which it
+    is (`app.py`), since only `/api` tells the two apart.
     """
-    return JSONResponse(status_code=400, content={"error": message})
+    return JSONResponse(status_code=404 if not_found else 400, content={"error": message})
 
 
 def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
@@ -2143,7 +2187,12 @@ def _work(survey: WorkSurvey) -> WorkOut:
     )
 
 
-def _dossier(dossier: WorkDossier) -> WorkDetailOut:
+def _work_detail(services: Services, artwork_id: str) -> WorkDetailOut:
+    """The work in full, as every route answering with one answers: its dossier and the Get it came from."""
+    return _dossier(services.survey.get_work(artwork_id), services.catalogue.get_that_brought(artwork_id))
+
+
+def _dossier(dossier: WorkDossier, brought: HistoryEvent | None) -> WorkDetailOut:
     return WorkDetailOut(
         work=_work(dossier.survey),
         original=None if dossier.original is None else _original(dossier.original),
@@ -2152,6 +2201,11 @@ def _dossier(dossier: WorkDossier) -> WorkDetailOut:
         mat_colors=[_mat_color(mat) for mat in dossier.mat_colors],
         facets=[_facet(facet) for facet in dossier.facets],
         acquisition=None if dossier.acquisition is None else _acquisition(dossier.acquisition),
+        get=(
+            None
+            if brought is None or brought.run_id is None
+            else WorkGetOut(run_id=brought.run_id, accepted_at=brought.occurred_at.isoformat())
+        ),
     )
 
 
@@ -2165,6 +2219,9 @@ def _acquisition(state: AcquisitionState) -> AcquisitionStateOut:
         since=None if state.since is None else state.since.isoformat(),
         condition=state.condition,
         remedy=state.remedy,
+        outcome=None if state.outcome is None else str(state.outcome),
+        plugin=state.plugin,
+        failed_at=None if state.failed_at is None else state.failed_at.isoformat(),
     )
 
 
@@ -2176,8 +2233,16 @@ def _queued_work(entry: QueueEntry) -> QueuedWorkOut:
     return QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state))
 
 
-def _failure_cause(group: FailureCause) -> FailureCauseOut:
-    return FailureCauseOut(cause=group.cause, works=len(group.entries), failed=group.failed, gave_up=group.gave_up)
+def _failure_cause(group: FailureCause, museum_of: Callable[[str], str]) -> FailureCauseOut:
+    return FailureCauseOut(
+        cause=group.cause,
+        works=len(group.entries),
+        failed=group.failed,
+        gave_up=group.gave_up,
+        outcome=None if group.outcome is None else str(group.outcome),
+        plugin=group.plugin,
+        museum=None if group.plugin is None else museum_of(group.plugin),
+    )
 
 
 def _queue_page[T](items: Sequence[T], limit: int | None, offset: int) -> tuple[int, Sequence[T]]:
@@ -2336,8 +2401,30 @@ def _scenes(services: Services) -> ScenesOut:
     )
 
 
-def _wall(services: Services, view: WallView) -> WallOut:
-    survey = services.clients.placements.survey()
+def _walls(services: Services) -> WallListOut:
+    """Every wall's answer, from one reading taken now (`HealthService.observe_walls`)."""
+    now = services.health.observe_walls()
+    return WallListOut(walls=[_wall(services, view, now) for view in now.views])
+
+
+def _one_wall(services: Services, wall_id: str) -> WallOut:
+    """One wall's answer, from a reading of it taken now: after the act that answers with it has written."""
+    now = services.health.observe_walls(wall_id)
+    [view] = now.views
+    return _wall(services, view, now)
+
+
+def _wall(services: Services, view: WallView, now: WallsNow) -> WallOut:
+    """One wall's answer, every part of it from `now`, the one reading `view` was built from.
+
+    **One answer, one reading** (`HealthService.observe_walls`): the display
+    state, the wait, who shows the wall, its display and its labels, and
+    whether its Player reads the feed. Read apart, a report or an assignment
+    landing between two reads made one answer say two instants: the wall
+    waiting beside a badge showing a work, or unassigned beside the Player
+    that shows it.
+    """
+    survey = now.survey
     placement = survey.placement_of(view.wall)
     return WallOut(
         wall_id=view.wall.id,
@@ -2364,9 +2451,10 @@ def _wall(services: Services, view: WallView) -> WallOut:
         rotation_interval_seconds=view.wall.rotation_interval_seconds,
         shuffle=view.wall.shuffle,
         **_shape_fields(view.wall),
-        **_size_fields(services.display.judge_sizes(view.wall.id)),
+        **_size_fields(services.display.judge_sizes_of(view.wall)),
         last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
         upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
+        waiting_for=_wall_wait(now.waiting.get(view.wall.id)),
     )
 
 
@@ -2492,6 +2580,19 @@ def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
                 for label in reading.label_outputs
             ],
         ),
+        state=_player_state(view.player),
+        settings_url=reading.settings_url,
+    )
+
+
+def _player_state(reading: PlayerReading) -> PlayerStateOut:
+    return PlayerStateOut(
+        state=str(reading.state),
+        since=_instant(reading.since),
+        outputs=[
+            OutputStateOut(kind=str(output.kind), name=output.name, state=str(output.state), connected=output.connected)
+            for output in reading.outputs
+        ],
     )
 
 
@@ -2533,7 +2634,7 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
     )
 
 
-def _run(run: DiscoveryRun) -> RunOut:
+def _run(run: DiscoveryRun, discovery: DiscoveryService) -> RunOut:
     return RunOut(
         run_id=run.id,
         kind=str(run.kind),
@@ -2545,6 +2646,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         approval_required=run.approval_required,
         estimated_cost_usd=None if run.estimated_cost_usd is None else str(run.estimated_cost_usd),
         actual_cost_usd=None if run.actual_cost_usd is None else str(run.actual_cost_usd),
+        summary=discovery.run_summary(run),
         unresolved_work_count=run.unresolved_work_count,
         parent_run_id=run.parent_run_id,
         started_at=run.started_at.isoformat(),
@@ -2555,7 +2657,7 @@ def _run(run: DiscoveryRun) -> RunOut:
     )
 
 
-def _run_view(view: RunView) -> RunViewOut:
+def _run_view(view: RunView, discovery: DiscoveryService) -> RunViewOut:
     """A run with its works and both of its tallies.
 
     Every figure is read off the view's own properties rather than recomputed
@@ -2565,7 +2667,7 @@ def _run_view(view: RunView) -> RunViewOut:
     that counted provenance apart is exactly the defect that reached a review.
     """
     return RunViewOut(
-        run=_run(view.run),
+        run=_run(view.run, discovery),
         tally=RunTallyOut(
             total=view.work_count,
             proposed=view.proposed_count,
@@ -2620,9 +2722,9 @@ def _wanted_work(view: WantedView) -> WantedWorkOut:
     )
 
 
-def _candidate_page(page: CandidatePage) -> CandidatePageOut:
+def _candidate_page(page: CandidatePage, discovery: DiscoveryService) -> CandidatePageOut:
     return CandidatePageOut(
-        run=_run(page.run),
+        run=_run(page.run, discovery),
         works=[_candidate_card(entry) for entry in page.entries],
         total=page.total,
         limit=page.limit,
@@ -2726,7 +2828,7 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
         return None
     names = ", ".join(repr(artist.name) for artist in outcome.duplicate_candidates)
     return (
-        f"A new artist {minted.name!r} was recorded, and the catalogue already holds {names}. They may be "
+        f"A new artist {minted.name!r} was recorded, and the Library already holds {names}. They may be "
         "the same painter under different spellings; matching is exact, because a wrong merge puts another "
         "painter's name on a label and leaves no trace. Both rows stand until someone decides."
     )
@@ -2761,13 +2863,72 @@ def _spend(report: SpendReport) -> SpendOut:
         run_id=report.run_id,
         year=report.year,
         month=report.month,
+        unknown_cost_calls=report.unknown_cost_calls,
+        summary=report.summary,
+    )
+
+
+def _spend_history(history: spend_history.SpendHistory) -> SpendHistoryOut:
+    return SpendHistoryOut(
+        months=[
+            SpendMonthOut(
+                year=month.year,
+                month=month.month,
+                cost_usd=str(month.total.cost_usd),
+                unknown_cost_calls=month.total.unknown_calls,
+                summary=month.total.words,
+                categories=[
+                    SpendByCategoryOut(
+                        category=str(each.category),
+                        calls=each.calls,
+                        cost_usd=str(each.total.cost_usd),
+                        unknown_cost_calls=each.total.unknown_calls,
+                        summary=each.total.words,
+                    )
+                    for each in month.categories
+                ],
+                gets=[
+                    SpendOnGetOut(
+                        run_id=each.run.id,
+                        kind=str(each.run.kind),
+                        intent=each.run.intent_text,
+                        watch_id=each.run.watch_id,
+                        started_at=each.run.started_at.isoformat(),
+                        calls=each.calls,
+                        cost_usd=str(each.total.cost_usd),
+                        unknown_cost_calls=each.total.unknown_calls,
+                        summary=each.total.words,
+                    )
+                    for each in month.gets
+                ],
+                unknown_calls=[
+                    UnknownCostCallOut(
+                        spend_id=call.spend_id,
+                        category=str(call.category),
+                        occurred_at=call.occurred_at.isoformat(),
+                        model_id=call.model_id,
+                        run_id=call.run_id,
+                    )
+                    for call in month.unknown_calls
+                ],
+            )
+            for month in history.months
+        ],
+        older_months=history.older_months,
     )
 
 
 def _health(reading: HealthReading) -> HealthOut:
+    waiting = walls_waiting(reading.walls, reading.players)
     return HealthOut(
         walls=[
-            WallHeartbeatOut(wall_id=seen.wall.id, wall_name=seen.wall.name, heartbeat=_heartbeat(seen.heartbeat))
+            WallHeartbeatOut(
+                wall_id=seen.wall.id,
+                wall_name=seen.wall.name,
+                heartbeat=_heartbeat(seen.heartbeat),
+                display_state=_display_state(seen.state),
+                waiting_for=_wall_wait(waiting.get(seen.wall.id)),
+            )
             for seen in reading.walls
         ],
         description=reading.describe(),
@@ -2775,6 +2936,37 @@ def _health(reading: HealthReading) -> HealthOut:
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
         watches=WatchesHealthOut(overdue=list(reading.watches.overdue), allowance_spent=reading.watches.allowance_spent),
+        players=[
+            PlayerHealthOut(client_id=view.client.id, name=view.client.name, state=_player_state(view.player))
+            for view in reading.players
+        ],
+        failed_fetches=None if reading.failed_fetches is None else _failed_fetches(reading.failed_fetches),
+        troubles=[
+            TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
+            for trouble in reading.troubles()
+        ],
+        setup_steps=[
+            SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
+            for step in reading.setup_steps()
+        ],
+    )
+
+
+def _wall_wait(wait: WallWait | None) -> WallWaitOut | None:
+    return (
+        None if wait is None else WallWaitOut(client_id=wait.client_id, name=wait.name, state=str(wait.state), words=wait.words)
+    )
+
+
+def _failed_fetches(found: FailedFetches) -> FailedFetchesOut:
+    return FailedFetchesOut(
+        count=found.count,
+        will_retry=found.will_retry,
+        given_up=found.given_up,
+        newest_failed_at=_instant(found.newest_failed_at),
+        newest_age_seconds=found.newest_age_seconds,
+        age_unknown=found.age_unknown,
+        description=found.describe(),
     )
 
 
@@ -2790,15 +2982,28 @@ def _pictures(reading: PicturesReading) -> PicturesOut:
 
 def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     reading = health.reading
+    searches = health.searches
     return SourcePluginOut(
         name=reading.name,
-        museum=museum_name(reading.name, reading.identity.museum),
+        museum=health.museum,
         state=reading.state.value,
         reason=reading.reason,
         faults=reading.faults,
         last_fault_at=None if reading.last_fault_at is None else reading.last_fault_at.isoformat(),
         last_fault_age_seconds=health.last_fault_age_seconds,
         last_fault=reading.last_fault,
+        unasked=reading.unasked,
+        last_unasked_at=None if reading.last_unasked_at is None else reading.last_unasked_at.isoformat(),
+        last_unasked_age_seconds=health.last_unasked_age_seconds,
+        last_unasked=reading.last_unasked,
+        answered=reading.answered,
+        searched=0 if searches is None else searches.searched,
+        searches_answered=0 if searches is None else searches.answered,
+        searches_unasked=0 if searches is None else searches.unasked,
+        searches_owed=0 if searches is None else searches.owed,
+        last_search_answered_at=(
+            None if searches is None or searches.last_answered_at is None else searches.last_answered_at.isoformat()
+        ),
         description=health.describe(),
         distribution=reading.identity.distribution,
         version=reading.identity.version,
@@ -3025,6 +3230,7 @@ def _watch(service: WatchService, watch: Watch) -> WatchOut:
         in_flight=standing.in_flight,
         spent_usd=f"{standing.spent_usd:.2f}",
         sentence=standing.sentence,
+        summary=standing.summary,
     )
 
 
@@ -3037,6 +3243,7 @@ def _unattended(standing: Standing) -> UnattendedOut:
         may_start=standing.may_start,
         refusal=None if standing.refusal is None else str(standing.refusal),
         sentence=standing.sentence,
+        summary=standing.summary,
     )
 
 

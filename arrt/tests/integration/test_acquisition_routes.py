@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
 
 
 @pytest.fixture
@@ -132,7 +132,10 @@ def test_a_failed_work_is_counted_on_the_listing_and_listed_under_its_cause_not_
     assert "Waiting" in titles
     assert not any(title.startswith("Failed") for title in titles), "a failed work was listed in line"
     assert (listing["total"], listing["failing"], listing["causes"]) == (already + 1, 3, 1)
-    assert causes["causes"] == [{"cause": "reset.", "works": 3, "failed": 3, "gave_up": 0}]
+    # An unclassified failure (no outcome) is grouped by its words, and says it is: no outcome, plugin or museum.
+    assert causes["causes"] == [
+        {"cause": "reset.", "works": 3, "failed": 3, "gave_up": 0, "outcome": None, "plugin": None, "museum": None}
+    ]
     assert causes["total"] == 1
 
 
@@ -212,3 +215,31 @@ def test_retry_all_on_a_cause_no_work_holds_is_refused_with_why(http, accepted):
 
     assert answer.status_code == 400
     assert "No work in the queue failed for that reason now" in answer.json()["error"]
+
+
+def test_what_a_failed_fetch_said_reaches_the_work_and_its_cause_names_the_outcome_and_the_museum(http, accepted, store):
+    """Works that could not be asked at one museum are one cause, however each was worded."""
+    failed_at = datetime(2026, 11, 19, 9, 30, tzinfo=UTC)
+    works = [accepted(f"Unasked {number}") for number in range(2)]
+    for work, said in zip(works, ("Art Institute answered 503", "Art Institute took 240 s"), strict=True):
+        store.set_queued_acquisition(
+            QueuedAcquisition(
+                artwork_id=work.id,
+                failures=1,
+                detail=f"the Art Institute of Chicago plugin could not read this source: {said}",
+                outcome=FetchOutcome.UNASKED,
+                plugin="artic",
+                failed_at=failed_at,
+            )
+        )
+
+    acquisition = http.get(f"/api/works/{works[0].id}").json()["acquisition"]
+    causes = [each for each in http.get("/api/acquisitions/causes").json()["causes"] if each["outcome"]]
+
+    assert (acquisition["phase"], acquisition["outcome"], acquisition["plugin"]) == ("failed", "unasked", "artic")
+    assert (acquisition["failed_at"], acquisition["next_try_at"]) == (failed_at.isoformat(), None)
+    assert [(each["outcome"], each["plugin"], each["museum"], each["works"]) for each in causes] == [
+        ("unasked", "artic", "Art Institute of Chicago", 2)
+    ]
+    members = http.get("/api/acquisitions/causes/works", params={"cause": causes[0]["cause"]}).json()
+    assert sorted(entry["title"] for entry in members["works"]) == ["Unasked 0", "Unasked 1"]

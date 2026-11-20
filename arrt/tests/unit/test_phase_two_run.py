@@ -11,19 +11,23 @@ over real HTTP.
 """
 
 import logging
+import threading
+import time
 from dataclasses import replace
 
 import pytest
 from fakes import FakeFinder, a_decodable_jpeg, a_roster, a_work, an_image
 from PIL import Image
 
+from arrt.library.discovery import pool as pool_module
 from arrt.library.discovery.engine import WorkList
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.runner import DiscoveryRunner
-from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, Verdict
+from arrt.library.sources.names import museum_name
+from arrt.persistence.discovery_records import InitiatedBy, ResolutionStatus, RunStatus, SearchOutcome, SourceSearch, Verdict
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
@@ -398,6 +402,94 @@ def test_a_run_that_could_not_reach_the_provider_for_anything_fails(services, en
         "Phase 2 could not reach an image provider for any of this run's 2 works."
     )
     assert all(work.resolution_status is ResolutionStatus.PENDING for work in services.discovery.list_candidate_works(run_id))
+
+
+def test_a_run_every_work_of_which_one_source_could_not_be_asked_about_names_that_source(services, engine, runner, museum):
+    """By the museum, with how many works: "could not reach an image provider" alone left a curator guessing which."""
+    engine.result = a_list("The Elephants", "The Persistence of Memory")
+    museum.unreachable = True
+
+    run_id = start(runner).id
+
+    reason = services.discovery.get_run(run_id).end_reason
+    assert f"Could not ask {museum_name(museum.provider)} (2 works)." in reason, reason
+    assert museum.provider not in reason.replace(museum_name(museum.provider), ""), "the plugin id reached the sentence"
+
+
+class Late:
+    """A source of images that answers only once its gate opens: after the run's window."""
+
+    def __init__(self, provider: str, *instances) -> None:
+        self._provider = provider
+        self._instances = instances
+        self.gate = threading.Event()
+
+    @property
+    def provider(self) -> str:
+        return self._provider
+
+    def find_images(self, query):
+        assert self.gate.wait(30), "the test never opened the gate"
+        return self._instances
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        return None
+
+
+def test_a_late_answer_leaves_its_search_in_the_record_through_the_servers_own_wiring(
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum, monkeypatch
+):
+    """`Services.bind` hands the pool the store: a source answering after the run's window is recorded by its worker.
+
+    Built as the server builds it, with the window made short (the pool reads it
+    when it is built), so the slow source's answer lands after the run has
+    answered, on that source's worker thread, with what it found.
+    """
+    monkeypatch.setattr(pool_module, "ANSWER_WINDOW_SECONDS", 0.3)
+    written: list[tuple[SourceSearch, str]] = []
+    keep = discovery_store.record_search
+
+    def record_search(search: SourceSearch) -> None:
+        written.append((search, threading.current_thread().name))
+        keep(search)
+
+    monkeypatch.setattr(discovery_store, "record_search", record_search)
+    late = Late(
+        "slow",
+        an_image("The Elephants", provider="slow", url="https://slow.example/1"),
+        an_image("The Elephants", provider="slow", url="https://slow.example/2"),
+    )
+    museum.holdings = {"The Elephants": (an_image("The Elephants", width=6949, height=8400),)}
+    plane = Services.bind(
+        catalogue=store,
+        discovery=discovery_store,
+        display_settings=wall_settings,
+        thumbnails=thumbnail_settings,
+        quality_profile=settings.quality_profile,
+        engine=engine,
+        discovery_settings=settings.discovery_settings,
+        sources=a_roster(late, museum),
+    )
+    plane.runner._spawn = lambda work: work()
+    engine.result = a_list("The Elephants")
+
+    try:
+        run_id = start(plane.runner).id
+        (work,) = plane.discovery.list_candidate_works(run_id)
+        assert discovery_store.searches_of(work.id)["slow"].outcome is SearchOutcome.OWED
+        returned = len(written)
+    finally:
+        late.gate.set()
+    ends = time.monotonic() + 10
+    while not discovery_store.searches_of(work.id)["slow"].late:
+        assert time.monotonic() < ends, "the late answer never reached the record"
+        time.sleep(0.01)
+
+    search, thread = written[-1]
+    assert (search.provider, search.outcome, search.images, search.late) == ("slow", SearchOutcome.ANSWERED, 2, True)
+    assert thread == "image-source-slow"
+    assert len(written) > returned, "the late answer was written before the run answered"
+    assert discovery_store.searches_of(work.id)["artic"].outcome is SearchOutcome.ANSWERED
 
 
 def test_a_refusal_recording_phase_two_ends_the_run_with_the_refusal_named(services, engine, runner, museum, monkeypatch):

@@ -25,11 +25,24 @@ asserts what survived, what was dropped, and the copy taken first;
 `test_restore.py` takes a backup generation from a running server, restores it by
 the runbook's steps (written as code in that file) in the same art root and in a
 new one, and starts the server on it. Nothing there reads git or the network at
-test time; a new release whose schema changed gets its dump by adding its tag to
-the tool and running it where the tags are. The tests start the server as a
+test time. **Every release has a row** in `arrt/tests/fixtures/catalogues/releases.json`,
+its own dump or the earlier release's whose shape it shares, and
+`tests/preferences/test_catalogue_release_dumps.py` holds every release the change log
+records at or below `arrt/pyproject.toml`'s version to one; so a release cut adds its
+tag to `RELEASES` in the tool and runs the tool in the release's own commit, before the
+tag exists (the tool makes the newest untagged release from `HEAD`), where the other
+tags are fetched. The tests start the server as a
 process, so they hold what an in-process fixture cannot: that a stale
 `-journal` beside a restored catalogue silently undoes the restore
-(`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`). The real
+(`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`).
+**The process boundary has guards of its own** (`arrt/tests/system/server_process.py`):
+before a server starts, the environment it will be given is resolved with the server's
+own `Settings.from_env`, and a path setting that would land outside the test's scratch
+root is refused by name; when a server test ends, every wall's feed under every art
+root that server served is held to the Player contract (`feed_guard.published_problems`),
+because the in-process feed guard cannot reach a child process's copy of the builder;
+and a start counts only on that server's own listening line. The system tests are
+type-checked with the source (`[tool.mypy] files` in `arrt/pyproject.toml`). The real
 Player's test is another marker of the same directory
 (§ The real-Player test).
 
@@ -39,6 +52,18 @@ Player's test is another marker of the same directory
 workers interleave output and a `pdb` breakpoint has no terminal to stop in.
 Not through testament, which drops `-n` and sends the selection to the pool. The root suite runs in a fraction of
 a second and is left serial.
+
+**The curation suite has areas**, one per test directory (`[suites.curation.areas]` in
+`.testament.toml`): `unit`, `integration`, `contract`, `system`, `eval`, `scaffold`, and
+`other` for whatever a later directory adds, first match winning. They change nothing
+about how the suite runs. They select (`testament run --suite curation --area unit`, or
+`--not-area system`), break a run's report down, and divide its history (`testament
+time --by area`).
+
+**There are six suites on the pool:** governance (the root), curation, browser,
+contract, `player`, the real-Player test (§ The real-Player test), and `image`, the
+server image's test stage, which CI never asks for (§ The image's test stage on the
+pool).
 
 **The root suite holds no product code, and it is not optional.** It carries
 `tests/preferences/`, where this repo's artifact-versus-code contracts
@@ -52,6 +77,91 @@ the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and the server's own suite
 does not read the artifacts. So a change made entirely inside `arrt/` — routing a screen,
 editing those IA tables — is guarded by a leg in the repo root.
+
+### The image's test stage
+
+`arrt/Dockerfile`'s `test` target runs the curation suite inside the image the
+NAS runs, as the app's unprivileged user, laid out as the image lays it out:
+`arrt/` is `/app`, and nothing beside it exists unless a `COPY` brings it in.
+CI builds it only on a pull request into `main` and by hand
+(`.github/workflows/image.yml`, by the owner's ruling of 2026-11-20 that CI is
+kept small); before that it also built on any pull request that changed the
+image's inputs (the Dockerfile, a lockfile, an interpreter pin, the workflow),
+about seven minutes of GitHub's runner each, and seconds otherwise. The pool runs it
+as the `image` suite from a machine doing the work (below); run that when you change
+the Dockerfile, a lockfile or the interpreter pin.
+
+The one class it caught that nothing else did, a test reading a file the image
+does not carry (`.env.example` in wave 1, `docs/source-plugins.md` in wave 2b),
+is held on every pull request by the root suite:
+`tests/test_the_image_carries_what_tests_read.py` reads the stage's `COPY` lines
+against every path a module under `arrt/tests/` or `arrt/tools/` builds from its
+own `__file__`, and names the file and the `COPY` it needs. A climb it cannot
+work out to one path (`.parents` walked as a whole) is declared there with what
+it reads. It does not see a path built from a string, from the working
+directory or inside a subprocess; those still meet the image at the release.
+
+*Until 2026-11-20 it could not run on the pool:* a suite ran in the project's
+container, which has no Docker daemon, or on a runner's host, which this project was
+not granted (`host suites (image): arrt may use ['container'] here, not executor
+'host'`, the probe of that day). The owner's ruling of the same day granted the host
+executor, and the stage is now a suite of its own, below.
+
+### The image's test stage on the pool
+
+Since 2026-11-20 the pool's allowlist gives this project the host executor (the
+owner's ruling of that day), and the image's test stage is testament's sixth suite,
+`image` (build-plan-audit-wave-2b, Chunk 65). Its one test,
+`tests/the_image_test_stage.py`, builds the stage as `image.yml` does (target
+`test-report`, context `arrt/`, the repository root as `repo`, `linux/amd64`) and
+reads the exported report with `.github/scripts/assert_tests_ran.py`, so a red
+suite, a skip and an empty run all fail it. A failure carries the build's last 80
+lines, pytest's progress lines left out, and names where the whole log is on the
+runner.
+
+    testament run --json=summary --suite image
+
+- **Where it runs.** On the host of a runner with `docker`, `docker-heavy` and
+  `arch:x86_64`, one batch a runner, and only on the submitter's own runners: host
+  work needs a run signed with the submitter's owner secret
+  (`testament guide pool`, "Running on the host: the owner secret").
+- **A machine without an owner secret does not pass.** Its run ends exit 2,
+  `verdict: failed`, `error.code: no_warrant`, with `setup.state: no_owner_secret`
+  (observed 2026-11-20 with the identity taken from the environment, as a CI job has
+  it, both for the suite alone and beside another suite that passed). On an arm64
+  machine the message adds that this machine lacks `arch:x86_64`, so it did not run
+  here either.
+- **CI never runs it.** Its key holds no owner secret, so asking for it would end
+  every pull request's run red. The pool step asks for every other suite by name
+  (`NOT_CI` and `pool_run_argv` in `.github/scripts/pool_or_fallback.py`), the
+  fallback never runs it, and the summary names it as not asked for. A full
+  `testament run` from a machine doing the work runs it, which is where its
+  evidence comes from; `image.yml` builds the same stage on a pull request into
+  `main`.
+- **What it leaves on a runner's host.** A buildx builder of its own,
+  `arrt-image-stage`: one BuildKit container, stopped after every build, and its
+  state volume, which holds this suite's build cache alone; its cache is pruned to
+  8 GB after each build (`docker buildx prune --builder arrt-image-stage`, which
+  reaches no other cache). No image and no container of its own: the report is
+  exported as a file. The first build on a host pulls `moby/buildkit:buildx-stable-1`,
+  shared with other builders and never removed by it. One log file,
+  `<tmp>/arrt-image-stage/last-build.log`, overwritten by each build. To take all of
+  it away: `docker buildx rm arrt-image-stage`.
+- **Cost, as measured on 2026-11-20**, each a run on a runner with Docker, in two
+  sets of runs at different times, so the figures differ with the runner and its load:
+  - by Chunk 65's delegate: 147 s cold, on a builder with no cache; 125 to 127 s with
+    the dependency layers cached and the code changed; 2 s when nothing the stage
+    copies changed (its layers all cached); 1 s to fail when a `COPY` names a missing
+    file;
+  - by the integrator, later: 167 s and 192 s with the code changed (two runs), and
+    5.7 s with nothing changed.
+
+  So with the code changed, which is nearly every run since any change under `arrt/`
+  reruns the stage's whole suite, it took 125 to 192 s in the runs measured, and 2 to
+  6 s cached. In a full `testament run` it runs beside the other suites; in the
+  delegate's run it was not the long pole (the browser suite took 303 s of that run's
+  304 s). What it costs there is a runner host's cores for two to three minutes while it
+  rebuilds.
 
 ## The browser suite
 
@@ -83,17 +193,28 @@ If the console will not serve the client (no connection, a 5xx, a 408 or 429),
 the run within two minutes, it retries with backoff for up to ten minutes; a run the
 pool accepted and still holds at the pool step's twenty-minute deadline (about three
 times a healthy full run) is stopped. Either way it then runs the governance,
-curation and contract suites on GitHub's runner with uv, by the commands in
-CLAUDE.md, after the lint the job always runs there. The browser suite needs Chrome,
-which only the pool's runners carry, so it does not run, and the job summary opens
-"The pool was unavailable; ran here, on GitHub's runner, without the browser suite".
+curation and contract suites on GitHub's runner with uv, without testament, after the
+lint the job always runs there: one step a suite, each naming only its suite to
+`pool_or_fallback.py fallback`, which runs that suite's own command and selection
+from `.testament.toml`, less the manifest's `-n 0` (testament is the parallelism on
+the pool; here the curation plane's addopts give `-n auto`, as before), and writes
+the report named for it. A change to a suite's selection reaches the fallback with no
+edit to `tests.yml`; a suite added to the manifest is owed a step there, or is named
+as left out, or `tests/test_ci_fallback.py` fails. Two suites do not run there: the
+browser suite needs Chrome, which only the pool's runners carry, and the real-Player
+suite is the pool's alone by the owner's ruling of 2026-11-20 (`POOL_ONLY` in
+`pool_or_fallback.py`; § The real-Player test). The job summary opens "The pool was
+unavailable; ran here, on GitHub's runner, without the browser and real-Player
+suites" and names each as not run, with why.
 The required check, "Lint, then every suite", is then green on what ran, so the
 outage blocks no merge. The second check, **"The browser suite ran on the pool"**,
 is not required: it is green when the pool gave the verdict and red after a
-fallback, the mark that this tree has no browser verdict. Nothing gives it one
+fallback, the mark that this tree has no browser or real-Player verdict (its name
+still says the browser suite alone; its message names both). Nothing gives them one
 later on its own (no workflow runs on a push to `develop` or `main`): re-run all of
 the workflow's jobs once the pool is back, or run `testament run --json=summary
---suite browser` on the branch's head and put its request id on the pull request.
+--suite browser --suite player` on the branch's head and put its request ids on the
+pull request.
 The trade: an outage of the pool no longer blocks every merge (ruling 4 of
 2026-11-19), and GitHub's minutes are spent on suites only during one (the
 2026-11-18 ruling). A `failed` verdict is a result and never falls back, nor does a
@@ -109,11 +230,26 @@ black only, with `--only-group dev`. mypy runs in the governance suite
 project's own configuration, and fails naming the modules with errors. It runs
 mypy without syncing, so on a fresh clone it fails until the environments exist,
 and says so: `cd arrt && uv sync --group dev --group browser` and `cd contract &&
-uv sync --group dev`. The fallback's governance step syncs both first.
+uv sync --group dev`. The fallback's governance step syncs both first, with the
+`dev` group alone (`FALLBACK_SETUP`), so **the type check must also pass where
+Playwright is not installed**: `tests/preferences/test_type_gate_in_the_fallback.py`
+reads the groups from `FALLBACK_SETUP` itself, the packages they install from each
+`uv.lock`, and every import mypy follows (a `TYPE_CHECKING` one included), and fails
+naming any third-party import that environment would not have and that is not in the
+`ignore_missing_imports` allowance. Two chunks together made that step red once while
+the pool stayed green.
 
 **`-n0` matters here.** These tests time real two-second poll intervals, and
 `-n auto` — which a command-line `-m` leaves in place — turns those windows into
 flakes when workers contend for cores.
+
+**Run the guards that read what you add, not only the files you edit.** A new or
+changed browser test is read by `arrt/tests/unit/test_browser_reads_retry.py` (no
+one-shot read of the page, no fixed sleep, unless its line says why) and by
+`arrt/tests/unit/test_client_vocabulary.py`; a field added to an answer is read by
+every test that compares that answer whole. Both are in the curation suite, not the
+browser suite, so a run of the browser files alone does not run them. Two chunks of
+audit wave 2b reached integration with one red each, from such a guard.
 
 **A behaviour is not covered because a browser test exercises it.** Prove it with
 `tools/mutation_sweep.py`, which drives a JavaScript module as happily as a
@@ -201,7 +337,8 @@ was written.
 | a class tested for, `"x" in (loc.get_attribute("class") or "").split()` | — | `expect(loc).to_have_class(re.compile(r"(^\|\s)x(\s\|$)"))`: hazard 12 |
 | `assert loc.is_visible()` / `not loc.is_visible()` | 59 / 19 | `expect(loc).to_be_visible()` / `expect(loc).to_be_hidden()`, under the anchor rule |
 | `assert loc.is_hidden()` | 35 | `expect(loc).to_be_hidden()`, under the anchor rule |
-| `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` |
+| `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` — the two agree on `aria-disabled` (hazard 19) |
+| boxes read into a dict by their labels, `{label.inner_text(): box.is_checked()}` | — | the boxes' count with `to_have_count(n)`, then `expect(dialog.get_by_label(name, exact=True)).to_be_checked(checked=…)` per name: hazard 17, since a label is matched by its text content, not its `innerText` |
 | `assert loc.input_value() == v` | 39 | `expect(loc).to_have_value(v)` |
 | a tuple of reads compared to a tuple: `assert (a.input_value(), b.is_disabled()) == (x, True)` | 13 | one `expect` per element, each by its own row |
 | `assert page.title() == s` / `.startswith(s)` / `re.match(r"^s\b", …)` / `s not in` | 6 | `expect(page).to_have_title(s)` / `re.compile("^" + re.escape(s))` / `re.compile(r"^s\b")` / `not_to_have_title(re.compile(re.escape(s)))` |
@@ -212,6 +349,7 @@ was written.
 | `bounding_box()` | 44 | stays, after an `expect` of the state it measures, with `# one-shot: <why>` (geometry, as `evaluate` is) |
 | `page.evaluate(…)`, `loc.evaluate(…)` | not counted | out of scope (the plan's decision): a computed value no `expect` retries. Placed after an `expect` of the state it reads; `wait_for_function` is its retrying form where the claim is a predicate |
 | `ui.page.wait_for_timeout(ms)`, a `setTimeout` promise | 39 | a wait on the condition it stood for; one that proves nothing happens for a while stays, with `# sleep: <why>` |
+| `assert s.count(w) == 1` on a whole card or page ("said once") | — | `to_have_text(re.compile(r"^(?:(?!w).)*w(?:(?!w).)*$", re.IGNORECASE \| re.DOTALL), use_inner_text=True)`: hazard 18 |
 
 #### The hazards, each with the wrong conversion and the right one
 
@@ -315,6 +453,54 @@ asserted against it).
     one request, list full at the exit every time), so treat it as a reported
     hazard of the wiring, not a measured rule: if such a test ever flips, look
     here first.
+17. **A label is matched by its text content.** `get_by_label(name, exact=True)`
+    on a `<label>` compares `name` with the label's whole text content,
+    whitespace-normalised and trimmed, and case-sensitively: words CSS hides
+    (`hidden`, `display: none`, `aria-hidden`) count, and `text-transform` does
+    not, where `innerText` is the other way round on both. A control with an
+    `aria-label` is found by that and no longer by its label's words. Measured on
+    1.62 in a page set with `set_content`, eight labels: `Study <span
+    hidden>(current)</span>` is found as `Study (current)` and not as `Study`; an
+    uppercased `Hall` as `Hall`, not `HALL`; `Kitchen` with an `aria-label` of
+    `Kitchen wall` only as the latter. So the conversion of a dict of label texts
+    is right for a label whose words all show, which *Hang…*'s are
+    (`screens/theme.js`: each label's text is the wall's name, its box has no
+    `aria-label`, and no rule transforms it); a label that carries hidden words
+    is found by them, not by its `innerText`.
+18. **"Said once" as one pattern.** `re.compile(r"^(?:(?!w).)*w(?:(?!w).)*$",
+    re.IGNORECASE | re.DOTALL)` with `use_inner_text=True` passes on exactly one
+    `w` and fails on none or two, across lines (measured on 1.62: zero, one, two
+    on one line, two on separate lines, one hidden copy beside one shown). It
+    needs `re.DOTALL`: Playwright passes the flag through, and without it a text
+    of several lines fails even when it holds `w` once. It sees the raw
+    `innerText`, so `screen&nbsp;off` is not `screen off`, and a `w` that wraps
+    across two elements (`screen` in one, `off` in the next) is not found.
+    Without `use_inner_text`, a hidden copy counts.
+19. **`aria-disabled` is disabled to both reads.** `is_disabled()` and
+    `to_be_disabled()` agree in every case measured on 1.62: a native `disabled`
+    button, a button in a disabled `<fieldset>`, and `aria-disabled="true"` on a
+    button, an `<input>`, a `role=button`, or on an ancestor of the button (a
+    plain `div` or a `role=group`) are disabled to both; `aria-disabled="false"`,
+    and `aria-disabled="true"` on a `span` with no role, are enabled to both. So
+    converting one to the other changes nothing; what neither says is whether
+    the control ignores a press, which is the client's to do.
+20. **A window is the page's clock.** A count over a window ("one request per
+    poll") read after a fixed sleep counts whatever the runner managed in that
+    time. Right: `page.clock.install()` before the page loads, then
+    `page.clock.run_for(interval)` one interval at a time, each followed by a
+    wait on what that interval's paint leaves behind, so the count is per tick.
+    An init script added *after* the install wraps the clock's `setTimeout`, so
+    a test can count the timers the page sets (`test_the_run_view.py`,
+    `COUNT_POLL_TIMERS`). Added before it, the wrapper is replaced: measured on
+    1.62, it then saw none of the page's two-second timers in five seconds,
+    only shorter ones (100 ms, 5 ms).
+21. **An absence that settles by a callback.** A fitting scroll box carries no
+    `tabindex`, both before the client's `ResizeObserver` has reported and
+    after, so `not_to_have_attribute` passes on its first poll whether or not
+    the observer has run. Anchor it on an observer of the test's own, made
+    after the client's: within one rendering step observers report in the
+    order they were made, so once the test's has reported, the client's has
+    settled the box (`test_a_table_wider_than_its_box_takes_the_keyboard`).
 
 #### Where there is no mechanical form
 
@@ -370,17 +556,42 @@ is the commit `arrt/tests/system/player-ref.txt` names, fetched from GitHub with
 installs it, on uv's Python 3.13) into a cache outside the repository, by commit
 (`~/.cache/arrt/player-e2e`, or `ARRT_PLAYER_E2E_CACHE`). So it needs the network
 to GitHub, `git` and `uv`, checks for the last two first and fails by name without
-them; it reaches nothing else. That is why it is deselected by default, with the
-live suites' reason: run it as `cd arrt && uv run pytest -m player_e2e -n0
-tests/system/test_a_real_player.py` (about 65 s warm, two of the Player's 30 s
-client polls; the first run also fetches and builds the Player), or on the pool
-with `testament run --json --suite curation -- -m player_e2e
-arrt/tests/system/test_a_real_player.py`, whose runners reach GitHub and carry
-both (210 s cold and 81 s warm there, 2026-11-19). Nothing runs it unasked: not
-the default suites, not `tests.yml`. The image's test stage deselects it (no
-git there), and `.github/workflows/image.yml` runs it against the built app image
-(`ARRT_SERVER_IMAGE`) on a pull request into `main`. Moving the Player's pin is a
-one-line change to `player-ref.txt`, and the first run after it is a cold one.
+them; it reaches nothing else, and no paid service: the server runs with every
+name `.env.example` declares set blank and no `.env` read (`arrt/tests/system/conftest.py`
+starts it through `arrt/tools/ux_walk.py`'s `synthetic_environment` and launcher, which
+`arrt/tests/unit/test_ux_walk_isolation.py` holds), and the Player inherits nothing but
+`PATH`. That is why the curation plane's addopts deselect it, with the live suites'
+reason, and why **it is a testament suite of its own, `player`** (`.testament.toml`:
+the curation suite's command with `-m player_e2e`, selecting the one file).
+
+- **On every pull request**, inside the required check: `tests.yml` runs every suite
+  the manifest declares, so the pair is tested on every server change, beside the
+  other suites (65-80 s warm, 210 s cold on the first run after the pin moves; the
+  pool runs the suites at once, so it lengthens the run only when it is the slowest).
+  A Player pin that will not install, or a fetch from GitHub that fails, is a red,
+  never a fallback.
+- **On the pool, by hand:** `testament run --json=summary --suite player`. Every
+  runner may take it: it runs in the project's container, which carries `git` and
+  `uv`, and needs from the host only the network to GitHub and to uv's Python
+  downloads. It passed on five of the six runners, both architectures, on 2026-11-19
+  and -20. If a runner without that network joins, its operator labels the runners
+  that have it, and the suite `requires` the label.
+- **Here:** `cd arrt && uv run pytest -m player_e2e -n0 tests/system/test_a_real_player.py`
+  (about 65 s warm, two of the Player's 30 s client polls; the first run also fetches
+  and builds the Player).
+- **Never on GitHub's runner:** when the pool cannot answer, CI's fallback leaves the
+  suite out and says so by name, as it does the browser suite (§ The browser suite; the
+  owner's ruling of 2026-11-20: "We should minimize CI and prioritize local tests. We are
+  almost out of ci minutes.").
+
+Every curation run says what it did with the test: its header names where the test
+runs and how to run it, and its last line says whether this run selected it,
+deselected it, or never collected it (`arrt/tests/player_e2e_header.py`, decided from
+what pytest collected and deselected, through public hooks only). The image's test
+stage deselects it (no git there), and `.github/workflows/image.yml` runs it against
+the built app image (`ARRT_SERVER_IMAGE`) on a pull request into `main`. Moving the
+Player's pin is a one-line change to `player-ref.txt`, and the first run after it is a
+cold one.
 
 ## The live suites
 
@@ -395,9 +606,9 @@ concurrent requests at a public museum API — which comes back as a rate limit 
 is indistinguishable from the contract change you were looking for.
 
 ```sh
-cd arrt && uv run pytest -m live_museum -n0     # free, needs the network
-cd arrt && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
-cd arrt && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
+cd arrt && uv run pytest tests/live -m live_museum -n0     # free, needs the network
+cd arrt && uv run pytest tests/live -m live_binary -n0     # free, needs dezoomify-rs
+cd arrt && uv run pytest tests/live -m live_api -n0        # SPENDS REAL MONEY: by hand only
 ```
 
 **A museum marker may run beside an OpenRouter marker, each serial within**
@@ -417,10 +628,14 @@ path as well** — `uv run pytest tests/live -m live_museum …`. That is assert
 `tests/test_assert_tests_ran.py`, which reads the workflow files, so a new job
 written from the line above fails at home rather than on a schedule.
 
-Run one when your work touches that client. Otherwise leave the **three
-`live_*` markers** to `.github/workflows/api-drift.yml`, which runs the two free
-tiers weekly and the paid one monthly — drift is on the provider's schedule, not
-on our commit rate.
+Run one when your work touches that client. Otherwise leave the two free
+markers, `live_museum` and `live_binary`, to `.github/workflows/api-drift.yml`,
+which runs them weekly — drift is on the provider's schedule, not on our commit
+rate. **`live_api` and `llm_eval` are run by hand and by nothing else**, on a
+person's machine with their own key (the owner's ruling of 2026-11-20: CI makes
+no paid call). No workflow holds a model key: `tests/test_ci_makes_no_paid_call.py`
+allows CI only the secrets it names (today the pool's client key, `TESTAMENT_KEY`)
+and fails by name for any other a workflow reads, on any event.
 
 **A probe red for a cause nobody has established is listed, not left to turn the
 alarm permanently red.** `.github/known-blocked.json` has one row per probe (its
@@ -448,6 +663,25 @@ gates. Run it by hand before shipping a tool-surface change — nothing else wil
 is right locally and a trap in CI, where a green run that made no request looks
 identical to a passing one. `.github/scripts/assert_tests_ran.py` is what closes
 that: it fails the job on any skip and names which dependency was absent.
+
+**So a test that legitimately cannot run in CI is never collected there; it does
+not skip.** The fifth by-hand check is the contract package's `release_tags`: it
+writes each frozen copy under `contract/released/` again from its git tag with
+`contract/tools/freeze_release.py` and compares every byte. Only a full clone has
+the tags (the pool is sent the tree without them, and GitHub's checkout fetches
+none), so `contract/pyproject.toml`'s addopts deselect it, and whoever freezes a
+release runs it after the freeze (`player-contract.md` § The package):
+
+```sh
+git fetch origin --tags && cd contract && uv run pytest -m release_tags
+```
+
+Selected where a tag is missing, it fails naming the tag rather than skipping,
+since someone who asked for the comparison must not read a pass without it. Every
+run still holds each copy to its own `sha256.json` (`contract/tests/test_released.py`),
+which needs no tag. `tests/test_ci_runs_no_unprovisioned_skip.py` keeps the class
+from coming back: every skip in a file a suite CI runs collects must be behind a
+marker that suite deselects, or listed there with why CI has what it waits for.
 
 **Touching `library/acquisition/mat.py` or `library/acquisition/color.py`? Run the masters by
 hand** — `cd arrt && uv run python tools/mat_masters.py ../all.json`. The

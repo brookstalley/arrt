@@ -45,6 +45,20 @@ class ScreenState(StrEnum):
 #: The states a controller reports, and the only ones a heartbeat may carry.
 REPORTED: Final[frozenset[ScreenState]] = frozenset(ScreenState(value) for value in heartbeat.REPORTED_DISPLAY_STATES)
 
+#: The states that are a step not yet taken rather than a fault, so never a
+#: trouble on the top bar or the System badge: a wall with no Player yet.
+#: Quoted from `contract/vocabulary.json`'s `display_states` setup flags, because
+#: the server cannot read the package at run time (`player_state.py` says why);
+#: `arrt/tests/unit/test_display_state.py` holds the two alike, both ways.
+SETUP: Final[frozenset[ScreenState]] = frozenset({ScreenState.UNASSIGNED})
+
+#: The states that are a fault the household is told of: the wall a Player
+#: shows has stopped reporting, or what it wrote cannot be read. The rest (a
+#: screen off, in use, absent or not known) are what a screen does on an
+#: ordinary evening (the owner's ruling of 2026-10-07, `core/outputs.js`), and
+#: the setup states are never one.
+TROUBLES: Final[frozenset[ScreenState]] = frozenset({ScreenState.SILENT})
+
 
 @dataclass(frozen=True, slots=True)
 class ReportedState:

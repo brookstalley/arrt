@@ -25,10 +25,12 @@ from scripted_model import (
     ScriptedModel,
     calls,
     says,
+    unpriced,
 )
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryPerson, RegistryText, RegistryWorkMatch
+from arrt.library.services.discovery import SpendTotal
 from arrt.mcp.server import dispatch
 from arrt.persistence.discovery_records import SpendCategory
 
@@ -111,6 +113,8 @@ def test_a_reply_searches_streams_and_ends_with_its_cost_and_cards(server_url, a
     assert metadata["steps"] == 2
     assert metadata["cost_usd"] == pytest.approx(2 * COST_PER_REPLY)
     assert metadata["uncosted"] == 0
+    assert metadata["summary"] == SpendTotal(cost_usd=2 * Decimal(str(COST_PER_REPLY)), unknown_calls=0).words
+    assert not metadata["summary"].startswith("at least")
     # The invented item gets no card, and Harvesters, returned but not named, gets none either.
     assert [card["qid"] for card in metadata["cards"]] == [HUNTERS]
     assert metadata["cards"][0]["kind"] == "work"
@@ -218,6 +222,27 @@ def test_what_a_reply_spent_is_in_the_months_spend(server_url, ask_model, servic
         2 * INPUT_TOKENS_PER_REPLY,
         2 * OUTPUT_TOKENS_PER_REPLY,
     )
+
+
+def test_a_reply_step_of_unknown_cost_makes_the_months_spend_read_at_least(server_url, ask_model):
+    """Through the routes: the reply says "at least", and so does the Spend page's month, in one writer's words.
+
+    A step the provider answered with no cost on it was recorded as nothing,
+    so the month read a known figure for a call that may have been billed.
+    """
+    ask_model.replies += [unpriced(calls(SEARCH)), says("Done.")]
+
+    events = send(server_url, open_thread(server_url), "Bruegel")
+    month = httpx.get(f"{server_url}/api/spend").raise_for_status().json()["months"][0]
+
+    [end] = [event for event in events if event["type"] == "stream_end"]
+    said = SpendTotal(cost_usd=Decimal(str(COST_PER_REPLY)), unknown_calls=1).words
+    assert end["metadata"]["summary"] == said
+    assert said.startswith("at least $")
+    [ask] = [each for each in month["categories"] if each["category"] == "ask_tokens"]
+    assert (ask["calls"], ask["summary"]) == (2, said)
+    assert month["summary"] == said
+    assert [each["category"] for each in month["unknown_calls"]] == ["ask_tokens"]
 
 
 def test_an_unknown_thread_is_a_404(server_url):

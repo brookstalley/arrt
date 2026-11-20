@@ -18,11 +18,18 @@ mat colour, so the queue spends; `PreparationService` records it.
 an image, and the work goes on the wall with it (`partial_tiles` is a recorded
 outcome, not a failure). A fetch that records a failure, a refusal about this
 work (no source, or several and none primary), or a preparation that refuses is
-one failure, and the work is tried again after an hour, a day and three days;
-after the fourth failure in a row the queue gives up until someone asks again
-(`retry`). A preparation that failed after a good fetch is retried by preparing
-alone: the image is held, and fetching it again would cost a museum a gigapixel
-to repeat what already worked.
+one failure. **When it is tried again depends on what the fetch said**
+(`RETRY_RULES`, by the fetch's `FetchOutcome`): a holder that could not be asked
+(`unasked`) on the queue's next pass, since nothing is known of the image; a
+plugin that faulted once Arrt next loads its plugins, since asking the same
+plugin again cannot help; a page that shows no image or is gone (`none_held`,
+`link_gone`) not at all, until a Retry or until the work's Wikidata item is
+another; and every other failure, those recorded before outcomes were included,
+after an hour, a day and three days, giving up after the fourth in a row until
+someone asks again (`retry`). The schedule counts only its own failures: one
+under another rule starts its count again (`_record_failure`). A preparation that failed after a good fetch is
+retried by preparing alone: the image is held, and fetching it again would cost
+a museum a gigapixel to repeat what already worked.
 
 **A deployment fault pauses the queue and costs no work anything.** The
 conditions acquisition raises for rather than records (`DEPLOYMENT_FAULTS`: a
@@ -34,11 +41,13 @@ the queue adds the pause. So does a fault of the host that surfaces mid-work, as
 `OSError` for a full or read-only disk (`ENOSPC`, `EROFS`) or the store's `StorageFault`:
 it would fail every work in turn, so it pauses the queue and counts against none.
 
-**What is stored answers five questions and no more** (`data-model.md` Q31 to
+**What is stored answers these questions and no more** (`data-model.md` Q31 to
 Q35, the `acquisition_queue` table): which works are due, how many times each has
-failed in a row and when it may next be tried, why the last attempt failed,
-whether the queue gave up, and which source a Retry named. What is in flight and
-why the queue is paused live in memory; a restart re-derives both by trying.
+failed in a row and when it may next be tried, why the last attempt failed and
+what its fetch said (`outcome`, `plugin`), when it last failed (`failed_at`),
+whether the queue gave up or the work is settled (`settled_qid`), and which
+source a Retry named. What is in flight and why the queue is paused live in
+memory; a restart re-derives both by trying.
 """
 
 import errno
@@ -56,9 +65,11 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
+from arrt.library.sources.loading import NotAskedThisPass, StillAsking, one_pass
+from arrt.library.sources.names import museum_name
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
 from arrt.persistence.errors import StorageFault
-from arrt.persistence.records import ArtworkStatus, QueuedAcquisition
+from arrt.persistence.records import ArtworkStatus, FetchOutcome, QueuedAcquisition
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -71,6 +82,89 @@ RETRY_AFTER: Final[tuple[timedelta, ...]] = (timedelta(hours=1), timedelta(days=
 #: Failures in a row after which the queue stops trying a work until Retry: the
 #: first attempt and each retry above.
 GIVE_UP_AFTER: Final[int] = len(RETRY_AFTER) + 1
+
+
+class RetryRule(StrEnum):
+    """When a work whose last fetch failed is tried again, by what the fetch said."""
+
+    #: `RETRY_AFTER`'s schedule, then given up after `GIVE_UP_AFTER` failures in
+    #: a row: every failure before outcomes were recorded, and any not classified.
+    SCHEDULE = "schedule"
+    #: On the queue's next pass, never given up: the holder could not be asked,
+    #: so nothing is known of the image, and asking again is the only way to learn.
+    NEXT_PASS = "next_pass"  # noqa: S105 -- a retry rule's name, not a password
+    #: Once Arrt next loads its plugins (its next start): the plugin faulted, and
+    #: asking the same plugin again cannot help until it is replaced.
+    NEXT_LOAD = "next_load"
+    #: Not again until a Retry, or until the work's Wikidata item is another:
+    #: the holder answered, and what it said will not change by asking again.
+    SETTLED = "settled"
+    #: Not a failure: the work holds its image, and the queue holds no failure for it.
+    HELD = "held"
+
+
+#: Each outcome's rule, the queue's one statement of when a failure is tried
+#: again. Every `FetchOutcome` has one, checked at import below: an outcome
+#: added without one fails there, by name, rather than taking a default.
+RETRY_RULES: Final[Mapping[FetchOutcome, RetryRule]] = {
+    FetchOutcome.OK: RetryRule.HELD,
+    FetchOutcome.PARTIAL_TILES: RetryRule.HELD,
+    FetchOutcome.NONE_HELD: RetryRule.SETTLED,
+    FetchOutcome.LINK_GONE: RetryRule.SETTLED,
+    FetchOutcome.UNASKED: RetryRule.NEXT_PASS,
+    FetchOutcome.FAULTED: RetryRule.NEXT_LOAD,
+    FetchOutcome.FAILED: RetryRule.SCHEDULE,
+}
+
+#: What a group of works is listed under in Activity › Queue when their fetches
+#: said one thing at one plugin, in words naming no work: one sentence per
+#: outcome whose rule is not the schedule, `{museum}` the plugin's. Works whose
+#: fetch said `failed`, or whose failure was no fetch's, keep their own words,
+#: which are the only thing that tells one such cause from another.
+OUTCOME_CAUSES: Final[Mapping[FetchOutcome, str]] = {
+    FetchOutcome.UNASKED: (
+        "The {museum} plugin could not be asked about the source, so nothing is known of its image yet; "
+        "it is asked again on the queue's next pass."
+    ),
+    FetchOutcome.FAULTED: (
+        "The {museum} plugin faulted while reading the source; it is asked again once Arrt next starts and " "loads its plugins."
+    ),
+    FetchOutcome.NONE_HELD: (
+        "The {museum} plugin read the source's page, and it shows no image; settled until a Retry, or until "
+        "the work's Wikidata item changes."
+    ),
+    FetchOutcome.LINK_GONE: (
+        "The {museum} plugin read that the source's page is gone; settled until a Retry, or until the work's "
+        "Wikidata item changes."
+    ),
+}
+
+if _unruled := set(FetchOutcome) - set(RETRY_RULES):
+    raise RuntimeError(f"Fetch outcomes with no retry rule: {', '.join(sorted(_unruled))}.")
+if _unworded := {
+    outcome
+    for outcome, rule in RETRY_RULES.items()
+    if rule not in (RetryRule.SCHEDULE, RetryRule.HELD) and outcome not in OUTCOME_CAUSES
+}:
+    raise RuntimeError(f"Fetch outcomes with no cause to list their works under: {', '.join(sorted(_unworded))}.")
+
+
+def retry_rule(queued: QueuedAcquisition) -> RetryRule:
+    """When this failed work is tried again: its outcome's rule, or the schedule for a failure with none.
+
+    A row with no failures (never failed, or a Retry since) has nothing to
+    retry, and is the schedule's, which tries it at once. Its outcome is not
+    read: a Retry written by a release that records no outcome leaves the last
+    one beside it. A failure row whose outcome is a success is no row this
+    queue writes, and is refused by name.
+    """
+    if queued.failures == 0 or queued.outcome is None:
+        return RetryRule.SCHEDULE
+    rule = RETRY_RULES[queued.outcome]
+    if rule is RetryRule.HELD:
+        raise ValueError(f"The queue holds a failure for {queued.artwork_id!r} whose fetch said {queued.outcome}.")
+    return rule
+
 
 #: How often a paused queue tries again when nothing wakes it. Freeing disk or
 #: installing the binary is somebody at the machine, and a quarter of an hour is
@@ -85,6 +179,17 @@ IDLE_SECONDS: Final[float] = 86_400.0
 #: The shortest wait between passes, so a retry falling due a moment from now is
 #: never a busy loop.
 _MIN_WAIT_SECONDS: Final[float] = 1.0
+
+#: How long the queue waits at most, after a pass that did not ask a work (its
+#: plugin still owed another work an answer, or the pass held the plugin back),
+#: before a pass looks again. Such a work is due by its clock, so without this
+#: the shortest wait applied and the queue passed once a second for as long as
+#: the plugin owed its answer, up to `DEADLINE_CEILING_SECONDS`. The owed call's
+#: end wakes the queue (`StillAsking.when_answered`); this bounds what a lost
+#: wake costs, and what a held-back plugin's next pass waits for. Five minutes:
+#: at most twelve passes over the longest call a plugin may owe, against 3,600
+#: at one a second, and a work at most five minutes late if the wake is lost.
+NOT_ASKED_RECHECK_SECONDS: Final[float] = 300.0
 
 #: What the queue's thread is called, in `journalctl` and in a stack dump, and
 #: what a test looks for to say it was or was not started.
@@ -129,7 +234,8 @@ class AcquisitionState:
 
     artwork_id: str
     phase: AcquisitionPhase
-    #: Failures in a row so far. Non-zero on a work queued again after one.
+    #: Failures in a row so far, under the retry rule of the last one. Non-zero
+    #: on a work queued again after one.
     failures: int = 0
     #: Why the last attempt failed (`failed`, `gave_up`, and a queued work that
     #: failed before), or why the queue is paused (`paused`).
@@ -140,6 +246,13 @@ class AcquisitionState:
     since: datetime | None = None
     #: The deployment fault the queue is paused on, by its exception's name (`paused`).
     condition: str | None = None
+    #: What the last failed fetch said (`FetchOutcome`), when it said more than
+    #: that it failed; null for a failure that was no fetch's or is unclassified.
+    outcome: FetchOutcome | None = None
+    #: The source plugin that answered it, by its name.
+    plugin: str | None = None
+    #: When the last failure was recorded; null when not recorded.
+    failed_at: datetime | None = None
 
     @property
     def remedy(self) -> str | None:
@@ -196,10 +309,18 @@ class QueueEntry:
 
 @dataclass(frozen=True, slots=True)
 class FailureCause:
-    """Every work whose last try failed for one reason, in the order the queue holds them."""
+    """Every work whose last try failed for one reason, in the order the queue holds them.
+
+    The reason is `cause`, in words naming no work. A group whose fetches said
+    one classified thing at one plugin carries both (`outcome`, `plugin`), and
+    its words are that outcome's (`OUTCOME_CAUSES`), so the same cause worded
+    two ways by two holders is one group. Any other group has neither.
+    """
 
     cause: str
     entries: Sequence[QueueEntry]
+    outcome: FetchOutcome | None = None
+    plugin: str | None = None
 
     @property
     def failed(self) -> int:
@@ -230,6 +351,16 @@ class QueueListing:
         return tuple(entry for entry in self.entries if entry.cause is None)
 
     @property
+    def failing(self) -> int:
+        """How many works failed or were given up on: every work the listing holds that is not in line."""
+        return sum(1 for entry in self.entries if entry.cause is not None)
+
+    @property
+    def cause_count(self) -> int:
+        """How many causes those works failed for: the number of groups `causes` lists."""
+        return len({entry.cause for entry in self.entries if entry.cause is not None})
+
+    @property
     def causes(self) -> Sequence[FailureCause]:
         grouped: dict[str, list[QueueEntry]] = {}
         for entry in self.entries:
@@ -237,7 +368,7 @@ class QueueListing:
                 grouped.setdefault(entry.cause, []).append(entry)
         # Largest first; a tie keeps the order the queue holds the groups' first works in.
         ordered = sorted(grouped.items(), key=lambda item: -len(item[1]))
-        return tuple(FailureCause(cause=cause, entries=tuple(entries)) for cause, entries in ordered)
+        return tuple(_group(cause, tuple(entries)) for cause, entries in ordered)
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +389,13 @@ class _Paused(Exception):
         self.pause = pause
 
 
+#: What one work's attempt passes up to the pass rather than counting against the
+#: work: a pause, and a pass that held the work's plugin back (`run` leaves that
+#: work exactly as it was). A name rather than a parenthesised pair, which the
+#: formatter writes in a form Python 3.12 cannot parse.
+_THE_PASSES: Final[tuple[type[Exception], ...]] = (_Paused, NotAskedThisPass)
+
+
 class AcquisitionQueue:
     """Fetch, then prepare, every accepted work that holds no image, one at a time."""
 
@@ -269,12 +407,24 @@ class AcquisitionQueue:
         preparation: Preparer,
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        loaded_at: datetime | None = None,
+        museum_of: Callable[[str], str] = museum_name,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
         self._acquisition = acquisition
         self._preparation = preparation
         self._clock = clock
+        #: When this process loaded its source plugins: a work a plugin faulted
+        #: on before it is due again (`RetryRule.NEXT_LOAD`). The queue is made
+        #: once the plugins are loaded, so its making stands for their load.
+        self._loaded_at = loaded_at if loaded_at is not None else clock()
+        #: The museum a plugin is named by in a failure cause's sentence: the
+        #: wiring hands in the one owner a surface's `museum` beside the cause
+        #: quotes (`HealthService.museum_of`, from the plugin's own reading), so
+        #: the sentence and the field cannot name one plugin two ways. The
+        #: default, the latest load's names, is for a queue built by hand.
+        self._museum_of = museum_of
         #: Set by `nudge`, so a waiting loop runs a pass now rather than later.
         self._wake = threading.Event()
         #: One pass at a time: a nudge arriving mid-pass runs the next one.
@@ -287,6 +437,11 @@ class AcquisitionQueue:
         #: In memory only: after a restart a retried work simply waits its turn
         #: in acceptance order, which is the low-impact half of the ordering.
         self._front: list[str] = []
+        #: The works the last pass did not ask (`NotAskedThisPass`), each left
+        #: exactly as it was: due by its clock, and not woken by it
+        #: (`_seconds_until_due`). In memory only, as nothing about the work was
+        #: learnt: a restart's first pass asks each again.
+        self._not_asked: frozenset[str] = frozenset()
 
     # -- what a surface calls --------------------------------------------------
 
@@ -450,7 +605,9 @@ class AcquisitionQueue:
                 queued = self._store.get_queued_acquisition(artwork_id)
                 if queued is None and self._store.get_original(artwork_id) is not None:
                     continue
-                states[artwork_id] = _state(artwork_id, queued, now=now, fetching=fetching, pause=pause)
+                states[artwork_id] = _state(
+                    artwork_id, queued, fetching=fetching, pause=pause, wait=self._wait(queued, now, artwork.wikidata_qid)
+                )
         return states
 
     def listing(self) -> QueueListing:
@@ -464,6 +621,16 @@ class AcquisitionQueue:
             fetching, pause = self._fetching, self._pause
         now = self._clock()
         entries = []
+        # Each plugin's museum asked once per listing: the owner the wiring
+        # hands in reads every plugin's state to name one, and a listing can
+        # hold thousands of failures at a handful of plugins.
+        museums: dict[str, str] = {}
+
+        def museum_of(plugin: str) -> str:
+            if plugin not in museums:
+                museums[plugin] = self._museum_of(plugin)
+            return museums[plugin]
+
         # Each state from the row `works_to_acquire` already read, rather than
         # through `state_of`, which reads it again: the listing is every work
         # owed, and at thousands of them the second read per work is most of
@@ -477,9 +644,48 @@ class AcquisitionQueue:
                 artwork = self._store.get_artwork(work.artwork_id)
                 if artwork is None:
                     continue
-                state = _state(work.artwork_id, work.queued, now=now, fetching=fetching, pause=pause)
-                entries.append(_entry(artwork.title, state))
+                state = _state(
+                    work.artwork_id,
+                    work.queued,
+                    fetching=fetching,
+                    pause=pause,
+                    wait=self._wait(work.queued, now, artwork.wikidata_qid),
+                )
+                entries.append(_entry(artwork.title, state, museum_of))
         return QueueListing(pause=pause, entries=tuple(entries))
+
+    def failed_states(self) -> tuple[AcquisitionState, ...]:
+        """Every work the queue holds as failed or given up on, as its state, reading no work's title.
+
+        **The works `listing()` lists under a cause, and nothing else**: the same
+        rows, through the same `_wait` and `_state`, so the health count and
+        Activity › Queue's "Failed (N)" cannot disagree
+        (`test_failed_fetches.py` holds the two alike). What it leaves out is
+        what the count never reads: each work's title, and the reason reworded
+        around it, so `detail` is the holder's words as recorded. It reads
+        `works_to_acquire()` once, which already carries each work's Wikidata
+        item for a settled row, and no work a second time: at 2,000 failed
+        works the listing's per-work reads were most of `GET /api/health`'s time.
+        """
+        with self._state_lock:
+            fetching, pause = self._fetching, self._pause
+        now = self._clock()
+        found = []
+        with self._store.reading():
+            for work in self._store.works_to_acquire():
+                if work.queued is None or not work.queued.failures:
+                    # Never failed: in line, whatever else it is.
+                    continue
+                state = _state(
+                    work.artwork_id,
+                    work.queued,
+                    fetching=fetching,
+                    pause=pause,
+                    wait=self._wait(work.queued, now, work.wikidata_qid),
+                )
+                if state.phase in (AcquisitionPhase.FAILED, AcquisitionPhase.GAVE_UP):
+                    found.append(state)
+        return tuple(found)
 
     # -- the worker ------------------------------------------------------------
 
@@ -512,23 +718,46 @@ class AcquisitionQueue:
         with self._pass_lock:
             candidates = self._store.works_to_acquire()
             now = self._clock()
-            due = self._in_turn([work for work in candidates if _is_due(work.queued, now)])
+            # Each work's item from the list itself, as `failed_states` takes it:
+            # a settled row costs no read of its own to learn it is not due.
+            due = self._in_turn([work for work in candidates if self._wait(work.queued, now, work.wikidata_qid) is _Wait.DUE])
             acquired = failed = gave_up = 0
             paused: QueuePause | None = None
-            for work in due:
-                if stop is not None and stop.is_set():
-                    break
-                try:
-                    outcome = self._attempt(work)
-                except _Paused as halted:
-                    paused = halted.pause
-                    break
-                if outcome is _Outcome.DONE:
-                    acquired += 1
-                elif outcome is _Outcome.FAILED:
-                    failed += 1
-                else:
-                    gave_up += 1
+            not_asked: set[str] = set()
+            # One pass for the plugins (`one_pass`): after three could-not-be-asked
+            # answers in a row from one plugin, the rest of this pass does not ask
+            # it, and each work it would have read is left exactly as it was.
+            with one_pass():
+                for work in due:
+                    if stop is not None and stop.is_set():
+                        break
+                    try:
+                        outcome = self._attempt(work)
+                    except _Paused as halted:
+                        paused = halted.pause
+                        break
+                    except NotAskedThisPass as refused:
+                        # Nothing was asked, so nothing is counted or recorded, and
+                        # the empty row `_attempt` writes first for a work that had
+                        # none goes too: the work is left exactly as it was.
+                        if work.queued is None and self._store.get_queued_acquisition(work.artwork_id) == QueuedAcquisition(
+                            artwork_id=work.artwork_id
+                        ):
+                            self._store.remove_queued_acquisition(work.artwork_id)
+                        # Asked again when the plugin's owed call ends, which
+                        # wakes the queue, and at most after the recheck either way.
+                        not_asked.add(work.artwork_id)
+                        if isinstance(refused, StillAsking):
+                            refused.when_answered(self.nudge)
+                        continue
+                    if outcome is _Outcome.DONE:
+                        acquired += 1
+                    elif outcome is _Outcome.FAILED:
+                        failed += 1
+                    else:
+                        gave_up += 1
+            with self._state_lock:
+                self._not_asked = frozenset(not_asked)
             if paused is None:
                 # Every attempt got past the deployment's checks, or nothing was
                 # due for a pause to hold back: either way it is over.
@@ -585,7 +814,7 @@ class AcquisitionQueue:
                 if not work.holds_original or entry.source_id is not None:
                     failure = self._fetch(entry)
                     if failure is not None:
-                        return self._record_failure(entry, failure)
+                        return self._record_failure(entry, *failure)
                     if entry.source_id is not None:
                         # Fetched from the source that was named, so the next attempt,
                         # if preparation fails, must not fetch again.
@@ -595,7 +824,7 @@ class AcquisitionQueue:
                     self._preparation.prepare(artwork_id)
                 except ServiceError as exc:
                     return self._record_failure(entry, f"the image was fetched but could not be prepared: {exc}")
-            except _Paused:
+            except _THE_PASSES:
                 raise
             except (
                 Exception
@@ -633,8 +862,8 @@ class AcquisitionQueue:
             with self._state_lock:
                 self._fetching = None
 
-    def _fetch(self, entry: QueuedAcquisition) -> str | None:
-        """Fetch the work's image; return why it failed, or None once it holds one."""
+    def _fetch(self, entry: QueuedAcquisition) -> tuple[str, FetchOutcome | None, str | None] | None:
+        """Fetch the work's image; why it failed, what the fetch said and which plugin said it, or None once it holds one."""
         try:
             result = self._acquisition.acquire(entry.artwork_id, source_id=entry.source_id)
         except DEPLOYMENT_FAULTS as exc:
@@ -643,26 +872,67 @@ class AcquisitionQueue:
             raise _Paused(pause) from exc
         except ServiceError as exc:
             # A refusal about this work — no source, several and none primary, a
-            # named source that went away — which a curator can act on.
-            return str(exc)
+            # named source that went away — which a curator can act on. No
+            # fetch was made, so nothing classifies it: the schedule's.
+            return str(exc), None, None
         if result.outcome is AcquisitionOutcome.FAILED:
-            return result.detail
+            return result.detail, result.fetch_outcome, result.plugin
         # Acquired, partial, or kept-held: every one leaves the work holding an
         # image, and a partial is one the owner chose to show rather than retry.
         return None
 
-    def _record_failure(self, entry: QueuedAcquisition, detail: str) -> _Outcome:
-        failures = entry.failures + 1
-        gave_up = failures >= GIVE_UP_AFTER
-        next_try_at = None if gave_up else self._clock() + RETRY_AFTER[failures - 1]
-        self._store.set_queued_acquisition(replace(entry, failures=failures, next_try_at=next_try_at, detail=detail))
+    def _record_failure(
+        self, entry: QueuedAcquisition, detail: str, outcome: FetchOutcome | None = None, plugin: str | None = None
+    ) -> _Outcome:
+        """Count one failure against the work, and say when it is tried again, by its outcome's rule.
+
+        `failed_at` is written on every one, the one given up on included,
+        because "when did it last fail" is what the schedule's clearing of
+        `next_try_at` on giving up would otherwise lose.
+
+        **`failures` counts the failures in a row under one rule.** One under
+        another rule than the last starts the count again at one, because the
+        schedule's give-up and its `RETRY_AFTER` step read that count, and the
+        rules that never give up (`NEXT_PASS`, `NEXT_LOAD`, `SETTLED`) are not
+        the schedule's to count: four passes with a museum down, then one
+        transient error, is the schedule's first failure, not its fifth. A row
+        an older release wrote reads the same way, by the outcome it carries, so
+        none is rewritten; one it already gave up on by a count so inflated
+        stays given up until a Retry, since nothing recorded tells it apart. The
+        cost: failures that alternate between a rule that never gives up and
+        the schedule are never given up, each scheduled one retried after an hour.
+        """
+        now = self._clock()
+        failed = replace(entry, detail=detail, outcome=outcome, plugin=plugin, failed_at=now, settled_qid=None)
+        under_another_rule = entry.failures > 0 and retry_rule(entry) is not retry_rule(replace(failed, failures=1))
+        failures = 1 if under_another_rule else entry.failures + 1
+        failed = replace(failed, failures=failures)
+        rule = retry_rule(failed)
+        next_try_at = None
+        if rule is RetryRule.SCHEDULE:
+            gave_up = failures >= GIVE_UP_AFTER
+            next_try_at = None if gave_up else now + RETRY_AFTER[failures - 1]
+        else:
+            # Never given up by count: the next pass, the next load and the item's
+            # change are what bring these back, not the schedule.
+            gave_up = rule is RetryRule.SETTLED
+            if gave_up:
+                failed = replace(failed, settled_qid=self._qid_of(entry.artwork_id))
+        self._store.set_queued_acquisition(replace(failed, next_try_at=next_try_at))
+        said = None if outcome is None else str(outcome)
         if gave_up:
             log.warning(
                 "gave up acquiring %s after %d failures; it waits for Retry: %s",
                 entry.artwork_id,
                 failures,
                 detail,
-                extra={"event": "acquisition.queue_gave_up", "artwork_id": entry.artwork_id, "failures": failures},
+                extra={
+                    "event": "acquisition.queue_gave_up",
+                    "artwork_id": entry.artwork_id,
+                    "failures": failures,
+                    "outcome": said,
+                    "rule": str(rule),
+                },
             )
             return _Outcome.GAVE_UP
         log.info(
@@ -670,11 +940,53 @@ class AcquisitionQueue:
             entry.artwork_id,
             failures,
             GIVE_UP_AFTER,
-            next_try_at.isoformat() if next_try_at else None,
+            next_try_at.isoformat() if next_try_at else str(rule),
             detail,
-            extra={"event": "acquisition.queue_failed", "artwork_id": entry.artwork_id, "failures": failures},
+            extra={
+                "event": "acquisition.queue_failed",
+                "artwork_id": entry.artwork_id,
+                "failures": failures,
+                "outcome": said,
+                "rule": str(rule),
+            },
         )
         return _Outcome.FAILED
+
+    def _qid_of(self, artwork_id: str) -> str | None:
+        artwork = self._store.get_artwork(artwork_id)
+        return None if artwork is None else artwork.wikidata_qid
+
+    def _wait(self, queued: QueuedAcquisition | None, now: datetime, qid: str | None) -> _Wait:
+        """Whether a work is tried on this pass, waits, or waits for Retry: its outcome's rule, applied (`_standing`)."""
+        return self._standing(queued, now, qid)[0]
+
+    def _standing(self, queued: QueuedAcquisition | None, now: datetime, qid: str | None) -> tuple[_Wait, datetime | None]:
+        """Where a work stands against its outcome's rule, and when a clock next makes it due: the queue's one statement of both.
+
+        `qid` is the work's Wikidata item as the caller read it, for the item a
+        settled work is compared against; every caller has read it already
+        (`WorkToAcquire.wikidata_qid`, or the work itself), so nothing here reads
+        a work. The time is the schedule's `next_try_at`, while the schedule has
+        not given up, which is what `wait_for_work` sleeps until; every other
+        rule falls due by an event no clock marks (a pass, a load of the
+        plugins, a Retry, another item), and has none.
+        """
+        if queued is None:
+            return _Wait.DUE, None
+        rule = retry_rule(queued)
+        if rule is RetryRule.NEXT_PASS:
+            return _Wait.DUE, None
+        if rule is RetryRule.NEXT_LOAD:
+            # A fault recorded under this load waits for the next; one recorded
+            # under an earlier load (or not recorded when) is due now.
+            due = queued.failed_at is None or queued.failed_at < self._loaded_at
+            return (_Wait.DUE if due else _Wait.LATER), None
+        if rule is RetryRule.SETTLED:
+            return (_Wait.DUE if qid != queued.settled_qid else _Wait.GIVEN_UP), None
+        if queued.failures >= GIVE_UP_AFTER:
+            return _Wait.GIVEN_UP, None
+        due = queued.next_try_at is None or queued.next_try_at <= now
+        return (_Wait.DUE if due else _Wait.LATER), queued.next_try_at
 
     # -- the pause and the order -----------------------------------------------
 
@@ -702,14 +1014,24 @@ class AcquisitionQueue:
         return sorted(due, key=lambda work: rank.get(work.artwork_id, len(rank)))
 
     def _seconds_until_due(self) -> float:
+        """How long `wait_for_work` sleeps: a paused queue's interval, or until a clock next makes a work due (`_standing`).
+
+        A work the last pass did not ask is due by its clock and no pass can ask
+        it until its plugin answers, so its clock is not read: the owed call's
+        end wakes the queue, and `NOT_ASKED_RECHECK_SECONDS` bounds the wait.
+        """
         if self.pause is not None:
             return PAUSED_RETRY_SECONDS
         now = self._clock()
+        with self._state_lock:
+            not_asked = self._not_asked
         upcoming = [
-            work.queued.next_try_at
+            at
             for work in self._store.works_to_acquire()
-            if work.queued is not None and work.queued.next_try_at is not None and work.queued.failures < GIVE_UP_AFTER
+            if work.artwork_id not in not_asked and (at := self._standing(work.queued, now, work.wikidata_qid)[1]) is not None
         ]
+        if not_asked:
+            upcoming.append(now + timedelta(seconds=NOT_ASKED_RECHECK_SECONDS))
         if not upcoming:
             return IDLE_SECONDS
         return min(IDLE_SECONDS, max(_MIN_WAIT_SECONDS, (min(upcoming) - now).total_seconds()))
@@ -792,14 +1114,31 @@ def _unnamed(text: str, artwork_id: str, title: str) -> str:
     return _renamed(text, artwork_id, title, first="The work", rest="the work")
 
 
-def _entry(title: str, state: AcquisitionState) -> QueueEntry:
-    """One work's place, named by its title, with its cause when it failed or was given up on."""
+def _entry(title: str, state: AcquisitionState, museum_of: Callable[[str], str]) -> QueueEntry:
+    """One work's place, named by its title, with its cause when it failed or was given up on.
+
+    A classified fetch's cause is its outcome's words at its plugin
+    (`OUTCOME_CAUSES`), whatever the holder's own words were, so one cause is
+    one group however each holder phrased it (#318). The plugin's museum is
+    `museum_of`'s: the queue's own (`AcquisitionQueue._museum_of`).
+    """
     artwork_id = state.artwork_id
     cause = None
     if state.phase in (AcquisitionPhase.FAILED, AcquisitionPhase.GAVE_UP):
-        cause = _unnamed(state.detail, artwork_id, title) if state.detail else _NO_REASON
+        if state.outcome is not None and state.outcome in OUTCOME_CAUSES:
+            cause = OUTCOME_CAUSES[state.outcome].format(museum=museum_of(state.plugin or "unnamed"))
+        else:
+            cause = _unnamed(state.detail, artwork_id, title) if state.detail else _NO_REASON
     detail = None if state.detail is None else _named(state.detail, artwork_id, title)
     return QueueEntry(title=title, state=replace(state, detail=detail), cause=cause)
+
+
+def _group(cause: str, entries: tuple[QueueEntry, ...]) -> FailureCause:
+    """One cause's works, with the outcome and plugin its words are, when they are an outcome's."""
+    first = entries[0].state
+    if first.outcome is not None and first.outcome in OUTCOME_CAUSES:
+        return FailureCause(cause=cause, entries=entries, outcome=first.outcome, plugin=first.plugin)
+    return FailureCause(cause=cause, entries=entries)
 
 
 class _Outcome(StrEnum):
@@ -808,33 +1147,47 @@ class _Outcome(StrEnum):
     GAVE_UP = "gave_up"
 
 
-def _is_due(queued: QueuedAcquisition | None, now: datetime) -> bool:
-    if queued is None:
-        return True
-    if queued.failures >= GIVE_UP_AFTER:
-        return False
-    return queued.next_try_at is None or queued.next_try_at <= now
+class _Wait(StrEnum):
+    """Where a work stands against its retry rule (`AcquisitionQueue._wait`)."""
+
+    #: Tried on this pass.
+    DUE = "due"
+    #: Failed, and waits: for its next try, or for Arrt's next load of its plugins.
+    LATER = "later"
+    #: Waits for Retry: given up on by the schedule, or settled by what its holder said.
+    GIVEN_UP = "given_up"
 
 
 def _state(
     artwork_id: str,
     queued: QueuedAcquisition | None,
     *,
-    now: datetime,
     fetching: tuple[str, datetime] | None,
     pause: QueuePause | None,
+    wait: _Wait,
 ) -> AcquisitionState:
     failures = 0 if queued is None else queued.failures
     detail = None if queued is None else queued.detail
     if fetching is not None and fetching[0] == artwork_id:
         return AcquisitionState(artwork_id, AcquisitionPhase.FETCHING, failures=failures, since=fetching[1])
-    if queued is not None and queued.failures >= GIVE_UP_AFTER:
-        return AcquisitionState(artwork_id, AcquisitionPhase.GAVE_UP, failures=failures, detail=detail)
-    if not _is_due(queued, now):
-        assert queued is not None  # noqa: S101 -- a work with no row is always due
-        return AcquisitionState(
-            artwork_id, AcquisitionPhase.FAILED, failures=failures, detail=detail, next_try_at=queued.next_try_at
+    if queued is not None and failures:
+        failed = AcquisitionState(
+            artwork_id,
+            AcquisitionPhase.FAILED,
+            failures=failures,
+            detail=detail,
+            outcome=queued.outcome,
+            plugin=queued.plugin,
+            failed_at=queued.failed_at,
         )
+        if wait is _Wait.GIVEN_UP:
+            return replace(failed, phase=AcquisitionPhase.GAVE_UP)
+        if wait is _Wait.LATER:
+            return replace(failed, next_try_at=queued.next_try_at)
+        if retry_rule(queued) is RetryRule.NEXT_PASS:
+            # Due, and failed: listed under its cause until the next pass takes
+            # it, never as if it were in line for the first time.
+            return failed
     if pause is not None:
         return AcquisitionState(
             artwork_id, AcquisitionPhase.PAUSED, failures=failures, detail=pause.detail, condition=pause.condition
@@ -902,8 +1255,11 @@ __all__ = [
     "ACQUISITION_QUEUE_THREAD_NAME",
     "GIVE_UP_AFTER",
     "IDLE_SECONDS",
+    "NOT_ASKED_RECHECK_SECONDS",
+    "OUTCOME_CAUSES",
     "PAUSED_RETRY_SECONDS",
     "RETRY_AFTER",
+    "RETRY_RULES",
     "AcquisitionPhase",
     "AcquisitionQueue",
     "AcquisitionState",
@@ -913,5 +1269,7 @@ __all__ = [
     "QueuePassResult",
     "QueuePause",
     "RetryAllResult",
+    "RetryRule",
+    "retry_rule",
     "start_acquisition_queue",
 ]

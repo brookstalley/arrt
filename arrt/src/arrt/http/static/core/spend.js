@@ -37,6 +37,23 @@ export function tierMark(tier) {
   ]);
 }
 
+/* What each kind of spending is called on the Spend page, keyed on
+ * `SpendCategory` (`persistence/discovery_records.py`). A kind this client has
+ * no word for is shown as the server spells it rather than dropped, as an
+ * unpriced control's tier is, because a row left off is money left off the page. */
+export const CATEGORY_WORDS = {
+  discovery_tokens: "Proposing works",
+  web_search: "Searching the web",
+  image_research: "Searching again for images",
+  mat_color_vision: "Choosing mat colours",
+  conversation_tokens: "Earlier conversations, retired",
+  ask_tokens: "Ask's replies",
+};
+
+export function categoryWords(category) {
+  return CATEGORY_WORDS[category] || String(category);
+}
+
 /* A figure the server sends as a decimal string, to the cent: every cost and
  * estimate the client shows goes through here, so none reads to nine places.
  * A cost above nothing and below half a cent says so rather than reading as
@@ -68,8 +85,9 @@ export function budgetWords(budget) {
   }
 }
 
-/* The budget's line, as the way to where spending is checked: History of the
- * Gets, which is every spend the household makes (a reply of Ask's apart).
+/* The budget's line, as the way to where spending is checked: System › Spend,
+ * which lists each month's spending, where it went, which Gets spent it, and
+ * the calls whose cost nobody was told.
  *
  * A plain anchor, not `link()`: the router imports the sidebar, which imports
  * this module, and the sidebar closes its own drawer when this is followed
@@ -77,7 +95,7 @@ export function budgetWords(budget) {
  * click is the browser's, which changes the address and so goes through the
  * router's `hashchange` like any typed address; a modifier opens a new tab. */
 function budgetLink(line) {
-  return el("a", { class: "budget-line", href: formatRoute("history", null, { kind: "gets" }), text: line });
+  return el("a", { class: "budget-line", href: formatRoute("spend"), text: line });
 }
 
 /* How long a read stands before a navigation asks again. The server keeps its

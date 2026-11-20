@@ -503,6 +503,11 @@ class TestTheFloor:
                 id="unusable",
             ),
             pytest.param(
+                [(504, {"error": {"message": "the gateway gave up"}})],
+                "the vision model was asked and no answer came back",
+                id="unanswered",
+            ),
+            pytest.param(
                 [(200, _answered(DARK_ANSWER, cost=0.0001)), (403, {"error": {"message": "Key limit exceeded"}})],
                 "darker than the mat floor, and asking again failed",
                 id="too dark, then asking again failed",
@@ -556,3 +561,58 @@ class TestTheFloor:
         assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
         assert "asking again failed" in choice.fallback_detail
         assert choice.cost_usd == Decimal("0.0001")
+
+
+# -- a call sent that never said what it cost -----------------------------------------
+
+
+def _then(*steps) -> OpenRouterClient:
+    """A client whose socket answers each call in turn: a (status, payload), or an exception it raises."""
+    remaining = list(steps)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        step = remaining.pop(0)
+        if isinstance(step, Exception):
+            raise step
+        status, payload = step
+        return httpx.Response(status, json=payload)
+
+    return OpenRouterClient(
+        "test-key", model="qwen/qwen3.7-flash", max_output_tokens=2000, client=httpx.Client(transport=httpx.MockTransport(handle))
+    )
+
+
+class TestACallThatFailsAfterItWasSent:
+    def test_the_fallback_counts_the_call_as_one_whose_cost_is_unknown(self, artwork):
+        choice = MatEngine(_then(httpx.ReadTimeout("timed out")), image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert (choice.cost_usd, choice.unknown_cost_calls) == (Decimal(0), 1)
+        assert "no answer came back" in choice.reason
+        assert "ReadTimeout" in choice.fallback_detail
+
+    def test_a_second_call_that_times_out_keeps_the_first_s_cost_and_counts_itself_unknown(self, artwork):
+        client = _then((200, _answered(DARK_ANSWER, cost=0.0001)), httpx.ReadTimeout("timed out"))
+
+        choice = MatEngine(client, image_max_edge=768).choose(artwork)
+
+        assert choice.method is MatMethod.DOMINANT_COLOR_FALLBACK
+        assert (choice.cost_usd, choice.unknown_cost_calls) == (Decimal("0.0001"), 1)
+
+    @pytest.mark.parametrize(
+        "first",
+        [httpx.ConnectError("no route to host"), (403, {"error": {"message": "Key limit exceeded"}})],
+        ids=["never sent", "refused"],
+    )
+    def test_a_call_that_cost_nothing_counts_nothing_unknown(self, artwork, first):
+        choice = MatEngine(_then(first), image_max_edge=768).choose(artwork)
+
+        assert (choice.cost_usd, choice.unknown_cost_calls) == (Decimal(0), 0)
+
+    def test_a_refused_second_call_counts_nothing_unknown(self, artwork):
+        client = _then((200, _answered(DARK_ANSWER, cost=0.0001)), (403, {"error": {"message": "Key limit exceeded"}}))
+
+        assert MatEngine(client, image_max_edge=768).choose(artwork).unknown_cost_calls == 0
+
+    def test_an_answered_choice_counts_nothing_unknown(self, artwork):
+        assert MatEngine(_then((200, _answered(GOOD_ANSWER))), image_max_edge=768).choose(artwork).unknown_cost_calls == 0

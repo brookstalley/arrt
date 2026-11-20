@@ -1,11 +1,13 @@
 """Run every suite on testament's pool, and decide what CI does when the pool cannot answer.
 
-`tests.yml` calls this three times. `pool` installs the client from the pool's console
-and runs the suites there, retrying with backoff for up to ten minutes while the pool
-cannot give a verdict; it records what happened in `decision.json` and tells the
-workflow one of three modes. `summary` writes the job summary from that record.
-`browser-verdict` is the whole of the second, non-required job: green when the pool
-gave the verdict, red after a fallback, because then the browser suite has none.
+`tests.yml` calls this from every step that runs tests. `pool` installs the client from
+the pool's console and runs the suites there, retrying with backoff for up to ten minutes
+while the pool cannot give a verdict; it records what happened in `decision.json` and
+tells the workflow one of three modes. `fallback --suite NAME`, one step per suite after
+`mode=fallback`, runs that suite here by `.testament.toml`'s own command and selection
+(`fallback_commands`), so no step restates either. `summary` writes the job summary from
+the record. `browser-verdict` is the whole of the second, non-required job: green when
+the pool gave the verdict, red after a fallback, because then the browser suite has none.
 
 The three modes, each with its own headline, because a quiet "cannot tell" is read as
 a pass:
@@ -19,8 +21,14 @@ a pass:
   `verdict: unavailable` with exit 75, or the pool did not accept the run; or the
   pool accepted the run and gave no verdict by the step's deadline. The workflow
   then runs lint and every suite `.testament.toml` declares that needs no labelled
-  runner on GitHub's runner, directly with uv; the suites that `require` a label (the
-  browser suite needs Chrome) are not run, and the summary and the second job say so.
+  runner and is not the pool's alone on GitHub's runner, directly with uv; the
+  suites that `require` a label (the browser suite needs Chrome) and those in
+  `POOL_ONLY` (the real-Player suite) are not run, and the summary and the second
+  job say so by name.
+
+In every mode, the suites in `NOT_CI` (the image suite) are not CI's: `pool` asks the
+pool for every other suite by name (`pool_run_argv`), the fallback never runs them,
+and the summary says so by name.
 - **none**: nothing ran, and the job fails: no key (a pull request from a fork), the
   console refused the key or the address, the wheel did not match its digest, the
   client could not be installed, `testament run` ended in a way the contract does not
@@ -29,8 +37,9 @@ a pass:
   ran out of time (a red is a result, never a fallback).
 
 **Time.** No attempt outlives the step. The whole pool step has `DEADLINE_S`, twenty
-minutes, about three times a healthy full run of the four suites on the pool (six to
-seven). A run the pool has not accepted within `ACCEPT_S` is stopped and retried as
+minutes, about three times a healthy full run of the suites on the pool (six to
+seven minutes for four of them, 2026-11-19; the fifth, the real-Player suite, runs
+beside them). A run the pool has not accepted within `ACCEPT_S` is stopped and retried as
 "could not answer"; a run the pool accepted and still holds at the deadline is
 stopped and sent to the fallback. The client prints nothing between "collected" and
 the first failure, so a run whose tests are running cannot be told from one gone
@@ -45,6 +54,7 @@ the ten minutes (or the deadline) the fallback claims to have waited out.
 
 Usage:
   pool_or_fallback.py pool --out DIR -- testament run ...
+  pool_or_fallback.py fallback --out DIR --suite NAME
   pool_or_fallback.py summary --out DIR
   POOL_MODE=<mode> pool_or_fallback.py browser-verdict
 """
@@ -56,6 +66,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -73,7 +84,8 @@ from typing import IO, Protocol
 BUDGET_S = 600
 BACKOFF_S = (15, 30, 60, 120)
 #: The whole pool step's time, installs and every run included: about three times a
-#: healthy full run on the pool (six to seven minutes for the four suites, 2026-11-19).
+#: healthy full run on the pool (six to seven minutes for four suites, 2026-11-19; the
+#: real-Player suite runs beside them).
 #: `tests.yml` gives the step two minutes more than this, and the job room for this,
 #: every other step and the fallback's (`tests/test_ci_fallback.py` holds the sums).
 DEADLINE_S = 1200
@@ -93,10 +105,49 @@ _CURL_UNREACHABLE = {5, 6, 7, 18, 28, 35, 52, 55, 56, 92}
 #: are a refused key or a wrong address, which the fallback must not paper over.
 _HTTP_UNAVAILABLE = {408, 429}
 
+#: Suites the fallback never runs on GitHub's runner though they need no labelled runner,
+#: each with why. The owner, 2026-11-20 (`.prawduct/owner-rulings.md`): "We should
+#: minimize CI and prioritize local tests. We are almost out of ci minutes." The
+#: real-Player suite installs Arrt Player from GitHub and runs it for a minute or more,
+#: so it is the pool's alone, and an outage of the pool leaves it out by name, as the
+#: browser suite is left out for want of Chrome.
+POOL_ONLY = {
+    "player": "is the pool's alone, so GitHub's minutes are not spent on it (the owner's ruling of 2026-11-20)",
+}
+
+#: Every suite a fallback leaves out, by its name in `.testament.toml`, in the words the
+#: summary and the second job use for it. Which suites they are is the manifest's (a
+#: `requires`) and `POOL_ONLY`'s; this quotes them, and `tests/test_ci_fallback.py` fails
+#: when the two differ, so no headline names a suite the fallback runs or omits one it
+#: leaves out. The second job reads no manifest: its checkout is this directory alone.
+LEFT_OUT = {"browser": "browser", "player": "real-Player"}
+_LEFT_OUT = " and ".join(LEFT_OUT.values()) + (" suites" if len(LEFT_OUT) > 1 else " suite")
+
+#: Suites CI never runs, in either mode, each with why. The image suite builds the server
+#: image's test stage on a runner's host (`executor = "host"`), and the pool runs host work
+#: only for a run signed with its submitter's owner secret, which CI's key does not hold
+#: (`testament guide client`, "In CI"). Asked for anyway, it ends the whole run `failed`,
+#: `no_warrant`, exit 2, as a run with no owner secret was seen to on 2026-11-20,
+#: and that would be a red required check on every
+#: pull request. So `pool` asks the pool for every other suite by name (`pool_run_argv`),
+#: and the image suite runs in the full `testament run` from a machine doing the work,
+#: and in `image.yml` on a pull request into `main`.
+NOT_CI = {
+    "image": (
+        "is not CI's: it builds the server image on a runner's host, which the pool does only for a run signed "
+        "with its submitter's owner secret, and CI's key holds none; it runs in the full `testament run` from a "
+        "machine doing the work, and `image.yml` builds the same stage on a pull request into `main`"
+    ),
+}
+_NOT_CI = " and ".join(NOT_CI) + (" suites" if len(NOT_CI) > 1 else " suite")
+
 #: The words the summary opens with, one per mode, and the one for no record at all.
 HEADLINES = {
-    "pool": "Ran on the pool: every suite, the browser suite included.",
-    "fallback": "The pool was unavailable; ran here, on GitHub's runner, without the browser suite.",
+    "pool": f"Ran on the pool: every suite but the {_NOT_CI}, the {_LEFT_OUT} included.",
+    "fallback": (
+        f"The pool was unavailable; ran here, on GitHub's runner, without the {_LEFT_OUT} "
+        f"(nor the {_NOT_CI}, which CI never runs)."
+    ),
     "none": "Nothing ran.",
 }
 NO_RECORD = "Nothing ran: the pool step recorded no decision (lint failed before it, or the job was cancelled)."
@@ -111,12 +162,15 @@ UNREADABLE = "the pool could not give a verdict I can read"
 #: The second job's name, and what it says after a fallback. Not a required check: an
 #: outage must not block a merge (ruling 4 of 2026-11-19); this is the mark, not
 #: prose, that a tree has no browser verdict.
+#: Its name still says the browser suite alone, the name every pull request shows; its
+#: message names every suite a fallback leaves out.
 BROWSER_JOB = "The browser suite ran on the pool"
 BROWSER_NO_VERDICT = (
-    "The browser suite has no verdict for this tree: the pool could not answer, and the fallback ran every "
-    "other suite on GitHub's runner without it. To get one, re-run all of this workflow's jobs once the pool "
-    "is back, or run `testament run --json=summary --suite browser` on this branch's head and put its "
-    "request id on the pull request."
+    f"The {_LEFT_OUT} have no verdict for this tree: the pool could not answer, and the fallback ran every "
+    "other suite on GitHub's runner without them. To get them, re-run all of this workflow's jobs once the "
+    "pool is back, or run `testament run --json=summary "
+    + " ".join(f"--suite {name}" for name in LEFT_OUT)
+    + "` on this branch's head and put its request ids on the pull request."
 )
 
 
@@ -277,19 +331,130 @@ def fallback_plan(manifest: dict) -> tuple[dict[str, str], dict[str, str]]:
     """The suites the fallback runs, each with its report's path under the output directory, and those it does not.
 
     Derived from `.testament.toml`: a suite that `requires` a runner label (the browser
-    suite needs `chrome`) runs only where the pool's labelled runners are, and every
-    other suite runs here. A suite added to the manifest is therefore expected of the
-    fallback the day it is added, and `assert_tests_ran.py` fails the job until the
-    workflow runs it.
+    suite needs `chrome`) runs only where the pool's labelled runners are, a suite in
+    `POOL_ONLY` runs only on the pool by ruling, and every other suite runs here. A
+    suite added to the manifest is therefore expected of the fallback the day it is
+    added, and `assert_tests_ran.py` fails the job until the workflow runs it. A suite
+    in `NOT_CI` is not CI's in either mode, so it is not run here either, for that
+    reason, whatever it requires.
     """
     reports, not_run = {}, {}
     for name, suite in manifest.get("suites", {}).items():
         needs = suite.get("requires") or []
-        if needs:
+        if name in NOT_CI:
+            not_run[name] = NOT_CI[name]
+        elif needs:
             not_run[name] = f"needs a runner labelled {', '.join(needs)}, which only the pool has"
+        elif name in POOL_ONLY:
+            not_run[name] = POOL_ONLY[name]
         else:
             reports[name] = f"fallback/{name}.xml"
     return reports, not_run
+
+
+#: What a suite's fallback step makes before its pytest, by suite, with why. The governance
+#: suite's type gate (`tests/preferences/test_type_gate.py`) runs mypy in `arrt/` and
+#: `contract/` with `uv run --no-sync`, so both environments, with the dev groups that
+#: hold mypy, must exist first; on the pool the manifest's `[setup]` makes them, and lint
+#: here installs only ruff and black. Not `[setup]` itself: its `--group browser` installs
+#: Playwright, which nothing here runs.
+FALLBACK_SETUP = {
+    "governance": (
+        ["uv", "sync", "--frozen", "--project", "arrt", "--group", "dev"],
+        ["uv", "sync", "--frozen", "--project", "contract", "--group", "dev"],
+    ),
+}
+
+
+class FallbackRefused(ValueError):
+    """A suite the fallback must not run here, or a manifest command it cannot translate."""
+
+
+def fallback_pytest(name: str, suite: dict, report: str) -> list[str]:
+    """The suite's own command from `.testament.toml`, run here: its selection appended, its report named.
+
+    One change, and it is by name: the manifest's `-n 0` is dropped. The manifest
+    says `-n 0` because testament is the parallelism there, one batch to a slot; here
+    nothing splits the run, so the project's own addopts (`-n auto` in the curation
+    plane) apply, as they did when this step was written by hand. Kept as the manifest
+    has them: `-c`, `--rootdir=.` and `--project`, so the run starts at the repository
+    root and its test ids are the pool's. Any other parallelism flag is refused by
+    name rather than passed on, so a change to the manifest cannot make this run
+    serial, or fight xdist, without a test seeing it.
+    """
+    command = suite.get("command")
+    if suite.get("adapter") != "pytest" or not isinstance(command, list) or "pytest" not in command:
+        raise FallbackRefused(f"the {name} suite's command is not a pytest command this can run here: {command!r}")
+    selection = suite.get("default_selection")
+    if not selection or not all(isinstance(p, str) and p and not p.startswith("-") for p in selection):
+        raise FallbackRefused(f"the {name} suite's default_selection is not a list of paths: {selection!r}")
+    argv: list[str] = []
+    words = iter(command)
+    for word in words:
+        if word == "-n":
+            value = next(words, None)
+            if value != "0":
+                raise FallbackRefused(f"the {name} suite's command asks for `-n {value}`; only `-n 0` is translated")
+            continue
+        if word.startswith(("-n", "--numprocesses", "--dist", "--maxprocesses")) or "no:xdist" in word:
+            raise FallbackRefused(f"the {name} suite's command carries {word!r}, a parallelism flag this does not translate")
+        argv.append(word)
+    return [*argv, *selection, "-o", f"junit_suite_name={name}", "--junitxml", report]
+
+
+def pool_run_argv(manifest: dict, argv: list[str]) -> list[str]:
+    """The `testament run` line `tests.yml` hands over, asking for every declared suite but `NOT_CI`'s by name.
+
+    `testament run` has no flag that leaves a suite out, only `--suite` for each one
+    kept. The kept ones are derived from the manifest, so a suite added to it is in CI
+    the day it is added, as it is with no `--suite`; with no `NOT_CI` suite declared,
+    the line goes as written. A line that already names a suite is refused: the
+    workflow's line runs every suite (`tests/test_default_suite_ci_scope.py`), and this
+    is the one place that narrows it.
+    """
+    if any(word == "--suite" or word.startswith("--suite=") for word in argv):
+        raise ValueError(f"the pool's run already names a suite: {shlex.join(argv)}")
+    declared = list(manifest.get("suites", {}))
+    if not any(name in NOT_CI for name in declared):
+        return list(argv)
+    kept = [word for name in declared if name not in NOT_CI for word in ("--suite", name)]
+    at = argv.index("--") if "--" in argv else len(argv)
+    return [*argv[:at], *kept, *argv[at:]]
+
+
+def fallback_commands(manifest: dict, name: str, out: Path) -> list[list[str]]:
+    """Every command one fallback step runs for the suite `name`, in order: its setup, then its pytest."""
+    reports, not_run = fallback_plan(manifest)
+    if name in not_run:
+        raise FallbackRefused(f"the {name} suite is not run here: it {not_run[name]}")
+    if name not in reports:
+        raise FallbackRefused(f".testament.toml declares no suite {name!r}")
+    return [
+        *(list(c) for c in FALLBACK_SETUP.get(name, ())),
+        fallback_pytest(name, manifest["suites"][name], str(out / reports[name])),
+    ]
+
+
+def run_fallback(manifest: dict, name: str, out: Path, run: Callable[[list[str]], int], say: Callable[[str], None]) -> int:
+    """Run one suite's fallback commands from the repository root; the first that fails ends it with its code."""
+    try:
+        commands = fallback_commands(manifest, name, out)
+    except FallbackRefused as e:
+        say(f"::error::{e}")
+        return 2
+    for command in commands:
+        say(f"$ {shlex.join(command)}")
+        code = run(command)
+        if code != 0:
+            return code
+    return 0
+
+
+def say_now(line: str) -> None:
+    """Print one line to the step's log now. stdout to a pipe is block-buffered, so a bare
+    `print` held every retry's warning until the step ended, under one timestamp, and
+    someone watching saw ten minutes of nothing."""
+    print(line, flush=True)
 
 
 class Pool(Protocol):
@@ -304,15 +469,17 @@ def drive(
     sleep: Callable[[float], None] = time.sleep,
     budget: float = BUDGET_S,
     backoff: tuple[float, ...] = BACKOFF_S,
-    say: Callable[[str], None] = print,
+    say: Callable[[str], None] | None = None,
     deadline: float = DEADLINE_S,
     checkpoint: Callable[[list[Attempt]], None] = lambda attempts: None,
 ) -> Decision:
     """Install, run, retry while the pool cannot answer and the budget lasts; decide by the deadline.
 
     `checkpoint` is handed the attempts after each one and each wait, so the record a
-    killed step leaves names them.
+    killed step leaves names them. `say` defaults to `say_now`, so each line reaches the
+    step's log when it is said.
     """
+    say = say or say_now
     start = clock()
     attempts: list[Attempt] = []
     waits = 0
@@ -669,6 +836,23 @@ def _junit_counts(path: Path) -> str:
     return f"{total['tests']} collected, {total['failures']} failed, {total['errors']} errored, {total['skipped']} skipped"
 
 
+def _pool_suite_lines(path: Path) -> list[str]:
+    """One line per suite in the pool's merged report (`tests.yml`'s `all.xml`), so a reader sees each by name."""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return ["**No merged report** (`all.xml`), so no suite's counts can be shown; the skip guard's step says why."]
+    suites = root.findall(".//testsuite") or ([root] if root.tag == "testsuite" else [])
+    lines = []
+    for s in suites:
+        counts = {k: int(s.get(k, 0)) for k in ("tests", "failures", "errors", "skipped")}
+        lines.append(
+            f"- the {s.get('name')} suite, on the pool: {counts['tests']} collected, {counts['failures']} failed, "
+            f"{counts['errors']} errored, {counts['skipped']} skipped"
+        )
+    return lines
+
+
 def _attempt_line(a: Attempt) -> str:
     if a.step == "install":
         said = f"curl exit {a.curl_exit}" + (f", HTTP {a.http_status}" if a.http_status else "")
@@ -724,8 +908,10 @@ def summary_lines(out: Path) -> tuple[list[str], list[str]]:
             lines.append(f"| **not run** | the {suite} suite: {why}. |")
         lines += ["", f"The check **{BROWSER_JOB}** is red for this tree. {BROWSER_NO_VERDICT}", ""]
     if decision.mode == "pool":
-        lines.append("Lint and format ran on GitHub's runner; every suite ran on the pool.")
+        lines.append(f"Lint and format ran on GitHub's runner; every suite but the {_NOT_CI} ran on the pool.")
+        lines += [f"- the {suite} suite was not asked for: it {why}." for suite, why in NOT_CI.items()]
         lines += _envelope_lines(out, notes)
+        lines += _pool_suite_lines(out / "all.xml")
         lines.append("")
     lines.append("Attempts at the pool:")
     lines += [_attempt_line(a) for a in decision.attempts] or ["- none"]
@@ -740,7 +926,7 @@ def summary_lines(out: Path) -> tuple[list[str], list[str]]:
 def browser_verdict(mode: str) -> tuple[int, str]:
     """The second job's exit and its one line, from the first job's mode."""
     if mode == "pool":
-        return 0, "The browser suite ran on the pool, in the run whose verdict the required check carries."
+        return 0, f"The {_LEFT_OUT} ran on the pool, in the run whose verdict the required check carries."
     if mode == "fallback":
         return 1, f"::error title={BROWSER_JOB}::{BROWSER_NO_VERDICT}"
     return 1, (
@@ -753,11 +939,19 @@ def _write_decision(out: Path, decision: Decision) -> None:
     (out / "decision.json").write_text(json.dumps(decision.to_json(), indent=2), encoding="utf-8")
 
 
+def run_here(command: list[str]) -> int:
+    """Run one command from the repository root (the step's directory), its output straight to the step's log."""
+    return subprocess.run(command).returncode
+
+
 def main(argv: list[str]) -> int:
     if argv == ["browser-verdict"]:
         code, line = browser_verdict(os.environ.get("POOL_MODE", ""))
         print(line)
         return code
+    if len(argv) == 5 and argv[0] == "fallback" and argv[1] == "--out" and argv[3] == "--suite":
+        manifest = tomllib.loads(Path(".testament.toml").read_text(encoding="utf-8"))
+        return run_fallback(manifest, argv[4], Path(argv[2]), run=run_here, say=say_now)
     if len(argv) >= 3 and argv[0] in ("pool", "summary") and argv[1] == "--out":
         out = Path(argv[2])
         out.mkdir(parents=True, exist_ok=True)
@@ -776,8 +970,10 @@ def main(argv: list[str]) -> int:
             # Before anything can hang: a step killed from here on leaves this record, not none.
             _write_decision(out, Decision("none", STOPPED, []))
             manifest = tomllib.loads(Path(".testament.toml").read_text(encoding="utf-8"))
+            run_argv = pool_run_argv(manifest, argv[4:])
+            say_now(f"$ {shlex.join(run_argv)}")
             decision = drive(
-                RealPool(out, argv[4:]),
+                RealPool(out, run_argv),
                 manifest,
                 checkpoint=lambda attempts: _write_decision(out, Decision("none", STOPPED, list(attempts))),
             )

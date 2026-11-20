@@ -4,6 +4,115 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-20: six answers while part 2b was finishing
+
+Six questions stood, each with the advisor's recommendation, at the end of every report
+while part 2b (`build-plan-audit-wave-2b.md`) was being integrated. The owner: "Yes to all
+recommendations, you can do the grant". As ruled:
+
+1. **This project may use the pool's host executor, and the advisor may grant it.** Asked so
+   that the server image's test stage can run on the pool, outside a container, at no cost
+   in GitHub's minutes. Granted the same day: the pool's allowlist now gives this project
+   the container and the host executors. What it permits is this repository's tests
+   running image builds directly on a runner. Built in that plan as Chunk 65; until it
+   lands, the image's test stage is still first met at a pull request into `main`.
+2. **A wall may keep its first picture up to one interval longer when a neighbour is
+   refused.** The schedule fix lines a republished wall up with the wall built just
+   before it; when a same-pace neighbour is refused, the wall acted on is built against
+   that neighbour's published schedule. Accepted as built.
+3. **One scratch pull request, once, at the end of part 2b**, to see the reworked CI
+   fallback run on GitHub's runner. It is closed unmerged. This is the one exception the
+   same day's ruling on CI's minutes allows itself here.
+4. **MCP keeps the new tool `art_spend`.** It adds one entry to every client's tool
+   listing; the Spend history is not discovery, and `art_discovery`'s description was at
+   the client's limit.
+5. **The periodic reconcile of feeds may make an act wait, once per half hour, until its
+   lookups are batched.** Measured in-process on one machine with nothing to fix: about
+   0.4 s at 2,000 works and 1.1 to 2.5 s at 5,000, the store's lock held throughout,
+   and longer on the deployment's slower machine. Batching the lookups is a third part's.
+6. **The delegate-verification policy's count is corrected.** `project-preferences.md`
+   `## Workflow`, `Delegate verification`, said a change to `contract/` "runs all four"
+   suites; there are five since the real-Player suite. The norm's text now says five.
+   This is a count brought up to date, and changes nothing else the policy says.
+
+## 2026-11-20: an agent may post its measurements on the issue it is working
+
+A build delegate working a flaky test (#442) posted what it had measured as a comment on
+that issue, unasked. The advisor asked whether that is wanted, recommending "allowing it
+for measurements on an issue the chunk is working, and nothing else". The owner: "Yes to
+2". As ruled: an agent may comment on a GitHub issue when the issue is the one its own
+work is settling and the comment is what it measured or established (what was run, what
+was seen, what was ruled out). It opens, closes, labels and edits no issue on its own,
+comments on no other issue, and writes nothing there that this public repository's rule
+keeps out of a tracked file (no network address, hostname or username) and no attribution
+line. Closing an issue stays the merge's act.
+
+## 2026-11-20: a hang can be started from Walls; hanging for a duration waits
+
+Asked while part 2b was being built (question 2 of the wave's decisions: hanging for a
+duration, and a wall-side way to hang chosen works). The advisor recommended yes to starting
+a hang from the Walls screen, "it's where you look when deciding what a wall shows", and
+deferring durations "until you've used the rest". The owner: "Yes to your recommendations".
+As ruled:
+
+1. **Walls gains a way to hang chosen works on a wall.** A wall's *Hanging* picker, which
+   today offers only themes, also offers choosing works: it opens Artworks selecting for
+   that wall, and the selection's *Hang…* (built in `build-plan-audit-wave-2b.md`'s Chunk
+   34) hangs them there. Built in this plan as Chunk 57.
+2. **Hanging for a duration is not built now.** A hang still lasts until it is changed. It
+   is a persisted format (what "before" is when two hangs overlap, what a delete does to
+   it), so when it is built it is designed from its consumers' questions in a plan of its
+   own. `user-scenarios.md`'s scenario of a day or two outside the household's taste stays
+   unmet until then, and the records say so.
+
+## 2026-11-20: CI is kept small, tests run on the pool first, and CI makes no paid call
+
+Asked while part 2b was being built (which pool runners may run this repository, and what
+ceiling the CI's model key should have). The owner: "All runners are fine. We should
+minimize CI and prioritize local tests. We are almost out of ci minutes. The pool has six
+runners, not one. Ci should not make paid calls". As ruled:
+
+1. **Every runner of the pool may run this repository's tests.** The advisor's question
+   assumed one runner; the pool has six.
+2. **CI is kept small, and tests run from the machine doing the work come first.** A pull
+   request's evidence is the pool run made before it is opened (`testament run`, `AGENTS.md`
+   § Running tests); CI confirms that run, it is not where a change is first tested.
+   GitHub's runner minutes are nearly spent, so nothing adds work to GitHub's runners, and
+   work that runs there today is moved to the pool or to pull requests into `main` where it
+   can be. This sharpens the 2026-11-18 ruling below (no heavy builds on GitHub's runners);
+   it does not withdraw ruling 4 of 2026-11-19 (an outage must not block a merge): the
+   fallback stays, and costs minutes only while the pool cannot answer.
+3. **CI makes no paid call.** No workflow holds a model key or reaches a paid service;
+   probes and evaluations that cost money are run by hand (`live_api`, `llm_eval`). That
+   answers the standing question on the drift probes that need a key (#150): they are not
+   CI's.
+
+What it changes in `build-plan-audit-wave-2b.md`: the real-Player suite (Chunk 29) runs on
+the pool and the fallback leaves it out by name; a chunk added the same day (56) takes the
+image's test stage off GitHub's runner for ordinary pull requests.
+
+## 2026-11-19: during wave 2 of the audit fixes, two rulings
+
+Asked while part 2a's pull request (#446) was in its checks. The owner: "The testament
+endpoints are public knowledge, not secrets. Other than that, yes to recommendations".
+
+1. **The test pool's endpoints are public, not secrets.** The advisor had recommended
+   turning the workflow's console and coordinator addresses from repository variables
+   into secrets, because they print in the public Actions log of every run. Declined:
+   they are public knowledge. They stay variables, and their appearing in a workflow log
+   is not an exposure. This does not widen the repository's own rule: tracked files still
+   carry no network address, hostname or username (`CLAUDE.md`, the hygiene guard).
+2. **Arrt Player removes from a television only the pictures it recorded uploading**, in
+   a later wave. Today it clears every uploaded picture it cannot account for on a set
+   (`arrt-player`'s `security-model.md` § What it does to the television), so a Frame
+   address that points at another television clears that set's uploads, the household's
+   own included. Now that the Player's store records which set its bindings were made on,
+   it can keep a record of its own uploads per set and leave everything else alone. Not
+   built in wave 2, which ships the recorded behaviour unchanged; it goes in the next
+   Arrt Player plan, with what replaces the orphan sweep's job of cleaning up after a
+   failed upload. Recorded here because the question was asked in this repository's
+   session; the Player's own rulings file takes a pointer when that plan is cut.
+
 ## 2026-11-19: after wave 1 of the audit fixes, ten rulings
 
 Asked at the end of wave 1 (`build-plan-audit-wave-1.md`, merged as #445), each with

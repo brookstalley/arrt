@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import httpx
 import pytest
 from PIL import Image
 
@@ -27,7 +28,8 @@ from arrt.library.acquisition.preparation import (
     PreparationService,
     PreparationSettings,
 )
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.library.discovery.openrouter import OpenRouterClient
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -70,6 +72,23 @@ def _spending_engine(hex_rgb: str, cost: Decimal) -> MatEngine:
             )
 
     return _Paid(None, image_max_edge=256)
+
+
+def _engine_over(*steps) -> MatEngine:
+    """The real mat engine and client, whose socket answers each call in turn: (status, payload) or an exception."""
+    remaining = list(steps)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        step = remaining.pop(0)
+        if isinstance(step, Exception):
+            raise step
+        status, payload = step
+        return httpx.Response(status, json=payload)
+
+    client = OpenRouterClient(
+        "test-key", model="qwen/qwen3.7-flash", max_output_tokens=2000, client=httpx.Client(transport=httpx.MockTransport(handle))
+    )
+    return MatEngine(client, image_max_edge=256)
 
 
 def _work_with_original(service, settings, *, width=2400, height=1800, colour=(30, 60, 120), content_hash="hash-one"):
@@ -591,6 +610,51 @@ class TestWhatItSpendsIsRecorded:
         prep.prepare(work.id)
 
         assert _mat_spend(discovery_store) == {(work.id, Decimal("0.00004"), "qwen/qwen3.7-flash", 1)}
+
+    def test_a_mat_call_that_times_out_after_it_was_sent_records_a_row_whose_cost_is_unknown(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        """Audit-2 S5, through preparation with the real engine: the call is a row at 0, its cost unknown, its model."""
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _engine_over(httpx.ReadTimeout("timed out")), prep_settings, spend=discovery)
+
+        prep.prepare(work.id)
+
+        [row] = discovery_store.list_spend_records()
+        assert (row.artwork_id, row.cost_usd, row.model_id, row.units, row.cost_status) == (
+            work.id,
+            Decimal(0),
+            "qwen/qwen3.7-flash",
+            1,
+            CostStatus.UNKNOWN,
+        )
+
+    def test_a_billed_first_answer_and_an_unanswered_second_are_two_rows(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        work, _ = _work_with_original(service, settings)
+        dark = {
+            "model": "qwen/qwen3.7-flash",
+            "choices": [{"finish_reason": "stop", "message": {"content": '{"hex_rgb": "#1c1c1c", "reason": "dark"}'}}],
+            "usage": {"prompt_tokens": 412, "completion_tokens": 20, "cost": 0.0001},
+        }
+        engine = _engine_over((200, dark), httpx.ReadTimeout("timed out"))
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
+
+        prep.prepare(work.id)
+
+        assert {(record.cost_usd, record.cost_status) for record in discovery_store.list_spend_records()} == {
+            (Decimal("0.0001"), CostStatus.KNOWN),
+            (Decimal(0), CostStatus.UNKNOWN),
+        }
+
+    def test_a_mat_call_that_never_went_out_records_nothing(self, service, discovery, discovery_store, settings, prep_settings):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _engine_over(httpx.ConnectError("no route")), prep_settings, spend=discovery)
+
+        prep.prepare(work.id)
+
+        assert discovery_store.list_spend_records() == []
 
     def test_a_keyless_preparation_records_no_spend(self, prep, service, discovery_store, settings):
         """The container's own engine has no client: nothing is asked, so a row would claim a call never made."""

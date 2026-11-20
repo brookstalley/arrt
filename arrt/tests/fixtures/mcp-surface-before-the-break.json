@@ -1,0 +1,3809 @@
+{
+  "art_catalogue": {
+    "actions": {
+      "archive": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "accepted_at",
+          "artwork",
+          "artwork_id",
+          "commentary",
+          "created_at",
+          "date_created",
+          "description",
+          "dimensions",
+          "medium",
+          "notice",
+          "rights",
+          "status",
+          "title",
+          "wikidata_qid",
+          "wikidata_qid_set_by"
+        ]
+      },
+      "get": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "accepted_at",
+          "acquisition",
+          "artist",
+          "artist_id",
+          "artwork",
+          "artwork_id",
+          "biography",
+          "born",
+          "commentary",
+          "condition",
+          "created_at",
+          "date_created",
+          "description",
+          "detail",
+          "died",
+          "dimensions",
+          "display_nationality",
+          "failures",
+          "family_name",
+          "given_name",
+          "lifespan_text",
+          "medium",
+          "name",
+          "nationality",
+          "next_try_at",
+          "phase",
+          "remedy",
+          "rights",
+          "since",
+          "status",
+          "title",
+          "wikidata_qid",
+          "wikidata_qid_set_by"
+        ]
+      },
+      "history": {
+        "arguments": {
+          "kinds": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "limit": {
+            "choices": null,
+            "items": null,
+            "maximum": 100,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "offset": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 0,
+            "required": false,
+            "type": "integer"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "count",
+          "detail",
+          "event_id",
+          "events",
+          "kind",
+          "occurred_at",
+          "run_id",
+          "theme_id",
+          "total",
+          "wall_id"
+        ]
+      },
+      "list": {
+        "arguments": {
+          "artist": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "artist_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "era": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "fit": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "limit": {
+            "choices": null,
+            "items": null,
+            "maximum": 100,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "medium": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "movement": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "not_on_wall": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          },
+          "offset": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 0,
+            "required": false,
+            "type": "integer"
+          },
+          "palette": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "q": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "shown": {
+            "choices": [
+              "never",
+              "month",
+              "quarter",
+              "year"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "sort": {
+            "choices": [
+              "title",
+              "artist",
+              "newest"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "status": {
+            "choices": [
+              "accepted",
+              "archived"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "subject": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "array"
+          },
+          "theme": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "artworks",
+          "count",
+          "date_created",
+          "disabled",
+          "facets",
+          "fits",
+          "kind",
+          "limit",
+          "name",
+          "not_on_wall",
+          "notice",
+          "offset",
+          "selected",
+          "shown",
+          "status",
+          "theme_id",
+          "themes",
+          "title",
+          "total",
+          "total_values",
+          "truncated",
+          "value",
+          "values"
+        ]
+      },
+      "regenerate": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "force": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "cost_usd",
+          "detail",
+          "fit",
+          "hex_rgb",
+          "method",
+          "notice",
+          "outcome",
+          "relative_path"
+        ]
+      },
+      "restore": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "accepted_at",
+          "artwork",
+          "artwork_id",
+          "commentary",
+          "created_at",
+          "date_created",
+          "description",
+          "dimensions",
+          "medium",
+          "notice",
+          "rights",
+          "status",
+          "title",
+          "wikidata_qid",
+          "wikidata_qid_set_by"
+        ]
+      },
+      "retry_acquisition": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "source_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "acquisition",
+          "artwork_id",
+          "condition",
+          "detail",
+          "failures",
+          "next_try_at",
+          "notice",
+          "phase",
+          "remedy",
+          "since"
+        ]
+      },
+      "set_artist_qid": {
+        "arguments": {
+          "artist_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artist_id",
+          "biography",
+          "born",
+          "died",
+          "display_nationality",
+          "family_name",
+          "given_name",
+          "lifespan_text",
+          "name",
+          "nationality",
+          "wikidata_qid",
+          "wikidata_qid_set_by"
+        ]
+      },
+      "set_mat_color": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "hex_rgb": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "preset": {
+            "choices": [
+              "dark",
+              "mid",
+              "derived"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "cost_usd",
+          "detail",
+          "hex_rgb",
+          "method",
+          "notice",
+          "outcome",
+          "relative_path"
+        ]
+      },
+      "set_work_qid": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "accepted_at",
+          "artwork",
+          "artwork_id",
+          "commentary",
+          "created_at",
+          "date_created",
+          "description",
+          "dimensions",
+          "medium",
+          "rights",
+          "status",
+          "title",
+          "wikidata_qid",
+          "wikidata_qid_set_by"
+        ]
+      },
+      "sources": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "acquisition_method",
+          "artwork_id",
+          "confidence",
+          "count",
+          "is_primary",
+          "last_fetch_status",
+          "last_fetched_at",
+          "notice",
+          "provider",
+          "rights_status",
+          "selection_rationale",
+          "source_class",
+          "source_id",
+          "sources",
+          "url"
+        ]
+      },
+      "topic": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "date_created",
+          "kinds",
+          "label",
+          "note",
+          "qid",
+          "state",
+          "status",
+          "title",
+          "works"
+        ]
+      },
+      "topics": {
+        "arguments": {},
+        "result_keys": [
+          "kind",
+          "kinds",
+          "label",
+          "note",
+          "offered",
+          "qid",
+          "state",
+          "topics",
+          "works"
+        ]
+      }
+    },
+    "destructive": false,
+    "open_world": true,
+    "read_only": false
+  },
+  "art_discovery": {
+    "actions": {
+      "approve": {
+        "arguments": {
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "allowance",
+          "approval_required",
+          "artist",
+          "artwork_id",
+          "chosen",
+          "completed_at",
+          "confirmation",
+          "destination_theme_id",
+          "each",
+          "end_reason",
+          "estimated_cost_usd",
+          "exhausted",
+          "initiated_by",
+          "intent",
+          "kind",
+          "listed",
+          "notice",
+          "offered",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "parent_run_id",
+          "pending",
+          "proposed",
+          "provenance",
+          "resolution_status",
+          "resolved",
+          "resolved_proposals",
+          "run_id",
+          "searches",
+          "started_at",
+          "status",
+          "strategy",
+          "title",
+          "total",
+          "truncated",
+          "unresolved",
+          "unresolved_reason",
+          "unresolved_work_count",
+          "used",
+          "verdict",
+          "watch_id",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "artist": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "born",
+          "candidate_work_id",
+          "candidates",
+          "description",
+          "died",
+          "held_artwork_ids",
+          "holdings",
+          "image",
+          "in_review",
+          "movements",
+          "name",
+          "note",
+          "qid",
+          "run_id",
+          "sitelinks",
+          "state",
+          "title",
+          "unlinked",
+          "wanted",
+          "works",
+          "works_total",
+          "year",
+          "years_agree"
+        ]
+      },
+      "cancel": {
+        "arguments": {
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "allowance",
+          "approval_required",
+          "artist",
+          "artwork_id",
+          "chosen",
+          "completed_at",
+          "confirmation",
+          "destination_theme_id",
+          "each",
+          "end_reason",
+          "estimated_cost_usd",
+          "exhausted",
+          "initiated_by",
+          "intent",
+          "kind",
+          "listed",
+          "notice",
+          "offered",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "parent_run_id",
+          "pending",
+          "proposed",
+          "provenance",
+          "resolution_status",
+          "resolved",
+          "resolved_proposals",
+          "run_id",
+          "searches",
+          "started_at",
+          "status",
+          "strategy",
+          "title",
+          "total",
+          "truncated",
+          "unresolved",
+          "unresolved_reason",
+          "unresolved_work_count",
+          "used",
+          "verdict",
+          "watch_id",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "decline": {
+        "arguments": {
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "allowance",
+          "approval_required",
+          "artist",
+          "artwork_id",
+          "chosen",
+          "completed_at",
+          "confirmation",
+          "destination_theme_id",
+          "each",
+          "end_reason",
+          "estimated_cost_usd",
+          "exhausted",
+          "initiated_by",
+          "intent",
+          "kind",
+          "listed",
+          "notice",
+          "offered",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "parent_run_id",
+          "pending",
+          "proposed",
+          "provenance",
+          "resolution_status",
+          "resolved",
+          "resolved_proposals",
+          "run_id",
+          "searches",
+          "started_at",
+          "status",
+          "strategy",
+          "title",
+          "total",
+          "truncated",
+          "unresolved",
+          "unresolved_reason",
+          "unresolved_work_count",
+          "used",
+          "verdict",
+          "watch_id",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "estimate": {
+        "arguments": {
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "basis",
+          "estimated_cost_usd",
+          "notice",
+          "phase",
+          "run_id",
+          "tier"
+        ]
+      },
+      "find_topics": {
+        "arguments": {
+          "q": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "description",
+          "end",
+          "kinds",
+          "label",
+          "note",
+          "qid",
+          "start",
+          "state",
+          "topics"
+        ]
+      },
+      "get": {
+        "arguments": {
+          "qids": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "array"
+          },
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "approval_required",
+          "completed_at",
+          "destination_theme_id",
+          "end_reason",
+          "estimated_cost_usd",
+          "initiated_by",
+          "intent",
+          "kind",
+          "notice",
+          "parent_run_id",
+          "qid",
+          "reason",
+          "run_id",
+          "skipped",
+          "started_at",
+          "status",
+          "strategy",
+          "unresolved_work_count",
+          "watch_id"
+        ]
+      },
+      "list_runs": {
+        "arguments": {
+          "awaiting": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          },
+          "kind": {
+            "choices": [
+              "discovery",
+              "resolve",
+              "get"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "status": {
+            "choices": [
+              "resolving_works",
+              "awaiting_approval",
+              "resolving_images",
+              "completed",
+              "failed",
+              "declined",
+              "cancelled",
+              "halted_by_budget",
+              "interrupted"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "approval_required",
+          "awaiting",
+          "awaiting_works",
+          "completed_at",
+          "count",
+          "destination_theme_id",
+          "end_reason",
+          "estimated_cost_usd",
+          "initiated_by",
+          "intent",
+          "kind",
+          "notice",
+          "parent_run_id",
+          "run_id",
+          "runs",
+          "started_at",
+          "status",
+          "strategy",
+          "total",
+          "truncated",
+          "unresolved_work_count",
+          "watch_id"
+        ]
+      },
+      "look": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "answered_at",
+          "artist",
+          "below_minimum",
+          "confidence",
+          "fit",
+          "found",
+          "height",
+          "held_artwork_ids",
+          "image_block_index",
+          "key",
+          "note",
+          "notice",
+          "pictures",
+          "provider",
+          "qid",
+          "refusals",
+          "retry_at",
+          "rights_status",
+          "selection_rationale",
+          "sources",
+          "state",
+          "title",
+          "url",
+          "verdict",
+          "width"
+        ]
+      },
+      "resolve_images": {
+        "arguments": {
+          "work_ids": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "array"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "approval_required",
+          "completed_at",
+          "destination_theme_id",
+          "end_reason",
+          "estimated_cost_usd",
+          "initiated_by",
+          "intent",
+          "kind",
+          "notice",
+          "parent_run_id",
+          "run_id",
+          "started_at",
+          "status",
+          "strategy",
+          "unresolved_work_count",
+          "watch_id"
+        ]
+      },
+      "search": {
+        "arguments": {
+          "q": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "artists",
+          "born",
+          "candidate_work_id",
+          "creator",
+          "died",
+          "held_artwork_ids",
+          "image",
+          "in_review",
+          "name",
+          "note",
+          "pictured_artwork_id",
+          "qid",
+          "run_id",
+          "sitelinks",
+          "state",
+          "title",
+          "wanted",
+          "works"
+        ]
+      },
+      "similar_artists": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "artists",
+          "born",
+          "died",
+          "images",
+          "name",
+          "note",
+          "qid",
+          "state"
+        ]
+      },
+      "source_plugins": {
+        "arguments": {},
+        "result_keys": [
+          "api_major",
+          "count",
+          "description",
+          "distribution",
+          "faults",
+          "interface_version",
+          "last_fault",
+          "last_fault_age_seconds",
+          "last_fault_at",
+          "museum",
+          "name",
+          "provides",
+          "reason",
+          "sources",
+          "state",
+          "version"
+        ]
+      },
+      "spend": {
+        "arguments": {
+          "month": {
+            "choices": null,
+            "items": null,
+            "maximum": 12,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "year": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          }
+        },
+        "result_keys": [
+          "cost_usd",
+          "month",
+          "run_direct_cost_usd",
+          "run_id",
+          "scope",
+          "year"
+        ]
+      },
+      "start": {
+        "arguments": {
+          "intent": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "approval_required",
+          "completed_at",
+          "destination_theme_id",
+          "end_reason",
+          "estimated_cost_usd",
+          "initiated_by",
+          "intent",
+          "kind",
+          "notice",
+          "parent_run_id",
+          "run_id",
+          "started_at",
+          "status",
+          "strategy",
+          "unresolved_work_count",
+          "watch_id"
+        ]
+      },
+      "status": {
+        "arguments": {
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "actual_cost_usd",
+          "allowance",
+          "approval_required",
+          "artist",
+          "artwork_id",
+          "chosen",
+          "completed_at",
+          "confirmation",
+          "destination_theme_id",
+          "each",
+          "end_reason",
+          "estimated_cost_usd",
+          "exhausted",
+          "initiated_by",
+          "intent",
+          "kind",
+          "listed",
+          "notice",
+          "offered",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "parent_run_id",
+          "pending",
+          "proposed",
+          "provenance",
+          "resolution_status",
+          "resolved",
+          "resolved_proposals",
+          "run_id",
+          "searches",
+          "started_at",
+          "status",
+          "strategy",
+          "title",
+          "total",
+          "truncated",
+          "unresolved",
+          "unresolved_reason",
+          "unresolved_work_count",
+          "used",
+          "verdict",
+          "watch_id",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "topic": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "artists",
+          "born",
+          "complete",
+          "creator_unknown",
+          "creators",
+          "description",
+          "died",
+          "end",
+          "held_artwork_ids",
+          "image",
+          "images",
+          "kinds",
+          "label",
+          "name",
+          "note",
+          "qid",
+          "sitelinks",
+          "start",
+          "state",
+          "title",
+          "wanted",
+          "works",
+          "year"
+        ]
+      },
+      "work": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "creators",
+          "fit",
+          "height_cm",
+          "held_artwork_ids",
+          "holders",
+          "image",
+          "image_height",
+          "image_width",
+          "inventory",
+          "media",
+          "name",
+          "note",
+          "qid",
+          "sitelinks",
+          "state",
+          "title",
+          "verdict",
+          "wanted",
+          "width_cm",
+          "year"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": true,
+    "read_only": false
+  },
+  "art_display": {
+    "actions": {
+      "add_client": {
+        "arguments": {
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client",
+          "client_id",
+          "created_at",
+          "name",
+          "notice",
+          "token_issued_at"
+        ]
+      },
+      "add_label": {
+        "arguments": {
+          "client_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "output": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client",
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "notice",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "token_issued_at",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "add_wall": {
+        "arguments": {
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "assign_display": {
+        "arguments": {
+          "display_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client",
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "notice",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "token_issued_at",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "assign_wall": {
+        "arguments": {
+          "client_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "output": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client",
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "notice",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "token_issued_at",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "clients": {
+        "arguments": {},
+        "result_keys": [
+          "absent",
+          "age_seconds",
+          "client_id",
+          "clients",
+          "connected",
+          "count",
+          "created_at",
+          "description",
+          "display_id",
+          "displays",
+          "fault",
+          "faults",
+          "first_seen",
+          "heartbeat",
+          "identity",
+          "kind",
+          "label_id",
+          "label_outputs",
+          "name",
+          "output",
+          "outputs",
+          "problem",
+          "reported_at",
+          "screen",
+          "size",
+          "token_issued_at",
+          "wall_id",
+          "walls"
+        ]
+      },
+      "delete_wall": {
+        "arguments": {
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "deleted",
+          "name",
+          "wall_id"
+        ]
+      },
+      "issue_client_token": {
+        "arguments": {
+          "client_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "notice",
+          "token",
+          "token_issued_at"
+        ]
+      },
+      "next": {
+        "arguments": {
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "notice",
+          "wall_id",
+          "work_id"
+        ]
+      },
+      "preview": {
+        "arguments": {
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "client_id",
+          "client_name",
+          "clients",
+          "considered",
+          "created_at",
+          "description",
+          "detail",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "hidden",
+          "identity",
+          "interval_seconds",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "not_on_the_wall",
+          "notice",
+          "on_the_wall",
+          "output",
+          "reason",
+          "rotation",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "theme",
+          "theme_id",
+          "title",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "remove_client": {
+        "arguments": {
+          "client_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "notice",
+          "output",
+          "released_walls",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "remove_label": {
+        "arguments": {
+          "label_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "rename_client": {
+        "arguments": {
+          "client_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client",
+          "client_id",
+          "created_at",
+          "name",
+          "token_issued_at"
+        ]
+      },
+      "rename_wall": {
+        "arguments": {
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "set_mat_mode": {
+        "arguments": {
+          "mode": {
+            "choices": [
+              "none",
+              "proportional",
+              "full",
+              "players_own"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "set_playback": {
+        "arguments": {
+          "default_interval": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          },
+          "rotation_interval_seconds": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "shuffle": {
+            "choices": [
+              "shuffled",
+              "in_order",
+              "default"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "tallest": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "widest": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "show_now": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "notice",
+          "wall_id",
+          "work_id"
+        ]
+      },
+      "status": {
+        "arguments": {},
+        "result_keys": [
+          "age_seconds",
+          "count",
+          "description",
+          "display_plane_has_reported",
+          "observation",
+          "pictures",
+          "pictures_bytes",
+          "pictures_files",
+          "problem",
+          "reported",
+          "reported_at",
+          "unreadable",
+          "wall_id",
+          "wall_name",
+          "walls"
+        ]
+      },
+      "sync": {
+        "arguments": {
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "client_id",
+          "client_name",
+          "clients",
+          "considered",
+          "created_at",
+          "description",
+          "detail",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "hidden",
+          "identity",
+          "interval_seconds",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "not_on_the_wall",
+          "notice",
+          "on_the_wall",
+          "output",
+          "reason",
+          "rotation",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "theme",
+          "theme_id",
+          "title",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "unassign_wall": {
+        "arguments": {
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "identity",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "walls": {
+        "arguments": {},
+        "result_keys": [
+          "age_seconds",
+          "client_id",
+          "client_name",
+          "clients",
+          "count",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "display_state",
+          "ended",
+          "fault",
+          "feed_notice",
+          "first_seen",
+          "hanging",
+          "height_px",
+          "hidden",
+          "identity",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "last",
+          "last_shown",
+          "mat_mode",
+          "name",
+          "output",
+          "reads_feed",
+          "reported_at",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "since",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "started_at",
+          "starts_at",
+          "state",
+          "tallest",
+          "theme_id",
+          "too_small",
+          "until",
+          "upcoming",
+          "wall_id",
+          "walls",
+          "widest",
+          "width_px",
+          "work_id"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": false,
+    "read_only": false
+  },
+  "art_review": {
+    "actions": {
+      "get_work": {
+        "arguments": {
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "confidence",
+          "confirmation",
+          "decided_at",
+          "discovery_run_id",
+          "display_fit",
+          "estimated_height",
+          "estimated_width",
+          "fit_note",
+          "held_artwork_id",
+          "image_block_index",
+          "image_id",
+          "instances_held",
+          "instances_surviving",
+          "is_on_offer",
+          "notice",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "preview_note",
+          "provenance",
+          "provider",
+          "quality_score",
+          "rationale",
+          "rejected_for_this_work",
+          "resolution_status",
+          "rights_status",
+          "selection_rationale",
+          "shown_image",
+          "size_px",
+          "title",
+          "unresolved_reason",
+          "url",
+          "verdict",
+          "wikidata_qid",
+          "work",
+          "work_id"
+        ]
+      },
+      "list_images": {
+        "arguments": {
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "confidence",
+          "count",
+          "display_fit",
+          "estimated_height",
+          "estimated_width",
+          "fit_note",
+          "held",
+          "image_block_index",
+          "image_id",
+          "images",
+          "is_on_offer",
+          "notice",
+          "preview_note",
+          "provider",
+          "quality_score",
+          "rejected_for_this_work",
+          "rights_status",
+          "selection_rationale",
+          "size_px",
+          "title",
+          "truncated",
+          "url",
+          "work_id"
+        ]
+      },
+      "list_wanted": {
+        "arguments": {},
+        "result_keys": [
+          "artist",
+          "count",
+          "display_fit",
+          "fit_note",
+          "image_block_index",
+          "is_on_offer",
+          "notice",
+          "preview_note",
+          "run_id",
+          "scans_turned_down",
+          "shown",
+          "size_px",
+          "title",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "list_works": {
+        "arguments": {
+          "limit": {
+            "choices": null,
+            "items": null,
+            "maximum": 40,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "offset": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 0,
+            "required": false,
+            "type": "integer"
+          },
+          "run_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "confirmation",
+          "count",
+          "display_fit",
+          "fit_note",
+          "held_artwork_id",
+          "image_block_index",
+          "instances_held",
+          "is_on_offer",
+          "limit",
+          "notice",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "offset",
+          "preview_note",
+          "provenance",
+          "resolution_status",
+          "run_id",
+          "run_status",
+          "shown_image",
+          "size_px",
+          "title",
+          "total",
+          "truncated",
+          "unresolved_reason",
+          "verdict",
+          "wikidata_qid",
+          "work_id",
+          "works"
+        ]
+      },
+      "reject_image": {
+        "arguments": {
+          "image_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "image_id",
+          "notice",
+          "title",
+          "verdict",
+          "work_id"
+        ]
+      },
+      "set_canonical": {
+        "arguments": {
+          "image_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "rationale": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "image_id",
+          "selection_rationale",
+          "url",
+          "work_id"
+        ]
+      },
+      "set_verdict": {
+        "arguments": {
+          "reason": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "verdict": {
+            "choices": [
+              "accepted",
+              "rejected"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist_id",
+          "artwork_id",
+          "biography",
+          "born",
+          "decided_at",
+          "died",
+          "display_nationality",
+          "family_name",
+          "given_name",
+          "lifespan_text",
+          "minted_artist",
+          "name",
+          "nationality",
+          "notice",
+          "possible_duplicate_artists",
+          "title",
+          "verdict",
+          "wikidata_qid",
+          "wikidata_qid_set_by",
+          "work_id"
+        ]
+      },
+      "set_wikidata_item": {
+        "arguments": {
+          "qid": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "confirmation",
+          "offered_artist_matched",
+          "offered_by",
+          "offered_for_artist",
+          "provenance",
+          "resolution_status",
+          "title",
+          "unresolved_reason",
+          "verdict",
+          "wikidata_qid",
+          "work",
+          "work_id"
+        ]
+      },
+      "sighting_hosts": {
+        "arguments": {},
+        "result_keys": [
+          "count",
+          "host",
+          "hosts",
+          "works"
+        ]
+      },
+      "want": {
+        "arguments": {
+          "turning_down": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "notice",
+          "title",
+          "verdict",
+          "work_id"
+        ]
+      },
+      "wikidata_matches": {
+        "arguments": {
+          "work_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "by_proposed_artist",
+          "creator",
+          "has_image",
+          "matches",
+          "note",
+          "qid",
+          "sitelinks",
+          "state",
+          "title",
+          "work_id"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": false,
+    "read_only": false
+  },
+  "art_settings": {
+    "actions": {
+      "list": {
+        "arguments": {},
+        "result_keys": [
+          "choices",
+          "default",
+          "description",
+          "environment_variable",
+          "key",
+          "kind",
+          "label",
+          "locked",
+          "section",
+          "set_aside_reason",
+          "settings",
+          "source",
+          "updated_at",
+          "updated_by",
+          "value"
+        ]
+      },
+      "set": {
+        "arguments": {
+          "key": {
+            "choices": [
+              "label_units",
+              "unattended_work",
+              "unattended_allowance_usd",
+              "unattended_cadence",
+              "unattended_model"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "value": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "choices",
+          "default",
+          "description",
+          "environment_variable",
+          "key",
+          "kind",
+          "label",
+          "locked",
+          "section",
+          "set_aside_reason",
+          "setting",
+          "source",
+          "updated_at",
+          "updated_by",
+          "value"
+        ]
+      },
+      "unattended": {
+        "arguments": {},
+        "result_keys": [
+          "allowance_usd",
+          "may_start",
+          "refusal",
+          "remaining_usd",
+          "sentence",
+          "spent_usd",
+          "switched_on"
+        ]
+      }
+    },
+    "destructive": false,
+    "open_world": false,
+    "read_only": false
+  },
+  "art_taste": {
+    "actions": {
+      "brief": {
+        "arguments": {},
+        "result_keys": [
+          "brief"
+        ]
+      },
+      "delete": {
+        "arguments": {
+          "affinity_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "affinity",
+          "affinity_id",
+          "artist_id",
+          "created_at",
+          "derivation",
+          "kind",
+          "notice",
+          "open_to_more",
+          "rationale",
+          "sentiment",
+          "updated_at",
+          "value"
+        ]
+      },
+      "list": {
+        "arguments": {
+          "derivation": {
+            "choices": [
+              "stated",
+              "inferred",
+              "observed"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "kind": {
+            "choices": [
+              "artist",
+              "movement",
+              "era",
+              "subject",
+              "medium",
+              "palette"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "sentiment": {
+            "choices": [
+              "loves",
+              "likes",
+              "cool",
+              "declines"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "affinities",
+          "affinity_id",
+          "artist_id",
+          "count",
+          "created_at",
+          "derivation",
+          "kind",
+          "open_to_more",
+          "rationale",
+          "sentiment",
+          "updated_at",
+          "value"
+        ]
+      },
+      "set": {
+        "arguments": {
+          "derivation": {
+            "choices": [
+              "stated",
+              "inferred",
+              "observed"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "kind": {
+            "choices": [
+              "artist",
+              "movement",
+              "era",
+              "subject",
+              "medium",
+              "palette"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "open_to_more": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "boolean"
+          },
+          "rationale": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "sentiment": {
+            "choices": [
+              "loves",
+              "likes",
+              "cool",
+              "declines"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "value": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "affinity",
+          "affinity_id",
+          "artist_id",
+          "created_at",
+          "derivation",
+          "kind",
+          "open_to_more",
+          "rationale",
+          "sentiment",
+          "updated_at",
+          "value"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": false,
+    "read_only": false
+  },
+  "art_theme": {
+    "actions": {
+      "activate": {
+        "arguments": {
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "client_id",
+          "client_name",
+          "clients",
+          "considered",
+          "created_at",
+          "description",
+          "detail",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "hidden",
+          "identity",
+          "interval_seconds",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "not_on_the_wall",
+          "notice",
+          "on_the_wall",
+          "output",
+          "reason",
+          "rotation",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "theme",
+          "theme_id",
+          "title",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "add": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "position": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 0,
+            "required": false,
+            "type": "integer"
+          },
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "position",
+          "theme_id"
+        ]
+      },
+      "allow_again": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "allowed",
+          "notice"
+        ]
+      },
+      "apply_scene": {
+        "arguments": {
+          "lifetime": {
+            "choices": [
+              "preview",
+              "hold"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "minutes": {
+            "choices": null,
+            "items": null,
+            "maximum": 1440,
+            "minimum": 1,
+            "required": false,
+            "type": "integer"
+          },
+          "scene_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cannot_show",
+          "ended_at",
+          "lifetime",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "create": {
+        "arguments": {
+          "description": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "created_at",
+          "description",
+          "hidden",
+          "is_default",
+          "name",
+          "theme",
+          "theme_id"
+        ]
+      },
+      "delete": {
+        "arguments": {
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "deleted"
+        ]
+      },
+      "discard_scene": {
+        "arguments": {
+          "scene_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "discarded"
+        ]
+      },
+      "draft_scene": {
+        "arguments": {},
+        "result_keys": [
+          "cannot_show",
+          "ended_at",
+          "lifetime",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "get": {
+        "arguments": {
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artist",
+          "artwork_id",
+          "created_at",
+          "date_created",
+          "description",
+          "hidden",
+          "is_default",
+          "name",
+          "sizes_unjudged",
+          "status",
+          "theme",
+          "theme_id",
+          "title",
+          "too_small_for",
+          "works"
+        ]
+      },
+      "hang_selection": {
+        "arguments": {
+          "artwork_ids": {
+            "choices": null,
+            "items": "string",
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "array"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "client_id",
+          "client_name",
+          "clients",
+          "considered",
+          "created_at",
+          "description",
+          "detail",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "height_px",
+          "hidden",
+          "identity",
+          "interval_seconds",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "not_on_the_wall",
+          "notice",
+          "on_the_wall",
+          "output",
+          "reason",
+          "rotation",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "theme",
+          "theme_id",
+          "title",
+          "too_small",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "kept_off": {
+        "arguments": {},
+        "result_keys": [
+          "artwork_id",
+          "count",
+          "excluded_at",
+          "exclusions"
+        ]
+      },
+      "list": {
+        "arguments": {},
+        "result_keys": [
+          "client_id",
+          "client_name",
+          "clients",
+          "count",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "fault",
+          "first_seen",
+          "hanging_on",
+          "height_px",
+          "hidden",
+          "identity",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "mat_mode",
+          "name",
+          "output",
+          "rotation_interval_seconds",
+          "shape",
+          "shapes",
+          "shuffle",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "tallest",
+          "theme_id",
+          "themes",
+          "too_small",
+          "wall_id",
+          "widest",
+          "width_px"
+        ]
+      },
+      "make_default": {
+        "arguments": {
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "created_at",
+          "description",
+          "hidden",
+          "is_default",
+          "name",
+          "theme",
+          "theme_id"
+        ]
+      },
+      "not_again": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "scope": {
+            "choices": [
+              "theme",
+              "every_wall"
+            ],
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "age_seconds",
+          "artwork_id",
+          "client_id",
+          "client_name",
+          "clients",
+          "created_at",
+          "description",
+          "display",
+          "display_id",
+          "display_state",
+          "ended",
+          "excluded_at",
+          "fault",
+          "feed_notice",
+          "first_seen",
+          "hanging",
+          "height_px",
+          "hidden",
+          "identity",
+          "is_default",
+          "kind",
+          "label_id",
+          "labels",
+          "last",
+          "last_shown",
+          "left_theme",
+          "mat_mode",
+          "name",
+          "output",
+          "reads_feed",
+          "reported_at",
+          "rotation_interval_seconds",
+          "scope",
+          "shape",
+          "shapes",
+          "shuffle",
+          "since",
+          "sizes_judged_against",
+          "sizes_unjudged",
+          "started_at",
+          "starts_at",
+          "state",
+          "tallest",
+          "theme_id",
+          "too_small",
+          "until",
+          "upcoming",
+          "wall",
+          "wall_id",
+          "widest",
+          "width_px",
+          "work_id"
+        ]
+      },
+      "pin_scene": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "scene_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cannot_show",
+          "ended_at",
+          "lifetime",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "release_scene": {
+        "arguments": {
+          "scene_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cannot_show",
+          "ended_at",
+          "lifetime",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "remove": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "removed",
+          "theme_id"
+        ]
+      },
+      "reorder": {
+        "arguments": {
+          "artwork_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "position": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": 0,
+            "required": false,
+            "type": "integer"
+          },
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "artwork_id",
+          "position",
+          "theme_id"
+        ]
+      },
+      "scenes": {
+        "arguments": {},
+        "result_keys": [
+          "cannot_show",
+          "draft",
+          "ended_at",
+          "lifetime",
+          "live",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "unhang": {
+        "arguments": {
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "notice",
+          "wall_id"
+        ]
+      },
+      "unpin_scene": {
+        "arguments": {
+          "scene_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "wall_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cannot_show",
+          "ended_at",
+          "lifetime",
+          "reached",
+          "scene_id",
+          "screen",
+          "starts_at",
+          "status",
+          "title",
+          "until",
+          "wall_id",
+          "wall_name",
+          "walls",
+          "work_id"
+        ]
+      },
+      "update": {
+        "arguments": {
+          "description": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "name": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "theme_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "created_at",
+          "description",
+          "hidden",
+          "is_default",
+          "name",
+          "theme",
+          "theme_id"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": false,
+    "read_only": false
+  },
+  "art_watches": {
+    "actions": {
+      "create": {
+        "arguments": {
+          "cadence": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "enabled": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          },
+          "intent_text": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          },
+          "monthly_cap_usd": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cadence",
+          "created_at",
+          "created_by",
+          "effective_cadence",
+          "effective_cap_usd",
+          "enabled",
+          "in_flight",
+          "intent_text",
+          "last_attempt_at",
+          "last_refusal",
+          "last_run_id",
+          "last_run_status",
+          "monthly_cap_usd",
+          "next_due_at",
+          "overdue",
+          "sentence",
+          "spent_usd",
+          "updated_at",
+          "updated_by",
+          "watch",
+          "watch_id"
+        ]
+      },
+      "delete": {
+        "arguments": {
+          "watch_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cadence",
+          "created_at",
+          "created_by",
+          "effective_cadence",
+          "effective_cap_usd",
+          "enabled",
+          "in_flight",
+          "intent_text",
+          "last_attempt_at",
+          "last_refusal",
+          "last_run_id",
+          "last_run_status",
+          "monthly_cap_usd",
+          "next_due_at",
+          "notice",
+          "overdue",
+          "sentence",
+          "spent_usd",
+          "updated_at",
+          "updated_by",
+          "watch",
+          "watch_id"
+        ]
+      },
+      "get": {
+        "arguments": {
+          "watch_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cadence",
+          "created_at",
+          "created_by",
+          "effective_cadence",
+          "effective_cap_usd",
+          "enabled",
+          "in_flight",
+          "intent_text",
+          "last_attempt_at",
+          "last_refusal",
+          "last_run_id",
+          "last_run_status",
+          "monthly_cap_usd",
+          "next_due_at",
+          "overdue",
+          "sentence",
+          "spent_usd",
+          "updated_at",
+          "updated_by",
+          "watch",
+          "watch_id"
+        ]
+      },
+      "list": {
+        "arguments": {},
+        "result_keys": [
+          "cadence",
+          "created_at",
+          "created_by",
+          "effective_cadence",
+          "effective_cap_usd",
+          "enabled",
+          "in_flight",
+          "intent_text",
+          "last_attempt_at",
+          "last_refusal",
+          "last_run_id",
+          "last_run_status",
+          "monthly_cap_usd",
+          "next_due_at",
+          "overdue",
+          "sentence",
+          "spent_usd",
+          "updated_at",
+          "updated_by",
+          "watch_id",
+          "watches"
+        ]
+      },
+      "update": {
+        "arguments": {
+          "cadence": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "enabled": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "boolean"
+          },
+          "intent_text": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "monthly_cap_usd": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": false,
+            "type": "string"
+          },
+          "watch_id": {
+            "choices": null,
+            "items": null,
+            "maximum": null,
+            "minimum": null,
+            "required": true,
+            "type": "string"
+          }
+        },
+        "result_keys": [
+          "cadence",
+          "created_at",
+          "created_by",
+          "effective_cadence",
+          "effective_cap_usd",
+          "enabled",
+          "in_flight",
+          "intent_text",
+          "last_attempt_at",
+          "last_refusal",
+          "last_run_id",
+          "last_run_status",
+          "monthly_cap_usd",
+          "next_due_at",
+          "overdue",
+          "sentence",
+          "spent_usd",
+          "updated_at",
+          "updated_by",
+          "watch",
+          "watch_id"
+        ]
+      }
+    },
+    "destructive": true,
+    "open_world": false,
+    "read_only": false
+  }
+}

@@ -14,6 +14,7 @@ import httpx
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from unit.test_surface_parity import WALL_RENAMES, check_renamed, in_http_names
 
 from arrt.programming.manifest.v2 import read_published
 
@@ -36,10 +37,24 @@ def _http_walls(server_url):
     return {wall["wall_id"]: wall for wall in walls}
 
 
+#: Which of `test_surface_parity.WALL_RENAMES`' records each field is: MCP's wall
+#: answers say `artwork_id` where `/api/walls` says `work_id` (ruling 3 of 2026-11-19).
+_RECORDS = {"last_shown": "LastShown", "upcoming": "Upcoming"}
+
+
 async def _both(server_url, wall_id, field):
-    """The field as each surface states it, after asking that they state it alike."""
+    """The field as each surface states it, after asking that they state it alike, the one rename aside."""
     over_http = _http_walls(server_url)[wall_id][field]
     over_mcp = (await _mcp_walls(server_url))[wall_id][field]
+    renames = WALL_RENAMES[_RECORDS[field]]
+    for mcp_entry, http_entry in zip(
+        over_mcp if isinstance(over_mcp, list) else [over_mcp],
+        over_http if isinstance(over_http, list) else [over_http],
+        strict=True,
+    ):
+        if mcp_entry is not None:
+            check_renamed(_RECORDS[field], set(mcp_entry), set(http_entry), renames)
+    over_mcp = in_http_names(over_mcp, renames)
     assert over_http == over_mcp, f"{field}: GET /api/walls says {over_http!r}, art_display says {over_mcp!r}"
     return over_http
 
@@ -64,7 +79,7 @@ def _report(at, state, work_id=None, since=None):
     }
 
 
-async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, services, hung, wall_id):
+async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, services, hung, wall_id, a_player_shows_the_wall):
     first, second, _ = hung
     now = datetime.now(UTC)
     services.display.record_heartbeat(wall_id, _report(now - 3 * MINUTE, "showing_art", first.id))
@@ -80,7 +95,9 @@ async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, s
     }
 
 
-async def test_a_wall_showing_a_work_now_says_it_until_its_last_report(server_url, services, hung, wall_id):
+async def test_a_wall_showing_a_work_now_says_it_until_its_last_report(
+    server_url, services, hung, wall_id, a_player_shows_the_wall
+):
     first, _, _ = hung
     now = datetime.now(UTC)
     services.display.record_heartbeat(wall_id, _report(now - MINUTE, "showing_art", first.id))
@@ -128,7 +145,9 @@ async def test_a_wall_with_no_feed_published_has_nothing_coming(server_url, wall
     assert await _both(server_url, wall_id, "upcoming") == []
 
 
-def test_a_change_to_the_wall_reads_back_the_same_last_shown_and_next_three(server_url, services, hung, wall_id):
+def test_a_change_to_the_wall_reads_back_the_same_last_shown_and_next_three(
+    server_url, services, hung, wall_id, a_player_shows_the_wall
+):
     """A write answers with the wall read alone (`get_wall_view`), which the listing does not go through."""
     first, _, _ = hung
     now = datetime.now(UTC)

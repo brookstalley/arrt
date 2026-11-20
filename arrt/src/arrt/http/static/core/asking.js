@@ -22,7 +22,6 @@ import { captioned, el, fill } from "./render.js";
 import { personLink, topicKinds, topicName, workLink } from "./registry.js";
 import { prose } from "./reviewing.js";
 import { link, refresh } from "./router.js";
-import { dollars } from "./spend.js";
 import { CARD_REACTIONS, reactionRow } from "./taste.js";
 
 /* What an empty Ask offers to start from: an artist's neighbours, a mood for a
@@ -294,11 +293,14 @@ function turnView(asked, events) {
   };
 }
 
-/* What a reply cost, the provider's own figure. A reply some step of which
- * carried no cost says so rather than reading as cheaper than it was. */
+/* What a reply cost, in the server's words (`summary`, `SpendTotal.words`,
+ * the one writer of a cost): "at least $0.002, and 1 call whose cost is
+ * unknown" when a step carried no cost, so it never reads as cheaper than it
+ * was, and in the words the Spend page uses. None is formatted here;
+ * an end that carries no summary says so. */
 export function costSentence(metadata) {
-  const spent = `This reply cost ${dollars(metadata.cost_usd)}`;
-  return metadata.uncosted ? `${spent}, and ${metadata.uncosted} of its steps reported no cost.` : `${spent}.`;
+  const summary = metadata && typeof metadata.summary === "string" && metadata.summary ? metadata.summary : null;
+  return summary ? `This reply cost ${summary}.` : "What this reply cost was not said.";
 }
 
 /* The answer's words as paragraphs and lists, its Markdown as words and links

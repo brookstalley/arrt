@@ -26,7 +26,9 @@ NOW = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
 
 MUSEUM = "Museum APIs (free)"
 BINARY = "dezoomify-rs (free)"
-PAID = "OpenRouter (spends money)"
+#: The paid probe's job, which `api-drift.yml` no longer has: the
+#: runs GitHub lists still hold it, from before.
+GONE = "OpenRouter (spends money)"
 
 
 def _load():
@@ -46,12 +48,9 @@ def _run(days_ago: float, *jobs: tuple[str, str | None]) -> dict:
     }
 
 
-def test_both_tiers_running_on_time_passes():
+def test_the_free_tier_running_on_time_passes():
     guard = _load()
-    runs = [
-        _run(2, (MUSEUM, "success"), (BINARY, "success")),
-        _run(5, (PAID, "success")),
-    ]
+    runs = [_run(2, (MUSEUM, "success"), (BINARY, "success"))]
 
     assert guard.main(runs, NOW) == 0
 
@@ -72,53 +71,25 @@ def test_a_free_tier_that_has_never_run_fails(capsys):
     assert "free API-drift probes have never completed" in printed
     assert "default branch" in printed, "the message must name the cause it is most likely to be"
     assert "Run workflow" in printed, "and the remedy, or it sends the reader nowhere"
-    assert "free: leave" in printed, "the remedy must say it costs nothing, or nobody will run it"
+    assert "That dispatch is free" in printed, "the remedy must say it costs nothing, or nobody will run it"
 
 
-def test_a_paid_tier_that_has_never_run_is_not_a_fault(capsys):
-    """A check whose green costs money is a check that gets ignored.
+def test_the_free_tier_going_quiet_is_caught_though_a_later_run_held_the_paid_job(capsys):
+    """A recent run is not a fresh tier: only a free job's success refreshes it.
 
-    The first version failed on both tiers, so the job went red the moment it
-    reached `main` and the only ways to clear it were to wait for the first of
-    the month or to spend real credit on a manual dispatch. An ignored check
-    takes the free tier's finding down with it, which is the whole value.
-
-    An un-started clock is silent; staleness is measured once it has started.
+    The runs GitHub lists still hold the paid job from before it left
+    CI (the owner's ruling of 2026-11-20, CI makes no paid call). Its success
+    three days ago says nothing about the weekly probes, and three Mondays have
+    passed with nothing. Nor is the paid tier reported: CI no longer observes it.
     """
     guard = _load()
-    runs = [_run(1, (MUSEUM, "success"))]
-
-    assert guard.main(runs, NOW) == 0
-
-    printed = capsys.readouterr().out
-    assert "paid: has never run" in printed, "silent is not the same as unreported — it must still say so"
-
-
-def test_the_free_tier_going_quiet_is_caught_while_the_paid_one_is_fine(capsys):
-    """The reason the tiers are measured apart rather than together.
-
-    A single age threshold over "the newest run" would read the healthy monthly
-    run as evidence the weekly probes are fine. They are not: three Mondays have
-    passed with nothing.
-    """
-    guard = _load()
-    runs = [_run(3, (PAID, "success")), _run(30, (MUSEUM, "success"))]
+    runs = [_run(3, (GONE, "success")), _run(30, (MUSEUM, "success"))]
 
     assert guard.main(runs, NOW) == 1
 
     printed = capsys.readouterr().out
     assert "free API-drift probes last succeeded 30 days ago" in printed
-    assert "paid: last succeeded 3 days ago" in printed, "the healthy tier must still report, not go silent"
-
-
-def test_the_paid_tier_going_quiet_is_caught_while_the_free_one_is_fine(capsys):
-    guard = _load()
-    runs = [_run(1, (MUSEUM, "success")), _run(90, (PAID, "success"))]
-
-    assert guard.main(runs, NOW) == 1
-
-    printed = capsys.readouterr().out
-    assert "paid API-drift probes last succeeded 90 days ago" in printed
+    assert "paid" not in printed
 
 
 def test_either_free_job_alone_proves_the_schedule_is_alive():
@@ -130,29 +101,22 @@ def test_either_free_job_alone_proves_the_schedule_is_alive():
     fires, and one succeeding job answers that.
     """
     guard = _load()
-    runs = [_run(1, (MUSEUM, "failure"), (BINARY, "success")), _run(1, (PAID, "success"))]
+    runs = [_run(1, (MUSEUM, "failure"), (BINARY, "success"))]
 
     assert guard.main(runs, NOW) == 0
 
 
 @pytest.mark.parametrize("conclusion", ["skipped", "failure", "cancelled", None])
 def test_a_run_whose_tier_job_did_not_succeed_does_not_refresh_that_tier(conclusion, capsys):
-    """`skipped` is the normal state of the other tier's job in any given run.
+    """A run's mere existence says nothing about whether it refreshed the tier: only a free job's success does.
 
-    A weekly run skips the paid job and a monthly run skips the free ones, so a
-    run's mere existence says nothing about which tier it refreshed. Counting one
-    would let a healthy monthly cadence vouch indefinitely for free probes that
-    stopped firing weeks ago.
-
-    Asserted on the *free* tier, and that is the correction rather than the
-    original design: written against the paid one, it stopped proving anything
-    the moment a never-run paid tier became silent, because then the run returns
-    zero whether the rule holds or not. The free tier has a real success behind
-    it here, so only the recent non-success being miscounted could make this
-    pass.
+    Counting a skipped, failed or cancelled job would let a run that verified
+    nothing vouch for free probes that stopped firing weeks ago. The free tier
+    has a real success behind it here, so only the recent non-success being
+    miscounted could make this pass.
     """
     guard = _load()
-    runs = [_run(1, (MUSEUM, conclusion)), _run(30, (MUSEUM, "success")), _run(1, (PAID, "success"))]
+    runs = [_run(1, (MUSEUM, conclusion)), _run(30, (MUSEUM, "success"))]
 
     assert guard.main(runs, NOW) == 1
     assert "free API-drift probes last succeeded 30 days ago" in capsys.readouterr().out
@@ -167,10 +131,10 @@ def test_the_boundary_is_inclusive_of_the_stated_limit():
     """
     guard = _load()
 
-    at_limit = [_run(21, (MUSEUM, "success")), _run(1, (PAID, "success"))]
+    at_limit = [_run(21, (MUSEUM, "success"))]
     assert guard.main(at_limit, NOW) == 0
 
-    past_limit = [_run(21.5, (MUSEUM, "success")), _run(1, (PAID, "success"))]
+    past_limit = [_run(21.5, (MUSEUM, "success"))]
     assert guard.main(past_limit, NOW) == 1
 
 
@@ -186,10 +150,11 @@ def test_the_thresholds_match_the_cadences_they_are_derived_from():
     workflow = (SCRIPT.parents[2] / ".github" / "workflows" / "api-drift.yml").read_text(encoding="utf-8")
 
     assert 'cron: "17 6 * * 1"' in workflow, "the free tier is no longer weekly — revisit STALE_AFTER['free']"
-    assert 'cron: "43 6 1 * *"' in workflow, "the paid tier is no longer monthly — revisit STALE_AFTER['paid']"
+    # The paid tier left CI altogether, so the free tier is the one tier.
+    assert workflow.count("cron:") == 1, "a second schedule: say which tier it runs, and give it a threshold"
+    assert set(guard.STALE_AFTER) == set(guard.TIER_JOBS) == {"free"}
 
     assert guard.STALE_AFTER["free"] > timedelta(days=14), "a weekly probe must survive two ordinary misses"
-    assert guard.STALE_AFTER["paid"] > timedelta(days=62), "a monthly probe must survive the longest two-month pair"
 
 
 def test_every_job_named_in_the_tier_map_exists_in_the_workflow():
@@ -229,7 +194,7 @@ def test_the_entry_point_reads_stdin_and_exits_nonzero():
 
 def test_the_entry_point_exits_zero_on_a_healthy_pair():
     """The other half: a passing check must not fail the job."""
-    runs = json.dumps([_run(2, (MUSEUM, "success")), _run(2, (PAID, "success"))])
+    runs = json.dumps([_run(2, (MUSEUM, "success"))])
 
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--now", "2026-08-06T12:00:00Z"],
@@ -248,15 +213,11 @@ WRITTEN = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
 
 
 def _healthy_at(now: datetime) -> list[dict]:
-    """Both free jobs and the paid one succeeding recently, as of `now`."""
+    """Both free jobs succeeding recently, as of `now`."""
     return [
         {
             "createdAt": (now - timedelta(days=2)).isoformat().replace("+00:00", "Z"),
             "jobs": [{"name": MUSEUM, "conclusion": "success"}, {"name": BINARY, "conclusion": "success"}],
-        },
-        {
-            "createdAt": (now - timedelta(days=5)).isoformat().replace("+00:00", "Z"),
-            "jobs": [{"name": PAID, "conclusion": "success"}],
         },
     ]
 

@@ -6,6 +6,7 @@ import logging
 import sqlite3
 import threading
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
@@ -23,8 +24,11 @@ from scripted_model import (
 )
 from threetears.agent.tools.builtin.web_search import create_web_search_tool
 
+from arrt.app import _record_ask_cost
 from arrt.ask.agent import _SAID, TURNS_REMEMBERED, Ask, ReplyCost, Threads, said, surface_tools
 from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.library.services.discovery import SpendTotal
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.services.errors import ServiceError
 
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
@@ -68,6 +72,10 @@ async def test_a_step_that_reported_no_cost_is_counted_rather_than_read_as_free(
     assert end["metadata"]["uncosted"] == 1
     assert end["metadata"]["cost_usd"] == COST_PER_REPLY
     assert end["metadata"]["steps"] == 2
+    # The figure in the one writer's words, "at least" for the call that said nothing.
+    assert end["metadata"]["summary"] == SpendTotal(cost_usd=PER_CALL, unknown_calls=1).words
+    assert end["metadata"]["summary"].startswith("at least $")
+    assert end["metadata"]["summary"].endswith(", and 1 call whose cost is unknown")
 
 
 async def test_a_thread_is_replying_until_its_stream_is_read_to_the_end():
@@ -377,7 +385,12 @@ async def test_a_reply_the_client_abandons_records_what_it_spent_before_it_stopp
     assert [cost.cost_usd for cost in recorded] == [PER_CALL]
 
 
-async def test_a_reply_whose_calls_reported_no_cost_records_nothing():
+async def test_a_reply_whose_calls_reported_no_cost_records_each_as_unknown_never_as_nothing():
+    """A call answered with no cost on it may have been billed, so the ledger is told so.
+
+    Recording nothing at all would make the month's total read those calls as
+    a known $0.
+    """
     recorded: list[ReplyCost] = []
     ask = Ask(
         answered,
@@ -389,7 +402,38 @@ async def test_a_reply_whose_calls_reported_no_cost_records_nothing():
     events = await events_of(ask)
 
     assert events[-1]["type"] == "stream_end"
-    assert recorded == []
+    [cost] = recorded
+    assert (cost.cost_usd, cost.unknown_calls, cost.unknown_model_id) == (Decimal(0), 2, ANSWERED_BY)
+    assert events[-1]["metadata"]["summary"] == "at least $0.00, and 2 calls whose cost is unknown"
+
+
+async def test_a_reply_with_one_call_costed_and_one_not_records_the_known_cost_and_one_unknown():
+    recorded: list[ReplyCost] = []
+    ask = Ask(
+        answered, ScriptedModel(replies=[calls(SEARCH), unpriced(says("Done."))]), step_limit=8, record_cost=recorded.append
+    )
+
+    await events_of(ask)
+
+    [cost] = recorded
+    assert (cost.cost_usd, cost.unknown_calls) == (PER_CALL, 1)
+
+
+async def test_the_step_limits_sentence_says_its_cost_in_the_one_writers_words():
+    """Not `$0.0030` formatted here: "at least" when a step said no cost (`SpendTotal.words`)."""
+    ask = Ask(
+        answered,
+        ScriptedModel(replies=[unpriced(calls(SEARCH)), calls(SEARCH), calls(SEARCH)]),
+        step_limit=3,
+        record_cost=unrecorded,
+    )
+
+    events = await events_of(ask)
+
+    assert events[-1]["code"] == "STEP_LIMIT"
+    said = SpendTotal(cost_usd=2 * PER_CALL, unknown_calls=1).words
+    assert events[-1]["message"].endswith(f" It cost {said}.")
+    assert said.startswith("at least $")
 
 
 class RefusedAfterOneCall(ScriptedModel):
@@ -454,3 +498,144 @@ async def test_a_cost_the_ledger_refuses_is_logged_and_the_reply_still_ends(capl
     messages = [record.getMessage() for record in caplog.records if record.name == "arrt.ask"]
     assert any("its cost was not recorded" in message for message in messages)
     assert any("ended=answered" in message for message in messages), "the reply's own log line was lost"
+
+
+# -- a call sent that never said what it cost -----------------------------------------
+
+
+class CaughtMidCall(ScriptedModel):
+    """Answers its first `answers` calls; the next one signals `begun` and holds until `release`.
+
+    The call has been made when `begun` is set, which is the moment a client
+    going away leaves a call sent and unanswered. Streaming runs on a worker
+    thread, so the hold is the reply's and not the event loop's.
+    """
+
+    answers: int = 0
+    begun: Any = None
+    release: Any = None
+
+    def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+        if len(self.seen) == self.answers:
+            self.begun.set()
+            self.release.wait(timeout=20)
+        yield from super()._stream(messages, stop, run_manager, **kwargs)
+
+
+async def _abandoned_mid_call(answers: int, replies: list) -> list[ReplyCost]:
+    """A reply whose client goes while its call number `answers` + 1 runs; what it recorded."""
+    begun, release = threading.Event(), threading.Event()
+    recorded: list[ReplyCost] = []
+    model = CaughtMidCall(replies=replies, answers=answers, begun=begun, release=release)
+    ask = Ask(answered, model, step_limit=8, record_cost=recorded.append)
+    lines = ask.reply(ask.threads.open(), "Bruegel")
+    assert json.loads(await anext(lines))["type"] == "stream_start"
+    assert await asyncio.to_thread(begun.wait, 10), "the held call never began"
+
+    # Released just after the cancel, as a provider answers a client that has
+    # gone; the worker thread cannot be interrupted and would otherwise wait out
+    # its bound after the test.
+    threading.Timer(0.2, release.set).start()
+    await lines.aclose()
+
+    return recorded
+
+
+async def test_a_reply_cancelled_while_its_model_call_runs_records_that_call_as_one_whose_cost_is_unknown():
+    """The client goes while the model is answering: the call was sent, nothing said what it cost."""
+    [cost] = await _abandoned_mid_call(0, [says("Never read.")])
+
+    assert (cost.cost_usd, cost.unknown_calls) == (Decimal(0), 1)
+
+
+async def test_a_reply_cancelled_after_a_billed_call_records_both_the_bill_and_the_unanswered_call():
+    [cost] = await _abandoned_mid_call(1, [calls(SEARCH), says("Never read.")])
+
+    assert (cost.cost_usd, cost.unknown_calls) == (PER_CALL, 1)
+
+
+class Answered(Exception):
+    """A provider's error as its client raises it: a status, and a message."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+        self.message = f"HTTP {status_code}"
+
+
+@pytest.mark.parametrize(
+    ("refusal", "unknown"),
+    [
+        (ConnectionError("the provider went away"), 1),
+        (TimeoutError("read timed out"), 1),
+        (Answered(502), 1),
+        (Answered(408), 1),
+        (Answered(429), 0),
+        (Answered(400), 0),
+        (KeySpent(), 0),
+    ],
+    ids=["no status", "timeout", "502", "408", "429", "400", "403 at the cap"],
+)
+async def test_a_call_that_failed_is_unknown_unless_the_provider_answered_it(refusal, unknown):
+    recorded: list[ReplyCost] = []
+    model = RefusedAfterOneCall(replies=[calls(SEARCH)], refusal=refusal)
+    ask = Ask(answered, model, step_limit=8, record_cost=recorded.append)
+
+    await events_of(ask)
+
+    [cost] = recorded
+    assert (cost.cost_usd, cost.unknown_calls) == (PER_CALL, unknown)
+
+
+async def test_a_reply_that_answered_leaves_no_call_unknown():
+    recorded: list[ReplyCost] = []
+    ask = Ask(answered, ScriptedModel(replies=[calls(SEARCH), says("Done.")]), step_limit=8, record_cost=recorded.append)
+
+    await events_of(ask)
+
+    assert [cost.unknown_calls for cost in recorded] == [0]
+
+
+async def test_a_reply_stopped_at_the_step_limit_leaves_no_call_unknown():
+    """The limit stops the loop before the next call is made, so nothing is running when it stops."""
+    recorded: list[ReplyCost] = []
+    ask = Ask(answered, ScriptedModel(replies=[calls(SEARCH) for _ in range(5)]), step_limit=3, record_cost=recorded.append)
+
+    await events_of(ask)
+
+    assert [cost.unknown_calls for cost in recorded] == [0]
+
+
+def test_a_reply_s_unanswered_calls_reach_the_ledger_as_rows_whose_cost_is_unknown(services, discovery_store):
+    """`_record_ask_cost`, the wiring `create_app` hands Ask: the bill is one row, each unanswered call another at $0."""
+    _record_ask_cost(
+        services,
+        ReplyCost(
+            cost_usd=PER_CALL, model_id=ANSWERED_BY, input_tokens=1, output_tokens=1, unknown_calls=2, unknown_model_id="m"
+        ),
+    )
+
+    rows = [record for record in discovery_store.list_spend_records() if record.category is SpendCategory.ASK_TOKENS]
+    assert sorted((record.cost_status, record.cost_usd, record.model_id) for record in rows) == [
+        (CostStatus.KNOWN, PER_CALL, ANSWERED_BY),
+        (CostStatus.UNKNOWN, Decimal(0), "m"),
+        (CostStatus.UNKNOWN, Decimal(0), "m"),
+    ]
+
+
+def test_a_reply_with_only_an_unanswered_call_writes_no_zero_bill(services, discovery_store):
+    _record_ask_cost(
+        services, ReplyCost(cost_usd=Decimal(0), model_id=None, input_tokens=None, output_tokens=None, unknown_calls=1)
+    )
+
+    [row] = discovery_store.list_spend_records()
+    assert row.cost_status is CostStatus.UNKNOWN
+
+
+def test_a_reply_with_no_billed_cost_and_no_unknown_call_writes_no_row(services, discovery_store):
+    """Nothing billed and nothing unknown is nothing to record, never a known $0 row in the month."""
+    _record_ask_cost(
+        services, ReplyCost(cost_usd=Decimal(0), model_id=ANSWERED_BY, input_tokens=0, output_tokens=0, unknown_calls=0)
+    )
+
+    assert discovery_store.list_spend_records() == []

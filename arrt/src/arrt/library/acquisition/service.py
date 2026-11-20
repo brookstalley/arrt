@@ -32,6 +32,7 @@ from typing import Final
 from arrt import atomic
 from arrt.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
+    TileFetcher,
     TileOutcome,
     reclaim_tile_cache,
     tile_fetch,
@@ -39,14 +40,14 @@ from arrt.library.acquisition.dezoomify import (
 from arrt.library.acquisition.direct import StreamOpener, direct_fetch
 from arrt.library.acquisition.space import NotEnoughSpace, require_free_space
 from arrt.library.acquisition.urls import Resolver, UrlRefused, check_fetchable, system_resolver
-from arrt.library.discovery.images import ImageSearchFailure
+from arrt.library.discovery.images import ImageSearchFailure, LinkGone
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.imaging import measure
-from arrt.library.sources.loading import Route
+from arrt.library.sources.loading import PluginFaulted, Route
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.reading import FetchLocator, LocatorKind
 from arrt.logs import scrub
-from arrt.persistence.records import AcquisitionMethod, FetchStatus, Source
+from arrt.persistence.records import AcquisitionMethod, FetchOutcome, FetchStatus, Source
 from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
@@ -97,14 +98,19 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "The disk the library is kept on is short of free space. Free some space on it: the queue tries again every "
         "15 minutes and carries on by itself once there is room. No work is counted as failed meanwhile."
     ),
+    # These two are the server's setup, which only whoever looks after the
+    # server can change; the household is told so and is told where to look,
+    # and the settings themselves are the setup notes' (`.env.example`) and the
+    # journal's (`acquisition.deployment_fault`), never a household page's.
     DezoomifyUnavailable.__name__: (
-        "This is a deployment problem rather than a bad source: install dezoomify-rs, or set DEZOOMIFY_PATH to "
-        "where it lives. Every source using acquisition_method='dezoomify' is affected, and no source is at fault."
+        "This server is not set up to fetch pictures a museum serves in tiles: the program that fetches them, "
+        "dezoomify-rs, is not installed where Arrt looks for it. Whoever looks after the server installs it; the "
+        "queue tries again every 15 minutes. Every source fetched in tiles is affected, and no source is at fault."
     ),
     SourcePluginUnavailable.__name__: (
-        "Configure the source plugin the message names: its reason says which setting it is missing, and System › "
-        "Status lists it. For the Art Institute that is ARTIC_USER_AGENT in .env, a string naming this deployment "
-        "and a contact address. Every source that plugin reads is affected, and no source is at fault."
+        "The museum's source plugin is installed and not set up on this server, so its works cannot be fetched. "
+        "Whoever looks after the server sets it up: System › Status lists the plugin and what it is missing. Every "
+        "source that plugin reads is affected, and no source is at fault."
     ),
     # The host's faults the acquisition queue pauses on when one surfaces
     # mid-work (`queue._is_host_fault`), keyed by the name its pause carries: the
@@ -193,6 +199,11 @@ class AcquisitionResult:
     byte_size: int = 0
     width: int | None = None
     height: int | None = None
+    #: What the fetch said, as the source's `last_fetch_outcome` records it.
+    #: `FAILED` for an attempt that recorded nothing finer.
+    fetch_outcome: FetchOutcome = FetchOutcome.FAILED
+    #: The source plugin whose reader answered, when one did.
+    plugin: str | None = None
 
     @property
     def acquired(self) -> bool:
@@ -250,6 +261,7 @@ class AcquisitionService:
         open_stream: StreamOpener,
         route: Callable[[str, str | None], Route],
         resolve: Resolver = system_resolver,
+        fetch_tiles: TileFetcher = tile_fetch,
     ) -> None:
         self._catalogue = catalogue
         self._settings = settings
@@ -269,6 +281,12 @@ class AcquisitionService:
         #: would make every rule above it depend on the network the suite runs
         #: on, including the rules that have nothing to do with hosts.
         self._resolve = resolve
+        #: The tiled path's fetch, as `open_stream` is the direct path's: the
+        #: real `dezoomify-rs` unless a caller hands in another. The plugin-testing
+        #: helper (`library/sources/testing.py`) hands in one that stops where
+        #: the host would fetch, so neither path can run a fetch inside a plugin
+        #: author's tests whatever the private methods here are called.
+        self._fetch_tiles = fetch_tiles
 
     def acquire(self, artwork_id: str, *, source_id: str | None = None) -> AcquisitionResult:
         """Fetch this work's image and record what came back.
@@ -370,15 +388,21 @@ class AcquisitionService:
         try:
             locator = read(source.url)
         except ImageSearchFailure as exc:
-            # The plugin *was* asked and could not answer. That is about this
-            # source and this attempt, so it is recorded like any failed fetch.
-            return self._record_failure(source, f"the {museum} plugin could not read this source: {exc}")
+            detail, outcome = _read_failure(exc, museum)
+            return self._record_failure(source, detail, outcome, plugin)
         if locator.kind is LocatorKind.NONE:
-            return self._record_failure(source, f"the {museum} plugin found no image for this source: {locator.reason}")
+            return self._record_failure(
+                source,
+                f"the {museum} plugin found no image for this source: {locator.reason}",
+                FetchOutcome.NONE_HELD,
+                plugin,
+            )
         try:
             url = check_fetchable(locator.url or "", resolve=self._resolve)
         except UrlRefused as exc:
-            return self._record_failure(source, f"the address the {museum} plugin read was refused: {exc}")
+            return self._record_failure(
+                source, f"the address the {museum} plugin read was refused: {exc}", FetchOutcome.FAILED, plugin
+            )
         if url != source.url:
             # Logged because the fetch that follows is against an address no
             # record holds: without this line a failed fetch cannot be attributed
@@ -409,7 +433,7 @@ class AcquisitionService:
         # recorded against the source: no URL is at fault, and a `failed` row here
         # would send whoever reads it to a museum rather than to the deployment
         # that is missing a binary.
-        result = tile_fetch(
+        result = self._fetch_tiles(
             url,
             destination=destination,
             tile_cache=tile_cache,
@@ -501,6 +525,9 @@ class AcquisitionService:
         # and nothing rejected it. Made unrepresentable here while there are two
         # fetch paths rather than after a third arrives.
         outcome = AcquisitionOutcome.ACQUIRED if status is FetchStatus.OK else AcquisitionOutcome.PARTIAL
+        # The fine outcome of a fetch that held an image is its coarse status by
+        # another name (`FetchOutcome.OK`, `PARTIAL_TILES`).
+        fetched = FetchOutcome(status.value)
         if refusal := self._would_lower_quality(source.artwork_id, incoming=status):
             _discard(staged)
             # The attempt is recorded even though its bytes are thrown away. It
@@ -514,7 +541,7 @@ class AcquisitionService:
             # — a fact about the held bytes — while this writes only the `Source`
             # row. The two were one field before, which is exactly how a partial
             # came to overwrite a complete master.
-            self._catalogue.record_fetch(source.id, status=status)
+            self._catalogue.record_fetch(source.id, status=status, outcome=fetched)
             log.info(
                 "kept the held original for %s: %s",
                 source.artwork_id,
@@ -525,6 +552,7 @@ class AcquisitionService:
                 source_id=source.id,
                 outcome=AcquisitionOutcome.KEPT_HELD,
                 detail=refusal,
+                fetch_outcome=fetched,
             )
         try:
             width, height = measure(staged)
@@ -570,7 +598,7 @@ class AcquisitionService:
             content_hash=content_hash,
             fetch_status=status,
         )
-        self._catalogue.record_fetch(source.id, status=status)
+        self._catalogue.record_fetch(source.id, status=status, outcome=fetched)
         if not source.is_primary:
             # The source that produced the held original is what `is_primary`
             # means, so acquiring from a different one moves it rather than
@@ -594,6 +622,7 @@ class AcquisitionService:
             byte_size=byte_size,
             width=width,
             height=height,
+            fetch_outcome=fetched,
         )
 
     def _would_lower_quality(self, artwork_id: str, *, incoming: FetchStatus) -> str | None:
@@ -638,19 +667,31 @@ class AcquisitionService:
             "the held image is kept and nothing was replaced"
         )
 
-    def _record_failure(self, source: Source, detail: str) -> AcquisitionResult:
+    def _record_failure(
+        self, source: Source, detail: str, outcome: FetchOutcome = FetchOutcome.FAILED, plugin: str | None = None
+    ) -> AcquisitionResult:
         # Scrubbed once, here, because every recorded failure passes through and
         # many carry a URL: one a plugin's reader answered, or its words about one.
         # A query string is where a paid source's key travels, and this detail is
         # journalled and shown on the Work page and in MCP.
         detail = scrub(detail)
-        self._catalogue.record_fetch(source.id, status=FetchStatus.FAILED)
-        log.info("acquisition of %s from %s failed: %s", source.artwork_id, source.provider, detail)
+        # The coarse status from the outcome, never beside it: the one rule
+        # joining the two columns (`FetchOutcome.fetch_status`).
+        self._catalogue.record_fetch(source.id, status=outcome.fetch_status, outcome=outcome)
+        log.info(
+            "acquisition of %s from %s failed: %s",
+            source.artwork_id,
+            source.provider,
+            detail,
+            extra={"event": "acquisition.failed", "outcome": str(outcome), "plugin": plugin},
+        )
         return AcquisitionResult(
             artwork_id=source.artwork_id,
             source_id=source.id,
             outcome=AcquisitionOutcome.FAILED,
             detail=detail,
+            fetch_outcome=outcome,
+            plugin=plugin,
         )
 
     def _select_source(self, artwork_id: str, *, source_id: str | None) -> Source:
@@ -673,6 +714,24 @@ class AcquisitionService:
             # nothing a curator decided.
             return sources[0]
         raise ServiceError(f"Artwork {artwork_id!r} has {len(sources)} sources and none is primary; name one with source_id.")
+
+
+def _read_failure(exc: ImageSearchFailure, museum: str) -> tuple[str, FetchOutcome]:
+    """What a reader's failure is recorded as, in words and as an outcome: three answers, each retried differently.
+
+    The narrowest first, since `LinkGone` and `PluginFaulted` are both
+    `ImageSearchFailure`s, and anything else of that family is the third.
+    """
+    if isinstance(exc, LinkGone):
+        # The holder answered: the page is not there. Settled, not asked again.
+        return f"the {museum} plugin read that this source's page is gone: {exc}", FetchOutcome.LINK_GONE
+    if isinstance(exc, PluginFaulted):
+        # The plugin, not the holder: asking again cannot help until it is replaced.
+        fault = type(exc.__cause__).__name__ if exc.__cause__ is not None else "a fault"
+        return f"the {museum} plugin faulted while reading this source: {fault}", FetchOutcome.FAULTED
+    # The plugin *was* asked and could not answer. That is about this source and
+    # this attempt, and says nothing about the image.
+    return f"the {museum} plugin could not read this source: {exc}", FetchOutcome.UNASKED
 
 
 def _hash_file(path: Path | None) -> str:

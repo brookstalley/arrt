@@ -9,7 +9,7 @@ browser's Back was right every time, so the two disagreed.
 
 The same walk (finding 42, #361) found that an address naming nothing left the
 previous page painted under the new title, and that a fresh load of a dead
-work's address sat on "Loading the catalogue…" for good.
+work's address sat on "Loading the Library…" for good.
 """
 
 import re

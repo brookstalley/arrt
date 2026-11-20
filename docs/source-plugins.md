@@ -75,7 +75,7 @@ from its own modules, so a plugin from elsewhere passes `museum=`.
 **Say which minor you need** (1.5): `api_minor` is the newest interface minor
 your plugin reads, `0` when you pass nothing. A plugin needing a newer minor
 than the Arrt it is installed in is refused at startup, naming both ("it needs
-source interface 1.6, and this Arrt is 1.5"), rather than loaded to fault on
+source interface 1.7, and this Arrt is 1.6"), rather than loaded to fault on
 the first call that reads a field this Arrt does not have. A plugin passing
 `museum=` needs 1.4, and one passing `deadlines=` or `api_minor=` needs 1.5. Like
 `museum`, `api_minor` and `deadlines` are a `TypeError` at import on an older
@@ -111,11 +111,12 @@ configured the plugin.
   also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 5)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 6)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
 optional capabilities. 1.1 added `ImageQuery.pages`, 1.2 `SourceContext.data_dir`,
-1.3 the IIIF parsers (§ Reading IIIF), 1.4 `SourcePlugin.museum`, and 1.5
-`SourcePlugin.api_minor` and `SourcePlugin.deadlines`.
+1.3 the IIIF parsers (§ Reading IIIF), 1.4 `SourcePlugin.museum`, 1.5
+`SourcePlugin.api_minor` and `SourcePlugin.deadlines`, and 1.6 `LinkGone`
+(§ Answers).
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -209,13 +210,53 @@ hosts, and check that a service is on a host you trust before you read it.
 Each raises `ImageSearchFailure` for a body that is not the shape expected. `yale`
 is the example.
 
-## Three answers, and the page that is not the page
+## Answers, and the page that is not the page
 
 | Answer | Finder | Reader |
 |---|---|---|
 | holds nothing | an empty list | `FetchLocator.none(reason)` |
+| the page is gone (1.6) | raise `LinkGone` | raise `LinkGone` |
 | could not be asked | raise `ImageSearchFailure` | raise `ImageSearchFailure` |
 | cannot answer this kind of work | raise `ImageQueryUnanswerable` | `claims` returns `False` |
+
+**The page is gone** (1.6) is the holder's own answer that it no longer has
+the page: a 404 or a 410, or its "no such object". A finder raises `LinkGone`
+only when *every* page the work's registry item links at its holder is gone;
+one gone page beside another that answered is the other's answer. A reader
+raises it when the page it was given is gone. It is an answer, not a failure
+to ask: the run counts the source as having answered, holding nothing, so a
+work only it might have held is settled rather than searched again for ever,
+and acquisition records the source's fetch as `link_gone` and asks no more
+until the work's Wikidata item changes or someone presses Retry.
+
+`LinkGone` is a subclass of `ImageSearchFailure`, so the change is one word
+where you raise for a dead link today, and your own `except
+ImageSearchFailure` still catches it. An Arrt older than 1.6 has no such name:
+a plugin that must load on one imports it as
+`getattr(arrt.library.sources, "LinkGone", ImageSearchFailure)`, and there a
+dead link is "could not be asked", as it was before. Declare `api_minor=6`
+only if the plugin should refuse to load on an older Arrt instead. A plugin
+written for 1.5 never raises it, and is treated exactly as it was.
+
+**What Arrt records of a reader's answer, and when it asks again.** Each
+acquisition records what its fetch said beside the coarse status (`ok`,
+`partial_tiles`, `failed`), which is all an older Arrt reads; the queue retries
+by it, and Activity › Queue groups failed works by it and the plugin:
+
+| Outcome | From | Coarse status | Asked again |
+|---|---|---|---|
+| `ok` | the image was fetched whole | `ok` | `held` |
+| `partial_tiles` | the image was fetched, a few tiles missing | `partial_tiles` | `held` |
+| `none_held` | the reader's `FetchLocator.none(reason)` | `failed` | `settled` |
+| `link_gone` | the reader raised `LinkGone` | `failed` | `settled` |
+| `unasked` | the reader raised `ImageSearchFailure`, or did not answer in time | `failed` | `next_pass` |
+| `faulted` | the reader raised anything else, or answered in a shape not allowed | `failed` | `next_load` |
+| `failed` | anything else: the fetch itself failed, an address was refused | `failed` | `schedule` |
+
+`held`: not a failure. `settled`: not again until Retry, or until the work's
+Wikidata item is another. `next_pass`: on the acquisition queue's next pass,
+never given up. `next_load`: once Arrt next starts and loads its plugins.
+`schedule`: after an hour, a day and three days, then given up until Retry.
 
 **A page that is not the page you expected is "could not be asked", never
 "holds nothing."** A site that answers HTTP 200 with "This site is unavailable"
@@ -270,11 +311,45 @@ without being made, until one of them returns. So bound your own work as well
 (every read, every lock you wait for, every child process): a call that never
 returns holds its thread for the life of the process.
 
-**A run waits for every source.** Every finder is asked at once and the run
-answers when the last has answered or reached its deadline, so a longer
-deadline is how long your plugin can hold every Get when it is slow. A look
-waits behind a run asking your plugin, and asks it again once the run is done
-or has given up.
+**A run answers within a window, not at your deadline** (since wave 2b). Every
+finder is asked at once; once a source of images has answered and 30 seconds have
+passed (`ANSWER_WINDOW_SECONDS`, `arrt/src/arrt/library/discovery/pool.py`), the run
+answers with the sources that answered, and a source still asking is *owed* an
+answer for that work. If your answer comes later, it is written to the work's search
+record and the work's next pass reads it, waiting for your plugin as long as its
+deadline allows; so a long deadline no longer holds every other source's answer on
+this pass. A run in which no source of images has answered by the window waits on
+for the first that does, never past the slowest deadline. A look waits behind a run
+asking your plugin, and asks it again once the run is done or has given up.
+
+**While your plugin owes one answer, it is not asked another question** (since wave
+2b; `OWED_CALLS_PER_PLUGIN`, 1, in `arrt/src/arrt/library/sources/loading.py`). A call
+the run stopped waiting for, still inside its deadline, is owed. While one is, neither
+a run going from work to work nor a pass of the acquisition queue starts another call
+to your plugin: the work is not asked at your source, as a held-back pass leaves it (no
+search recorded, its queue row unchanged, nothing counted against your plugin). The
+queue asks about it when the owed call ends, whether it answered or passed its
+deadline, and looks again within five minutes if that wake is lost
+(`NOT_ASKED_RECHECK_SECONDS`); a run does not come back to it. A look, a preview or
+Ask makes its one call and is never refused for an owed one.
+So a slow museum is asked one owed question at a time, where a run going from work to
+work would otherwise start one per work. The journal says so
+(`event=image_pool.still_asking` for a run, `event=source.plugin_still_asking` within a
+pass, each with how many calls are owed). A look, a preview and Ask, which are neither
+a run nor a pass, make their call all the same.
+
+**Within one pass, a plugin that keeps answering "could not be asked" is not asked
+again until the next** (since wave 2b; `HOLD_BACK_AFTER`, 3, in
+`arrt/src/arrt/library/sources/loading.py`). A pass is the acquisition queue's over
+the works it owes, or phase 2's over one run's works. After three "could not be
+asked" answers in a row from your plugin in one pass (an `ImageSearchFailure` or a
+missed deadline), the rest of that pass does not call it: the works it would have
+been asked about are **left exactly as they were**, their queue rows unchanged (no
+new failure, no new `failed_at`) and no search recorded, and the next pass asks
+again from a fresh count. Any other answer resets the count. Outside a pass (a look,
+a preview, Ask) nothing is held back. The journal says it once per pass per plugin
+held back (`event=source.plugin_held_back`, with `not_asked` and `after`). The cost
+is that a plugin that fails three unrelated asks in a row waits for the next pass.
 
 **Your calls may arrive on any thread, and several at once.** Each call runs on
 a thread started for it, which is how Arrt can stop waiting for it, so no two
@@ -455,6 +530,116 @@ Your plugin should read `loaded`, or `declined` with your reason. A typo in the
 entry point passes every test of the parts and fails only here. (`loading` is
 Arrt's, not the interface, which is why this check belongs in a script rather than
 in the plugin.)
+
+### A plugin tested as the host runs it
+
+Testing your parts directly shows your parser is right. It cannot show what Arrt
+*makes* of what your parts answer: whether a `LinkGone` settles the work or asks
+it again, which outcome a reader's `none` is recorded as, whether an image of
+another artist survives phase two, what a call past your deadline looks like.
+`arrt.library.sources.testing` answers those by running the host's own code on
+your plugin, offline, so a plugin tested with it cannot pass in your suite and
+behave otherwise in a server. **Your plugin never imports it; your tests do.**
+`arrt.library.sources` does not import it either.
+
+```python
+from arrt.library.sources import ImageQuery
+from arrt.library.sources.testing import AskOutcome, FetchOutcome, RetryRule, host
+
+from arrt_gallery import PLUGIN
+
+
+def test_a_dead_page_settles_the_work_and_is_not_asked_again():
+    gallery = host(PLUGIN, name="gallery")  # `name` is what pyproject.toml registers
+
+    asked = gallery.ask(ImageQuery(title="Nighthawks"))
+    read = gallery.read("https://gallery.example.org/objects/9")
+
+    assert asked.outcome is AskOutcome.LINK_GONE
+    assert (read.outcome, read.again) == (FetchOutcome.LINK_GONE, RetryRule.SETTLED)
+```
+
+What it does, and each answer comes from the host's code, never from a copy of
+it:
+
+- `host` loads the plugin with the loader a server uses (`load_sources`): the
+  version checks, the deadlines you declared, the containment of your faults
+  and the scrubbing of your words. A plugin the host refuses is refused here,
+  and its `reading` says why; asking it raises `NotAvailable`. Given an entry
+  point rather than a `SourcePlugin`, it loads it as the host does, so a typo in
+  `pyproject.toml` fails here.
+- `ask` asks your finder one question, the way a run and a look do, and says how
+  the pool sorted the answer: `answered`, `declined`, `unreachable` (a fault and
+  a missed deadline included, told apart by `faulted` and the counts in
+  `reading`) or `link_gone`.
+- `resolve` runs phase two on that answer with your plugin as the only source:
+  the images kept, which gates refused the rest, and whether the work waits to be
+  asked again (`waits`) or is settled. `judge` is phase two's verdict on one image
+  you hold, asking your plugin nothing.
+- `read` acquires a stored source whose URL your plugin claims, through the
+  roster's routing, your reader under its deadline and containment, and the
+  acquisition code that sorts the answer into an outcome. It stops where the
+  host would fetch: `fetch` says what it would fetch, after the host's address
+  check, and nothing is downloaded. `again` is the acquisition queue's own rule
+  for the outcome.
+
+It reaches no network and writes nothing outside a directory of its own. It does
+not cover previews or collections. Your finder's and reader's own requests are
+yours: give them the transport your tests use, as above.
+
+**What is public.** Exactly these names, with these parameters and fields, and
+nothing else in the module:
+
+| Name | What it is |
+|---|---|
+| `host` | loads a plugin as the host does, and returns a `PluginHost` |
+| `PluginHost` | the loaded plugin: `name`, `reading`, `ask`, `resolve`, `judge`, `read` |
+| `Reading` | what the host has counted of the plugin since `host` loaded it |
+| `Asked` | how the host sorted one finder answer |
+| `Settled` | what phase two made of the answer, the plugin the only source |
+| `JudgedInstance` | one image phase two kept, as it judged it |
+| `Read` | what acquisition records of a stored source the plugin claims, and does next |
+| `WouldFetch` | what the host would fetch after a reader's answer |
+| `NotAvailable` | raised for a plugin that did not load or has no finder |
+| `AskOutcome` | the pool's four ways to take an answer (re-exported) |
+| `FetchOutcome` | the seven outcomes above (re-exported) |
+| `RetryRule` | when the host asks again, the table above (re-exported) |
+| `UnresolvedReason` | the gate that refused an image or a work (re-exported) |
+
+| Callable | Parameters |
+|---|---|
+| `host` | `(plugin, *, name=, environ=, registry=, user_agent=, preview_max_bytes=, data_root=, wait_for=)` |
+| `PluginHost.ask` | `(query)` |
+| `PluginHost.resolve` | `(query, *, minimum_long_edge_px=)` |
+| `PluginHost.judge` | `(query, found, *, minimum_long_edge_px=)` |
+| `PluginHost.read` | `(url, *, resolve=)` |
+
+| Result | Fields |
+|---|---|
+| `Reading` | `state, reason, faults, unasked, answered, last_fault, last_unasked` |
+| `Asked` | `outcome, images, pages, failure, faulted` |
+| `Settled` | `instances, refusals, pages, waits` |
+| `JudgedInstance` | `found, confidence, meets_minimum, rationale` |
+| `WouldFetch` | `method, url` |
+| `Read` | `plugin, outcome, again, detail, fetch, unavailable` |
+
+`wait_for` is the loader's own seam for how a call is waited for, so a test can
+run a deadline of minutes on a clock it moves: it is given the call's
+`threading.Event` and the deadline in seconds, and answers whether the event was
+set. `resolve` on `read` is the address check's lookup of a name; the default
+answers every name with a public address.
+
+**When the interface moves.** The helper follows the interface's own version
+rule (`API_VERSION` above, § Versioning and errors): within a major, a name, a
+parameter and a field stay and keep their meaning; a minor may add a name, a
+field or a keyword parameter with a default; a removal or a changed meaning is a
+new major. What your test asserts about a plugin stays true across minors for
+the reason the plugin does: the helper runs the host as it is, so a plugin
+written for 1.5 and tested on 1.7 is tested against 1.7's rules, and gets the
+outcome a 1.7 server gives it. A test that lists every member of `AskOutcome`,
+`FetchOutcome` or `RetryRule` is the one that a minor can break, as it can break
+any code that does: compare to the members you mean. To pin the version you test
+against, pin Arrt's commit, as above.
 
 **The built-ins are the examples**, written against the same interface and held
 to it by a test:

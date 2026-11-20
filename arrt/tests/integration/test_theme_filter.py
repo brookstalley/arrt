@@ -140,7 +140,7 @@ class TestTheHttpSurface:
         """Ignoring it would answer with the whole catalogue, labelled as a theme's."""
         response = http.get("/api/works", params={"theme": "no-such-theme"})
 
-        assert response.status_code == 400
+        assert response.status_code == 404
         assert "no-such-theme" in response.json()["error"]
 
 

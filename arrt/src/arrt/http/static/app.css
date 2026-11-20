@@ -297,6 +297,32 @@ a {
   left: var(--space-4);
 }
 
+/* The way past Artworks' filters (`screens/collection.js` `skipFilters`): off
+   screen like the page's skip link, and in the rail's own flow once focused,
+   where it is the first thing the keyboard meets. The works' container it sends
+   the keyboard to draws no ring, as the view does. */
+.skip-filters {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-filters:focus {
+  position: static;
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-1);
+  color: var(--text-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.collection-main ul.grid:focus,
+.collection-main table:focus,
+.collection-main:focus {
+  outline: none;
+}
+
 /* -- chrome ---------------------------------------------------------------- */
 
 /* The *arr layout: a bar across the top, a sidebar of sections down the left
@@ -527,6 +553,15 @@ header.topbar {
 /* Shown only at a phone's width (below). */
 .status-short {
   display: none;
+}
+
+/* The steps still to take, said beside troubles: in the text colour and not the
+   fault's, because a step to take is no fault, and set off from the sentence
+   before it by a rule's width of space. */
+.status-indicator .status-setup {
+  color: var(--text);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-strong);
 }
 
 .status-indicator:hover {
@@ -2300,7 +2335,6 @@ section.wall > * {
   background: var(--good-quiet);
 }
 
-.wall-badge-unassigned,
 .wall-badge-no_screen,
 .wall-badge-silent {
   color: var(--warn);
@@ -3642,11 +3676,14 @@ input[type="checkbox"] {
     margin-left: 0;
   }
 
-  .status-indicator .status-words {
+  .status-indicator .status-words,
+  .status-indicator .status-setup {
     position: absolute;
     width: 1px;
     height: 1px;
     margin: -1px;
+    padding: 0;
+    border: 0;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;

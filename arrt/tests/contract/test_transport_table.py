@@ -240,6 +240,52 @@ def test_each_conditional_get_case_is_answered_as_the_table_says(world, name):
     assert tags["etag(A)"] != tags["etag(B)"]
 
 
+#: What this server answered a wall heartbeat whose body is `[1, 2]` before contract
+#: 1.3.0: the web framework's own 422 body, refused before the route read it. Copied
+#: from the wire in a run of the test below against the server at 9889af78 (contract
+#: 1.2.0), where `transport.json` recorded it as the `not_an_object` row's `framework`
+#: body: `{"detail":[{"type":"dict_type","loc":["body"],"msg":"Input should be a valid
+#: dictionary","input":[1,2]}]}`, answered 422.
+_THE_FRAMEWORKS_422 = {
+    "detail": [{"type": "dict_type", "loc": ["body"], "msg": "Input should be a valid dictionary", "input": [1, 2]}]
+}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [b"[1, 2]", b'"a string"', b"null", b"7", b"not json at all", b""],
+    ids=["list", "string", "null", "number", "not-json", "empty"],
+)
+def test_a_wall_heartbeat_that_is_not_a_json_object_is_refused_with_400_in_the_error_shape_and_not_written(world, body):
+    """As the client heartbeat's route answers it: the contract's error shape, never the framework's (contract 1.3.0)."""
+    response = world.post("heartbeat", world.token, body, wall_id=world.wall_id)
+
+    assert response.status_code == 400, response.text
+    assert _is_the_error_shape(response), response.text
+    assert "JSON object" in response.json()["error"]
+    reading = next(entry for entry in world.services.display.survey_wall_status() if entry.wall.id == world.wall_id).heartbeat
+    assert reading.absent
+
+
+def test_the_frameworks_body_the_wall_heartbeat_answered_is_gone(world):
+    """The body copied above is what the not-an-object case answered at 1.2.0; at 1.3.0 it is not what it answers."""
+    response = world.post("heartbeat", world.token, b"[1, 2]", wall_id=world.wall_id)
+
+    assert response.json() != _THE_FRAMEWORKS_422
+    assert "detail" not in response.json()
+
+
+@pytest.mark.parametrize(("token", "status"), [(None, 401), ("not-a-token", 401), ("another client's", 403)])
+def test_a_refused_token_is_answered_before_a_body_that_is_not_an_object(world, token, status):
+    """The token is judged before the body, as it was while the framework read it: a stranger learns nothing of the route."""
+    sent = world.other_token if token == "another client's" else token
+
+    response = world.post("heartbeat", sent, b"[1, 2]", wall_id=world.wall_id)
+
+    assert response.status_code == status, response.text
+    assert _is_the_error_shape(response), response.text
+
+
 def test_a_failure_inside_the_server_is_answered_in_the_unanswered_class(world, monkeypatch):
     """No route answers 5xx on purpose, so the class is met the way a Player meets it: something inside fails."""
 

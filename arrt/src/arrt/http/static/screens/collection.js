@@ -33,11 +33,11 @@
  */
 
 import { attempt } from "../core/acting.js";
-import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
+import { api, fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
 import { absentImage, fitBadge, noPicture, shortfallNote, statusBadge, workName } from "../core/badges.js";
-import { noun } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { goWithParams, link } from "../core/router.js";
+import { go, goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { selectionMode } from "../core/selecting.js";
 import { state } from "../core/state.js";
@@ -400,7 +400,7 @@ function skeletonGrid(density) {
 function skeletonScreen(density) {
   const railsShown = !railsHidden();
   return [
-    el("h1", { text: "Loading the collection…" }),
+    el("h1", { text: "Loading Artworks…" }),
     el("div", { class: railsShown ? "collection" : "collection rails-hidden" }, [
       railsShown ? el("aside", { class: "rails", "aria-hidden": true }) : null,
       el("div", { class: "collection-main" }, [
@@ -438,7 +438,7 @@ function facetRail(groups, chosen, narrowed) {
         group.truncated
           ? el("p", {
               class: "rail-note",
-              text: `Showing ${group.options.length} of ${group.total_values}. Search for a value the list does not reach.`,
+              text: `Showing ${number(group.options.length)} of ${number(group.total_values)}. Search for a value the list does not reach.`,
             })
           : null,
       ]),
@@ -474,7 +474,7 @@ function facetOption(kind, option, chosen, label = option.value) {
     // would read as the collection having lost values rather than as an empty
     // intersection.
     disabled: option.disabled,
-    text: `${label} (${option.count})`,
+    text: `${label} (${number(option.count)})`,
     // What finds this option again after the repaint its click causes, so the
     // keyboard stays on it (`core/router.js`).
     "data-focus-key": `facet:${kind}:${option.value}`,
@@ -519,7 +519,7 @@ function wallRail(option, total, narrowed) {
           type: "button",
           "aria-pressed": option.selected ? "true" : "false",
           disabled: option.disabled,
-          text: `Not on any wall (${option.count})`,
+          text: `Not on any wall (${number(option.count)})`,
           "data-focus-key": "wall:none",
           onclick: () => goWithParams({ wall: option.selected ? "" : "none" }),
         }),
@@ -547,7 +547,7 @@ function shownRail(options, total, narrowed) {
             type: "button",
             "aria-pressed": option.selected ? "true" : "false",
             disabled: option.disabled,
-            text: `${SHOWN_LABELS[option.value] || option.value} (${option.count})`,
+            text: `${SHOWN_LABELS[option.value] || option.value} (${number(option.count)})`,
             "data-focus-key": `shown:${option.value}`,
             onclick: () => goWithParams({ shown: option.selected ? "" : option.value }),
           }),
@@ -580,7 +580,7 @@ function themeOption(option) {
     "data-focus-key": `theme:${option.theme_id}`,
     "aria-pressed": option.selected ? "true" : "false",
     disabled: option.disabled,
-    text: `${option.name} (${option.count})`,
+    text: `${option.name} (${number(option.count)})`,
     // One theme at a time: choosing another replaces it, and choosing the
     // chosen one clears it.
     onclick: () => goWithParams({ theme: option.selected ? "" : option.theme_id }),
@@ -600,7 +600,7 @@ function moveThemeCount(option, by) {
   if (!button || !by) return;
   const count = Number(button.dataset.count) + by;
   button.dataset.count = String(count);
-  button.textContent = `${option.name} (${count})`;
+  button.textContent = `${option.name} (${number(count)})`;
   button.disabled = count === 0 && button.getAttribute("aria-pressed") !== "true";
 }
 
@@ -686,7 +686,7 @@ function nothingShown(query, chosen, shownTheme) {
   if (onlyAnArtist) {
     return emptyState(
       `Nothing by ${artists[0]} yet.`,
-      "That is the normal answer, not a failed search: the collection holds what has been acquired, " +
+      "That is the normal answer, not a failed search: the Library holds what has been acquired, " +
         "not everything that exists. Ask, or Get from a search, is where more comes from.",
       [
         link({ view: "discover" }, { class: "action", text: "Ask for some" }),
@@ -742,6 +742,80 @@ function heading() {
   return el("h1", { text: "Artworks" });
 }
 
+/* -- choosing works for one wall ---------------------------------------------- */
+
+/* *Choose works* on a wall's card (`screens/walls.js`, its Hanging line) opens
+ * this page as `#collection?hang_on=<wall id>`: selecting, for that wall, until
+ * the works are hung there or the curator leaves (the owner's ruling of
+ * 2026-11-20, a hang started from Walls).
+ *
+ * **The state is the address and nothing else.** Held in the address, it is on
+ * the page exactly while the page says so: a reload or Back to this entry shows
+ * it again, note and all; the sidebar's Artworks, Back to Walls, or any other
+ * way off this address drops it, and a later *Hang…* asks which wall as every
+ * selection's does. A flag kept in a module would outlive the page that said
+ * it, and hang a later selection on a wall nobody named. The rail's filters
+ * keep it (`goWithParams` keeps the address's other keys), since narrowing
+ * the works is part of choosing them.
+ *
+ * The wall's name is the server's, read as the page is drawn; the hang reads
+ * the walls again when pressed (`hangOnAWall`), so its question names the wall
+ * as it is then. A rename while the page stands shows in the note on the next
+ * paint, not before: watching for it would be a poll this page does not run. */
+const HANG_ON = "hang_on";
+
+/* The wall the address chooses works for: `{ wall }` when it is recorded,
+ * `{ gone: true }` when the address names one that is not, and `{}` without one. */
+async function chosenFor() {
+  const wallId = state.params[HANG_ON];
+  if (!wallId) return {};
+  const wall = (await api("/api/walls")).walls.find((each) => each.wall_id === wallId);
+  return wall ? { wall: { wall_id: wall.wall_id, name: wall.name } } : { gone: true };
+}
+
+/* What the page is doing, said above the toolbar so the words never push
+ * *Select* from its place on the toolbar's right (ruling 6). It takes the
+ * keyboard as the page arrives (`data-arrive`, `core/router.js`), so a screen
+ * reader says which wall the selection is for as the selection starts; its
+ * way out is in it. */
+function forWallNote(wall) {
+  return el("p", { class: "note hang-for-wall", tabindex: "-1", "data-arrive": true }, [
+    el("span", { text: `Choosing works to hang on ${wall.name}. Tick them and press Hang; until then ${wall.name} stays as it is. ` }),
+    leaveFor(wall),
+  ]);
+}
+
+/* The way out, which changes nothing: back to Walls, at the wall. When the
+ * entry behind this one is Walls, it is the browser's Back, so Walls returns
+ * scrolled as it was with the keyboard on *Choose works*, the link that left it
+ * (`core/router.js` `rememberPlace`). Otherwise (a reload of a copied address)
+ * it opens Walls at the wall's card. */
+function leaveFor(wall) {
+  const node = link({ view: "walls", params: { wall: wall.wall_id } }, { class: "action quiet hang-for-wall-leave", text: `Leave ${wall.name} as it is` });
+  node.addEventListener(
+    "click",
+    (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const came = window.history.state && window.history.state.came;
+      if (!came || !(came === "#walls" || came.startsWith("#walls?"))) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.history.back();
+    },
+    { capture: true },
+  );
+  return node;
+}
+
+/* Said where the works are when the address names a wall that is not recorded:
+ * the page is Artworks as usual, and *Hang…* asks which wall. */
+function wallGoneNote() {
+  return el("p", {
+    class: "note hang-for-wall-gone",
+    text: "The wall this address was choosing works for is not recorded — it may have been deleted — so Hang asks which wall.",
+  });
+}
+
 /* What the filter holds, in one line: the count, then what narrows it, in the
  * words the empty state names a filter by (`filterPhrase`), so the two can
  * never describe one narrowing two ways.
@@ -751,7 +825,7 @@ function heading() {
  * as the curator scrolls, so "25 of 2,003" here would read as a shortfall when
  * it is only the first page. */
 function factsText(total, query, chosen, shownTheme) {
-  const count = `${total.toLocaleString("en-US")} ${noun(total, "work")}`;
+  const count = counted(total, "work");
   const narrowing = filterPhrase(query, chosen, shownTheme);
   return narrowing ? `${count} · filtered by ${narrowing}` : count;
 }
@@ -792,7 +866,9 @@ export async function viewCollection(generation) {
   // paint draws the same heading, so nothing above the works moves. The facts
   // line waits for the count; a test waiting on `.page-facts` waits for the
   // works, where one waiting on the heading would be met here.
-  render(generation, heading(), el("p", { class: "muted", text: "Loading the collection…" }));
+  render(generation, heading(), el("p", { class: "muted", text: "Loading Artworks…" }));
+  const forWall = await chosenFor();
+  const lead = forWall.wall ? forWallNote(forWall.wall) : forWall.gone ? wallGoneNote() : null;
 
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the line of facts a statement about the catalogue rather than about
@@ -812,7 +888,7 @@ export async function viewCollection(generation) {
   try {
     first = await fetchWorksPage(query, chosen, sort, narrowing(theme));
   } catch (failure) {
-    if (!theme || failure.status !== 400) throw failure;
+    if (!theme || (failure.status !== 400 && failure.status !== 404)) throw failure;
     first = await fetchWorksPage(query, chosen, sort, narrowing(null));
     theme = null;
     themeGone = true;
@@ -848,7 +924,7 @@ export async function viewCollection(generation) {
       generation,
       heading(),
       facts,
-      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)]),
+      collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)], lead),
     );
     return;
   }
@@ -861,7 +937,7 @@ export async function viewCollection(generation) {
     const rail = document.querySelector("aside.rails");
     if (!rail) return;
     const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall(), shown: shownPeriod() });
-    fill(rail, ...railContents(counts, chosen));
+    fill(rail, ...withSkip(railContents(counts, chosen)));
   };
   const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
   const shownWorks = new Map(page.works.map((work) => [work.artwork_id, work]));
@@ -876,6 +952,11 @@ export async function viewCollection(generation) {
     held: {
       themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
       shownTheme,
+      hang: true,
+      hangOn: forWall.wall || null,
+      // Back to Walls, at the wall, which now shows what was hung. A new entry
+      // rather than Back: the wall's card takes the keyboard (`data-arrive`).
+      onHung: () => go("walls", null, { wall: forWall.wall.wall_id }),
       filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall(), shown: shownPeriod() }),
       total: page.total,
       onAdded: (into, added) => moveThemeCount(into, added),
@@ -931,6 +1012,9 @@ export async function viewCollection(generation) {
     onToggle: (on) => {
       const layout = grid.closest(".collection");
       if (layout) layout.classList.toggle("selecting", on);
+      // *Stop selecting* while choosing for a wall ends the choosing too: the
+      // note would otherwise go on naming a wall no selection is for.
+      if (!on && forWall.wall) goWithParams({ [HANG_ON]: "" });
     },
   });
   for (const work of page.works) grid.append(tile(work, selection));
@@ -965,7 +1049,7 @@ export async function viewCollection(generation) {
       fill(more, onScreen < total ? shortfallNote({ works: { length: onScreen }, total }) : null);
       return;
     }
-    showing.textContent = `Showing ${onScreen.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.`;
+    showing.textContent = `Showing ${number(onScreen)} of ${number(total)}.`;
   }
 
   // The page being fetched, if one is: one at a time, and *Show more* pressed
@@ -1039,8 +1123,9 @@ export async function viewCollection(generation) {
     generation,
     heading(),
     facts,
-    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more], lead),
   );
+  if (forWall.wall) selection.start();
   remember();
 
   if (!exhausted && typeof IntersectionObserver !== "undefined") {
@@ -1064,7 +1149,7 @@ export async function viewCollection(generation) {
 function staleThemeNote() {
   return el("p", {
     class: "note stale-theme-note",
-    text: "The theme this address names is not in the catalogue — it may have been deleted — so these are the works the other filters select.",
+    text: "The theme this address names is not in the Library — it may have been deleted — so these are the works the other filters select.",
   });
 }
 
@@ -1085,11 +1170,44 @@ function railContents(page, chosen) {
     : [el("p", { class: "rail-note", text: "Nothing to filter by yet. Themes and facets appear here as works gain them." })];
 }
 
+/* The way past the filters, for a keyboard: the rail is about eighty buttons
+ * on a library of any size, and the first work comes after all of them.
+ * It is the rail's first stop, drawn only while it has focus
+ * (`.skip-filters`), and it puts the keyboard on the works themselves, so the
+ * next Tab is the first tile. Like the page's own skip link it leaves the
+ * address alone: the router would read its `href` as a page.
+ *
+ * The works' container takes the focus and draws no ring, as `#view` does: it is
+ * where the keyboard starts and not a control. Where nothing is listed (an empty
+ * state, which has no filters worth skipping to) it lands on the main column. */
+function withSkip(rails) {
+  // A rail that is only its note, "Nothing to filter by yet", has nothing to step over.
+  const onlyANote = rails.length === 1 && rails[0].classList.contains("rail-note");
+  return onlyANote ? rails : [skipFilters(), ...rails];
+}
+
+function skipFilters() {
+  return el("a", {
+    class: "skip-filters",
+    href: "#collection-works",
+    text: "Skip the filters",
+    onclick: (event) => {
+      event.preventDefault();
+      const main = document.querySelector("#view .collection-main");
+      if (!main) return;
+      const first = main.querySelector("[data-artwork]");
+      const target = (first && (first.closest("ul.grid") || first.closest("table"))) || main;
+      target.setAttribute("tabindex", "-1");
+      target.focus();
+    },
+  });
+}
+
 /* The rails beside the works, and the toolbar above them. One function so the
  * populated screen and each empty one cannot come to disagree about where the
  * controls live — an empty grid that also loses its filters is an empty state a
  * curator cannot get out of. */
-function collectionLayout(page, chosen, shownTheme, density, selection, main) {
+function collectionLayout(page, chosen, shownTheme, density, selection, main, lead = null) {
   const rails = railContents(page, chosen);
   const shown = !railsHidden();
   // With the rails away, a facet or a theme still narrowing the works would be
@@ -1109,7 +1227,7 @@ function collectionLayout(page, chosen, shownTheme, density, selection, main) {
       : null;
   const classes = ["collection", shown ? null : "rails-hidden", selection && selection.selecting() ? "selecting" : null];
   return el("div", { class: classes.filter(Boolean).join(" ") }, [
-    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
-    el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),
+    shown ? el("aside", { class: "rails", "aria-label": "Filters" }, withSkip(rails)) : null,
+    el("div", { class: "collection-main" }, [lead, pageToolbar(density, selection), narrowedOutOfSight, ...main]),
   ]);
 }

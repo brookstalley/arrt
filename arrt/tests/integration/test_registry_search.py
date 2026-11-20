@@ -232,6 +232,23 @@ def test_a_held_work_names_the_held_work_there_is_a_picture_of_and_none_without_
     ]
 
 
+def test_which_held_work_pictures_a_match_is_the_catalogues_answer(http, held, services, service, monkeypatch):
+    """The search asks `CatalogueService.pictured`, the one owner of that question, and says what it answers."""
+    _rothko, kept = held
+    asked = []
+
+    def pictured(artwork_ids):
+        asked.append(sorted(artwork_ids))
+        return artwork_ids[0]
+
+    monkeypatch.setattr(services.catalogue, "pictured", pictured)
+
+    works = _search(http, "rothko", wide="true")["works"]
+
+    assert asked == [[kept.id]]
+    assert [w["pictured_artwork_id"] for w in works if w["held_artwork_ids"]] == [kept.id]
+
+
 def _give_a_master(service, work):
     """A work's master on record, as a finished fetch leaves it."""
     source = service.add_source(

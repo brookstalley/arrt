@@ -39,6 +39,7 @@ import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
 import { viewSearch } from "./screens/search.js";
 import { viewSettings } from "./screens/settings.js";
 import { viewSources } from "./screens/sources.js";
+import { viewSpend } from "./screens/spend.js";
 import { viewGeneral } from "./screens/general.js";
 import { viewWatches } from "./screens/watches.js";
 import { viewTaste } from "./screens/taste.js";
@@ -151,6 +152,9 @@ const ROUTES = {
   // what the server works with, since it is what the server has come to believe.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
+  // What was spent, by month, and the calls nobody could price: listed under
+  // System beside Status, and reached from the sidebar's budget line and from Status.
+  spend: { render: viewSpend, section: "system", page: "Spend" },
   work: { render: viewWork, detail: true, opensFrom: "collection", title: "Work", thing: "work", returnLabel: "Work", returnFor: ["artist", "theme", "topic", "search"] },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
   // Sonarr's search results are a page of their own. Reached by Enter in the

@@ -75,7 +75,7 @@ def test_the_client_parses(path):
 
     Every Python test asserts what the *server* sends and that the script is
     served; none of them runs a line of it. So a stray brace ships a page that
-    loads, fetches nothing, and shows the "Loading the catalogue…" placeholder
+    loads, fetches nothing, and shows the "Loading the Library…" placeholder
     forever, against a fully green suite — the shape of failure this product
     exists to refuse.
 
@@ -524,7 +524,7 @@ def test_the_client_names_each_museum_as_the_server_does():
 
 
 def test_both_surfaces_say_the_same_sentence_about_a_work_let_back_on_the_walls():
-    """The Work page's *Allow on walls again* and `art_theme(action='allow_again')`, in one wording."""
+    """The Work page's *Allow on walls again* and `art_display(action='allow_again')`, in one wording."""
     from arrt.mcp.bindings import ALLOW_AGAIN_NOTICE
 
     assert ALLOW_AGAIN_NOTICE in CLIENT
@@ -539,6 +539,27 @@ def test_every_rights_and_fetch_state_has_words(name):
 
     enum = {"RIGHTS_WORDS": RightsStatus, "FETCH_WORDS": FetchStatus}[name]
     assert _object_keys(name) == {str(member) for member in enum}
+
+
+def test_every_fetch_outcome_has_words_for_the_queue_to_label_a_group_by():
+    """Activity › Queue labels a group by what its fetches said; an outcome with no words there showed its key."""
+    from arrt.persistence.records import FetchOutcome
+
+    words = _object_values("OUTCOME_WORDS")
+    assert set(words) == {str(member) for member in FetchOutcome}
+    assert all(phrase.strip() for phrase in words.values())
+
+
+def test_the_queue_s_sentence_knows_each_rule_that_is_not_the_schedule():
+    """`core/acquiring.js` says when a failed work is tried again; a rule it did not know read "tries again at null"."""
+    from arrt.library.acquisition.queue import RETRY_RULES, RetryRule
+
+    def outcomes(*rules):
+        return {str(outcome) for outcome, rule in RETRY_RULES.items() if rule in rules}
+
+    assert set(_object_values("AGAIN")) == outcomes(RetryRule.NEXT_PASS, RetryRule.NEXT_LOAD)
+    (settled,) = re.findall(r"^const SETTLED = new Set\(\[([^\]]*)\]\);", CLIENT, re.MULTILINE)
+    assert set(re.findall(r'"([a-z_]+)"', settled)) == outcomes(RetryRule.SETTLED)
 
 
 def test_a_topic_card_records_each_topic_kind_as_the_taste_kind_the_server_maps_it_to():

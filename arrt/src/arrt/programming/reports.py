@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import Any, Final
 
 from arrt import observations
 from arrt.persistence.records import (
@@ -22,21 +22,19 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import adequacy, showings
-from arrt.programming.display_state import ReportedState, reported_state
+from arrt.programming.clients import Placements, WallsReading
+from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
+from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.scenes import Scenes
+from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
 from arrt.services.errors import ServiceError
 from arrt.services.store import store_write
-
-if TYPE_CHECKING:
-    # Only for the annotation: `display.py` builds this class, so a runtime
-    # import back would be a cycle.
-    from arrt.programming.display import DisplaySettings
 
 #: Named for the module these lines were said from before it had a module of its
 #: own, and kept, for the reason `feeds.py` gives: a logger's name is what a
@@ -80,23 +78,39 @@ class WallHeartbeat:
 
     wall: Wall
     heartbeat: HeartbeatReading
+    #: The wall's display state (`display_state_of`), read from `heartbeat` and
+    #: from whether a Player shows the wall: what every surface says of the wall,
+    #: where `heartbeat` is the raw report the panel hands through.
+    state: DisplayState
+
+
+def wall_statuses(reading: WallsReading) -> list[WallHeartbeat]:
+    """Each wall the reading read, with its report and its display state from that one read."""
+    return [WallHeartbeat(wall=wall, heartbeat=reading.reports[wall.id], state=reading.state_of(wall)) for wall in reading.walls]
 
 
 def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
     """One sentence across every wall — an observation, never a verdict.
 
-    **It names the wall that has not reported, and that is what the heartbeat
+    **It names the wall that is not reporting, and that is what the heartbeat
     became one file per wall for.** A line saying "the study has not reported" is
     what a reader of a two-room installation needs, and one shared heartbeat could
     not have said it: the second display would have overwritten the first's
     report, so a wall that had gone quiet would have looked exactly like a wall
     that was fine.
 
-    **No threshold is applied and no word like "healthy" appears.** What is
-    stated are facts a reader cannot get wrong — a wall has written a heartbeat
-    or it has not, and if it has, how long ago in the unit a person reads it in.
-    Whether four minutes is late is the reader's to decide, because this server
-    does not know whether that television was switched off on purpose.
+    **It is read from each wall's display state, as every other surface is**
+    (`display_state.py`). A wall no Player shows is `unassigned`, a step of
+    setting it up and not a fault (`vocabulary.json`), so it is never named here
+    as not having reported: no Player was ever asked to. A wall a Player shows is
+    named when it is `silent`, which is both "nothing readable was written" and "the
+    last report is older than `STALE_AFTER_SECONDS`"; the second is said with
+    how long it has been, in the unit a person reads it in.
+
+    **No word like "healthy" appears.** The staleness threshold is the contract's
+    (`timing.json`), the one Walls and Players say "Not reporting" past, so this
+    sentence cannot call a wall current that those call silent. Whether a screen
+    being off is wrong is the reader's to decide.
 
     A function rather than a method, because the browser panel and the tool
     surface both state this and neither owns it: two hand-written sentences from
@@ -109,25 +123,42 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
         # first open — so it means a file something else wrote, and saying that
         # plainly beats a sentence composed over an empty list that reads as an
         # all-clear.
-        return "No wall is in the catalogue, so there is nothing for a Player to report about."
-    silent = [seen for seen in readings if seen.heartbeat.absent or seen.heartbeat.problem is not None]
+        return "No wall is recorded, so there is nothing for a Player to report about."
+    shown = [seen for seen in readings if seen.state.state not in SETUP]
+    if not shown:
+        return "No Player shows a wall yet, so there is no report to read."
+    # Of the walls a Player shows, when some wall has none: the count is of the
+    # walls a report was expected from, never of every wall.
+    of_walls = "walls" if len(shown) == len(readings) else "walls a Player shows"
+    silent = [seen for seen in shown if seen.state.state is ScreenState.SILENT]
     if silent:
+        if len(silent) == 1:
+            return f"{_silence(silent[0])}. {_SILENCE_TOLD}"
         names = ", ".join(repr(seen.wall.name) for seen in silent)
-        counted = (
-            f"{names} has not reported"
-            if len(silent) == 1
-            else f"{len(silent)} of {len(readings)} walls have not reported: {names}"
-        )
-        return f"{counted}. Each wall's own reading says whether nothing was ever written or what could not be read."
+        return f"{len(silent)} of {len(shown)} {of_walls} have not reported: {names}. {_SILENCE_TOLD}"
     # The least recent, because a summary quoting the freshest would read as an
     # all-clear bought from whichever wall happened to report last.
-    oldest = max(readings, key=lambda seen: seen.heartbeat.age_seconds or 0.0)
-    # No wall is silent here, so `observations.observe` aged the document each one read.
+    oldest = max(shown, key=lambda seen: seen.heartbeat.age_seconds or 0.0)
+    # No shown wall is silent here, so each has a readable report, which `observations.observe` aged.
     assert oldest.heartbeat.age_seconds is not None  # noqa: S101 -- a reading neither absent nor unreadable carries its age
     aged = observations.ago(oldest.heartbeat.age_seconds)
-    if len(readings) == 1:
+    if len(shown) == 1:
         return f"{oldest.wall.name!r} last reported {aged}."
-    return f"Every wall has reported; the least recent is {oldest.wall.name!r}, {aged}."
+    every = "Every wall" if len(shown) == len(readings) else "Every wall a Player shows"
+    return f"{every} has reported; the least recent is {oldest.wall.name!r}, {aged}."
+
+
+#: What follows the names of walls not reporting: where to look for which kind of silence it is.
+_SILENCE_TOLD: Final[str] = (
+    "Each wall's own reading says whether nothing was ever written, what could not be read, or when it last reported."
+)
+
+
+def _silence(seen: WallHeartbeat) -> str:
+    """One silent wall in a clause: how long it has been, where its last report is readable and old."""
+    if seen.state.last is not None and seen.heartbeat.age_seconds is not None:
+        return f"{seen.wall.name!r} has not reported for {observations.in_words(seen.heartbeat.age_seconds)}"
+    return f"{seen.wall.name!r} has not reported"
 
 
 #: How far back a reported screen size counts toward a wall's largest
@@ -148,10 +179,18 @@ class Reports:
     """Keep what each wall's Player reports, and answer from it."""
 
     def __init__(
-        self, store: ProgrammingStore, settings: DisplaySettings, feeds: FeedPublisher, themes: Themes, scenes: Scenes
+        self,
+        store: ProgrammingStore,
+        settings: DisplaySettings,
+        lookups: Lookups,
+        feeds: FeedPublisher,
+        themes: Themes,
+        scenes: Scenes,
     ) -> None:
         self._store = store
         self._settings = settings
+        #: The facade's one set of lookups (`lookups.py`).
+        self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
         self._scenes = scenes
@@ -168,10 +207,16 @@ class Reports:
         decided — which is exactly the question a wall that has gone silent is
         answered by.
         """
-        return [
-            WallHeartbeat(wall=wall, heartbeat=heartbeat.read(self._settings.heartbeat_path(wall.id)))
-            for wall in self._store.list_walls()
-        ]
+        return wall_statuses(self.read_wall_reports())
+
+    def read_wall_reports(self) -> WallsReading:
+        """Every wall's report and who shows it, one survey and one read of each file (`Placements.read_walls`).
+
+        One survey of who shows what, so every wall's state is read at one
+        instant and by `Placements`, the one place that decides it; the
+        Players' states come from the same read (`WallsReading.players`).
+        """
+        return Placements(self._store, self._settings.art_root).read_walls()
 
     # -- what a Player reads and writes --------------------------------------------
 
@@ -187,7 +232,7 @@ class Reports:
         every reader of a wall's report opens. Refused, and nothing written, if
         the health panel could not read it.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         problem = heartbeat.problem_with(document)
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this server can read: {problem}")
@@ -261,7 +306,7 @@ class Reports:
 
     def last_showing(self, wall_id: str) -> Showing | None:
         """The work this wall showed last and for how long, whatever its screen does now; None if it has shown nothing."""
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         return self._store.latest_showing(wall_id)
 
     def last_shown_by_work(self) -> Mapping[str, datetime]:
@@ -282,7 +327,9 @@ class Reports:
         § The heartbeat, minor 2): a window made smaller for a minute must not
         make every work on the wall look fine.
         """
-        wall = self._feeds.get_wall(wall_id)
+        return self._largest_screen_of(self._lookups.get_wall(wall_id))
+
+    def _largest_screen_of(self, wall: Wall) -> tuple[int, int] | None:
         if wall.display_id is None:
             return None
         since = datetime.now(UTC) - SCREEN_MEMORY
@@ -297,12 +344,21 @@ class Reports:
         of the reasons it is, rather than an empty answer that would read as
         "every work is fine".
         """
-        if self._feeds.get_wall(wall_id).display_id is None:
+        return self.judge_sizes_of(self._lookups.get_wall(wall_id))
+
+    def judge_sizes_of(self, wall: Wall) -> SizeJudgement:
+        """`judge_sizes` for a wall already read: by the display that row names, never looked up again.
+
+        What a walls answer judges by, with the wall from its one reading
+        (`WallsReading`): a wall deleted after that reading is judged as the
+        reading saw it, with no feed, rather than refusing the whole answer.
+        """
+        if wall.display_id is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_DISPLAY)
-        screen = self.largest_screen(wall_id)
+        screen = self._largest_screen_of(wall)
         if screen is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_SCREEN)
-        feed = self._feeds.published(wall_id)
+        feed = self._feeds.published(wall.id)
         if feed is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_FEED)
         small = frozenset(
@@ -335,21 +391,27 @@ class Reports:
         and no screen (minor 4, a screen unplugged), says nothing about the
         screen, and nothing is kept.
         """
-        wall = self._feeds.get_wall(wall_id)
         capabilities = document.get("capabilities")
         screen = capabilities.get("screen") if isinstance(capabilities, Mapping) else None
-        if wall.display_id is None or not isinstance(screen, Mapping):
+        if not isinstance(screen, Mapping):
             return
         width, height = screen.get("width_px"), screen.get("height_px")
         if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
             return
         now = datetime.now(UTC)
-        known = self._store.reported_screens(wall.display_id)
-        if any((w, h) == (width, height) and now - at < SCREEN_REFRESH for w, h, at in known):
-            # Seen within the hour: the judgement needs day-scale freshness, and
-            # a write per heartbeat per wall would buy nothing it uses.
-            return
+        # The wall's display and the sizes it knows are read inside the
+        # transaction that writes and forgets: a heartbeat landing between a read
+        # and the forgetting refreshed a size this one then forgot, and a wall
+        # moved to another screen meanwhile had this size kept against the old one.
         with self._store.transaction():
+            wall = self._lookups.get_wall(wall_id)
+            if wall.display_id is None:
+                return
+            known = self._store.reported_screens(wall.display_id)
+            if any((w, h) == (width, height) and now - at < SCREEN_REFRESH for w, h, at in known):
+                # Seen within the hour: the judgement needs day-scale freshness, and
+                # a write per heartbeat per wall would buy nothing it uses.
+                return
             store_write(self._store.record_screen, wall.display_id, width, height, now)
             for old_width, old_height, at in known:
                 if at < now - SCREEN_MEMORY:
@@ -361,7 +423,7 @@ class Reports:
         The bytes, not a parse of them, so the ETag a Player compares is a hash
         of exactly what it was sent.
         """
-        self._feeds.get_wall(wall_id)
+        self._lookups.get_wall(wall_id)
         try:
             return self._settings.manifest_v2_path(wall_id).read_bytes()
         except FileNotFoundError:

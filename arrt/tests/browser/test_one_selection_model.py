@@ -105,7 +105,9 @@ def a_topic_held(services, service):
     services.topic_sweep.run()
 
 
-HELD_ACTS = ["button.selection-add", "button.selection-archive"]
+#: *Hang…* is among them: the IA gives it to any
+#: selection (`test_hanging_a_selection.py` holds what it sends).
+HELD_ACTS = ["button.selection-hang", "button.selection-add", "button.selection-archive"]
 GET_ACTS = ["button.get-open"]
 
 #: Each list, the address that opens it, and the acts its bar must offer. A
@@ -132,7 +134,7 @@ def a_list(request, seeded_service):
         request.getfixturevalue("a_topic_held")
     if request.param == "search":
         request.getfixturevalue("a_search_held")
-    if HELD_ACTS[0] in LISTS[request.param][1]:
+    if "button.selection-add" in LISTS[request.param][1]:
         # A theme to add to, so Add is live once works are ticked; with none,
         # it waits for *New theme…*'s name (`test_a_theme_is_made_…`).
         request.getfixturevalue("services").display.add_theme(name="Somewhere")
@@ -204,6 +206,7 @@ def test_both_halves_acts_fit_the_toolbar_in_two_rows(ui, a_list):
     expect(ui.page.locator("#view button.get-open")).to_be_visible()
     expect(ui.page.locator("#view button.select-all")).to_be_visible()
 
+    expect(ui.page.locator("#view button.selection-hang")).to_be_visible()
     bar = ui.page.locator("#view .page-toolbar").first.bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
     row = ui.page.locator("#view button.select-toggle").bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
     assert bar is not None
@@ -218,9 +221,10 @@ def test_both_halves_acts_fit_the_toolbar_in_two_rows(ui, a_list):
     assert get is not None
     assert select_all is not None
     assert get["y"] == select_all["y"]
-    # Both openers are quiet: neither commits, and two filled acts side by side
-    # would break one filled act per region (`design-direction.md` § Buttons).
-    for opener in ("button.selection-add", "button.get-open"):
+    # Every opener is quiet: none commits, and filled acts side by side would
+    # break one filled act per region (`design-direction.md` § Buttons). *Hang…*
+    # stands among them, on the same line, with its question still to come.
+    for opener in ("button.selection-hang", "button.selection-add", "button.get-open"):
         expect(ui.page.locator(f"#view {opener}"), opener).to_have_class(re.compile(r"(^|\s)quiet(\s|$)"))
 
 

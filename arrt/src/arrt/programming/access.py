@@ -44,7 +44,7 @@ from typing import Final
 from arrt.persistence.records import Client
 from arrt.programming.clients import Placements
 from arrt.programming.store import ProgrammingStore
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
@@ -110,9 +110,14 @@ class PlayerAccess:
         with self._store.transaction():
             client = self._store.get_client(client_id)
             if client is None:
-                raise ServiceError(f"No client with id {client_id!r} is recorded.")
+                raise NotFound(f"No client with id {client_id!r} is recorded.")
             store_write(self._store.update_client, replace(client, token_verifier=verifier_of(token), token_issued_at=issued_at))
-        log.info("Issued a new token for client %r; any earlier one no longer works.", client.name)
+        log.info(
+            "Issued a new token for client %r; any earlier one no longer works.",
+            client.name,
+            # Never the token: only that one was issued, to whom, and when.
+            extra={"event": "client.token_issued", "client_id": client.id, "issued_at": issued_at.isoformat()},
+        )
         return IssuedToken(client_id=client.id, token=token, issued_at=issued_at)
 
     def identify(self, token: str | None) -> Client | None:
@@ -180,6 +185,7 @@ class PlayerAccess:
             subject,
             reason,
             int(REFUSAL_LOG_INTERVAL_SECONDS // 60),
+            extra={"event": "client.request_refused", "subject": subject, "reason": reason},
         )
 
 

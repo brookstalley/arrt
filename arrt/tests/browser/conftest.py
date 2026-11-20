@@ -52,18 +52,40 @@ refuses a one-shot read or a fixed sleep in a converted file.
 import io
 import json
 import pathlib
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from PIL import Image
 
-from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut, WatchesHealthOut
-from arrt.library.sources.names import museum_name
+from arrt.http import api as http_api
+from arrt.http.models import (
+    BackupOut,
+    HealthOut,
+    PicturesOut,
+    PlayerHealthOut,
+    SetupStepOut,
+    SourcePluginOut,
+    TroubleOut,
+    WallHeartbeatOut,
+    WatchesHealthOut,
+)
+from arrt.library.services.watches import WatchesReading
+from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.persistence.records import (
     AcquisitionMethod,
+    BackupReading,
+    Client,
+    Display,
     FetchStatus,
     RightsStatus,
     SourceClass,
+    Wall,
 )
+from arrt.programming.client_heartbeat import ClientHeartbeatReading, ReportedLabelOutput, ReportedOutput
+from arrt.programming.clients import PlacementSurvey, view_of
+from arrt.programming.manifest.heartbeat import HeartbeatReading
+from arrt.programming.reports import WallHeartbeat
+from arrt.services.health import HealthReading, PicturesReading, SourceHealth, failed_fetches, walls_waiting
 
 BROWSER_DIR = pathlib.Path(__file__).parent
 
@@ -133,6 +155,40 @@ def work_with_an_image(service, settings, decodable_jpeg):
     return _work
 
 
+@pytest.fixture
+def give_a_master(service):
+    """Record a master for a work, as a finished fetch leaves it: `give_a_master(work)`.
+
+    A held registry row asks for a picture only when the server says its work
+    holds one (`pictured_artwork_id`), so a test of a row's picture gives its
+    work one. No file is written, so the server refuses the thumbnail: serve it
+    (`pictures_load`) where the picture itself is the question.
+    """
+
+    def _give(work):
+        source = service.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}",
+            provider="artic",
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DEZOOMIFY,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=work.id,
+            source_id=source.id,
+            path=f"raw/{work.id}.tif",
+            width=6000,
+            height=4000,
+            byte_size=90_000_000,
+            content_hash=f"hash-{work.id}",
+            fetch_status=FetchStatus.OK,
+        )
+
+    return _give
+
+
 #: A 1×1 PNG, served for every picture a work's mark asks for when a test needs
 #: them to load: the suite's server holds no masters, and Commons is not asked.
 ONE_PIXEL_PNG = bytes.fromhex(
@@ -168,6 +224,30 @@ def want_item(discovery, propose):
 
 
 @pytest.fixture
+def a_player_shows(services):
+    """Put a wall on a Player that has its token and has reported: `a_player_shows(wall_id)`, the Player returned.
+
+    A Player chosen with no token, or with no report yet, is still being set up
+    (`player_state.py`), and the walls it shows wait for it
+    (`services.health.walls_waiting`): the question before a hang says so, never
+    that everyone sees them change. A test of a wall a
+    Player shows makes it shown through the server's own routes, so the wall is
+    one `walls_waiting` does not name. `player` puts a second wall on the same one.
+    """
+
+    def _shows(wall_id, *, name="Hall Pi", output="hdmi-a-1", player=None):
+        if player is None:
+            player = services.clients.add_client(name=name)
+            services.access.issue(player.id)
+            outputs = [{"name": f"hdmi-a-{n}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for n in (1, 2)]
+            services.clients.record_heartbeat(player.id, {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs})
+        services.clients.assign_wall(wall_id, client_id=player.id, output=output)
+        return player
+
+    return _shows
+
+
+@pytest.fixture
 def a_health_reading():
     """`GET /api/health` as the API's own models define it: one heartbeat per wall.
 
@@ -181,33 +261,216 @@ def a_health_reading():
 
     Every field is overridable, because what these tests vary is exactly which
     observation is wrong.
+
+    **The one health model's fields are derived, never written here**
+    (`_served`): each wall's `display_state` and `waiting_for`, the `players`, `failed_fetches`,
+    `troubles` and `setup_steps` come from the server's own functions over the readings
+    above, so a reading with a silent wall carries that wall's trouble and one
+    with nothing wrong carries none. `player` overrides the Player that shows
+    the walls (`_a_player`'s keys); `failed` is the queue's failed works, as
+    `AcquisitionState`s. `description` is the server's sentence for these
+    walls (`HealthReading.describe`) unless a test passes one, which only a
+    test about a sentence that disagrees with the readings does.
+
+    **A test changes a reading by passing it in, never by editing the answer
+    after it was built**: an edit after the fact leaves the derived fields
+    saying what the server would have said before it. A test whose point is an
+    answer the server would not send (a part missing, a shape it cannot parse)
+    says so where it edits.
     """
 
-    def _reading(*, walls=None, backup=None, description="Every wall has reported.", sources=None, pictures=None, watches=None):
+    def _reading(
+        *,
+        walls=None,
+        backup=None,
+        description=None,
+        sources=None,
+        pictures=None,
+        watches=None,
+        player=None,
+        failed=(),
+    ):
+        walls = [_a_wall()] if walls is None else walls
+        backup = _a_backup() if backup is None else backup
+        sources = [_a_source()] if sources is None else sources
+        watches = {"overdue": [], "allowance_spent": False} if watches is None else watches
+        chosen = _a_player(**(player or {}))
+        served = _served(walls, backup=backup, sources=sources, watches=watches, player=chosen, failed=failed)
+        waiting = walls_waiting(served.walls, served.players)
         return HealthOut(
-            watches=WatchesHealthOut(**({"overdue": [], "allowance_spent": False} if watches is None else watches)),
+            watches=WatchesHealthOut(**watches),
             pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
-            sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
-            walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],
-            description=description,
-            backup=BackupOut(**(_a_backup() if backup is None else backup)),
+            sources=[SourcePluginOut(**source) for source in sources],
+            walls=[
+                WallHeartbeatOut(
+                    **_without_placement(wall),
+                    display_state=http_api._display_state(seen.state),
+                    waiting_for=http_api._wall_wait(waiting.get(seen.wall.id)),
+                )
+                for wall, seen in zip(walls, served.walls, strict=True)
+            ],
+            description=served.describe() if description is None else description,
+            backup=BackupOut(**backup),
+            players=[
+                PlayerHealthOut(client_id=view.client.id, name=view.client.name, state=http_api._player_state(view.player))
+                for view in served.players
+            ],
+            failed_fetches=None if served.failed_fetches is None else http_api._failed_fetches(served.failed_fetches),
+            troubles=[
+                TroubleOut(about=str(trouble.about), subject=trouble.subject, state=trouble.state, words=trouble.words)
+                for trouble in served.troubles()
+            ],
+            setup_steps=[
+                SetupStepOut(about=str(step.about), subject=step.subject, state=step.state, words=step.words)
+                for step in served.setup_steps()
+            ],
         ).model_dump()
 
     return _reading
 
 
-def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
+#: The instant the fixture's readings were taken at: 41.2 seconds after the
+#: default wall's report, which is the age `_a_wall` gives it.
+_READ_AT = datetime(2026, 8, 12, 9, 14, 43, 200000, tzinfo=UTC)
+
+#: The key `_a_wall` marks a wall no Player shows with; never sent to a model.
+_SHOWN = "shown_by_a_player"
+
+
+def _without_placement(wall):
+    return {key: value for key, value in wall.items() if key != _SHOWN}
+
+
+def _a_player(*, name="The living room Pi", token_issued=True, absent=False, problem=None, age_seconds=5.0, labels=()):
+    """The Player that shows every wall a reading's walls say a Player shows: reporting, unless told otherwise.
+
+    `labels` are the label panels it reports, as `(name, connected)` pairs, any
+    number of them: a Player with labels exists even where no wall is shown, so
+    one with label panels and no screen can be built (the owner's ruling 8).
+    """
     return {
-        "pictures_bytes": size,
-        "pictures_files": files,
+        "name": name,
+        "token_issued": token_issued,
+        "absent": absent,
+        "problem": problem,
         "age_seconds": age_seconds,
-        "unreadable": 0,
-        "description": f"The picture store keeps {files} files, counted {age_seconds:.0f} seconds ago.",
+        "labels": tuple(labels),
     }
 
 
-def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None):
+def _served(walls, *, backup, sources, watches, player, failed):
+    """The server's `HealthReading` for these readings, through the server's own functions.
+
+    Each wall a Player shows is on one of that Player's screens, so
+    `PlacementSurvey` and `display_state_of` decide its state as the route does;
+    a wall marked as shown by none is on no display, so it reads `unassigned`.
+    The Player exists only when some wall is shown by one, or it reports a label panel.
+    """
+    created = datetime(2026, 8, 1, tzinfo=UTC)
+    shown = [wall.get(_SHOWN, True) for wall in walls]
+    client = None
+    if any(shown) or player["labels"]:
+        client = Client(
+            id="player-1",
+            name=player["name"],
+            created_at=created,
+            token_issued_at=created if player["token_issued"] else None,
+        )
+    displays = {}
+    records = []
+    for index, (wall, on_a_player) in enumerate(zip(walls, shown, strict=True), start=1):
+        display_id = None
+        if on_a_player:
+            display_id = f"display-{index}"
+            displays[display_id] = Display(
+                id=display_id,
+                identity=f"player-1/hdmi-a-{index}",
+                client_id="player-1",
+                output=f"hdmi-a-{index}",
+                kind="framebuffer",
+                first_seen=created,
+            )
+        records.append(Wall(id=wall["wall_id"], name=wall["wall_name"], created_at=created, display_id=display_id))
+    report = None
+    if client is not None:
+        report = ClientHeartbeatReading(
+            path=pathlib.Path("/art/client-heartbeat-player-1.json"),
+            reported_at=None if player["absent"] else _READ_AT - timedelta(seconds=player["age_seconds"]),
+            age_seconds=None if player["absent"] else player["age_seconds"],
+            outputs=(
+                []
+                if player["absent"] or player["problem"]
+                else [ReportedOutput(display.output, "framebuffer", True, (1920, 1080)) for display in displays.values()]
+            ),
+            problem=player["problem"],
+            absent=player["absent"],
+            label_outputs=(
+                ()
+                if player["absent"] or player["problem"]
+                else tuple(ReportedLabelOutput(label, "epaper", connected, (800, 480)) for label, connected in player["labels"])
+            ),
+        )
+    survey = PlacementSurvey(
+        clients={} if client is None else {client.id: client},
+        displays=displays,
+        walls=records,
+        label_outputs=[],
+        readings={} if report is None else {"player-1": report},
+        faults={},
+    )
+    seen = []
+    for wall, record in zip(walls, records, strict=True):
+        beat = wall["heartbeat"]
+        reading = HeartbeatReading(
+            path=pathlib.Path(beat["path"]),
+            reported_at=None if beat["reported_at"] is None else datetime.fromisoformat(beat["reported_at"]),
+            age_seconds=beat["age_seconds"],
+            contents=None if beat["problem"] is not None else beat["reported"],
+            problem=beat["problem"],
+        )
+        seen.append(WallHeartbeat(wall=record, heartbeat=reading, state=survey.wall_state(record, reading)))
+    return HealthReading(
+        walls=seen,
+        backup=BackupReading(
+            path=pathlib.Path(backup["path"]),
+            completed_at=None if backup["completed_at"] is None else datetime.fromisoformat(backup["completed_at"]),
+            age_seconds=backup["age_seconds"],
+            contents=None if backup["problem"] is not None else backup["reported"],
+            problem=backup["problem"],
+        ),
+        pictures=PicturesReading(pictures_bytes=0, pictures_files=0, age_seconds=0.0),
+        sources=[
+            SourceHealth(
+                reading=PluginReading(
+                    name=source["name"],
+                    state=PluginState(source["state"]),
+                    reason=source["reason"],
+                    faults=source["faults"],
+                    last_fault_at=None,
+                    last_fault=source["last_fault"],
+                ),
+                last_fault_age_seconds=source["last_fault_age_seconds"],
+            )
+            for source in sources
+        ],
+        watches=WatchesReading(overdue=tuple(watches["overdue"]), allowance_spent=watches["allowance_spent"]),
+        players=() if client is None or report is None else (view_of(client, survey, report),),
+        failed_fetches=failed_fetches(tuple(failed), now=_READ_AT),
+    )
+
+
+def _some_pictures(*, files=2, size=48_000, age_seconds=12.0, unreadable=0):
+    # Through the server's own reading and route projection, never a sentence
+    # written here: `PicturesReading.describe` says it, `_pictures` answers it.
+    return http_api._pictures(
+        PicturesReading(pictures_bytes=size, pictures_files=files, age_seconds=age_seconds, unreadable=unreadable)
+    ).model_dump()
+
+
+def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None, shown=True):
+    """One wall's reading. `shown=False` is a wall no Player shows (`unassigned`), a step of setting up."""
     return {
+        _SHOWN: shown,
         "wall_id": wall_id,
         "wall_name": name,
         "heartbeat": {
@@ -216,25 +479,40 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
             "age_seconds": None if absent else age_seconds,
             "absent": absent,
             "problem": problem,
-            "description": (
-                f"No heartbeat file exists for {name}; this wall's Player has not reported yet."
-                if absent
-                else f"This wall's Player last reported {age_seconds:.0f} seconds ago."
-            ),
+            # The server's own sentence for this reading (`HeartbeatReading.describe`).
+            "description": HeartbeatReading(
+                path=pathlib.Path(f"/art/display-heartbeat-{wall_id}.json"),
+                reported_at=None if absent else datetime.fromisoformat("2026-08-12T09:14:02+00:00"),
+                age_seconds=None if absent else age_seconds,
+                contents=None if absent or problem is not None else {},
+                problem=problem,
+            ).describe(),
             "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },
     }
 
 
 def _a_backup(*, absent=False, problem=None):
+    path = "/art/backup-receipt.json"
+    completed_at = None if absent else "2026-08-12T03:00:00+00:00"
+    age_seconds = None if absent else 22440.0
+    reported = None if absent else {"completed_at": completed_at}
     return {
-        "path": "/art/backup-receipt.json",
-        "completed_at": None if absent else "2026-08-12T03:00:00+00:00",
-        "age_seconds": None if absent else 22440.0,
+        "path": path,
+        "completed_at": completed_at,
+        "age_seconds": age_seconds,
         "absent": absent,
         "problem": problem,
-        "description": "No backup has been recorded." if absent else "The catalogue was last backed up 6 hours ago.",
-        "reported": None if absent else {"completed_at": "2026-08-12T03:00:00+00:00"},
+        # The server's own sentence for this reading (`BackupReading.describe`),
+        # as `_a_wall`'s is the heartbeat's, never written here.
+        "description": BackupReading(
+            path=pathlib.Path(path),
+            completed_at=None if absent else datetime.fromisoformat(completed_at),
+            age_seconds=age_seconds,
+            contents=None if absent or problem is not None else reported,
+            problem=problem,
+        ).describe(),
+        "reported": reported,
     }
 
 
@@ -250,34 +528,29 @@ def _a_source(
     provides=None,
     museum=None,
 ):
-    # The server's own wording (`services/health.py`, `describe`): by the
-    # museum, never the plugin id. A plugin from elsewhere names its own (1.4).
-    museum = museum or museum_name(name)
-    if state == "declined":
-        description = f"The {museum} plugin is installed and not configured here: {reason}."
-    elif state == "failed":
-        description = f"The {museum} plugin is installed and was not loaded: {reason}."
-    elif faults:
-        description = (
-            f"The {museum} plugin is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
-        )
-    else:
-        description = f"The {museum} plugin is loaded, with no faults since startup."
-    return {
-        "name": name,
-        "museum": museum,
-        "state": state,
-        "reason": reason,
-        "faults": faults,
-        "last_fault_at": "2026-10-03T12:00:00+00:00" if faults else None,
-        "last_fault_age_seconds": 12.0 if faults else None,
-        "last_fault": "KeyError: 'x'" if faults else None,
-        "description": description,
-        "distribution": distribution,
-        "version": version,
-        "api_major": api_major,
-        "provides": (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides,
-    }
+    # Through the server's own functions, never written here: `SourceHealth`
+    # says the sentence (`services/health.py`, `describe`), by the museum and
+    # never the plugin id, and `_source_plugin` is the route's own projection,
+    # so every field the route answers is here as it would answer it. A plugin
+    # from elsewhere names its own museum (1.4). Nothing could not be asked and
+    # nothing has been answered, which is what a plugin just loaded reports.
+    parts = (["finds_images", "reads"] if state == "loaded" else []) if provides is None else provides
+    reading = PluginReading(
+        name=name,
+        state=PluginState(state),
+        reason=reason,
+        faults=faults,
+        last_fault_at=datetime(2026, 10, 3, 12, 0, tzinfo=UTC) if faults else None,
+        last_fault="KeyError: 'x'" if faults else None,
+        identity=PluginIdentity(
+            distribution=distribution,
+            version=version,
+            api_major=api_major,
+            provides=tuple(PluginPart(part) for part in parts),
+            museum=museum,
+        ),
+    )
+    return http_api._source_plugin(SourceHealth(reading=reading, last_fault_age_seconds=12.0 if faults else None)).model_dump()
 
 
 @pytest.fixture
@@ -321,7 +594,7 @@ class Ui:
         if same_document:
             self.page.reload()
         # The client marks <html> once it has started (`app.js`). The view is
-        # served holding a "Loading the catalogue…" placeholder, so waiting on
+        # served holding a "Loading the Library…" placeholder, so waiting on
         # its content returned before the script had run, and a test could act
         # on a top bar with nothing installed behind it. Then the first paint's
         # content, as before: `data-started` is set before the paint begins.

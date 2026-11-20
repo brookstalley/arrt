@@ -31,7 +31,7 @@ import { asksWikidata, fold } from "../core/search.js";
 import { state } from "../core/state.js";
 import { toolbar } from "../core/toolbar.js";
 import { noPicture } from "../core/badges.js";
-import { noun } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 
 /* How many of the library's works the page lists. Artworks, one click away,
  * holds the rest and the tools to act on them. */
@@ -125,6 +125,7 @@ export async function viewSearch(generation) {
     held: themes
       ? {
           themes: offeredThemes(themes),
+          hang: true,
           filter: null,
           total: 0,
           // An archived work leaves circulation, and so leaves the Held group.
@@ -208,7 +209,7 @@ function heldFacts(library, held) {
   ].filter(([count]) => count > 0);
   const all = parts.reduce((sum, [count]) => sum + count, 0);
   if (!all) return "";
-  return `${all.toLocaleString("en-US")} held: ${parts.map(([count, word]) => `${count.toLocaleString("en-US")} ${noun(count, word)}`).join(", ")}`;
+  return `${number(all)} held: ${parts.map(([count, word]) => counted(count, word)).join(", ")}`;
 }
 
 /* Said in the Not held group once both of Wikidata's searches have answered.
@@ -231,7 +232,7 @@ function sayWhatWikidataDid(note, query, { found, named }, notHeld) {
   const total = found.artists.length + found.works.length + named.topics.length;
   const anyNotHeld = KINDS.some(([kind]) => !notHeld[kind].hidden);
   if (anyNotHeld) {
-    note.textContent = `Wikidata found ${total} for “${query}”.`;
+    note.textContent = `Wikidata found ${number(total)} for “${query}”.`;
     return;
   }
   if (total) {
@@ -343,7 +344,14 @@ function workRows(library, found, selection) {
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
         artworkId: isHeld ? work.held_artwork_ids[0] : null,
         box: isHeld
-          ? selection.heldBox({ artwork_id: work.held_artwork_ids[0], title: named(work.title, work.qid), artist: work.creator })
+          ? selection.heldBox({
+              artwork_id: work.held_artwork_ids[0],
+              title: named(work.title, work.qid),
+              artist: work.creator,
+              // Whether *Hang…* may send it: the search names the held work that
+              // has a picture, so this one has one when it is that one.
+              image: { available: work.pictured_artwork_id === work.held_artwork_ids[0] },
+            })
           : gettable(work)
             ? selection.registryBox(work.qid, named(work.title, work.qid))
             : null,
@@ -377,8 +385,8 @@ function artworksLink(query, library) {
   if (!library.works.length) return null;
   const more = library.total > library.works.length;
   return el("p", { class: "muted" }, [
-    more ? `Your library has ${library.total} matching works; the first ${library.works.length} are here. ` : "",
-    link({ view: "collection", params: { q: query } }, { class: "link", text: library.total > 1 ? `All ${library.total} in Artworks` : "Open in Artworks" }),
+    more ? `Your library has ${number(library.total)} matching works; the first ${number(library.works.length)} are here. ` : "",
+    link({ view: "collection", params: { q: query } }, { class: "link", text: library.total > 1 ? `All ${number(library.total)} in Artworks` : "Open in Artworks" }),
   ]);
 }
 

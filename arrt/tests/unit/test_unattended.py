@@ -8,6 +8,7 @@ import pytest
 from arrt.library.services.settings import Limits, SettingsService
 from arrt.library.services.unattended import Refusal, UnattendedAllowance
 from arrt.persistence.discovery_records import (
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     RunKind,
@@ -108,7 +109,8 @@ def test_a_piece_that_would_pass_the_allowance_is_refused_and_one_that_fits_may_
     assert unattended.standing(estimate_usd=Decimal("0.02")).may_start is True, "exactly to the allowance fits"
     passed = unattended.standing(estimate_usd=Decimal("0.03"))
     assert passed.refusal is Refusal.ALLOWANCE_SPENT
-    assert "$4.98 of $5.00" in passed.sentence
+    # The allowance and what was spent, in the one writer's words.
+    assert passed.sentence == "This month's unattended allowance of $5.00 is spent: unattended work has spent $4.98."
 
 
 def test_the_remaining_figure_is_never_below_nothing(discovery):
@@ -139,3 +141,68 @@ def test_an_allowance_spent_to_the_cent_refuses_even_a_piece_with_no_estimate(di
 
     assert standing.refusal is Refusal.ALLOWANCE_SPENT
     assert standing.may_start is False
+
+
+def unanswered(discovery, *, run_id: str, record_id: str) -> None:
+    discovery.add_spend_record(
+        SpendRecord(
+            id=record_id,
+            category=SpendCategory.DISCOVERY_TOKENS,
+            cost_usd=Decimal(0),
+            occurred_at=NOW,
+            discovery_run_id=run_id,
+            cost_status=CostStatus.UNKNOWN,
+        )
+    )
+
+
+def test_an_unattended_call_whose_cost_is_unknown_makes_the_figure_a_floor(discovery):
+    """Counted beside the figure, never as money: the allowance is measured against what is known."""
+    run = a_run(discovery, "watched", InitiatedBy.UNATTENDED)
+    spent(discovery, "1.20", run_id=run)
+    unanswered(discovery, run_id=run, record_id="u1")
+    unanswered(discovery, run_id=a_run(discovery, "asked", InitiatedBy.WEB_UI), record_id="u2")
+
+    standing = allowance(discovery).standing()
+
+    assert (standing.spent_usd, standing.unknown_cost_calls) == (Decimal("1.20"), 1)
+    # What was spent is `SpendTotal.words`, the one writer of a cost.
+    assert standing.sentence == (
+        "Unattended work may run: this month's allowance is $5.00, of which it has spent "
+        "at least $1.20, and 1 call whose cost is unknown."
+    )
+    assert standing.sentence.endswith(f"{standing.summary}.")
+
+
+def test_a_spent_allowance_with_calls_whose_cost_is_unknown_says_at_least(discovery):
+    run = a_run(discovery, "watched", InitiatedBy.UNATTENDED)
+    spent(discovery, "5.00", run_id=run)
+    unanswered(discovery, run_id=run, record_id="u1")
+    unanswered(discovery, run_id=run, record_id="u2")
+
+    standing = allowance(discovery).standing()
+
+    assert standing.refusal is Refusal.ALLOWANCE_SPENT
+    assert standing.sentence == (
+        "This month's unattended allowance of $5.00 is spent: unattended work has spent "
+        "at least $5.00, and 2 calls whose cost is unknown."
+    )
+    assert standing.sentence.endswith(f"{standing.summary}.")
+
+
+def test_with_every_cost_known_the_sentence_names_no_unknown_calls(discovery):
+    spent(discovery, "1.20", run_id=a_run(discovery, "watched", InitiatedBy.UNATTENDED))
+
+    standing = allowance(discovery).standing()
+
+    assert standing.unknown_cost_calls == 0
+    assert standing.sentence == "Unattended work may run: this month's allowance is $5.00, of which it has spent $1.20."
+
+
+def test_a_spend_below_a_cent_is_said_as_it_is_and_never_rounded_up_to_one(discovery):
+    """The one writer's rounding (`SpendTotal.words`, rounded down to a hundredth of a cent): `:.2f` said $0.01."""
+    spent(discovery, "0.0052", run_id=a_run(discovery, "watched", InitiatedBy.UNATTENDED))
+
+    standing = allowance(discovery).standing()
+
+    assert standing.sentence == "Unattended work may run: this month's allowance is $5.00, of which it has spent $0.0052."

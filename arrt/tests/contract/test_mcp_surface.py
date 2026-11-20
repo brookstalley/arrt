@@ -5,15 +5,18 @@ only one with external consumers, and the only one where a change that looks
 cosmetic — rewording a description — is a real behavioural change.
 """
 
+import json
+import re
 from importlib.metadata import version
 
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from arrt.ask.prompt import ASK_SCOPE
 from arrt.library.facade import PlayableWork, UnplayableReason
 from arrt.mcp.registry import DESCRIPTION_BUDGET_BYTES
-from arrt.mcp.tools import ART_DISPLAY, ART_THEME, TOOLS, TOOLS_BY_NAME
+from arrt.mcp.tools import ART_DISPLAY, ART_PLAYERS, ART_THEME, TOOLS, TOOLS_BY_NAME
 from arrt.persistence.records import FetchStatus, VocabularyKind
 from arrt.services.errors import ServiceError
 
@@ -25,12 +28,23 @@ from arrt.services.errors import ServiceError
 #: the tool and the operator's decision to have it — where changing one is the
 #: regression this guards. A new entry therefore belongs in the same commit as
 #: the tool; an *edited* one never belongs at all.
+#:
+#: `art_players` joined with the one break the owner allowed (ruling
+#: 3 of 2026-11-19): every act on a wall went to `art_display`, and the Player
+#: actions left it for this tool so the wall acts fit its description budget.
+#: No name here was renamed or removed.
+#:
+#: `art_spend` joined after the break, as an addition:
+#: System › Spend's history had no honest home on an existing tool, and
+#: `art_discovery`'s description was at its budget (`tools.py`'s `ART_SPEND`).
 FROZEN_TOOL_NAMES = {
     "art_catalogue",
     "art_discovery",
     "art_display",
+    "art_players",
     "art_review",
     "art_settings",
+    "art_spend",
     "art_taste",
     "art_theme",
     "art_watches",
@@ -68,16 +82,23 @@ async def test_the_registry_and_the_wire_agree_on_the_tool_list(tools):
     assert set(tools) == {tool.name for tool in TOOLS}
 
 
+def oversized(descriptions: dict[str, str]) -> dict[str, int]:
+    """Each description past the client's budget, by its size in bytes (UTF-8, as the client counts)."""
+    return {name: len(text.encode()) for name, text in descriptions.items() if len(text.encode()) > DESCRIPTION_BUDGET_BYTES}
+
+
 async def test_every_description_fits_the_clients_budget(tools):
     # Claude Code truncates a tool description at 2 KB. Past that the action
     # menu is cut mid-word and the model chooses from a list it cannot see.
-    oversized = {
-        name: len(tool.description.encode())
-        for name, tool in tools.items()
-        if len(tool.description.encode()) > DESCRIPTION_BUDGET_BYTES
-    }
+    assert oversized({name: tool.description for name, tool in tools.items()}) == {}
 
-    assert oversized == {}
+
+def test_the_budget_is_met_at_2048_bytes_and_broken_at_2049():
+    """The edge, in bytes and not characters: a '—' is three of them."""
+    assert DESCRIPTION_BUDGET_BYTES == 2048
+    at = "—" * 682 + "xx"
+    assert len(at.encode()) == 2048
+    assert oversized({"at": at, "over": at + "x"}) == {"over": 2049}
 
 
 async def test_every_tool_declares_its_annotations(tools):
@@ -116,7 +137,17 @@ async def test_exactly_the_tools_that_leave_the_machine_declare_an_open_world(to
     # Purely local: reviewing candidates, arranging themes, writing the manifest,
     # recording what the curator likes and changing the household's settings all
     # touch this machine's catalogue and its own filesystem.
-    assert {"art_review", "art_theme", "art_display", "art_taste", "art_settings", "art_watches"} & open_world == set()
+    assert {
+        "art_review",
+        "art_theme",
+        "art_display",
+        "art_players",
+        "art_taste",
+        "art_settings",
+        "art_watches",
+        # The spend ledger is this machine's; reading it asks the provider nothing.
+        "art_spend",
+    } & open_world == set()
 
 
 async def test_every_tool_requires_an_action_and_nothing_else(tools):
@@ -165,7 +196,8 @@ _SHOW_NOW_TIP_PREPARES_FOR = {
     UnplayableReason.STALE_RENDITION: "earlier acquisition",
     # An id that resolves to nothing. Refused before the facade existed too, by
     # the catalogue's own lookup; naming it as a reason is what put it in the tip.
-    UnplayableReason.NOT_IN_CATALOGUE: "catalogue holds",
+    # "library holds": the tip says ruling 2's word.
+    UnplayableReason.NOT_IN_CATALOGUE: "library holds",
 }
 
 
@@ -325,9 +357,11 @@ def test_the_delete_tip_states_the_refusal_the_service_actually_makes(display, w
         for token in tokens:
             assert token in tips, f"the delete tip does not prepare a caller for {cause!r}"
     # And the tip's remedy is one the surface offers: an instruction naming an
-    # action that does not exist is worse than none.
-    assert {entry.name for entry in ART_THEME.actions} >= {"activate", "unhang"}
-    assert "unhang" in tips
+    # action that does not exist is worse than none. Both are the wall tool's,
+    # and the tip names the tool with them.
+    assert {entry.name for entry in ART_DISPLAY.actions} >= {"activate", "unhang"}
+    assert "art_display(action='activate')" in tips
+    assert "art_display(action='unhang')" in tips
     # The message itself, whole, the same treatment the `unhang` notice gets and
     # for the same reason: `api-contract.md` calls this sentence normative and
     # asks two things of it — that it names the walls, and that it offers *both*
@@ -428,27 +462,27 @@ def test_no_tool_still_teaches_the_single_wall_rule_it_replaced(record):
 #: this test agree with any answer the code gave — including an action that
 #: quietly stopped naming a wall.
 _ACTS_ON_ONE_WALL = {
-    ("art_theme", "activate"),
-    ("art_theme", "unhang"),
-    ("art_theme", "hang_selection"),
-    ("art_theme", "not_again"),
+    ("art_display", "activate"),
+    ("art_display", "unhang"),
+    ("art_display", "hang_selection"),
+    ("art_display", "not_again"),
     ("art_display", "preview"),
     ("art_display", "sync"),
     ("art_display", "show_now"),
     ("art_display", "next"),
     ("art_display", "set_mat_mode"),
-    ("art_display", "assign_wall"),
-    ("art_display", "unassign_wall"),
+    ("art_players", "assign_wall"),
+    ("art_players", "unassign_wall"),
 }
 
 
 #: Every action that acts on one client, for the reason `_ACTS_ON_ONE_WALL` is
 #: written out: derived from the declarations, it would agree with any answer.
 _ACTS_ON_ONE_CLIENT = {
-    ("art_display", "rename_client"),
-    ("art_display", "remove_client"),
-    ("art_display", "issue_client_token"),
-    ("art_display", "assign_wall"),
+    ("art_players", "rename_client"),
+    ("art_players", "remove_client"),
+    ("art_players", "issue_client_token"),
+    ("art_players", "assign_wall"),
 }
 
 
@@ -464,14 +498,33 @@ def test_every_act_against_a_client_names_it_and_says_where_its_id_comes_from(to
     assert "action='clients'" in " ".join([client.description, *action.tips])
 
 
-def test_the_display_tool_declares_itself_destructive_since_it_can_forget_a_client():
+def test_the_players_tool_declares_itself_destructive_since_it_can_forget_a_client():
     """`remove_client` and `issue_client_token` cannot be undone, so the hint must not say otherwise.
 
     A client that auto-approves non-destructive tools would otherwise rotate a
-    working Player's token, refusing it, without asking anyone.
+    working Player's token, refusing it, without asking anyone. The wall tool,
+    which carried them before the break, stays destructive for `delete_wall`.
     """
-    assert {"remove_client", "issue_client_token"} <= set(ART_DISPLAY.action_names)
+    assert {"remove_client", "issue_client_token"} <= set(ART_PLAYERS.action_names)
+    assert ART_PLAYERS.destructive is True
+    assert "delete_wall" in ART_DISPLAY.action_names
     assert ART_DISPLAY.destructive is True
+
+
+#: What `art_watches(action='delete')` was said to do before the screens' word
+#: for it, Forget (the vocabulary's: Forget drops a record the household made of
+#: something outside, a Watch among them), reached MCP.
+_RETIRED_WATCH_WORDS = ("remove a watch", "what was removed", "a deleted watch", "removes a watch")
+
+
+def test_the_watches_tool_says_a_watch_is_forgotten_as_the_screens_do():
+    """Watches' button is *Forget…*; an agent reading "remove" would tell the household a different act."""
+    record = TOOLS_BY_NAME["art_watches"]
+    delete = next(action for action in record.actions if action.name == "delete")
+    prose = _tool_prose(record)
+
+    assert delete.description.startswith("Forget a Watch")
+    assert [words for words in _RETIRED_WATCH_WORDS if words in prose] == []
 
 
 @pytest.mark.parametrize(("tool_name", "action_name"), sorted(_ACTS_ON_ONE_WALL))
@@ -557,3 +610,114 @@ def test_an_id_the_catalogue_does_not_hold_is_refused_in_the_words_the_tip_uses(
         display.show_work_now(wall_id, "nope")
 
     assert excluded.detail in str(refused.value)
+
+
+# -- what the grouping guaranteed without anyone writing it down ------------------------
+
+
+@pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
+def test_every_action_has_an_example_that_calls_it_where_it_is(record):
+    """The example is what a model copies. One naming the tool an action moved from teaches a refused call."""
+    for action in record.actions:
+        assert action.example.startswith(
+            f"{record.name}(action={action.name!r}"
+        ), f"{record.name}(action={action.name!r})'s example is {action.example!r}"
+
+
+def test_every_action_ask_may_call_is_one_the_surface_takes():
+    """`ASK_SCOPE` names tools and actions by string; a regroup must not leave one pointing at nothing."""
+    for tool_name, actions in ASK_SCOPE.items():
+        assert tool_name in TOOLS_BY_NAME, f"Ask may call {tool_name}, which the surface does not have"
+        missing = actions - set(TOOLS_BY_NAME[tool_name].action_names)
+        assert not missing, f"Ask may call {tool_name}'s {sorted(missing)}, which it does not take"
+
+
+#: What no description may carry, each with why. An environment variable's name
+#: is the operator's, read in the deployment's files, never a step an agent can
+#: take (`art_catalogue`'s topics tip once named one). The owner's rulings
+#: 1 and 2 of 2026-11-19: a theme, never a playlist, and the household's holdings
+#: are the Library, never the collection or the catalogue. `art_catalogue` is a
+#: tool name, frozen, and the `\b` keeps it out: `_` is a word character.
+_NOT_IN_A_DESCRIPTION: dict[str, re.Pattern[str]] = {
+    "an environment variable's name": re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b"),
+    "'playlist' (ruling 1: theme)": re.compile(r"(?i)\bplaylists?\b"),
+    "'catalogue' (ruling 2: the Library)": re.compile(r"(?i)\bcatalog"),
+    "'collection' (ruling 2: the Library)": re.compile(r"(?i)\bcollections?\b"),
+}
+
+
+def what_an_agent_reads(tool) -> str:
+    """Every word a client shows a model of one tool: its title, its description and its whole `help`."""
+    from arrt.mcp import registry
+
+    return "\n".join((tool.title, registry.description(tool), json.dumps(registry.help_payload(tool), ensure_ascii=False)))
+
+
+def refused_words(text: str) -> list[tuple[str, str]]:
+    """Each thing `text` says that no description may, as (the rule, the words)."""
+    return [(rule, found.group(0)) for rule, pattern in _NOT_IN_A_DESCRIPTION.items() for found in pattern.finditer(text)]
+
+
+@pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
+def test_no_description_names_a_variable_or_a_retired_word(record):
+    """Over every tool: theme and the Library, and no environment variable."""
+    assert refused_words(what_an_agent_reads(record)) == []
+
+
+@pytest.mark.parametrize(
+    ("planted", "rule"),
+    [
+        ("state='not_configured' means WIKIDATA_USER_AGENT is unset", "an environment variable's name"),
+        ("Hang a playlist on a wall.", "'playlist' (ruling 1: theme)"),
+        ("Accepting puts it in the catalogue.", "'catalogue' (ruling 2: the Library)"),
+        ("Search and filter catalogued works.", "'catalogue' (ruling 2: the Library)"),
+        ("The works already accepted into the Collection.", "'collection' (ruling 2: the Library)"),
+    ],
+)
+def test_each_refused_word_is_found_when_planted(planted, rule):
+    from dataclasses import replace
+
+    tool = replace(TOOLS_BY_NAME["art_theme"], summary=planted, _by_name={})
+
+    # The summary is in the description and in help, so it is found twice: once per place a model reads it.
+    assert {found for found, _words in refused_words(what_an_agent_reads(tool))} == {rule}
+
+
+def test_a_tool_name_holding_a_retired_word_is_not_refused():
+    """`art_catalogue` is frozen; calling it by name is not calling the Library the catalogue."""
+    assert refused_words("art_catalogue(action='list') lists the Library's works.") == []
+
+
+async def test_the_spend_history_over_mcp_is_get_api_spend(server_url, services):
+    """`art_spend(action='history')` against `GET /api/spend`, whole, with a known and an unknown-cost call this month."""
+    import json
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    import httpx
+
+    from arrt.persistence.discovery_records import CostStatus, InitiatedBy, SpendCategory
+
+    now = datetime.now(UTC)
+    run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.MCP_CLIENT)
+    for cost, status in ((Decimal("0.0213"), CostStatus.KNOWN), (Decimal(0), CostStatus.UNKNOWN)):
+        services.discovery.record_spend(
+            category=SpendCategory.DISCOVERY_TOKENS,
+            cost_usd=cost,
+            discovery_run_id=run.id,
+            model_id="the-model",
+            at=now,
+            cost_status=status,
+        )
+
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("art_spend", {"action": "history"})
+    payload = json.loads(result.content[0].text)
+    async with httpx.AsyncClient(base_url=server_url, timeout=30.0) as client:
+        route = (await client.get("/api/spend")).raise_for_status().json()
+
+    assert payload.pop("success") is True
+    assert payload == route
+    assert payload["months"][0]["summary"] == "at least $0.0213, and 1 call whose cost is unknown"
+    assert [each["run_id"] for each in payload["months"][0]["gets"]] == [run.id]

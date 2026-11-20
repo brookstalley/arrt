@@ -47,6 +47,7 @@ from arrt.persistence.records import (
     EventKind,
     EventPage,
     FacetDerivation,
+    FetchOutcome,
     FetchStatus,
     HistoryEvent,
     IdentitySetBy,
@@ -297,7 +298,12 @@ CREATE TABLE IF NOT EXISTS sources (
     confidence           REAL,
     selection_rationale  TEXT,
     last_fetch_status    TEXT,
-    last_fetched_at      TEXT
+    last_fetched_at      TEXT,
+    -- What that fetch said, finer than `last_fetch_status` (`FetchOutcome`).
+    -- A column of its own, and the coarse one keeps its three values, because
+    -- an older release reads `last_fetch_status` strictly and would fail on a
+    -- new word there. Widened onto an older file, null on its rows.
+    last_fetch_outcome   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS sources_by_artwork ON sources(artwork_id);
@@ -491,12 +497,24 @@ CREATE INDEX IF NOT EXISTS history_events_by_wall ON history_events(wall_id, occ
 -- stored, and what is in flight or why the queue is paused is not stored at all.
 -- A new table, so `CREATE TABLE IF NOT EXISTS` reaches a file written before it
 -- and no migration is needed.
+--
+-- `outcome`, `plugin`, `settled_qid` and `failed_at` were widened onto it later,
+-- nullable, so an older file gains them on open and its rows read null: a
+-- failure "not classified" and "not recorded when", tried on the schedule as
+-- before. What the last failed fetch said, and which plugin said it, decide when
+-- the work is tried again and the group Queue lists it under; `settled_qid` is
+-- the work's item when an answer settled it; `failed_at` is when the last
+-- failure was recorded, the one given up on included.
 CREATE TABLE IF NOT EXISTS acquisition_queue (
     artwork_id   TEXT PRIMARY KEY REFERENCES artworks(id),
     failures     INTEGER NOT NULL DEFAULT 0 CHECK (failures >= 0),
     next_try_at  TEXT,
     detail       TEXT,
-    source_id    TEXT REFERENCES sources(id)
+    source_id    TEXT REFERENCES sources(id),
+    outcome      TEXT,
+    plugin       TEXT,
+    settled_qid  TEXT,
+    failed_at    TEXT
 );
 """
 
@@ -993,8 +1011,9 @@ class SqliteCatalogue(TableAdapter):
         # which then fall back to when the work was catalogued; `rowid` breaks a
         # tie within one clock tick.
         rows = self._store.select_rows(
-            'SELECT a."id" AS work_id, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
-            'q."failures", q."next_try_at", q."detail", q."source_id" '
+            'SELECT a."id" AS work_id, a."wikidata_qid" AS work_qid, o."id" IS NOT NULL AS held, q."artwork_id" AS queued_id, '
+            'q."failures", q."next_try_at", q."detail", q."source_id", '
+            'q."outcome", q."plugin", q."settled_qid", q."failed_at" '
             "FROM artworks a "
             'LEFT JOIN originals o ON o."artwork_id" = a."id" '
             'LEFT JOIN acquisition_queue q ON q."artwork_id" = a."id" '
@@ -1007,6 +1026,7 @@ class SqliteCatalogue(TableAdapter):
                 artwork_id=row["work_id"],
                 holds_original=bool(row["held"]),
                 queued=None if row["queued_id"] is None else _queued({**row, "artwork_id": row["queued_id"]}),
+                wikidata_qid=row["work_qid"],
             )
             for row in rows
         ]
@@ -1302,7 +1322,15 @@ class SqliteCatalogue(TableAdapter):
     def add_event(self, event: HistoryEvent) -> None:
         self._add("history_events", _event_row(event), subject=f"the {event.kind} event {event.id!r}")
 
-    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind] = (),
+        wall_id: str | None = None,
+        work_id: str | None = None,
+        limit: int,
+        offset: int,
+    ) -> EventPage:
         clauses: list[str] = []
         values: list[Any] = []
         if kinds:
@@ -1311,6 +1339,9 @@ class SqliteCatalogue(TableAdapter):
         if wall_id is not None:
             clauses.append("wall_id = ?")
             values.append(wall_id)
+        if work_id is not None:
+            clauses.append("work_id = ?")
+            values.append(work_id)
         where = " AND ".join(clauses) if clauses else "1"
         # Counted from the same clause as the page, so the total describes the
         # rows beside it. `rowid` breaks a tie between two acts in one clock tick
@@ -1410,6 +1441,7 @@ def _source_row(source: Source) -> dict[str, Any]:
         "selection_rationale": source.selection_rationale,
         "last_fetch_status": None if source.last_fetch_status is None else str(source.last_fetch_status),
         "last_fetched_at": to_iso(source.last_fetched_at),
+        "last_fetch_outcome": None if source.last_fetch_outcome is None else str(source.last_fetch_outcome),
     }
 
 
@@ -1434,6 +1466,10 @@ def _queued_row(entry: QueuedAcquisition) -> dict[str, Any]:
         "next_try_at": to_iso(entry.next_try_at),
         "detail": entry.detail,
         "source_id": entry.source_id,
+        "outcome": None if entry.outcome is None else str(entry.outcome),
+        "plugin": entry.plugin,
+        "settled_qid": entry.settled_qid,
+        "failed_at": to_iso(entry.failed_at),
     }
 
 
@@ -1594,6 +1630,13 @@ def _facet(row: Mapping[str, Any]) -> WorkFacet:
 
 
 def _source(row: Mapping[str, Any]) -> Source:
+    status = None if row["last_fetch_status"] is None else FetchStatus(row["last_fetch_status"])
+    outcome = FetchOutcome.read(row.get("last_fetch_outcome"))
+    if outcome is not None and outcome.fetch_status is not status:
+        # The coarse status was written after the outcome, by a release that
+        # writes no outcome (a rollback, then this one again): the coarse status
+        # is the newer fact, and the outcome beside it is about an older fetch.
+        outcome = None
     return Source(
         id=row["id"],
         artwork_id=row["artwork_id"],
@@ -1605,8 +1648,9 @@ def _source(row: Mapping[str, Any]) -> Source:
         is_primary=bool(row["is_primary"]),
         confidence=row["confidence"],
         selection_rationale=row["selection_rationale"],
-        last_fetch_status=None if row["last_fetch_status"] is None else FetchStatus(row["last_fetch_status"]),
+        last_fetch_status=status,
         last_fetched_at=from_iso(row["last_fetched_at"]),
+        last_fetch_outcome=outcome,
     )
 
 
@@ -1634,6 +1678,11 @@ def _queued(row: Mapping[str, Any]) -> QueuedAcquisition:
         next_try_at=from_iso(row["next_try_at"]),
         detail=row["detail"],
         source_id=row["source_id"],
+        # `.get`: `works_to_acquire` builds this mapping from the columns it selects.
+        outcome=FetchOutcome.read(row.get("outcome")),
+        plugin=row.get("plugin"),
+        settled_qid=row.get("settled_qid"),
+        failed_at=from_iso(row.get("failed_at")),
     )
 
 

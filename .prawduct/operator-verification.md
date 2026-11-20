@@ -10,6 +10,93 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Audit wave 2b, at a browser on the NAS — added 2026-11-20
+
+**`build-plan-audit-wave-2b.md`**, the chunks named in each item. On the NAS once the
+release carrying 2b is deployed, at a desktop and on a phone (or the browser's narrow
+view, 390 px). Each item says what to look at and what to report; none is a gate.
+
+- **Walls, one card per wall (Chunk 31).** A wall no Player shows has the badge *No
+  Player yet*, in the setup style, not the problem one; a card carries at most one
+  notice and one filled act. Does a card still read top to bottom as what hangs, what
+  shows, what to do? On Settings › Players, a Player whose heartbeat names its settings
+  page has a link to it, opening in a new tab; one that names none has no link.
+- **Status, the one health model (Chunks 31 and 41).** *Needs attention* lists only
+  faults, *Still to set up* the steps not taken; each wall's state uses the same words
+  as Walls; the Players panel lists every output of every Player; failed fetches show
+  their count and the newest's age and link to Activity › Queue. The top bar's glyph is
+  ▲ with a count for troubles, ○ with no count when only steps remain, ● when well. With
+  the real household, say whether anything reads as a fault that is not one.
+- **One Player being set up, two walls waiting (Chunk 62).** Add a Player and give it
+  two walls without giving it its token (or give it the token and do not start it).
+  What you should see, as the integration saw it on a real server: the top bar ○ with
+  no count, saying the one step ("The living room Pi has no token yet, so The hall and
+  The study wait for it", with your names), and the sidebar's System link with no count
+  beside it (the words "1 step to finish" are not on the screen: they are the link's
+  accessible name, "System: 1 step to finish", which a screen reader announces);
+  Status's *Needs attention* empty and *Still to set up* that one step. That holds once a
+  backup has run: a server that has never backed up also shows the trouble "The Library
+  has never been backed up" (`services/health.py`), so the top bar shows ▲ with 1, the
+  System link shows the count 1, and its accessible name is "System: 1 problem, and 1 step
+  to finish". Each wall's
+  panel on Status "○ The hall waits for The living room Pi, which has no token yet",
+  never "Not reporting"; each Walls card's badge "○ No token yet" in the setup style.
+  Then start the Player with its token: within a report the step and the waits go and
+  each wall reads what it shows. Then stop the Player: once its walls have reported and
+  gone quiet, that is a trouble (▲, counted), as it should be. Say whether any of this
+  reads as a fault while you are still setting up, or as well while something is wrong.
+  Then *Hang…* a theme onto one of the waiting walls, from Walls and from a selection:
+  the question says the server's words for that wall ("The hall waits for The living
+  room Pi, which has no token yet.") and not that everyone will see it change, which it
+  still says of a wall a Player shows (Chunk 66). An agent's `art_display` `walls` and
+  `status` say the same wait (`waiting_for`).
+- **Hang a selection (Chunk 34).** On Artworks, an Artist's works, a search's results
+  and a Topic: *Select*, tick some works, *Hang…*; the dialog asks which wall and says how
+  many were left out (no picture, or not held); *Select all* on an Artist sends only the
+  works it can hang. At phone width, does the selection toolbar keep *Hang…* reachable
+  and *Select* last on the right?
+- **Choose works from a wall (Chunk 57).** On a wall's card, *Choose works* beside the
+  Hanging picker opens Artworks selecting, with the note "Choosing works to hang on
+  {wall}…" taking the keyboard; *Leave {wall} as it is* returns to Walls; *Hang on
+  {wall}…* hangs the ticked works and returns to that wall's card with focus on its
+  heading. Do it twice, once with the mouse and once with the keyboard alone (Tab to
+  *Choose works*, Enter; Space to tick; Tab to *Hang on {wall}…*), and say whether focus
+  is always where you expect it. Try Back, the sidebar and a reload mid-way: each leaves
+  the wall as it was.
+  Back after a hang returns to the choosing page with its note; say whether that reads
+  as a fault.
+- **System › Spend (Chunk 36).** Listed under System in the sidebar, reached also from
+  the sidebar's budget line and from Status's *Spend* panel. Read-only tables: this
+  month and up to eleven earlier months that spent anything, each month's categories,
+  its Gets, and the calls whose cost is unknown; at phone width each row is a card. If a
+  month had a timed-out call, it reads "at least $X, and N calls whose cost is unknown";
+  set that against OpenRouter's activity page for the same month and say whether the
+  provider billed it.
+- **Small client items (Chunk 41).** Every count is written one way (`en-US` grouping,
+  `core/counting.js`); a Player and a Watch are *Forgotten* (*Forget…*), a wall and a
+  theme *Deleted*, a work *Removed* from a theme or a wall; the Work page links *Came from* (its
+  Get) and *History* (that work's history only); Artworks has a second skip link past
+  its filters. Say if a screen still says "catalogue" or "collection" for the Library.
+
+### The compose file on the NAS against the hardened example — added 2026-11-20
+
+**`build-plan-audit-wave-2b.md` Chunk 42; `deploy/nas/compose.example.yaml`.** The
+example now drops every capability, runs on a read-only root and mounts a 64 MB `/tmp`
+tmpfs; the operator's own compose file (in the private homelab repository) is the one
+that runs. Bring it to the example's shape, then:
+
+- **The user owns its two mounts.** With every capability dropped, root's override of
+  file permissions is gone, so the `user:` the file names must own the art root and the
+  backup directory on the host, or the first write fails. `ls -ln` both and compare the
+  uid with the file's `user:`.
+- **It starts and serves.** The container starts, `/healthz` answers, a Get's fetch
+  writes a master under the art root, and the nightly backup lands in the backup
+  directory. `docker diff` on the running container lists nothing outside `/tmp` (a
+  tmpfs is not listed).
+- **What was not measured, which this is the first run of:** a long run, a restore
+  into the read-only container, and a private source plugin that writes anywhere else.
+  If one fails with a read-only error, say which path it wanted.
+
 ### Restoring the catalogue from a backup, on the machine that runs the server — added 2026-11-19
 
 **`build-plan-audit-wave-2.md`, Chunk 06; the steps are `operational-spec.md` §
@@ -81,9 +168,14 @@ envelopes recorded from real runs, and **never on GitHub**. Before the check
 named *Lint, then every suite* is made required on `develop` and `main`: on a
 scratch branch make the workflow see `TESTAMENT_CONSOLE=https://console.invalid`
 and look for the retries (about ten minutes), the job's summary opening "The pool
-was unavailable; ran here, on GitHub's runner, without the browser suite", the
-three *Fallback* steps passing, the guard warning that the browser suite did not
-run, and how long the fallback takes (curation's time on a runner is unmeasured);
+was unavailable; ran here, on GitHub's runner, without the browser and real-Player
+suites" (`.github/scripts/pool_or_fallback.py`, its `HEADLINES`; it said "without the
+browser suite" until audit wave 2b's Chunk 29 added the `player` suite, which the
+fallback also leaves out, by the owner's ruling of 2026-11-20), a "**not run**" row for
+each of those two suites, the three *Fallback* steps passing (each now runs
+`pool_or_fallback.py fallback --suite <name>`, the manifest's own command, Chunk 52),
+the second check, *The browser suite ran on the pool*, red and naming both, and how
+long the fallback takes (curation's time on a runner is unmeasured);
 then one ordinary pool run, and a deliberately red test, which must stay red with
 no fallback steps. A pull request from a fork always ends "Nothing ran" (no key),
 so it can never pass a required check.

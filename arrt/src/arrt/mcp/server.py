@@ -54,12 +54,13 @@ def _server_version() -> str:
 #: that survives is narrower and is the one to state: a work is accepted only on a
 #: verdict against an image a person was actually shown.
 INSTRUCTIONS: Final[str] = (
-    "Curate a Samsung Frame TV's art collection. Each tool is a noun taking a required "
+    "Curate the Library, the household's art, and what each wall's Player shows. Each tool is a noun taking a required "
     "'action' string. Every tool answers action='help' with its full action menu, parameters, "
     "a worked example, and tips — start there. art_discovery is the only tool that spends money in "
     "amounts worth authorising; art_catalogue's mat choice spends fractions of a cent. "
-    "Some actions change the wall as soon as they return — activating a theme, and art_display's "
-    "sync, show_now and next — so report those as done, not as staged. Entering the catalogue is "
+    "Every act on a wall is art_display's; art_players keeps the Players that show them. Some actions "
+    "change the wall as soon as they return — art_display's activate, hang_selection, sync, show_now, "
+    "next and apply_scene — so report those as done, not as staged. Entering the Library is "
     "the separate thing: a work is accepted only by a verdict on an image a person was shown."
 )
 

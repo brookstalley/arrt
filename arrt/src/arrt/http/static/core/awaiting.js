@@ -10,7 +10,7 @@
  * count can change from here. */
 
 import { api } from "./api.js";
-import { counted } from "./counting.js";
+import { counted, number } from "./counting.js";
 import { el, fill } from "./render.js";
 
 export async function paintAwaiting() {
@@ -32,7 +32,7 @@ export async function paintAwaiting() {
     const name = label ? label.textContent : "";
     // The page's own link already says "To review", so it carries the number;
     // Activity's link says the words as well.
-    const words = slot.closest("a.section-link") ? `${waiting} to review` : String(waiting);
+    const words = slot.closest("a.section-link") ? `${number(waiting)} to review` : number(waiting);
     fill(slot, waiting ? el("span", { class: "awaiting-count", text: words }) : null);
     if (waiting) link.setAttribute("aria-label", `${name}: ${counted(waiting, "work")} to review`);
     else link.removeAttribute("aria-label");

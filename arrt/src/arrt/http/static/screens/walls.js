@@ -77,6 +77,7 @@ import { hangTheme, shownByAPlayer } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenName, screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
+import { DISPLAY_STATES, displayStateGlyph, displayStateWord, isDisplaySetup, playerStateWord } from "../core/states.js";
 import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -216,63 +217,64 @@ function takeDownNote(inCard = false) {
   return el("p", { class: inCard ? "muted wall-take-down" : "note walls-note", text: "A wall goes on showing what it was showing until a theme is hung." });
 }
 
-/* Which Player shows this wall, said only when it is a problem
- * (`design-direction.md` § Component Patterns, "How a page reads": a setting
- * appears on the page only when it is one). A wall nobody shows is an ordinary
- * state (`clients.md` § The model), and the one where everything else on this
- * card happens to no screen at all; a display two Players report is shown by
- * neither, whatever `client_id` still names.
+/* Which Player shows this wall, said only when it is a problem or a step to
+ * take (`design-direction.md` § Component Patterns, "How a page reads": a
+ * setting appears on the page only when it is one).
  *
- * No Player is mended in this wall's own *Edit…*, where its Player and screen
- * are set (ruling 4 of 2026-10-27), so the line opens it. A fault is mended at
- * the Players, in their settings, and Settings › Players names both. */
-function assignmentProblem(wall, edit, shownBy) {
-  if (wall.display && wall.display.fault) {
-    return [
-      el("p", { class: "note wall-problem wall-fault" }, [
-        el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-        link({ view: "clients" }, { text: "See Settings › Players" }),
-      ]),
-    ];
-  }
-  if (!wall.client_id) {
-    const waiting = waitingPlayers(shownBy);
-    const one = waiting.length === 1;
-    return [
-      el("p", { class: "muted wall-problem" }, [
-        el("span", { text: "No Player shows this wall. " }),
-        el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Choose its Player…",
-          "aria-haspopup": "dialog",
-          "aria-label": `Choose the Player for ${wall.name}…`,
-          onclick: edit,
-        }),
-      ]),
-      // A Player added and not yet reporting is the step a household is on
-      // while setting a wall up, so what the page waits for is said where the
-      // next step is, rather than found as a screen picker with nothing in it
-      // (audit 2026-11-19, finding 2).
-      waiting.length
-        ? el("p", {
-            class: "muted wall-waiting",
-            text:
-              `${listed(waiting.map((client) => client.name))} ${one ? "has" : "have"} not reported yet. ` +
-              `${one ? "Its screens" : "Their screens"} can be chosen here once ${one ? "it is running with its token and reports" : "they are running with their tokens and report"}.`,
-          })
-        : null,
-    ];
-  }
-  return [];
+ * A display two Players report is shown by neither, whatever `client_id` still
+ * names: a fault, mended at the Players, so the card's notice (`cardNotice`)
+ * links to Settings › Players, which names both. */
+function faultNotice(wall) {
+  return el("p", { class: "note wall-problem wall-fault" }, [
+    el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
+    link({ view: "clients" }, { text: "See Settings › Players" }),
+  ]);
 }
 
-/* The Players holding a token that have never reported: added, and not yet
- * running (or not yet reaching this server). A Player with no token cannot
- * report at all, and Settings › Players says so in its row. */
+/* A wall no Player shows yet (`unassigned`, whose `setup` flag is true): a step
+ * of setting the wall up, never a fault, so a muted line with the way to take
+ * it rather than a notice, and nothing coloured (`clients.md` § The model). It
+ * is mended in this wall's own *Edit…*, where its Player and screen are set
+ * (ruling 4 of 2026-10-27), so the line opens it. Null for a wall a Player
+ * shows, and for one in fault, whose notice says why neither shows it. */
+function setupLine(wall, edit, shownBy) {
+  if ((wall.display && wall.display.fault) || shownByAPlayer(wall)) return null;
+  const waiting = waitingPlayers(shownBy);
+  const one = waiting.length === 1;
+  return el("div", { class: "wall-setup" }, [
+    el("p", { class: "muted wall-problem" }, [
+      el("span", { text: "No Player shows this wall. " }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Choose its Player…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Choose the Player for ${wall.name}…`,
+        onclick: edit,
+      }),
+    ]),
+    // A Player added and not yet reporting is the step a household is on
+    // while setting a wall up, so what the page waits for is said where the
+    // next step is, rather than found as a screen picker with nothing in it
+    // (audit 2026-11-19, finding 2).
+    waiting.length
+      ? el("p", {
+          class: "muted wall-waiting",
+          text:
+            `${listed(waiting.map((client) => client.name))} ${one ? "has" : "have"} not reported yet. ` +
+            `${one ? "Its screens" : "Their screens"} can be chosen here once ${one ? "it is running with its token and reports" : "they are running with their tokens and report"}.`,
+        })
+      : null,
+  ]);
+}
+
+/* The Players waiting for their first report, as the server states each
+ * Player (`state`): added with a token, and not yet running (or not yet
+ * reaching this server). A Player with no token cannot report at all, and
+ * Settings › Players says so in its row. */
 function waitingPlayers(shownBy) {
   if (!shownBy || !shownBy.byId) return [];
-  return [...shownBy.byId.values()].filter((client) => client.token_issued_at && client.heartbeat && client.heartbeat.absent);
+  return [...shownBy.byId.values()].filter((client) => client.state && client.state.state === "awaiting_report");
 }
 
 /* Every client by its id, or why they could not be read.
@@ -311,7 +313,7 @@ function assignmentLine(wall, shownBy) {
     "p",
     { class: "muted wall-client" },
     client
-      ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client.heartbeat, wall.output), client.heartbeat, { offSaid })
+      ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client, wall.output), client.heartbeat, { offSaid })
       : [`Assigned to ${output ? `${output} of ` : ""}a Player whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
   );
 }
@@ -347,7 +349,8 @@ function listedParts(items) {
  */
 async function heartbeats() {
   try {
-    return { byWall: readings(await api("/api/health")) };
+    const health = await api("/api/health");
+    return { byWall: readings(health), waits: waits(health) };
   } catch (failure) {
     return { failure: failure.message };
   }
@@ -360,6 +363,18 @@ async function heartbeats() {
 function readings(health) {
   const rows = Array.isArray(health.walls) ? health.walls : [];
   return new Map(rows.map((reading) => [reading.wall_id, reading.heartbeat]));
+}
+
+/* The Player each wall waits for while that Player is being set up, as the
+ * server states it (`waiting_for`): only walls that wait. */
+function waits(health) {
+  const rows = Array.isArray(health.walls) ? health.walls : [];
+  return new Map(rows.filter((reading) => reading.waiting_for).map((reading) => [reading.wall_id, reading.waiting_for]));
+}
+
+/* The wait the server states for this wall, or null. */
+function waitOf(wall, beats) {
+  return beats && beats.waits ? beats.waits.get(wall.wall_id) || null : null;
 }
 
 /* The work a wall's display state names, or null where it names none: the
@@ -442,9 +457,53 @@ function reasonFor(wall, build, beats) {
   if (build.failure) return "unreachable";
   if (build.manifest.considered === 0) return "empty-theme";
   if (beats.failure) return "unreachable";
-  const beat = beats.byWall.get(wall.wall_id);
-  if (!beat || beat.absent || beat.problem) return "silent";
+  // From the wall's display state, as the server states it (`display_state_of`),
+  // never from the raw report: a wall no Player shows is a step of setting it
+  // up, and one whose Player has never readably reported for it is `silent`
+  // with nothing it last said. A wall silent with something last said has
+  // stopped reporting, and its lead says since when.
+  const shown = wall.display_state;
+  if (shown && shown.state === "unassigned") return "unassigned";
+  if (!shown || (shown.state === "silent" && !shown.last)) return "silent";
   return "hanging";
+}
+
+/* The card's one notice, chosen by the wall's state (audit 2026-11-19, finding
+ * 6: a card was a column of notices at one weight). Each candidate is a fault
+ * that stops the wall's job, in the order a household would mend them: a
+ * display two Players claim, then a read that did not arrive, then a Player
+ * that cannot read this server's feed, then a Player that has not reported
+ * (which carries the dark summary inside it when the theme puts nothing on the
+ * wall either), then an empty theme, then a theme none of whose works reach the
+ * wall. The first that holds is said and the rest are not: each of them is also
+ * a step after the one said, and the next notice appears once that is mended.
+ *
+ * Not a notice, and never displaced by one: a setup step (a wall no Player
+ * shows, `setupLine`) and a wall with nothing hung, which are muted lines
+ * saying what to do next, not faults. Every notice the card holds carries
+ * `wall-notice` and `data-notice`, its kind, so "at most one" is something a
+ * test can count. */
+function cardNotice(wall, reason, build, beats, shownBy, dark) {
+  const candidates = [
+    ["fault", () => (wall.display && wall.display.fault ? [faultNotice(wall)] : null)],
+    ["unreachable", () => (reason === "unreachable" ? unreachable(cannotReach(wall, build, beats)) : null)],
+    ["feed", () => (wall.feed_notice ? [el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })])] : null)],
+    ["silent", () => (reason === "silent" ? notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark, waitOf(wall, beats)) : null)],
+    ["empty-theme", () => (reason === "empty-theme" ? emptyTheme(wall, build.manifest) : null)],
+    ["dark", () => (dark ? [summaryLine(dark)] : null)],
+  ];
+  for (const [kind, build_] of candidates) {
+    const parts = build_();
+    if (!parts || !parts.length) continue;
+    for (const part of parts) {
+      if (part.classList.contains("note")) {
+        part.classList.add("wall-notice");
+        part.dataset.notice = kind;
+      }
+    }
+    return parts;
+  }
+  return [];
 }
 
 function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard = false) {
@@ -464,7 +523,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
     // work inside it. The badge beside it is the screen's state in one word.
     el("header", { class: "wall-head" }, [
       el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
-      stateBadge(wall, now, live),
+      stateBadge(wall, now, live, waitOf(wall, beats)),
       // The wall's settings, one step away (the page rules of 2026-10-27).
       el("button", {
         class: "action quiet wall-edit",
@@ -476,21 +535,15 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
       }),
     ]),
     card.lead,
-    // Which Player shows the wall is its configuration, and is said here only
-    // when it is a problem: no Player, or a screen two Players claim.
-    ...assignmentProblem(wall, (event) => editWall(event.currentTarget, wall), shownBy),
-    // The server's sentence, so Walls and the tool surface say the same thing
-    // about a Player that cannot read this server's feed. Under the lead, which
-    // leads the card whatever else it has to say.
-    wall.feed_notice ? el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })]) : null,
+    // A wall no Player shows yet: the step to take, with its way to take it.
+    setupLine(wall, (event) => editWall(event.currentTarget, wall), shownBy),
+    // The one notice, under the lead, which leads the card whatever else it has
+    // to say.
+    ...cardNotice(wall, reason, build, beats, shownBy, dark ? manifest : null),
     sceneLine(wall, live),
     acts(card, reason, manifest),
     card.said,
-    // A wall that is dark and whose Player has not reported is one notice, not
-    // two stacked ones each saying the wall shows nothing (audit 2026-11-19,
-    // finding 6): the silent reason carries the summary when there is one.
-    dark && reason !== "silent" ? summaryLine(manifest) : null,
-    ...emptiness(reason, wall, build, beats, themes, shownBy, dark ? manifest : null),
+    ...(reason === "no-theme" ? noThemeHung(wall, themes) : []),
     !wall.theme && noteInCard ? takeDownNote(true) : null,
     hangingFacts(wall, themes, manifest),
     card.next,
@@ -500,28 +553,29 @@ function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard 
 
 /* The screen's state in one word, at the card's head: glyph, word and colour,
  * as every badge is (`design-direction.md` § Component Patterns, Badges). The
- * words are the ruled ones (`information-architecture.md` § Vocabulary). */
-const BADGES = {
-  showing_art: ["good", "Showing"],
-  dark: ["none", "Screen off"],
-  in_use: ["waiting", "In use"],
-  no_screen: ["problem", "No screen"],
-  unassigned: ["problem", "No Player"],
-  silent: ["problem", "Not reporting"],
-  unreachable: ["unknown", "Not known"],
-};
-
-function stateBadge(wall, now, live) {
+ * word and glyph are `core/states.js`'s, which quotes the contract's
+ * vocabulary; a state with no word there reads "Not known". A setup step (a
+ * wall no Player shows yet) is `wall-badge-setup`, which the stylesheet gives
+ * no fault's colour; every other state is `wall-badge-<state>`. `data-state`
+ * carries the state as the server sent it, so it is legible to a test and to a
+ * reader who cannot see the hue.
+ *
+ * A wall waiting for its Player (`waiting_for`, the server's) is a
+ * setup step too: its badge is the Player's state in the contract's word, with
+ * a setup step's mark, never its `silent`, as Status draws the wall's panel. */
+function stateBadge(wall, now, live, wait = null) {
   const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
-  if (entry && entry.reached) return badge("putForward", "Scene", "wall-badge-scene");
+  if (entry && entry.reached) return badge(GLYPHS.putForward, "Scene", "wall-badge-scene", "scene");
+  if (wait) return badge(GLYPHS.none, playerStateWord(wait.state), "wall-badge-setup", wait.state);
   const stateName = now && now.shown ? now.shown.state : shownByAPlayer(wall) ? null : "unassigned";
   if (!stateName) return null;
-  const [glyph, word] = BADGES[stateName] || BADGES.unreachable;
-  return badge(glyph, word, `wall-badge-${stateName}`);
+  const known = Object.hasOwn(DISPLAY_STATES, stateName) ? stateName : "unreachable";
+  const kind = isDisplaySetup(stateName) ? "wall-badge-setup" : `wall-badge-${known}`;
+  return badge(displayStateGlyph(stateName), displayStateWord(stateName), kind, stateName);
 }
 
-function badge(glyph, word, kind) {
-  return el("span", { class: `badge wall-badge ${kind}` }, [el("span", { class: "glyph", "aria-hidden": "true", text: GLYPHS[glyph] }), word]);
+function badge(glyph, word, kind, stateName) {
+  return el("span", { class: `badge wall-badge ${kind}`, "data-state": stateName }, [el("span", { class: "glyph", "aria-hidden": "true", text: glyph }), word]);
 }
 
 /* The Scene: a work per wall, shown together over each wall's schedule
@@ -597,7 +651,7 @@ function sceneSpan(live) {
 
 function liveScene(scene, live) {
   const entries = inWallOrder(scene, live.walls);
-  const names = entries.map((entry) => entry.wall_name).join(" and ");
+  const names = listed(entries.map((entry) => entry.wall_name));
   return [
     el("p", { class: "scene-span", text: sceneSpan(live) }),
     el(
@@ -776,9 +830,7 @@ function applyControls(scene, draft) {
     { id: lengthId },
     PREVIEW_MINUTES.map((minutes) => el("option", { value: String(minutes), text: `${minutes} minutes`, selected: minutes === 20 })),
   );
-  const named = inWallOrder(scene, draft.walls)
-    .map((entry) => `${entry.title || "a work"} on ${entry.wall_name}`)
-    .join(", ");
+  const named = listed(inWallOrder(scene, draft.walls).map((entry) => `${entry.title || "a work"} on ${entry.wall_name}`));
   const apply = (control, lifetime) => {
     const minutes = Number(length.value);
     const span = lifetime === "hold" ? "until you release it" : `for ${minutes} minutes, then each wall returns to its schedule`;
@@ -865,23 +917,24 @@ function summaryLine(manifest) {
   return el("p", { class: "note wall-feed wall-dark" }, [el("span", { class: "wall-dark-summary", text: `${GLYPHS.problem} ${manifest.summary}` })]);
 }
 
-/* A screen not showing art, in the product's voice. `showing_art` and `silent`
- * are worded where the card is built, because they lead with a work or with
- * when the wall was last heard from. */
-const STATE_WORDS = {
+/* The lead's sentence for a screen not showing art, where the product's voice
+ * says more than the badge's word: a screen somebody is watching, a screen
+ * that is off. Every other state leads with its word from `core/states.js`
+ * (the contract's), so a state this table lacks is still worded, and one with
+ * no word anywhere is said to be not known, never read as another.
+ * `showing_art` and `silent` are worded where the card is built, because they
+ * lead with a work or with when the wall was last heard from; `unassigned` is
+ * never a lead (the badge and the setup line say it).
+ * `arrt/tests/unit/test_wall_state_words.py` holds each key here to a state the
+ * contract has. */
+const LEAD_SENTENCES = {
   in_use: "Somebody is using the screen",
   dark: "Its screen is off",
-  no_screen: "No screen",
-  // Not drawn in a lead (the badge and the problem line say it), and held here
-  // because every state the server sends has its words.
-  unassigned: "No Player",
-  unreachable: "Not known",
 };
 
-/* What a state says about the screen, for one the card names in words. A state
- * this client has no words for is said to be not known, never read as another. */
+/* What a state says about the screen, for one the card names in words. */
 function stateWords(state) {
-  return STATE_WORDS[state] || STATE_WORDS.unreachable;
+  return Object.hasOwn(LEAD_SENTENCES, state) ? LEAD_SENTENCES[state] : displayStateWord(state);
 }
 
 /* The lead for a wall that names no work: the state, and since when, then the
@@ -1058,30 +1111,23 @@ function nextUp(wall, now) {
   ]);
 }
 
-/* The four reasons, dispatched. Each is its own function below, and that is not
- * decoration: they are four branches with four texts and four fixes, and a
- * dispatch that fell through to a shared sentence would be the single "nothing is
- * showing" this screen exists not to say. */
-function emptiness(reason, wall, build, beats, themes, shownBy, dark) {
-  if (reason === "no-theme") return noThemeHung(wall, themes);
-  if (reason === "empty-theme") return emptyTheme(wall, build.manifest);
-  if (reason === "silent") return notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark);
-  if (reason === "unreachable") return unreachable(cannotReach(wall, build, beats));
-  return [];
-}
-
 /* Reason one: no theme has been hung here.
  *
- * The fix is the Hanging picker in this wall's own card, a few lines below,
+ * The fix is in the Hanging line of this wall's own card, a few lines below,
  * so the sentence points at it rather than
- * sending the curator to another screen for the one act this screen is named for. */
+ * sending the curator to another screen for the one act this screen is named for.
+ * That line has two ways to hang something, and the sentence says both: a theme
+ * from the picker, or works chosen (*Choose works*, `chooseWorks`). */
 function noThemeHung(wall, themes) {
   // Pointing at the picker only when it is there: with no theme to choose, the
-  // Hanging line below says so and offers to create one.
+  // Hanging line below says so and offers to create one, and the sentence names
+  // that and the works, which are offered either way.
   return [
     el("p", {
       class: "muted",
-      text: themes.length ? `Nothing is hanging on ${wall.name}. Choose a theme under Hanging, below.` : `Nothing is hanging on ${wall.name}.`,
+      text: themes.length
+        ? `Nothing is hanging on ${wall.name}. Choose a theme under Hanging, below, or choose works there.`
+        : `Nothing is hanging on ${wall.name}. Under Hanging, below, create a theme or choose works.`,
     }),
   ];
 }
@@ -1122,9 +1168,24 @@ function emptyTheme(wall, manifest) {
  * **One notice, said once** (audit 2026-11-19, finding 6). A wall no Player
  * shows has its *No Player* line, which already says nothing can show it, so
  * nothing is added here. When none of the theme reaches the wall either, that
- * sentence leads this one in the same notice rather than stacking a second. */
-function notReported(wall, beat, shownBy, dark) {
+ * sentence leads this one in the same notice rather than stacking a second.
+ *
+ * **A wall waiting for its Player is no notice** (`waiting_for`): it
+ * is a step of setting that Player up, so it is a muted line in the server's
+ * words linking to the Player, as Status says it, and no fault's notice. */
+function notReported(wall, beat, shownBy, dark, wait = null) {
   if (!shownByAPlayer(wall)) return dark ? [summaryLine(dark)] : [];
+  if (wait) {
+    // The dark theme's notice, when there is one, is the card's one notice and leads.
+    return [
+      dark ? summaryLine(dark) : null,
+      el("p", { class: "muted wall-waits", "data-state": wait.state }, [
+        link({ view: "clients", params: { client: wait.client_id } }, { class: "link", text: wait.words }),
+        // What happens next, where the step is one the Player takes by itself.
+        wait.state === "awaiting_report" ? ". Once it is running with its token, it reports within a minute or so." : ".",
+      ]),
+    ].filter(Boolean);
+  }
   const player = shownBy && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return [
     el("p", { class: `note wall-unreported${dark ? " wall-dark" : ""}` }, [
@@ -1292,7 +1353,7 @@ function askWhere(card) {
 function removedSaid(wall, title, scope, from) {
   const done =
     scope === "every_wall"
-      ? `${title} is kept off every wall. It stays in the library and in its themes.`
+      ? `${title} is kept off every wall. It stays in the Library and in its themes.`
       : `${title} is out of ${from}. Nothing else changed.`;
   return `${done} ${wall.name} shows its next work when its Player next reports.`;
 }
@@ -1318,6 +1379,7 @@ function hangingFacts(wall, themes, manifest) {
         ? el("p", { text: "Hanging a selection. No theme has been created to hang instead." })
         : el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
       link({ view: "theme" }, { class: "action", text: "Create a theme" }),
+      chooseWorks(wall),
     ]);
   }
   const pickerId = `hang-${wall.wall_id}`;
@@ -1337,10 +1399,29 @@ function hangingFacts(wall, themes, manifest) {
   return el("dl", { class: "facts wall-hanging wall-controls" }, [
     // The visible term is the word; the field's own label names the wall too.
     el("dt", { "aria-hidden": "true", text: "Hanging" }),
-    el("dd", {}, [el("label", { for: pickerId, class: "visually-hidden", text: `Hanging on ${wall.name}` }), picker]),
+    el("dd", {}, [el("label", { for: pickerId, class: "visually-hidden", text: `Hanging on ${wall.name}` }), picker, " ", chooseWorks(wall)]),
     manifest ? el("dt", { text: "Changes" }) : null,
     manifest ? el("dd", { text: playsWords(manifest) }) : null,
   ]);
+}
+
+/* *Choose works*: the Hanging line's other way to change what the wall hangs,
+ * beside its themes (the owner's ruling of 2026-11-20). It opens Artworks
+ * selecting for this wall (`screens/collection.js`, `hang_on`), whose *Hang…*
+ * hangs the works chosen here without asking which wall.
+ *
+ * **A link beside the picker, not an option in it**: it goes to another page,
+ * and a navigation is a link (`information-architecture.md` § Direction),
+ * which opens in a new tab and is announced as one. An option would also go
+ * there the moment a keyboard's arrow reached it, where a theme's option asks
+ * first. Being a link, the browser's Back from Artworks puts the keyboard back
+ * on it (`core/router.js` `rememberPlace`). Its accessible name carries the
+ * wall's, as every act on this screen does. */
+function chooseWorks(wall) {
+  return link(
+    { view: "collection", params: { hang_on: wall.wall_id } },
+    { class: "action quiet wall-choose-works", text: "Choose works", "aria-label": `Choose works to hang on ${wall.name}` },
+  );
 }
 
 /* How the wall plays what hangs on it, in one line: the interval and the order,
@@ -1436,7 +1517,7 @@ const EXCLUSION_WORDS = {
   no_rendition: "Not prepared yet",
   stale_rendition: "Being prepared again",
   no_mat_color: "No mat colour",
-  not_in_catalogue: "No longer in the library",
+  not_in_catalogue: "No longer in the Library",
   kept_off_every_wall: "Kept off every wall",
   outside_wall_shape: "Outside this wall's shapes",
 };
@@ -1670,14 +1751,15 @@ const AWAIT_REPORT_MS = 3000;
  * refusal at the step the screens point them to (audit 2026-11-19, finding 2). */
 function notYet(client) {
   if (!client || screensOf(client).length) return null;
-  const beat = client.heartbeat || {};
-  if (!client.token_issued_at) {
+  // The Player's state as the server states it (`core/states.js` words it on Players).
+  const playerState = client.state ? client.state.state : null;
+  if (playerState === "no_token") {
     return `${client.name} has no token yet, so it cannot report. Issue one in its Edit…, on Settings › Players; its screens appear here once it reports.`;
   }
-  if (beat.absent) {
+  if (playerState === "awaiting_report") {
     return `${client.name} has not reported yet. It must be running with its token, from its own settings page; its screens appear here once it reports, usually within a minute of starting.`;
   }
-  if (beat.problem) return `${client.name}'s last report could not be read, so its screens are not known. They appear here once it reports again.`;
+  if (playerState === "report_unreadable") return `${client.name}'s last report could not be read, so its screens are not known. They appear here once it reports again.`;
   return `${client.name} reported no screen. One appears here once a screen is connected to it and it reports again.`;
 }
 

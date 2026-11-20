@@ -1,32 +1,43 @@
-# Builds the server image's test target: on every pull request into `main`, and on a pull
-# request into any other branch only when what the image is built from changes.
+# Builds the server image's test target, and meets the built app image with a real Arrt
+# Player: on a pull request into `main` (a release, at most weekly) and by hand
+# (`workflow_dispatch`). Never on an ordinary pull request.
 #
 # The NAS runs `arrt/Dockerfile`'s app stage, and its `test` stage runs the server's suite
 # inside that same image, so an image that installs, lays out or permissions something
 # differently from the pool's environment is caught before deploy. It is a Docker build of
-# about seven runner-minutes. The owner, 2026-11-18: "not doing heavy builds. we keep
-# running out of github actions minutes" (`.prawduct/owner-rulings.md`). So on a pull
-# request into any branch but `main` it runs only when the image's own inputs change: the
-# Dockerfile and `.dockerignore`, the interpreter pin, the server's and the contract's
-# dependency declarations and lockfiles, and this file (the `IMAGE_INPUTS` list below). A
-# change to source or tests alone is run by `tests.yml` on the pool.
+# about seven runner-minutes (pull request 446). The owner, 2026-11-20
+# (`.prawduct/owner-rulings.md`): "We should minimize CI and prioritize local tests. We are
+# almost out of ci minutes." So it does not run on a pull request into `develop`, not even
+# one that changes the Dockerfile or a lockfile.
 #
-# What that leaves untested on such a pull request, stated: the image also copies the
-# server's source, tests and tools, and a change to those alone does not build it. That
-# class is real: two of the three causes of the image's first red (#386) were tests that
-# held only in the repository's layout, and nothing made anyone run the build by hand
-# before a release (audit-7 S4). So a pull request into `main`, which is a release and at
-# most weekly, builds unfiltered: one build a week, inside the owner's ruling. It can also
-# be run by hand (`workflow_dispatch`).
+# The pool runs the same stage too, since the owner granted this project the host executor
+# (2026-11-20, `.prawduct/owner-rulings.md`): the `image` suite in `.testament.toml`,
+# run from a machine doing the work, never by CI,
+# whose key holds no owner secret (`docs/testing.md` § The image's test stage on the pool).
+# This workflow stays the release's own build of it, and the only place the built app image
+# meets a real Arrt Player.
 #
-# A pull request's path filter cannot say "unfiltered into main, filtered elsewhere", so the
-# trigger is unfiltered and the first step decides; the build steps run only when it says
-# so. `tests/test_default_suite_ci_scope.py` reads `IMAGE_INPUTS` against the Dockerfile's
-# copies, and holds that the trigger carries no filter of its own.
+# What that leaves to a pull request into `main`, or to the `image` suite when someone runs
+# it, stated, since an ordinary pull request no longer builds the image:
+# - the one class the image caught that nothing else did, a test reading a file the image
+#   does not carry (four tests reading `.env.example`, and one reading
+#   `docs/source-plugins.md`), is held on every pull request by a root test instead,
+#   `tests/test_the_image_carries_what_tests_read.py`, which reads the test stage's COPY
+#   lines against every path the server's tests and tools build from their own location;
+# - the rest is found here, at the release, or by a run by hand on the branch
+#   (`gh workflow run image.yml --ref <branch>`): a Dockerfile, lockfile or interpreter
+#   change that no longer builds or installs; a test that holds only as the checkout's
+#   owner (the stage runs as the app's unprivileged user, over files it does not own); a
+#   test that needs git or the network (the stage has neither); and the image's own pins.
+#   Run it by hand on a branch that changes `arrt/Dockerfile` or a lockfile.
+#
+# `tests/test_default_suite_ci_scope.py` holds the triggers, and that no workflow an
+# ordinary pull request runs builds an image.
 name: Server image
 
 on:
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -49,59 +60,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      # Depth 2: on a pull request the checkout is the merge commit, whose first parent is
-      # the base branch's tip, so `HEAD^1..HEAD` is what the pull request changes.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 2
           persist-credentials: false
-      - name: Decide whether to build
-        id: decide
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.base_ref }}
-          # What the image is built from, one path or directory per line.
-          IMAGE_INPUTS: |
-            arrt/Dockerfile
-            arrt/.dockerignore
-            .python-version
-            arrt/.python-version
-            arrt/pyproject.toml
-            arrt/uv.lock
-            contract/pyproject.toml
-            contract/uv.lock
-            .github/workflows/image.yml
-        run: |
-          set -euo pipefail
-          # Captured first: `grep -q` ends the pipe early, and under pipefail a diff cut off
-          # by it would read as "no match".
-          changed=""
-          if [ "$EVENT" = pull_request ]; then
-            changed=$(git diff --name-only HEAD^1 HEAD)
-          fi
-          if [ "$EVENT" != pull_request ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "A hand-run build: building."
-          elif [ "$BASE" = main ]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "A pull request into main: building, unfiltered."
-          elif grep -Fxq -f <(printf '%s\n' "$IMAGE_INPUTS") <<< "$changed"; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            echo "The pull request changes what the image is built from: building."
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "Nothing the image is built from changed, and the base is not main: not building."
-          fi
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-        if: steps.decide.outputs.build == 'true'
       - name: Build the test stage
-        if: steps.decide.outputs.build == 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: arrt
           # The test stage reads `contract/`, the player-contract artifact, the
-          # 2024 index and `.env.example` from the repository root (the Dockerfile
-          # says why).
+          # 2024 index, `.env.example` and the plugin guide from the repository root
+          # (the Dockerfile says why).
           build-contexts: repo=.
           target: test-report
           platforms: linux/amd64
@@ -113,7 +82,7 @@ jobs:
           cache-from: type=gha,scope=server-image
           cache-to: type=gha,mode=max,scope=server-image
       - name: Fail if nothing actually ran
-        if: always() && steps.decide.outputs.build == 'true'
+        if: always()
         run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml
 
   player:

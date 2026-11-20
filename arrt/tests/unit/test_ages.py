@@ -9,20 +9,24 @@ they could part: every unit boundary, the halves Python rounds to even and
 
 `core/outputs.js`'s `screenState` is driven here too, at the threshold and either
 side of it, because the threshold is a comparison a browser test would reach
-only at one age.
+only at one age: through the server's Player state, which is what it reads.
 
 Shells out to `node` and skips without it, the bargain `test_route_parsing.py`
 states.
 """
 
 import json
+import pathlib
 import shutil
 import subprocess
 
 import pytest
 
+from arrt.http import api as http_api
 from arrt.http.pages import STATIC_DIR
 from arrt.observations import ago
+from arrt.programming.client_heartbeat import ClientHeartbeatReading, ReportedOutput
+from arrt.programming.player_state import player_reading
 
 AGES_MODULE = STATIC_DIR / "core" / "dates.js"
 OUTPUTS_MODULE = STATIC_DIR / "core" / "outputs.js"
@@ -96,13 +100,31 @@ def test_a_half_rounds_to_even_as_python_does():
 
 
 def screen_states(ages: list[float | None]) -> list[str]:
-    """`screenState` for a report of each age listing hdmi-a-1 as connected."""
+    """`screenState` for a Player whose report of each age lists hdmi-a-1 as connected.
+
+    The client judges no age itself: it reads the
+    Player's state the server derives (`player_state.player_reading`, served by
+    the clients route as `_player_state` serves it), so each age goes through the
+    server's function and then the client's, which is the path a page takes.
+    Until then this handed `screenState` the raw report and the client compared
+    its age to its own threshold.
+    """
+    states = []
+    for age in ages:
+        reading = ClientHeartbeatReading(
+            path=pathlib.Path("/art/client-heartbeat-p1.json"),
+            reported_at=None,
+            age_seconds=age,
+            outputs=[ReportedOutput("hdmi-a-1", "framebuffer", True, (1920, 1080))],
+            problem=None,
+            absent=False,
+        )
+        served = http_api._player_state(player_reading(token_issued=True, reading=reading, recorded_displays=["hdmi-a-1"]))
+        states.append(served.model_dump())
     return run(f"""
         const module = await import({json.dumps(OUTPUTS_MODULE.as_uri())});
-        const ages = {json.dumps(ages)};
-        const outputs = [{{ name: "hdmi-a-1", kind: "framebuffer", connected: true, screen: [1920, 1080] }}];
-        process.stdout.write(JSON.stringify(ages.map((age) =>
-            module.screenState({{ absent: false, problem: null, age_seconds: age, outputs }}, "hdmi-a-1"))));
+        const states = {json.dumps(states)};
+        process.stdout.write(JSON.stringify(states.map((state) => module.screenState({{ state }}, "hdmi-a-1"))));
         """)
 
 

@@ -314,6 +314,27 @@ class SpendCategory(StrEnum):
     ASK_TOKENS = "ask_tokens"
 
 
+class CostStatus(StrEnum):
+    """Whether a spend row's `cost_usd` is what the provider said the call cost.
+
+    `UNKNOWN` is a call that was sent and ended without an answer that said
+    what it cost: a read timeout, a dropped connection, a gateway's 5xx, an
+    unreadable 2xx body, an Ask reply cancelled mid-call. The provider may have
+    billed it (`openrouter-api-findings.md` § A call that fails after it was
+    sent), so the row is written, with `cost_usd` 0, and every sum counts it
+    apart: "at least $X, and N calls whose cost is unknown". Nothing ever
+    settles one: the generation lookup that might answered 404 on every
+    attempt, and a timed-out request carries no id to look up.
+
+    `KNOWN` is the column's default, so every row written before the column
+    existed, and every row an older release writes, reads as known: the figure
+    those rows hold is the provider's own.
+    """
+
+    KNOWN = "known"
+    UNKNOWN = "unknown"
+
+
 @dataclass(frozen=True, slots=True)
 class DiscoveryRun:
     """One invocation of the discovery flow, and what it cost.
@@ -534,6 +555,9 @@ class SpendRecord:
     input_tokens: int | None = None
     output_tokens: int | None = None
     units: int | None = None
+    #: Whether `cost_usd` is the provider's figure or a call whose cost nobody
+    #: was told; an unknown row holds 0 (`CostStatus`).
+    cost_status: CostStatus = CostStatus.KNOWN
 
 
 class AffinitySentiment(StrEnum):
@@ -670,6 +694,91 @@ class SourceYield:
     #: The median long edge, in pixels, of the offered images whose size is
     #: known; `None` when no offered image's size is known.
     median_long_edge: int | None
+
+
+class SearchOutcome(StrEnum):
+    """What one source said the last time phase 2 asked it about one work (`SourceSearch`).
+
+    The pool's four answers (`library/discovery/pool.py`, `AskOutcome`), and one
+    more that only the record has: `OWED`, a source asked that had not answered
+    when the run stopped waiting for it. Its answer, when it comes, replaces it.
+    """
+
+    #: It answered, with whatever it holds, nothing included.
+    ANSWERED = "answered"
+    #: It cannot look a work like this one up.
+    DECLINED = "declined"
+    #: It could not be asked: nothing is known about what it holds.
+    UNREACHABLE = "unreachable"
+    #: It answered that every page the work's item links at it is gone (1.6).
+    LINK_GONE = "link_gone"
+    #: Asked, and not answered within the run's window; its answer is still owed.
+    OWED = "owed"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSearch:
+    """The newest search of one work at one source: when it was asked, and what it said.
+
+    **Keyed by the work's id and the source's name, never by a URL**
+    (`data-model.md` § Direction): the record answers four questions, and none
+    of them needs an address. Status, after a restart: has this plugin answered
+    anything in the searches it was asked (`SearchTally`). Phase 2: is any
+    source still owed an answer for this work, so that its next pass waits for
+    that source rather than for the window (`OWED`, `late`). Sources' yields:
+    what each source contributed (`images`). Retention: one row per work and
+    source, the newest, so the table grows with the works searched and never
+    with the passes.
+
+    A search the pass did not make (a plugin held back for the rest of a pass,
+    `library/sources/loading.py` `one_pass`) writes no row: nothing was asked.
+    """
+
+    #: The candidate work searched for (`candidate_works.id`).
+    candidate_work_id: str
+    #: The source's name, the plugin's own (`FoundImage.provider`).
+    provider: str
+    #: When the run asked it.
+    asked_at: datetime
+    outcome: SearchOutcome
+    #: When its answer arrived; None while it is owed.
+    answered_at: datetime | None = None
+    #: How many images it handed over with that answer.
+    images: int = 0
+    #: Whether the answer arrived after the run had stopped waiting for it, so
+    #: the run settled the work without it.
+    late: bool = False
+
+
+#: How many of a source's newest searches Status counts: its last hundred works,
+#: which says whether it is answering now, and bounds the read Status makes on
+#: every page by the sources rather than by every work ever searched (23 ms over
+#: 87,600 searches unbounded, measured 2026-11-20).
+SEARCHES_COUNTED: Final[int] = 100
+
+
+@dataclass(frozen=True, slots=True)
+class SearchTally:
+    """What one source's newest searches came to, counted from the record (`SourceSearch`), so it survives a restart.
+
+    Counted over the newest search of each work, which is the only one kept, and
+    over the `SEARCHES_COUNTED` works it was asked about most recently: `searched`
+    is how many those are, and the rest divide them by what it said.
+    """
+
+    provider: str
+    #: Works whose newest search asked this source, at most `SEARCHES_COUNTED`.
+    searched: int
+    #: Of those, the ones it answered: something, nothing, "cannot look this up", or "gone".
+    answered: int
+    #: Of those, the ones it could not be asked about.
+    unasked: int
+    #: Of those, the ones whose answer is still owed.
+    owed: int
+    #: When its newest answer of any kind arrived, or None when it has answered none.
+    last_answered_at: datetime | None = None
+    #: When it was last asked, or None when it has not been.
+    last_asked_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

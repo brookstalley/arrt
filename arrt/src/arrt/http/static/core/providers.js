@@ -65,3 +65,17 @@ export const FETCH_WORDS = {
   partial_tiles: "Fetched, a few tiles missing",
   failed: "Failed",
 };
+
+/* What the last fetch from a source said, as words, by `FetchOutcome`: finer than
+ * `FETCH_WORDS`, which an older release reads alone. Activity › Queue labels a
+ * group of works by it, beside the museum. Held to the enum by the vocabulary
+ * test, so an outcome added on the server fails there until it has words. */
+export const OUTCOME_WORDS = {
+  ok: "Fetched",
+  partial_tiles: "Fetched, a few tiles missing",
+  none_held: "No image on its page",
+  unasked: "Could not be asked",
+  faulted: "Its plugin faulted",
+  link_gone: "Its page is gone",
+  failed: "Failed",
+};

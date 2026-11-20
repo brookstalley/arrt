@@ -48,7 +48,7 @@ import { captioned, el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { wallLinks } from "../core/places.js";
 import { backRow, link, redirect, setTitle } from "../core/router.js";
-import { hangSelection } from "../core/selection.js";
+import { hangOnAWall } from "../core/selection.js";
 import { openPanel } from "../core/editing.js";
 import { addWorksToTheme, offeredThemes, themeChoice } from "../core/membership.js";
 import { actionMenu, toolbar } from "../core/toolbar.js";
@@ -742,6 +742,7 @@ function paint(detail, generation, { where, focus = null }) {
           // `archived` when that is true and says nothing when it is not, which is
           // the same inversion the derivation footnote uses.
           ["Description", work.description ? emphasised(work.description) : null],
+          ...provenance(detail),
         ]),
       ]),
     ]),
@@ -755,6 +756,28 @@ function paint(detail, generation, { where, focus = null }) {
   const shown = [page.hang, restoring, page.add].find((control) => control && !control.hidden && !control.disabled);
   const target = focus === "primary" ? shown : focus === "more" ? page.more.querySelector("button") : null;
   if (target && document.contains(target)) target.focus();
+}
+
+/* Where the work came from and what has happened to it: the Get it was accepted
+ * from (`WorkDetailOut.get`, null for a work that came another way or before the
+ * log of events was kept) and the work's own History, `GET /api/history?artwork_id=`
+ * (so "when was this hung, and where did it come from" is
+ * answerable from the work). The History row is always there: a held work has
+ * a record of events, and an empty one says so on its own page. */
+function provenance(detail) {
+  const { work, get } = detail;
+  return [
+    [
+      "Came from",
+      get
+        ? el("span", {}, [
+            link({ view: "get", id: get.run_id }, { class: "link", text: "Its Get", "aria-label": `Open the Get ${work.title} came from` }),
+            ` · accepted ${dated(get.accepted_at)}`,
+          ])
+        : null,
+    ],
+    ["History", link({ view: "history", params: { artwork_id: work.artwork_id } }, { class: "link", text: "What has happened to it" })],
+  ];
 }
 
 /* The one line of facts under the title, as a museum label begins: who made it
@@ -1024,60 +1047,18 @@ async function refreshStrip(page, said, focus) {
   if (focus && !focus.hidden) focus.focus();
 }
 
-/* *Hang…*: the walls are read when it is pressed, never from an earlier paint,
- * since what hangs on each is part of the question. With one wall the question
- * is asked directly, since a choice of one is not a choice; with several, a
- * dialog offers each, and the one pressed is asked about. */
-async function chooseWall(control, page) {
+/* *Hang…*: the selection's own question (`core/selection.js` `hangOnAWall`: the
+ * walls read when it is pressed, one asked directly, several offered in a
+ * dialog, none said) asked of this one work, which is the same sentence for a
+ * selection of one. What reached the wall is said after it: the build names a
+ * work that was hung and cannot be shown yet, and why, which a curator should
+ * hear now rather than notice at the wall. */
+function chooseWall(control, page) {
   const { work } = page;
-  let walls = null;
-  const read = await attempt(control, `hang ${work.title}`, async () => {
-    walls = (await api("/api/walls")).walls;
-  });
-  if (!read) return;
-  if (walls.length === 1) {
-    await hangOn(control, walls[0], page);
-    return;
-  }
-  if (!walls.length) {
-    openPanel({ title: `Hang ${work.title}`, lead: "There is no wall to hang it on yet." });
-    return;
-  }
-  const panel = openPanel({
-    title: `Hang ${work.title} on…`,
-    body: [
-      el(
-        "div",
-        { class: "stack wall-choices" },
-        walls.map((wall) =>
-          el("button", {
-            class: "action quiet",
-            type: "button",
-            text: wall.name,
-            // The choice closes first, so the question that follows hands the
-            // keyboard back to *Hang…*, not to a dialog that is gone.
-            onclick: () => {
-              panel.close();
-              hangOn(control, wall, page);
-            },
-          }),
-        ),
-      ),
-    ],
-    closeLabel: "Cancel",
-  });
-}
-
-/* Ask, hang, and say what reached the wall: the build names a work that was
- * hung and cannot be shown yet, and why, which a curator should hear now rather
- * than notice at the wall. */
-async function hangOn(control, wall, page) {
-  const { work } = page;
-  await hangSelection({
+  return hangOnAWall({
     control,
     artworkIds: [work.artwork_id],
     title: work.title,
-    wall,
     then: async (build) => {
       const left = build.exclusions.find((exclusion) => exclusion.artwork_id === work.artwork_id);
       const said = left ? `Hung on ${build.wall_name}, but it cannot be shown yet: ${left.detail}` : `Hung on ${build.wall_name}.`;
@@ -1126,7 +1107,7 @@ async function allowAgain(control, page) {
   });
 }
 
-/* Said after the undo, in the words `art_theme(action='allow_again')` uses, so
+/* Said after the undo, in the words `art_display(action='allow_again')` uses, so
  * an agent and a click are told one thing about when the work returns. */
 const ALLOWED_AGAIN = RESTORE_CONSEQUENCE;
 

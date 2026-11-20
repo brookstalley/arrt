@@ -103,14 +103,38 @@ field asks for it as a change to the package.
   holds a Player to the bytes it was tested against is its `uv.lock`, which
   records the commit the tag resolved to.
 - **A release is copied into `contract/released/<version>/` when it is cut**:
-  its `fixtures/` (index included) and `routes.json` as they are at the tag, and
-  a `sha256.json` of each file's hash, written then and never again. The
-  package's suite holds HEAD to every copy (`contract/tests/test_released.py`):
-  every valid fixture of a release of this major still validates, every invalid
-  one is still refused unless the loosening is recorded with its reason, and no
-  route or fixture of it is gone. That is the mechanical form of "a minor is
-  additive". The releases before 1.2.0 were copied from their tags when 1.2.0
-  was built.
+  its `fixtures/` (index included) and `routes.json` as they are at the tag,
+  from 1.2.0 on its `transport.json` and `vocabulary.json` too (1.2.0 introduced
+  them, so 1.0.0's and 1.1.0's copies have neither), and a `sha256.json` of each
+  file's hash, written then and never again. The package's suite holds HEAD to
+  every copy (`contract/tests/test_released.py`): every valid fixture of a
+  release of this major still validates, every invalid one is still refused
+  unless the loosening is recorded with its reason, and no route or fixture of
+  it is gone; every route and case of a release's table is still in HEAD's, with
+  the same status and body, unless HEAD's row carries a `corrected` record naming
+  a later version and what the release answered (the table owns the list of
+  corrections; `contract/tests/test_transport.py` states it again and holds the
+  two equal); and every state, word and pairing field of a release's vocabulary
+  is still there unchanged, though one may be added. The prose of a row or a
+  state (`means`, `player`) may be clarified without a record. That is the
+  mechanical form of "a minor is additive". The releases before 1.2.0 were
+  copied from their tags when 1.2.0 was built, and 1.2.0's table and
+  vocabulary were added to its copy, from the tag, before 1.3.0 was cut.
+- **How a copy is made:** `python3 contract/tools/freeze_release.py <version>`,
+  in a checkout that has fetched the tag (`git fetch origin --tags`). It reads the
+  tag through `git archive`, never the working tree, writes `contract/released/<version>/`
+  and its `sha256.json` (the tag, the commit it names, each file's hash sorted by
+  path), and refuses a directory that already exists, so a copy is written once.
+  `contract/tests/test_freeze_release.py` runs it on a repository made for the test
+  on every run. **After a freeze, in the same checkout, run
+  `cd contract && uv run pytest -m release_tags`**: it writes each committed copy again
+  from its real tag and compares every byte, `sha256.json` included. That comparison is
+  run by hand and by nothing else, because the pool and CI's checkout have no tags: the
+  marker is deselected by default, and selected where a tag is not fetched it fails
+  naming the tag. Every run holds each copy to its own `sha256.json`
+  (`contract/tests/test_released.py`), which needs no tag.
+- **The package ships `py.typed`** (PEP 561), so a consumer's type checker reads its
+  annotations (`contract/tests/test_typed.py`); a consumer needs no allowance to import it.
 - **Read the data through the package:** `root()` is the directory holding
   `schemas/`, `fixtures/`, `vectors/` and `routes.json`, and it refuses by name
   a build without them. `validator(path)` registers every schema, so a
@@ -148,6 +172,48 @@ field asks for it as a change to the package.
   - This file: § Transport points at the table, says what a `404` on a master
     and the client document's tag mean, and no longer promises what a
     Library/Programming split would require (§ Transport, media).
+- **1.3.0** (audit wave 2b, 2026-11-20): **not cut yet**. `contract/pyproject.toml`
+  says 1.3.0 and no `contract-v1.3.0` tag exists; the tag is cut on the merge
+  commit after the 2b plan merges, and its frozen copy is written then with
+  `contract/tools/freeze_release.py`. Additive but for two answers, each a bounded
+  exception recorded in `build-plan-audit-wave-2b.md` § Decisions made mid-build: one
+  corrected (the wall heartbeat's `not_an_object`, below) and one narrowed (the cap of
+  32 outputs and 32 label outputs, below).
+  - `contract/vocabulary.json`, `vocabulary()`: `player_states`, a Player's five
+    states as the server reads them, each with its `word`, `setup` and `means`:
+    `no_token` "No token yet" and `awaiting_report` "Waiting for its first report"
+    (`setup` true: a step of setting up, never a fault), `reporting` "Reporting",
+    `not_heard_from` "Not heard from since {date}", `report_unreadable` "Report
+    unreadable". `display_states` is unchanged.
+  - `contract/transport.json`: **the one corrected answer.** The wall heartbeat's
+    `not_an_object` case answers `400` in the error shape, as the client
+    heartbeat's does, where 1.2.0's row recorded `422` in the framework's body; the
+    row carries `corrected` (`in` 1.3.0, `was`, `why`), and no row answers
+    `framework` since. The server reads the raw body now
+    (`arrt/src/arrt/http/player.py`), so a JSON object sent with another
+    `Content-Type` is read, as the client heartbeat's route already read it.
+  - The must-refuse fixtures: **170 invalid fixtures added** (counted against
+    `contract-v1.2.0`'s `fixtures/index.json`): `client-heartbeat.v1` 21,
+    `client.v1` 20, `heartbeat.v1` 47, `label.v1` 14, `manifest.v2` 68 (28 of them
+    `player_must_refuse`, 40 not: a setting, the playlist, the schema minor, a
+    label's text, a mat colour, a master's bytes and dimensions). Each is a valid fixture with one change, and
+    every invalid row in the index now carries `constraint` (the schema keyword it
+    breaks, or the rule) and `refused_because`.
+  - Two semantic rules of the client heartbeat, in `semantic_errors(document,
+    schema=…)` (the default schema is unchanged): no two outputs share a name, nor
+    two label outputs; and a report carries at most `MAX_OUTPUTS_PER_REPORT` (32)
+    of each (§ Transport). Four fixtures break them; each passes the schema.
+    **The cap is the narrowed answer**: 1.2.0's schema bounds no list of outputs,
+    and a report of 33 outputs and 33 label outputs (5,533 bytes, inside the
+    routes' 256 KiB body) was valid under it; the server has refused one since
+    2026-11-19. A Player pinned to 1.2.0 that sent more would be refused whole by
+    a server it believes it conforms to. None does: a real Player drives two
+    screens and a handful of panels. The cap bounds the rows one report can make
+    the server keep (`arrt/src/arrt/programming/clients.py`).
+  - `contract/released/1.2.0/` holds that release's `transport.json` and
+    `vocabulary.json` as they are at the tag, and the package's suite holds HEAD
+    to them (§ The package). `freeze_release.py`, `py.typed`, and `released()`'s
+    docstring corrected to say what a copy holds.
 
 ### What a Player does at 1.2.0
 
@@ -172,6 +238,27 @@ refuses ("carries no media with a sha256 and a url"). A Player moving its pin to
   until heartbeat major 2;
 - run its parsers and its writers over the new fixtures, and over
   `released()`'s, to hold itself to what an older server sent.
+
+### What a Player does at 1.3.0
+
+**Nothing a Player reads, writes or requests must change**, and 1.3.0 is not cut
+yet: a Player moves its pin when `contract-v1.3.0` exists. What its suite must do
+then, if it holds every must-refuse fixture to a stated reason as Arrt Player's
+does: **give a reason to each new invalid fixture its table reads** (the 170 above;
+the 68 of `manifest.v2` with `player_must_refuse` say which a reader enforces, a
+split Arrt drew and the Player's coordinator is asked to confirm), and
+to the four client-heartbeat fixtures that pass the schema and break a semantic
+rule. Its writer should send no more than 32 outputs or label outputs and no two of
+one name, which a Player with one display and one label already does. A Player
+moving its pin may:
+
+- quote `vocabulary()`'s `player_states` for its own settings page, which speaks of
+  the Player as the server's Players page does, with a test against the package;
+- read each invalid row's `constraint` and `refused_because` rather than its own
+  note of why a fixture is refused;
+- replay the corrected `not_an_object` row (`400`, the error shape) in its server
+  double; a double answering from 1.2.0's row answers `422`, and both rows say a
+  Player reacts as for `400`, so nothing it does changes.
 
 ## Major 1
 
@@ -264,7 +351,7 @@ a `GET` as a configuration error, and on a `POST` as that route's `400`.
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
 | `GET /walls/{wall_id}/manifest/v{major}` | none | `200` with the wall's manifest at that major (decimal, no leading zero) and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. `404` for a major the server does not publish for this wall, which since wave 4g is every major but 2, and for a wall with nothing hung (§ The cutover). Named in `contract/routes.json` (`manifest_major`). *(Wave 4g: the unversioned `GET /walls/{wall_id}/manifest`, major 1's original spelling, is retired and answers `404`.)* |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
-| `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204`; `400` naming the problem for a JSON object that is not a heartbeat this server can read; `422`, in the web framework's own body rather than the error shape, for a body that is not JSON or not an object (`transport.json`, `not_an_object`) |
+| `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204`; `400` naming the problem for a JSON object that is not a heartbeat this server can read; `400` in the error shape, as the client heartbeat answers it, for a body that is not JSON or not an object (`transport.json`, `not_an_object`; since 1.3.0, which corrected the `422` in the web framework's own body that 1.2.0 recorded) |
 
 - **Every request carries the client's token** as `Authorization: Bearer <token>`.
   Arrt issues one per client, shows it once and keeps only a verifier. A
@@ -309,8 +396,12 @@ a `GET` as a configuration error, and on a `POST` as that route's `400`.
   `hdmi-a-1` or `frame` by that name. The server keeps only the name; the
   output's kind, whether it is connected and its size stay on the client, which
   reports them in the client heartbeat. **No two outputs in one report share a
-  name**, which a schema cannot state and the server refuses. An output of one
-  client shows at most one wall.
+  name**, which a schema cannot state and the server refuses. **A report carries
+  at most 32 outputs and at most 32 label outputs** (since 1.3.0; the package's
+  `MAX_OUTPUTS_PER_REPORT`), because the server keeps a row for each one a report
+  names; a schema does not state it either, and the server refuses a report past
+  it whole. Both rules are the package's `semantic_errors(document, schema="schemas/client-heartbeat.v1.schema.json")`, with
+  a fixture breaking each. An output of one client shows at most one wall.
 - **A display is a record, and its identity is what the client reads from the
   device.** A display output that can say who it is reports `identity`: a Frame
   gives its device id from its REST device description (`/api/v2/`,

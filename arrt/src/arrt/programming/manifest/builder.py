@@ -153,7 +153,10 @@ class ManifestBuild:
             # were fixed together: taking one and leaving the other makes this
             # method correct when a theme has exclusions and wrong when it does
             # not, which is the harder of the two to notice.
-            return f"All {counted(self.considered, 'work')} in this theme {agree(self.considered, 'is', 'are')} on the wall."
+            if self.considered == 1:
+                # "All 1 work" is no sentence a person says.
+                return "The one work in this theme is on the wall."
+            return f"All {counted(self.considered, 'work')} in this theme are on the wall."
         # A partitive, so the verb agrees with the numerator: "1 of 3 works in
         # this theme **is** on the wall". `considered` is the count printed
         # immediately before the verb, which is why keying `agree` on it read

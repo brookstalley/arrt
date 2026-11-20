@@ -139,6 +139,7 @@ def test_a_wall_somebody_is_watching_television_on_says_it_is_waiting(ui, two_wa
     display = services.display
     # On a client's output, as a real wall is: a wall on no screen is unassigned, not in use.
     client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
     services.clients.assign_wall(walls["The wall"], client_id=client.id, output="hdmi-a-1")
     draft = display.draft_scene().scene
     display.pin_scene(draft.id, walls["The wall"], persistence.id)
@@ -239,6 +240,7 @@ def test_a_wall_the_scene_reached_says_scene_in_its_badge_and_one_not_reached_do
     walls, persistence, golconda = two_walls
     display = services.display
     client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
     services.clients.assign_wall(walls["The wall"], client_id=client.id, output="hdmi-a-1")
     draft = display.draft_scene().scene
     display.pin_scene(draft.id, walls["The wall"], persistence.id)
@@ -268,3 +270,37 @@ def test_a_wall_the_scene_reached_says_scene_in_its_badge_and_one_not_reached_do
     ui.page.reload()
     ui.page.wait_for_selector("section.wall .wall-controls")
     expect(ui.page.locator(".wall-badge-scene")).to_have_count(0)
+
+
+def test_a_scene_on_three_walls_says_a_b_and_c(ui, two_walls, services, ready_work):
+    """Three walls are listed as "A, B and C", in the confirmation and in the Release control's name.
+
+    Two walls could not tell a joiner of "and" from one of a list: the
+    confirmation joined its picks with commas (so three read "A on X, B on Y,
+    C on Z, for 20 minutes") and the live scene's wall names with " and " alone
+    ("A and B and C"). Red until the one joiner, `listed` (`core/counting.js`),
+    said both.
+    """
+    hall = services.display.add_wall(name="Hall")
+    theme = services.display.add_theme(name="Water Lilies's theme")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=ready_work("Water Lilies").id)
+    services.display.activate_theme(theme.id, wall_id=hall.id)
+    ready_work("Impression Sunrise")
+    ui.open("#walls")
+    _open_scene(ui)
+    _pick(ui, "The wall", "Persistence", "Persistence")
+    _pick(ui, "Study", "Golconda", "Golconda")
+    _pick(ui, "Hall", "Impression Sunrise", "Impression Sunrise")
+
+    ui.page.get_by_role("button", name="Apply the scene").click()
+    dialog = ui.page.locator("dialog.confirm[open]")
+    dialog.wait_for()
+    # In the order the cards are in: Hall, Study, The wall.
+    expect(dialog).to_contain_text(
+        "Impression Sunrise on Hall, Golconda on Study and Persistence on The wall, for 20 minutes", use_inner_text=True
+    )
+    dialog.get_by_role("button", name="Apply").click()
+
+    ui.page.locator("section.scene .scene-span").wait_for()
+    release = ui.page.get_by_role("button", name=re.compile(r"^Release the scene on "))
+    expect(release).to_have_attribute("aria-label", "Release the scene on Hall, Study and The wall")

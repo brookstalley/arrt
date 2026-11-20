@@ -25,8 +25,11 @@
  * that crashed or lost its network leaves its last report behind, and that
  * report goes on saying "connected" for as long as anyone reads it. So past the
  * threshold the output is *stale*: not known now, with the report's age said.
- * Players and Walls both read the threshold from here, so one report cannot be
- * current on one page and stale on the other. */
+ * **The server judges it**, in each Player's `state` (`programming/player_state.py`
+ * applies the contract's threshold), and every function here reads that state,
+ * so one report cannot be current on one page and stale on another; the
+ * threshold is kept here only for how long a screen waits for a report after
+ * an act (`screens/walls.js`). */
 
 import { ago } from "./dates.js";
 import { GLYPHS } from "./glyphs.js";
@@ -47,22 +50,29 @@ export const UNREADABLE = "unreadable";
 export const NOT_LISTED = "not-listed";
 export const STALE = "stale";
 
-/* Whether a reading with this age is too old to say anything about now. A
- * reading with no age (never reported, unreadable) is not stale: it is one of
- * the states that say so in their own words. A report stamped ahead of this
- * server's clock is not stale either; its age is said as it is. */
-export function isStale(reading) {
-  return Boolean(reading) && typeof reading.age_seconds === "number" && reading.age_seconds > STALE_AFTER_SECONDS;
+/* One output of a Player as the server states it (`GET /api/clients`'s
+ * `state.outputs`, `programming/player_state.py`): `{kind, name, state,
+ * connected}`, or null where the server lists none by that name and kind. */
+export function outputOf(player, outputName, kind = "display") {
+  const outputs = player && player.state && Array.isArray(player.state.outputs) ? player.state.outputs : [];
+  return outputs.find((each) => each.kind === kind && each.name === outputName) || null;
 }
 
-/* The state of one output, from a client's heartbeat as the client listing
- * carries it (`absent`, `problem`, `outputs`). */
-export function screenState(heartbeat, outputName) {
-  if (!heartbeat || heartbeat.absent) return NOT_REPORTED;
-  if (heartbeat.problem) return UNREADABLE;
-  if (isStale(heartbeat)) return STALE;
-  const output = (heartbeat.outputs || []).find((each) => each.name === outputName);
-  if (!output) return NOT_LISTED;
+/* The state of one of a Player's screens, from the Player's state as the server
+ * states it, never from its raw report: the server has already judged the
+ * report's age against the contract's staleness (`timing.json`), so a report is
+ * current on Walls exactly when it is on Players and on Status.
+ *
+ * A Player with no token, or no report yet, has not reported its screens; one
+ * whose report cannot be read, or has stopped, cannot say; a reporting Player
+ * whose report does not list the output does not have it now. */
+export function screenState(player, outputName) {
+  const playerState = player && player.state ? player.state.state : null;
+  if (playerState === "report_unreadable") return UNREADABLE;
+  if (playerState === "not_heard_from") return STALE;
+  if (playerState !== "reporting") return NOT_REPORTED;
+  const output = outputOf(player, outputName);
+  if (!output || output.state !== "reporting") return NOT_LISTED;
   return outputState(output);
 }
 
@@ -70,6 +80,36 @@ export function screenState(heartbeat, outputName) {
  * decided, so the Players rows and the Walls line cannot come to disagree. */
 export function outputState(output) {
   return output.connected ? DETECTED : NOT_DETECTED;
+}
+
+/* One output in a glyph and words, wherever a Player's outputs are listed
+ * (Players, Status), from its state as the server states it
+ * (`state.outputs[]`, whose `connected` is filled only while it is reporting):
+ *
+ * - reporting: a screen detected or none detected, a label panel answering or
+ *   not connected. A label panel that is not connected is said as one and drawn
+ *   as nothing being there (○), never as a fault: the server counts no trouble
+ *   for it, and a Player with several panels, or only panels, reads the same way
+ *   panel by panel (the owner's ruling 8 of 2026-11-19);
+ * - an output the server recorded that a reporting Player's report does not
+ *   list: not in its last report;
+ * - a Player whose report has stopped or cannot be read: not known now, with
+ *   what its last readable report said of the output (`was`, the reported
+ *   `connected`, or null) where that is known;
+ * - a Player with no token or no report yet: not reported yet. */
+export function outputCell(output, player, was = null) {
+  const playerState = player && player.state ? player.state.state : null;
+  if (output.state === "reporting") {
+    if (output.kind === "label") return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.none} not connected`;
+    return output.connected ? `${GLYPHS.good} detected` : `${GLYPHS.none} none detected (off or unplugged)`;
+  }
+  if (playerState === "reporting") return `${GLYPHS.waiting} not in its last report`;
+  if (playerState === "not_heard_from" || playerState === "report_unreadable") {
+    if (was === null || was === undefined) return `${GLYPHS.waiting} not known now`;
+    const said = output.kind === "label" ? (was ? "answering" : "not connected") : was ? "detected" : "none detected";
+    return `${GLYPHS.waiting} not known now (was ${said})`;
+  }
+  return `${GLYPHS.waiting} not reported yet`;
 }
 
 /* A screen in the words a person reads (`information-architecture.md`
@@ -82,13 +122,6 @@ export function screenName(outputName, kind = null) {
   if (kind === "frame") return "Samsung Frame";
   const hdmi = /^hdmi-[a-z]-(\d+)$/.exec(outputName);
   return hdmi ? `HDMI ${hdmi[1]}` : outputName;
-}
-
-/* The Players table's screens: glyph and word, as every badge here is.
- * From a stale report it says what was reported and that it is not known now. */
-export function screenCell(output, stale = false) {
-  if (stale) return `${GLYPHS.waiting} not known now (was ${outputState(output) === DETECTED ? "detected" : "none detected"})`;
-  return outputState(output) === DETECTED ? `${GLYPHS.good} detected` : `${GLYPHS.none} none detected (off or unplugged)`;
 }
 
 /* The output picker's parenthesis, where the column's words would not fit. */

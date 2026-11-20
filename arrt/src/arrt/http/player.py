@@ -19,9 +19,10 @@ response. The token check is the access service's, and the refusal log with it.
 
 **Synchronous `def`**, for the reason `api.py` gives: the work is real file and
 database I/O, and Starlette runs a sync handler in a worker thread. The client
-heartbeat is the one `async def`, because it reads the raw body so that a body
-that is not JSON is refused with the same `400` as one that is the wrong JSON;
-its token check and its write still run in a worker thread.
+heartbeat and the wall heartbeat are the two `async def`s, because each reads
+the raw body so that a body that is not a JSON object is refused with the same
+`400` as one that is the wrong JSON; the token check and the write still run in
+a worker thread.
 """
 
 import hashlib
@@ -31,7 +32,7 @@ from collections.abc import Callable, Coroutine
 from pathlib import PurePosixPath
 from typing import Annotated, Any, Final
 
-from fastapi import APIRouter, Body, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
@@ -246,9 +247,20 @@ def media(request: Request, sha256: str) -> Response:
 
 
 @router.post(HEARTBEAT_ROUTE, status_code=204, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
-def heartbeat(request: Request, wall_id: str, document: Annotated[dict[str, Any], Body()]) -> Response:
-    """What a Player says about one wall, kept where the health panel reads it."""
-    _services(request).display.record_heartbeat(wall_id, document)
+async def heartbeat(request: Request, wall_id: str) -> Response:
+    """What a Player says about one wall, kept where the health panel reads it.
+
+    The raw body is read, as the client heartbeat's is, so a body that is not a
+    JSON object is refused with `400` in the error shape. Until contract 1.3.0
+    the framework refused it first, with `422` in its own body.
+    """
+    try:
+        document = json.loads(await request.body())
+    except ValueError:
+        document = None
+    if not isinstance(document, dict):
+        return JSONResponse(status_code=400, content={"error": "A wall heartbeat is a JSON object, and this body is not one."})
+    await run_in_threadpool(_services(request).display.record_heartbeat, wall_id, document)
     return Response(status_code=204)
 
 

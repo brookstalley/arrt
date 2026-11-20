@@ -11,7 +11,7 @@ path that produced it.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from mcp import ClientSession
@@ -269,7 +269,7 @@ async def test_activating_a_theme_puts_it_on_the_wall_rather_than_arming_a_later
     first = await _a_theme(server_url, name="American Modernists")
     second = await _a_theme(server_url, name="Surrealists")
 
-    payload, errored = await call(server_url, "art_theme", action="activate", theme_id=second, wall_id=wall)
+    payload, errored = await call(server_url, "art_display", action="activate", theme_id=second, wall_id=wall)
 
     assert errored is False
     # The result names the wall, so a caller reporting back can say which room.
@@ -327,7 +327,7 @@ async def test_activating_publishes_exactly_the_readiness_filtered_theme(
         path="masters/nighthawks.jpg",
     )
 
-    payload, errored = await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    payload, errored = await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     assert errored is False
     assert [entry["artwork_id"] for entry in payload["on_the_wall"]] == [ready]
@@ -355,7 +355,7 @@ async def test_deleting_a_theme_that_is_hanging_somewhere_is_refused_and_names_t
     """
     hanging = await _a_theme(server_url, name="American Modernists")
     await _a_theme(server_url, name="Surrealists")
-    await call(server_url, "art_theme", action="activate", theme_id=hanging, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=hanging, wall_id=wall)
 
     payload, errored = await call(server_url, "art_theme", action="delete", theme_id=hanging)
 
@@ -374,12 +374,12 @@ async def test_a_theme_taken_down_becomes_deletable(server_url, wall):
     from the same place the tip points at.
     """
     only = await _a_theme(server_url, name="American Modernists")
-    await call(server_url, "art_theme", action="activate", theme_id=only, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=only, wall_id=wall)
 
     _, refused = await call(server_url, "art_theme", action="delete", theme_id=only)
     assert refused is True
 
-    _, errored = await call(server_url, "art_theme", action="unhang", wall_id=wall)
+    _, errored = await call(server_url, "art_display", action="unhang", wall_id=wall)
     assert errored is False
 
     _, errored = await call(server_url, "art_theme", action="delete", theme_id=only)
@@ -395,10 +395,10 @@ async def test_taking_down_does_not_republish_the_wall(server_url, wall, wall_se
     would blank it as a side effect of tidying up.
     """
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
     published = wall_settings.manifest_v2_path(wall).read_text()
 
-    payload, errored = await call(server_url, "art_theme", action="unhang", wall_id=wall)
+    payload, errored = await call(server_url, "art_display", action="unhang", wall_id=wall)
 
     assert errored is False
     # Exact-match: this sentence is the only thing telling a caller the wall did
@@ -412,7 +412,7 @@ async def test_taking_down_does_not_republish_the_wall(server_url, wall, wall_se
 
 
 async def test_taking_down_a_wall_holding_nothing_is_refused(server_url, wall):
-    payload, errored = await call(server_url, "art_theme", action="unhang", wall_id=wall)
+    payload, errored = await call(server_url, "art_display", action="unhang", wall_id=wall)
 
     assert errored is True
     assert "nothing to take down" in payload["error"]
@@ -431,7 +431,7 @@ async def test_a_step_on_one_wall_leaves_another_where_it_was(server_url, ready_
     for title in ("Automat", "Chop Suey"):
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
     for room in (wall, study):
-        await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=room)
+        await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=room)
     on_the_study = _slot_now(wall_settings, study)
 
     stepped, errored = await call(server_url, "art_display", action="next", wall_id=wall)
@@ -453,8 +453,8 @@ async def test_two_walls_may_hang_the_same_theme(server_url, wall):
     study = added["wall"]["wall_id"]
     theme_id = await _a_theme(server_url)
 
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=study)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=study)
 
     listed, _ = await call(server_url, "art_theme", action="list")
     assert len(listed["themes"]) == 1
@@ -483,8 +483,8 @@ async def test_deleting_the_last_theme_leaves_the_wall_showing_what_it_had(serve
     theme_id = await _a_theme(server_url)
     # Hung, then taken down: a sync no longer takes a theme, so the theme gets its
     # feed by being hung, and deletable by being taken down (which leaves the feed).
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
-    await call(server_url, "art_theme", action="unhang", wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="unhang", wall_id=wall)
     before = wall_settings.manifest_v2_path(wall).read_text()
 
     _payload, errored = await call(server_url, "art_theme", action="delete", theme_id=theme_id)
@@ -511,28 +511,60 @@ async def test_deleting_a_theme_with_works_in_it_leaves_the_works_alone(server_u
 # -- the wall -------------------------------------------------------------------
 
 
-async def test_status_says_plainly_that_the_display_plane_has_never_reported(server_url):
-    """The display plane does not exist yet, and the honest answer is to say so.
+async def test_status_says_plainly_that_a_walls_player_has_never_reported(server_url, services):
+    """A wall a Player shows that has never reported, and the honest answer is to say so.
 
-    Not a zero, not a green light: both would read as a reading. This is the
-    state a fresh deployment is in, and it has to be legible rather than
-    look like a healthy wall.
+    Not a zero, not a green light: both would read as a reading. It has to be
+    legible rather than look like a healthy wall.
 
     **And it names the wall**, which is what one heartbeat per wall bought: with
     two rooms the useful sentence is "the study has not reported", and one shared
-    file could only ever have said that *something* had not.
+    file could only ever have said that *something* had not. The wall is given a
+    Player first: one with none is a step of setting up, never named as silent
+    (the next test). The Player holds a token and reports:
+    one still being set up makes the wall wait for it, which is said as that.
     """
+    [only] = services.display.survey_walls()
+    pi = services.clients.add_client(name="The Pi in the hall")
+    services.clients.assign_wall(only.wall.id, client_id=pi.id, output="hdmi-a-1")
+    services.access.issue(pi.id)
+    services.clients.record_heartbeat(
+        pi.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
+
     payload, errored = await call(server_url, "art_display", action="status")
 
     assert errored is False
     [reading] = payload["walls"]
-    assert reading["display_plane_has_reported"] is False
+    assert reading["has_reported"] is False
+    assert "display_plane_has_reported" not in reading, "the name wave 2b retired came back"
     assert reading["age_seconds"] is None
-    assert "has not reported yet" in reading["observation"]
+    assert "no Player has reported for this wall yet" in reading["observation"]
     assert payload["observation"] == (
-        f"{reading['wall_name']!r} has not reported. "
-        "Each wall's own reading says whether nothing was ever written or what could not be read."
+        f"{reading['wall_name']!r} has not reported. Each wall's own reading says whether nothing was ever "
+        "written, what could not be read, or when it last reported."
     )
+
+
+async def test_status_never_names_a_wall_no_player_shows_as_not_reporting(server_url):
+    """A wall with no Player is a step not yet taken (`vocabulary.json`'s `unassigned`), not a silent wall.
+
+    The sentence is the health panel's own (`describe_wall_status`, shared), so
+    the two surfaces are held to one string rather than to two copies of it.
+    """
+    from async_http import request
+
+    payload, errored = await call(server_url, "art_display", action="status")
+
+    assert errored is False
+    [reading] = payload["walls"]
+    assert reading["wall_name"] not in payload["observation"]
+    assert payload["observation"] == "No Player shows a wall yet, so there is no report to read."
+    assert payload["observation"] == (await request("GET", f"{server_url}/api/health")).json()["description"]
 
 
 async def test_status_and_the_health_panel_state_the_same_picture_store_count(server_url, services):
@@ -569,7 +601,7 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=artwork_id)
 
     # Hung first: `sync` republishes what is hanging and takes no theme of its own.
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
@@ -586,7 +618,7 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
 
 async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, wall):
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
@@ -605,7 +637,7 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall)
 
@@ -614,7 +646,7 @@ async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
 
 async def test_sync_writes_the_feed_a_player_reads(server_url, wall_settings, wall):
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
     # Taken from under the wall, so what is read back is what the sync wrote.
     wall_settings.manifest_v2_path(wall).unlink()
 
@@ -629,13 +661,13 @@ async def test_next_republishes_and_does_not_claim_the_wall_changed(server_url, 
     theme_id = await _a_theme(server_url)
     for title in ("Automat", "Chop Suey"):
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     payload, errored = await call(server_url, "art_display", action="next", wall_id=wall)
 
     assert errored is False
     feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
-    assert payload["work_id"] == feed["schedule"]["slots"][0]["work_id"]
+    assert payload["artwork_id"] == feed["schedule"]["slots"][0]["work_id"]
     assert "not a confirmation" in payload["notice"]
 
 
@@ -650,22 +682,22 @@ async def test_show_now_starts_the_wall_with_the_work_and_next_moves_on_from_it(
     theme_id = await _a_theme(server_url)
     for title in ("Automat", "Chop Suey"):
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
     work = ready_work("Nighthawks")
 
     first, _ = await call(server_url, "art_display", action="show_now", wall_id=wall, artwork_id=work.id)
     second, _ = await call(server_url, "art_display", action="next", wall_id=wall)
 
-    assert first["work_id"] == work.id
+    assert first["artwork_id"] == work.id
     # A work from outside the theme is shown for one slot, so moving on leaves it.
-    assert second["work_id"] != work.id
+    assert second["artwork_id"] != work.id
 
 
 async def test_show_now_reaches_the_feed(server_url, wall_settings, ready_work, wall):
     """The one hop that makes it real: it has to be in the feed the Player polls."""
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
     work = ready_work("Automat")
 
     await call(server_url, "art_display", action="show_now", wall_id=wall, artwork_id=work.id)
@@ -687,7 +719,7 @@ async def test_a_theme_with_nothing_missing_says_so_in_full(server_url, service,
         work = ready_work(title)
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=work.id)
 
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
 
     payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
@@ -716,20 +748,20 @@ async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_
     """Every scene act through the tool surface, with a non-default length, ending at the feed the Player polls."""
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
     dali = ready_work("Dalí")
 
-    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    draft, _ = await call(server_url, "art_display", action="draft_scene")
     pinned, errored = await call(
-        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=dali.id
+        server_url, "art_display", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=dali.id
     )
     assert errored is False
-    assert [(entry["wall_id"], entry["work_id"], entry["title"]) for entry in pinned["walls"]] == [(wall, dali.id, "Dalí")]
+    assert [(entry["wall_id"], entry["artwork_id"], entry["title"]) for entry in pinned["walls"]] == [(wall, dali.id, "Dalí")]
     feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
     assert feed["staging"] == [dali.id]
 
     applied, _ = await call(
-        server_url, "art_theme", action="apply_scene", scene_id=draft["scene_id"], lifetime="preview", minutes=7
+        server_url, "art_display", action="apply_scene", scene_id=draft["scene_id"], lifetime="preview", minutes=7
     )
     assert (applied["status"], applied["lifetime"]) == ("live", "preview")
     # Seven, not the default twenty: the length reached the service through the binding.
@@ -737,11 +769,11 @@ async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_
     assert span.total_seconds() == 7 * 60
     feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
     assert feed["scene"]["work_id"] == dali.id
-    listed, _ = await call(server_url, "art_theme", action="scenes")
+    listed, _ = await call(server_url, "art_display", action="scenes")
     assert listed["live"]["scene_id"] == draft["scene_id"]
     assert listed["draft"] is None
 
-    released, _ = await call(server_url, "art_theme", action="release_scene", scene_id=draft["scene_id"])
+    released, _ = await call(server_url, "art_display", action="release_scene", scene_id=draft["scene_id"])
     assert released["status"] == "ended"
     assert released["ended_at"] is not None
     assert "scene" not in json.loads(wall_settings.manifest_v2_path(wall).read_text())
@@ -750,31 +782,31 @@ async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_
 async def test_a_scene_is_unpinned_and_discarded_through_the_surface(server_url, wall_settings, ready_work, wall):
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
-    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
+    draft, _ = await call(server_url, "art_display", action="draft_scene")
     await call(
-        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=ready_work("Dalí").id
+        server_url, "art_display", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=ready_work("Dalí").id
     )
 
-    unpinned, _ = await call(server_url, "art_theme", action="unpin_scene", scene_id=draft["scene_id"], wall_id=wall)
+    unpinned, _ = await call(server_url, "art_display", action="unpin_scene", scene_id=draft["scene_id"], wall_id=wall)
     assert unpinned["walls"] == []
-    discarded, _ = await call(server_url, "art_theme", action="discard_scene", scene_id=draft["scene_id"])
+    discarded, _ = await call(server_url, "art_display", action="discard_scene", scene_id=draft["scene_id"])
     assert discarded["discarded"] == draft["scene_id"]
-    listed, _ = await call(server_url, "art_theme", action="scenes")
+    listed, _ = await call(server_url, "art_display", action="scenes")
     assert (listed["live"], listed["draft"]) == (None, None)
 
 
 async def test_a_scene_refusal_reaches_the_agent_in_the_services_words(server_url, ready_work, wall):
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
-    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
-    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    await call(server_url, "art_display", action="activate", theme_id=theme_id, wall_id=wall)
+    draft, _ = await call(server_url, "art_display", action="draft_scene")
     plain = ready_work("Plain", master=False)
 
     pinned, _ = await call(
-        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=plain.id
+        server_url, "art_display", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=plain.id
     )
-    released, _ = await call(server_url, "art_theme", action="release_scene", scene_id=draft["scene_id"])
+    released, _ = await call(server_url, "art_display", action="release_scene", scene_id=draft["scene_id"])
 
     assert pinned["success"] is False
     assert "cannot be shown on the wall" in pinned["error"]

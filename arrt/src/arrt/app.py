@@ -21,6 +21,7 @@ makes the mount work.
 import logging
 from collections.abc import AsyncIterator, Callable, Collection, Sequence
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from functools import partial
 from typing import Final
 
@@ -40,9 +41,9 @@ from arrt.library.services.scheduler import start_scheduler
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import CostStatus, SpendCategory
 from arrt.services.container import Services
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 
 log = logging.getLogger(__name__)
 
@@ -189,17 +190,25 @@ def create_app(
     app.mount(MCP_PATH, handle_mcp)
 
     @app.exception_handler(ServiceError)
-    async def refused(_: Request, error: ServiceError) -> JSONResponse:
+    async def refused(request: Request, error: ServiceError) -> JSONResponse:
         """Turn a refused operation into the one error shape this surface returns.
 
         Registered here rather than caught per handler, which is what keeps every
-        handler to unpack-call-format. The service layer raises a single type by
-        design, so a per-error status table would be this surface inventing a
-        taxonomy the layer below it does not have — and the message is already
+        handler to unpack-call-format. The service layer draws one distinction,
+        `NotFound`, and a per-error status table would be this surface inventing
+        a taxonomy the layer below it does not have — and the message is already
         written to be shown to whoever asked.
+
+        **`404` is `/api`'s alone.** The handler is the application's, so it also
+        catches a refusal a Player's route meets (a client or wall forgotten
+        between its admission and its write): those routes answer as the
+        contract records (`player-contract.md`, `contract/transport.json`), and
+        a refusal there stays `400` whatever its kind, as it was before
+        `NotFound` existed.
         """
         log.info("refused: %s", error)
-        return api.service_error_response(str(error))
+        on_api = request.url.path.startswith(f"{api.router.prefix}/")
+        return api.service_error_response(str(error), not_found=on_api and isinstance(error, NotFound))
 
     @app.exception_handler(player.Refused)
     async def not_admitted(_: Request, error: player.Refused) -> JSONResponse:
@@ -233,11 +242,27 @@ def create_app(
 
 
 def _record_ask_cost(services: Services, cost: ReplyCost) -> None:
-    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's."""
-    services.discovery.record_spend(
-        category=SpendCategory.ASK_TOKENS,
-        cost_usd=cost.cost_usd,
-        model_id=cost.model_id,
-        input_tokens=cost.input_tokens,
-        output_tokens=cost.output_tokens,
-    )
+    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's.
+
+    What its calls were billed is one row, when that is more than nothing. Each
+    call whose cost is not known is a row of its own at $0 marked unknown
+    (`CostStatus.UNKNOWN`), never a known $0: a call the provider answered without
+    saying what it cost, and a call sent and never answered (the reply was
+    cancelled or failed while it ran). Either may have been billed
+    (`ReplyCost.unknown_calls`).
+    """
+    if cost.cost_usd > 0:
+        services.discovery.record_spend(
+            category=SpendCategory.ASK_TOKENS,
+            cost_usd=cost.cost_usd,
+            model_id=cost.model_id,
+            input_tokens=cost.input_tokens,
+            output_tokens=cost.output_tokens,
+        )
+    for _ in range(cost.unknown_calls):
+        services.discovery.record_spend(
+            category=SpendCategory.ASK_TOKENS,
+            cost_usd=Decimal(0),
+            model_id=cost.unknown_model_id,
+            cost_status=CostStatus.UNKNOWN,
+        )

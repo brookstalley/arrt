@@ -743,3 +743,53 @@ def test_the_description_is_set_in_the_label_serif_at_a_reading_measure(ui, serv
         }""")
     assert family.strip('"').startswith("Newsreader")
     assert width <= 68 * ch + 1
+
+
+# -- where it came from, and what has happened to it ------------------------------
+
+
+def test_a_work_accepted_from_a_get_links_to_it_and_every_work_links_to_its_history(ui, api, resolved_work, hangable):
+    """The Work page's two ways back: the Get that brought the work, and its own History.
+
+    `GET /api/works/{id}` says the Get (`get`, from the acceptance in the
+    history; null for a work that came another way) and `GET /api/history`
+    filters by work (`artwork_id`). The Get is a row only when there is one: a
+    work added by hand says nothing of where it came from rather than guess.
+    """
+    candidate = resolved_work("The Elephants")
+    brought = api.post(f"/api/candidates/{candidate.id}/verdict", json={"verdict": "accepted"}).json()["work"]["artwork_id"]
+    by_hand = hangable("Automat")
+
+    ui.open(f"#work/{brought}")
+    ui.page.wait_for_selector("#view h1")
+    came = ui.page.locator(".work-label dt:text-is('Came from') + dd")
+    expect(came.get_by_role("link", name="Open the Get The Elephants came from")).to_have_attribute(
+        "href", re.compile(rf"^#get/{candidate.discovery_run_id}(\?|$)")
+    )
+    expect(came).to_contain_text("accepted", use_inner_text=True)
+    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute(
+        "href", re.compile(rf"^#history\?(.*&)?artwork_id={brought}(&|$)")
+    )
+
+    open_work(ui, by_hand)
+    expect(ui.page.locator(".work-label dt:text-is('History') + dd a")).to_have_attribute(
+        "href", re.compile(rf"^#history\?(.*&)?artwork_id={by_hand.id}(&|$)")
+    )
+    expect(ui.page.locator(".work-label dt:text-is('Came from')"), "a work that came another way named a Get").to_have_count(0)
+
+
+def test_a_works_history_lists_what_happened_to_that_work_and_to_no_other(ui, api, hangable):
+    """The page the link opens: this work's archive and restore, never another work's."""
+    automat, nighthawks = hangable("Automat"), hangable("Nighthawks")
+    for work in (automat, nighthawks):
+        api.post(f"/api/works/{work.id}/archive")
+    api.post(f"/api/works/{automat.id}/restore")
+
+    open_work(ui, automat)
+    ui.page.click(".work-label dt:text-is('History') + dd a")
+
+    ui.page.wait_for_selector("#view h1:text-is('History of Automat')")
+    events = ui.page.locator("#view .history-events li")
+    expect(events).to_have_count(2)
+    expect(ui.page.locator("#view .history-events")).not_to_contain_text("Nighthawks", use_inner_text=True)
+    expect(ui.page.locator("#view")).to_contain_text("Automat on its own page", use_inner_text=True)

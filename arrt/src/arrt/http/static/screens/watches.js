@@ -11,7 +11,7 @@
  * composes no verdict of its own, so it and `art_watches` cannot disagree.
  *
  * **Every control applies when it is changed**, as on Settings › General, and is
- * refused in the server's words beside it. Removing a Watch asks first, because
+ * refused in the server's words beside it. Forgetting a Watch asks first, because
  * nothing restores it; switching it off is the reversible way to stop one.
  *
  * Above the list, whether unattended work may run at all (`GET /api/unattended`),
@@ -28,6 +28,7 @@ import { confirmAct } from "../core/confirm.js";
 import { stamp } from "../core/dates.js";
 import { el, emptyState, render } from "../core/render.js";
 import { link, refresh } from "../core/router.js";
+import { dollars } from "../core/spend.js";
 
 const CADENCE_WORDS = { hourly: "Hourly", daily: "Daily", weekly: "Weekly" };
 const CADENCES = ["hourly", "daily", "weekly"];
@@ -121,13 +122,15 @@ function watchPanel(watch) {
       el("dt", {}, [el("label", { for: `watch-${id}-cap`, text: "Monthly cap" })]),
       el("dd", {}, [capField(watch)]),
       el("dt", { text: "This month" }),
-      el("dd", { class: "watch-spend", text: `$${watch.spent_usd} spent of $${watch.effective_cap_usd}.` }),
+      // What its runs spent, in the server's words (`summary`, `SpendTotal.words`):
+      // "at least" when a call's cost is unknown.
+      el("dd", { class: "watch-spend", text: `Spent ${watch.summary}, of ${dollars(watch.effective_cap_usd)}.` }),
       el("dt", { text: "Next" }),
       el("dd", { class: "watch-next" }, nextWords(watch)),
       el("dt", { text: "Last run" }),
       el("dd", { class: "watch-last-run" }, lastRun(watch)),
     ]),
-    removeButton(watch),
+    forgetButton(watch),
   ]);
 }
 
@@ -185,7 +188,7 @@ function capField(watch) {
   });
   control.addEventListener("change", async () => {
     const typed = control.value.trim().replace(/^[$]/, "");
-    const changed = await send(control, watch, { monthly_cap_usd: typed }, typed ? `set the Watch's cap to $${typed}` : "clear the Watch's cap");
+    const changed = await send(control, watch, { monthly_cap_usd: typed }, typed ? `set the Watch's cap to ${dollars(typed.replace(/^[$]/, ""))}` : "clear the Watch's cap");
     if (!changed) control.value = watch.monthly_cap_usd ?? "";
   });
   return el("span", { class: "money-field" }, [el("span", { "aria-hidden": "true", text: "$" }), control]);
@@ -197,16 +200,16 @@ function send(control, watch, body, act) {
   });
 }
 
-function removeButton(watch) {
-  const button = el("button", { type: "button", class: "action quiet", text: "Remove…" });
+function forgetButton(watch) {
+  const button = el("button", { type: "button", class: "action quiet", text: "Forget…" });
   button.addEventListener("click", async () => {
     const yes = await confirmAct({
-      title: `Remove the Watch “${watch.intent_text}”?`,
+      title: `Forget the Watch “${watch.intent_text}”?`,
       consequence: "Nothing restores it. What it has already found stays in To review. To stop it for a while, switch it off instead.",
-      confirmLabel: "Remove",
+      confirmLabel: "Forget",
     });
     if (!yes) return;
-    await attempt(button, "remove the Watch", () => api(`/api/watches/${encodeURIComponent(watch.watch_id)}`, { method: "DELETE" }), {
+    await attempt(button, "forget the Watch", () => api(`/api/watches/${encodeURIComponent(watch.watch_id)}`, { method: "DELETE" }), {
       then: () => refresh(),
     });
   });

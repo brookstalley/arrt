@@ -198,6 +198,36 @@ def test_set_is_an_upsert_on_the_thing_rather_than_on_an_id(taste):
     assert len(taste.list_affinities()) == 1
 
 
+@pytest.mark.parametrize(
+    ("first_at", "second_at", "ids"),
+    [
+        (datetime(2026, 3, 4, 5, 6, tzinfo=UTC), datetime(2026, 3, 9, 1, 2, tzinfo=UTC), ["taste-1", "taste-2"]),
+        (datetime(2031, 12, 31, 23, 59, tzinfo=UTC), datetime(2032, 1, 1, 0, 1, tzinfo=UTC), ["aaa", "bbb"]),
+    ],
+)
+def test_a_judgment_set_by_hand_carries_the_service_s_clock_and_id_source(discovery_store, first_at, second_at, ids):
+    """What a set affinity is stamped with is what the service was handed: a clock, and a source of identities.
+
+    Two judgments and then a correction of the first, each at an instant the test names and with ids the
+    test hands out: the new row is born at its instant under its id, a correction keeps both and moves
+    only `updated_at`, and a correction mints nothing. Read from the machine (`datetime.now`, `uuid4`),
+    none of these could be the values below. Varied across cases, so a set that kept the first values
+    it was given would still fail the second.
+    """
+    instants = iter([first_at, first_at, second_at])
+    minted = iter(ids)
+    taste = TasteService(discovery_store, now=lambda: next(instants), mint_id=lambda: next(minted))
+
+    one = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="loves", open_to_more=True)
+    other = taste.set_affinity(kind="artist", value="Klee", sentiment="likes", open_to_more=True)
+    corrected = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
+
+    assert (one.id, one.created_at, one.updated_at) == (ids[0], first_at, first_at)
+    assert (other.id, other.created_at) == (ids[1], first_at)
+    assert (corrected.id, corrected.created_at, corrected.updated_at) == (ids[0], first_at, second_at)
+    assert discovery_store.get_affinity(ids[0]).updated_at == second_at
+
+
 def test_the_same_name_under_two_kinds_is_two_judgments(taste):
     """Uniqueness is on the pair, and it has to be: 'Baroque' is a movement and
     could equally be a subject, and one row for both would make correcting one

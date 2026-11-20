@@ -28,7 +28,9 @@ pytest.importorskip(
 
 from playwright.sync_api import expect
 
+from arrt.http import api as http_api
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.services.health import PicturesReading
 
 #: A running Player's report: two screens, the first with a television on it.
 TWO_SCREENS = {
@@ -102,7 +104,7 @@ def test_a_wall_is_set_up_in_the_order_the_screens_give_it(ui, services, setting
     expect(ui.page.locator("#view .page-facts")).to_have_text("1 Player · waiting for it to report")
     [hall] = [view.client for view in services.clients.list_clients()]
     expect(ui.page.locator(f"#view tr[data-player='{hall.id}'] td[data-label='Status']")).to_contain_text(
-        "Waiting for it to report"
+        "Waiting for its first report"
     )
 
     ui.page.get_by_role("button", name="Copy Hall Pi's token").click()
@@ -383,22 +385,25 @@ def test_no_retired_word_is_read_on_these_screens(
     assert not found, f"{screen} with {state} says {found}"
 
 
-def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading):
+def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading, a_backup_reading):
     """Finding 8: Status printed the backup record's path, a file under a temporary directory, to a household.
 
     With no backup, and with a record that cannot be read, the server's sentence
-    names the file; it is debug's then, and the page says it in words.
+    names the file; it is debug's then, and the page says it in words. The
+    backup is passed into the builder, so the answer's troubles carry it as the
+    server's would; edited after it was built, they said nothing of it.
     """
-    for backup in ({"absent": True}, {"absent": False, "problem": "the record is not JSON"}):
-        reading = a_health_reading()
-        reading["backup"].update(
-            absent=backup["absent"],
-            problem=backup.get("problem"),
-            completed_at=None,
-            age_seconds=None,
-            reported=None,
-            description="No backup has been recorded at /srv/arrt-scratch-9f2/backup-receipt.json; nothing has written one yet.",
-        )
+    for absent, problem in ((True, None), (False, "the record is not JSON")):
+        backup = a_backup_reading(absent=absent, problem=problem) | {
+            "completed_at": None,
+            "age_seconds": None,
+            "reported": None,
+            "description": (
+                "No backup has been recorded at /srv/arrt-scratch-9f2/backup-receipt.json; nothing has written one yet."
+            ),
+        }
+        reading = a_health_reading(backup=backup)
+        assert [trouble["about"] for trouble in reading["troubles"]] == ["backup"]
         ui.serve("**/api/health", reading)
         ui.open("#health")
         expect(ui.page.locator("#view h2:text-is('Backup')")).to_be_visible()
@@ -411,8 +416,11 @@ def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading):
 
 def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
     """Finding 20: "counted 226 seconds ago" and "Counted 4 minutes ago" on one panel."""
-    reading = a_health_reading()
-    reading["pictures"].update(age_seconds=226.0, description="The picture store keeps 2 files, counted 226 seconds ago.")
+    # The reading's pictures are the server's own, projected as `_some_pictures` does, never a sentence written here.
+    pictures = http_api._pictures(
+        PicturesReading(pictures_bytes=48_000, pictures_files=2, age_seconds=226.0, unreadable=0)
+    ).model_dump()
+    reading = a_health_reading(pictures=pictures)
     ui.serve("**/api/health", reading)
     ui.open("#health")
 
@@ -428,25 +436,35 @@ def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
 # -- hanging, before and after a Player shows the wall ------------------------------
 
 
-@pytest.mark.parametrize("shown", [False, True], ids=["no Player", "a Player"])
+@pytest.mark.parametrize("shown", [False, "waiting", True], ids=["no Player", "a Player with no token", "a Player"])
 def test_hanging_a_work_promises_the_house_sees_it_only_where_a_player_shows_the_wall(
-    ui, services, work_with_an_image, the_wall, shown
+    ui, services, a_player_shows, work_with_an_image, the_wall, shown
 ):
     """Finding 19 of audit 2026-11-19, the client half, through the Work page's *Hang…* (`core/selection.js`).
 
     "Everyone in the house sees {wall} change" is true of a wall a Player shows,
-    and of nothing else: with no Player, the question says nothing shows it yet.
+    and of nothing else: with no Player, the question says nothing shows it yet;
+    with a Player that has no token yet, it says the wall waits for it, in the
+    server's words. The Player that shows it has its token and has reported.
     """
     work = work_with_an_image("Automat")
-    if shown:
+    if shown is True:
+        a_player_shows(the_wall.id)
+    elif shown == "waiting":
         hall = services.clients.add_client(name="Hall Pi")
         services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.open(f"#work/{work.id}")
     ui.page.locator(".page-toolbar button:text-is('Hang…')").click()
 
     consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
-    if shown:
+    if shown is True:
         expect(consequence).to_contain_text(f"Everyone in the house sees {the_wall.name} change.")
+        expect(consequence).not_to_contain_text("No Player shows")
+    elif shown == "waiting":
+        words = services.health.observe_walls().waiting[the_wall.id].words
+        assert words == f"{the_wall.name} waits for Hall Pi, which has no token yet"
+        expect(consequence).to_contain_text(f"{words}.")
+        expect(consequence).not_to_contain_text("Everyone in the house")
         expect(consequence).not_to_contain_text("No Player shows")
     else:
         expect(consequence).to_contain_text(f"No Player shows {the_wall.name} yet, so nothing shows it until one does.")

@@ -18,13 +18,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Final
 
+import player_e2e_header
 import pytest
 from fakes import FakeEngine, FakeReader, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
-from player_e2e_header import header as player_e2e_header
 from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
@@ -110,13 +110,49 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
 
 
-def pytest_report_header(config: pytest.Config) -> str:
-    """Say on every run whether its marker expression leaves out the real-Player test (`player_e2e_header.py`).
+# -- the real-Player test, said by name on every run (`player_e2e_header.py`) --------------
+#
+# Under `-n auto` pytest prints no deselected count, so without these the default suite's
+# leaving the test out would be silent. Public hooks only: the header says where the test
+# runs; what this run did with it is read from what was collected and deselected, and, under
+# xdist, handed from each worker to the controller in `workeroutput`.
 
-    Under `-n auto` pytest prints no deselected count, so without this line the
-    default suite's leaving it out would be silent.
-    """
-    return player_e2e_header(config.option.markexpr)
+_PLAYER_E2E_SEEN = pytest.StashKey[list[dict[str, bool]]]()
+_PLAYER_E2E_DESELECTED = pytest.StashKey[list[str]]()
+
+
+def pytest_report_header(config: pytest.Config) -> str:
+    """Where the real-Player test runs, and how to run it by hand: true of every run."""
+    return player_e2e_header.WHERE
+
+
+def pytest_deselected(items: Sequence[pytest.Item]) -> None:
+    for item in items:
+        item.config.stash.setdefault(_PLAYER_E2E_DESELECTED, []).append(str(item.path))
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    config = session.config
+    seen = player_e2e_header.seen((item.path for item in session.items), config.stash.get(_PLAYER_E2E_DESELECTED, []))
+    config.stash.setdefault(_PLAYER_E2E_SEEN, []).append(seen)
+    workeroutput = getattr(config, "workeroutput", None)  # set on an xdist worker, and only there
+    if isinstance(workeroutput, dict):
+        workeroutput[player_e2e_header.KEY] = seen
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node: object, error: object) -> None:
+    """An xdist worker's view of the collection, received by the controller."""
+    config = getattr(node, "config", None)
+    seen = getattr(node, "workeroutput", {}).get(player_e2e_header.KEY)
+    if isinstance(config, pytest.Config) and isinstance(seen, dict):
+        config.stash.setdefault(_PLAYER_E2E_SEEN, []).append(seen)
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter, config: pytest.Config) -> None:
+    """What this run did with the real-Player test, in one line of its own wording for each case."""
+    seen = config.stash.get(_PLAYER_E2E_SEEN, [])
+    terminalreporter.write_line(player_e2e_header.after_collection(player_e2e_header.merged(seen) if seen else None))
 
 
 @pytest.fixture(autouse=True)
@@ -252,6 +288,30 @@ def wall_id(store: SqliteCatalogue) -> str:
     walls = store.list_walls()
     assert len(walls) == 1, f"a freshly opened catalogue should have exactly one wall, found {len(walls)}"
     return walls[0].id
+
+
+@pytest.fixture
+def a_player_shows_the_wall(services: Services, wall_id: str):
+    """A Player, with a token, on the catalogue's wall: what a test needs before it writes a report for that wall.
+
+    A report for a wall is what the wall's Player sends, and a Player reports only with a token
+    (one with none is `no_token` whatever it reports: `player_state.py`), so a wall nobody shows
+    has nothing to report. A test that writes reports through `display.record_heartbeat` asks
+    for this first; one about a wall with no Player, or a Player in setup, builds that itself.
+    The Player is set up all the way: token issued, wall placed on its output, and it has
+    reported that output.
+    """
+    client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
+    services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
+    services.clients.record_heartbeat(
+        client.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
+    return client
 
 
 @pytest.fixture
@@ -1106,7 +1166,7 @@ def build_catalogue(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
-def every_feed_keeps_the_contract(monkeypatch):
+def every_feed_keeps_the_contract() -> Iterator[None]:
     """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`).
 
     **Patched where the publisher looks the builder up**, `feeds.py`'s namespace.
@@ -1117,6 +1177,16 @@ def every_feed_keeps_the_contract(monkeypatch):
     every publish, `atomic.promote`, which is looked up on the module and so
     reaches every caller) while the guard checked no feed fails at teardown,
     naming the feeds it never saw.
+
+    **Its patches are its own, not the test's `monkeypatch`.** Until 2026-11-20
+    they were made through the test's `monkeypatch`, so a test calling
+    `monkeypatch.undo()` to lift its own patch mid-test lifted the guard's too, and
+    every feed it published afterwards went unchecked. A test that replaces
+    either guarded name itself fails at teardown by name, rather than leaving a
+    patch the guard's own undo cannot order against.
+
+    A server run as a process is out of this patch's reach: `tests/system/conftest.py`
+    checks the feeds it leaves on disk, in addition to this, never instead.
     """
     from fnmatch import fnmatch
     from pathlib import Path
@@ -1140,9 +1210,23 @@ def every_feed_keeps_the_contract(monkeypatch):
         if fnmatch(Path(destination).name, a_feed):
             promoted.append(Path(destination).name)
 
-    monkeypatch.setattr(feeds_module, "as_v2_document", counted)
-    monkeypatch.setattr(atomic, "promote", promote)
-    yield
+    patches = pytest.MonkeyPatch()
+    patches.setattr(feeds_module, "as_v2_document", counted)
+    patches.setattr(atomic, "promote", promote)
+    try:
+        yield
+        replaced = [
+            name
+            for name, held, ours in (
+                ("feeds.as_v2_document", feeds_module.as_v2_document, counted),
+                ("atomic.promote", atomic.promote, promote),
+            )
+            if held is not ours
+        ]
+    finally:
+        patches.undo()
+    if replaced:
+        pytest.fail(f"the test replaced {', '.join(replaced)}, which the feed guard patches; patch what it calls instead")
     if promoted and not checked:
         pytest.fail(
             f"The feed guard checked no feed, yet {len(promoted)} feed(s) were published ({', '.join(sorted(set(promoted)))}): "

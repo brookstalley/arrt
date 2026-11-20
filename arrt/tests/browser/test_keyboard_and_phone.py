@@ -307,7 +307,9 @@ def test_the_status_indicator_still_says_a_change(ui, seeded_service, a_health_r
     ui.open("#collection")
     ui.page.wait_for_selector("#status[data-state='well']")
     ui.page.evaluate("() => { location.hash = '#walls'; }")
-    ui.page.wait_for_selector("#status[data-state='unwell']")
+    # No wall recorded is a setup step, neither
+    # well nor a problem: the reading still moved, and is written.
+    ui.page.wait_for_selector("#status[data-state='setup']")
 
 
 def test_a_review_note_field_is_named_for_its_work(ui):
@@ -335,6 +337,20 @@ def test_a_table_wider_than_its_box_takes_the_keyboard(ui, a_health_reading):
     ui.open("#to_review")
     box = ui.page.locator("#view .table-scroll").first
     box.wait_for()
+    # Asserted once the client's observer has had its say. An absence passes at
+    # once (hazard 6), and a fitting box shows nothing when it is settled, so
+    # the anchor is an observer of the test's own on the box and its table:
+    # created after the client's, its first report comes in the same rendering
+    # step as the client's or a later one, and within a step observers report
+    # in the order they were made (the ResizeObserver spec's broadcast). A box
+    # marked a stop when it was first measured is then marked when this reads.
+    box.evaluate("""(node) => {
+          window.__boxMeasured = 0;
+          const seen = new ResizeObserver((entries) => { window.__boxMeasured += entries.length; });
+          seen.observe(node);
+          seen.observe(node.querySelector("table"));
+        }""")
+    ui.page.wait_for_function("() => window.__boxMeasured >= 2")
     expect(box, "a table that fits became a stop on nothing").not_to_have_attribute("tabindex")
     ui.page.evaluate("() => { document.querySelector('#view .table-scroll table').style.minWidth = '3000px'; }")
     ui.page.wait_for_function("() => document.querySelector('#view .table-scroll').getAttribute('tabindex') === '0'")

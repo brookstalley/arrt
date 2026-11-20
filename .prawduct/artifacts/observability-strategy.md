@@ -579,7 +579,10 @@ vouch for a recent one, so the pass runs and says why at WARNING
 (`backup.unlisted`). Before a migration that drops a column or a table, the server
 copies the catalogue (`operational-spec.md` § Backup and Restore): INFO
 `catalogue.snapshot_taken` names the copy, what the migration would drop and the
-copies pruned; INFO `catalogue.snapshot_kept` that an earlier copy stands, taken in
+copies pruned (its `drops` list carries a rise of the shape generation as one more
+item, worded "the catalogue shape generation from 1 to 2", and `SnapshotFailed` says
+it as a rise, never as something dropped: wave 2b, Chunk 49, `persistence/migrations.py`
+`ShapeGenerationRise`); INFO `catalogue.snapshot_kept` that an earlier copy stands, taken in
 the same second or before the migrations a failed start left unfinished; WARNING
 `catalogue.snapshot_prune_failed` that an older copy could not be removed, which
 stops nothing; and ERROR `catalogue.snapshot_failed` that the copy could
@@ -644,7 +647,11 @@ the panel names every installed plugin and what became of it.
   comes, is dropped with `source.plugin_late` (WARNING); a plugin with four such
   calls still running is answered "could not be asked" at once, without a call.
   The pool does the same for a source it stops waiting for (`image_pool.late`,
-  WARNING). The panel's sentence for a plugin that has answered "could not be
+  WARNING). A call the run stopped waiting for while still inside its deadline is
+  *owed*, and while a plugin owes one no other is started there by a pass going from
+  work to work (a look, a preview or Ask makes its one call and is never refused for it;
+  `image_pool.still_asking`, `source.plugin_still_asking`, in the table below;
+  `docs/source-plugins.md` § Deadlines). The panel's sentence for a plugin that has answered "could not be
   asked" and nothing else since startup says so and how many times, where it used
   to read "loaded, 0 faults": a museum page the parser no longer recognises is no
   fault, and without that sentence it was invisible. Two loaded plugins claiming
@@ -679,6 +686,60 @@ the panel names every installed plugin and what became of it.
   Wikidata item, which have no key to be kept under). The count by host is a
   query (`GET /api/sightings/hosts`), not a panel signal: it chooses the next
   reader, and is read when that choice is being made.
+
+### The one health model, and what wave 2b adds to the journal (2026-11-20)
+
+**One story about the walls and the Players** (`build-plan-audit-wave-2b.md` Chunks 30,
+31, 40 and 60; `arrt/src/arrt/services/health.py`). `GET /api/health` and
+`art_display(action='status')` answer, beside the readings above, `troubles` (each a
+fault the household should hear of, `about` one of `wall`, `player`, `display_fault`,
+`backup`, `source`, `watch` and `failed_fetches`: `TroubleKind`) and `setup_steps` (each a step not yet taken: no wall
+recorded, a wall no Player shows, a Player with no token or no first report). The top
+bar and the System badge count troubles and never setup steps; the words of a wall's
+and a Player's states are the contract's `vocabulary.json` (`display_states`,
+`player_states`), quoted by the server with a test against the package. A Player not
+heard from and the walls it shows are one trouble, stated on the Player and naming the
+walls. **Works the queue holds as failed are a health observation** (`failed_fetches`:
+how many, how many will be retried and how many were given up on, and the age of the
+newest failure from `acquisition_queue.failed_at`; `age_unknown` counts failures written
+before that column, whose time is not guessed), linking to Activity › Queue. Nothing of
+it is persisted (`data-model.md` § Player observation). **One step for one cause**
+(Chunk 62, `walls_waiting` and `HealthReading.setup_steps`): a Player with no token, or
+with one and no first report, is one setup step naming the walls that wait for it ("The
+living room Pi has no token yet, so The hall and The study wait for it"), and a wall
+waiting for it is neither a step nor a trouble of its own. Such a wall's `display_state`
+stays `silent`, the state a Player's label already carries (a new state would change the
+contract), and `GET /api/health` says beside it whom it waits for, `waiting_for`
+(`{client_id, name, state, words}`), which Status's panel and the Walls card read. A wall
+waits only while its Player is being set up and nothing was ever written for it, or its
+Player has no token; a wall whose reports came and stopped is a trouble, as it always
+was.
+
+**What the journal gains**, each line JSON with its `event` (`arrt/src/arrt/logs.py`):
+
+| Event | Level | Says |
+|---|---|---|
+| `acquisition.failed` | INFO | a fetch failed with a classified outcome, naming `outcome` and `plugin` (`library/acquisition/service.py`) |
+| `acquisition.queue_failed`, `acquisition.queue_gave_up` | as above | now carry `outcome` and `rule`, the retry rule the outcome chose (`RETRY_RULES`, `library/acquisition/queue.py`) |
+| `image_pool.link_gone` | INFO | a source answered that every page the work's Wikidata item links at it is gone (interface 1.6), named apart from could-not-be-asked |
+| `image_pool.owed` | INFO | phase 2 stopped waiting for a source at the look's 30 s window; its answer is owed to the work's search record |
+| `phase_two.judged` | as before | gains `owed`, the sources still owed an answer when the run settled the work, and `gone`, those that answered every linked page is gone (`library/discovery/phase_two.py`) |
+| `image_pool.late` | WARNING | gains `recorded`: whether the late answer was written to the search record for the work's next pass, or discarded |
+| `image_pool.search_unrecorded` | WARNING | a search's record could not be written; dropped by name, never raised on the run (`library/discovery/pool.py`) |
+| `image_pool.still_asking` | INFO | a run, inside its pass over its works, did not ask a source about a work because the source still owes another work an answer (`OWED_CALLS_PER_PLUGIN`, one), whether the pool's own check or the plugin's wrapper refused it: the one line for a run's refusal; the work is not asked there, no search is written, with `provider`, `work_title` and `owed` (`library/discovery/pool.py`) |
+| `source.plugin_still_asking` | INFO | within the acquisition queue's pass (a caller that waits for every call it makes), a search or a read was not started at a plugin that owes a call already; a run's refusals are `image_pool.still_asking` and do not write this line; with `plugin`, `operation`, `owed` and `under_way`; the work is left as it was, nothing counted against the plugin (`library/sources/loading.py`) |
+| `source.plugin_held_back` | WARNING | once per pass per plugin: after three could-not-be-asked answers in a row (`HOLD_BACK_AFTER`) the rest of the pass did not ask it, with `not_asked` and `after`; the works not asked are left exactly as they were (`library/sources/loading.py`) |
+| `spend.cost_unknown` | WARNING | a paid call was sent and never said what it cost; its spend row is recorded with cost unknown (`spend_id`, `category`, `model_id`, `run_id`) |
+| `feeds.reconciled` | INFO | the periodic reconciliation corrected a feed: `walls`, `republished`, `refused`, `cause`, `startup` (`programming/feeds.py`) |
+| `feed.over_bound` | WARNING | a feed would exceed the contract's `max_bytes` and was not published; the wall keeps its old feed; said once per wall |
+| `scheduler.pass` | INFO | now also once per pass for the job `feeds`, which reconciles at the first pass and every sixth (`RECONCILE_EVERY_PASSES`, thirty minutes); its counts are walls looked at, walls rewritten and works refused |
+| `client.request_refused`, `client.token_issued` | WARNING, INFO | gain the `event` field they lacked (`programming/access.py`) |
+
+Ask's reply line (`arrt.ask`, § Signals) gains `unanswered=`: the model calls that
+may have run and been billed with nobody told (no status, a 5xx or a 408), apart from
+an answered refusal (`arrt/src/arrt/ask/agent.py`). Since Chunk 62 each such call, and
+each call the provider answered without saying what it cost, is a spend row of its own
+marked unknown, never a known $0 (`app._record_ask_cost`, `arrt/src/arrt/app.py`).
 
 ### The panel shows staleness in absolute terms
 
@@ -812,9 +873,11 @@ already has somebody watching it.
 **The schedule stopped firing.** Nothing above can fire, because no job runs.
 This is the same shape as the topic sweep's `topics.swept`: the positive
 signal is a successful run, and its *absence* over an interval is the fault.
-`drift-freshness.yml` measures how long since each tier last
-succeeded — **free after 21 days, paid after 75** — reading the tiers apart,
-because a healthy monthly run would otherwise vouch for three missed Mondays.
+`drift-freshness.yml` measures how long since the free tier last
+succeeded — **past 21 days fails** (`STALE_AFTER`). *(Until audit wave 2b's Chunk 66,
+2026-11-20, it read a paid tier apart too, past 75 days; the paid probe left CI by
+the owner's ruling that CI makes no paid call, and is run by hand, so there is no
+paid tier to watch.)*
 Both known routes land here: a workflow not on the default branch has never run,
 and a schedule GitHub disabled for repository inactivity stops refreshing. A tier whose only red probes are unexpired known-blocked rows counts fresh, by the
 job's own conclusion; what this check owns of the file is its age, since a row that
@@ -944,5 +1007,5 @@ signal exists:
 | Mat colour degraded to the dominant-colour fallback | Recorded on the record itself (`MatColor.method`), not merely logged. The 2024 code degrades invisibly |
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
 | A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. A probe listed in `.github/known-blocked.json` (cause not established, expiry within 60 days) is excused and named in the summary instead, and only a probe that is red and not listed opens one. See § The one surface the panel does not cover |
-| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
-| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request, after a lint step of ruff and black (the type check runs on the pool, in the governance suite's type gate); when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, never the browser suite, and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
+| The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days for the free tier, the only one CI runs since wave 2b's Chunk 66 (the paid probe is run by hand). Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
+| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares but `image` (governance, curation, browser, contract, and since wave 2b's Chunk 29 `player`, the real-Player test) on testament's pool on every pull request (`image`, the server image's test stage, needs a run signed with an owner secret CI's key does not hold, and is run from a machine doing the work: Chunk 65, `NOT_CI` in `pool_or_fallback.py`), after a lint step of ruff and black (the type check runs on the pool, in the governance suite's type gate); when the pool cannot answer for ten minutes it runs lint and the governance, curation and contract suites on the GitHub runner instead, each from the manifest's own command (`pool_or_fallback.py fallback --suite`, Chunk 52), never the browser or real-Player suite (`LEFT_OUT`, by the owner's ruling of 2026-11-20), and the job summary opens with one line saying where it ran (`.github/scripts/pool_or_fallback.py`), so a green check is "every suite" only when it says it ran on the pool. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on a pull request into `main`, which is a release, and when run by hand, and on no other pull request (since wave 2b's Chunk 56; it had built on any pull request that changed the image's environment, a step now gone). What that costs before `develop`: a Dockerfile, lockfile or interpreter change that no longer builds, or a test that passes only as the files' owner, is met at the pull request into `main`; `tests/test_the_image_carries_what_tests_read.py` holds what the image's test stage copies against what the tests open. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |

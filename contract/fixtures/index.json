@@ -1,131 +1,356 @@
 {
-  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which. For major 2, a Player refuses what it acts on (shape it reads, instants, the semantic rules) and never a presentation setting, which it ignores where it cannot honour it (player-contract.md \u00a7 Presentation settings). For invalid client heartbeats, server_must_refuse says whether the server refuses the report with 400 and records nothing (true), or keeps it and ignores what breaks the rule (false): the server is that document's reader, and a reader may be more tolerant than the schema.",
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which. For major 2, a Player refuses what it acts on (shape it reads, instants, the semantic rules) and never a presentation setting, which it ignores where it cannot honour it (player-contract.md \u00a7 Presentation settings). For invalid client heartbeats, server_must_refuse says whether the server refuses the report with 400 and records nothing (true), or keeps it and ignores what breaks the rule (false): the server is that document's reader, and a reader may be more tolerant than the schema. Since 1.3.0 every invalid fixture also names the one constraint it breaks (constraint: a schema keyword as schemas/<file>#<JSON pointer>, or for a rule no schema states the words semantic_errors reports for it) and says why it is refused (refused_because, a sentence for a person), and every constraint a schema states has a fixture that breaks it alone; contract/tests/test_schemas_and_fixtures.py says what counts as a constraint. Rules no schema states are the manifest's and, since 1.3.0, the client heartbeat's: no two outputs, and no two label outputs, share a name.",
   "fixtures": [
     {
       "path": "fixtures/client-heartbeat.v1/invalid/connected-not-a-boolean.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/connected/type",
+      "refused_because": "outputs[].connected must be true or false."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/document-not-an-object.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/type",
+      "refused_because": "the document must be an object."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/identity-empty.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/identity/minLength",
+      "refused_because": "outputs[].identity must not be empty."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/kind-unknown.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/kind/enum",
+      "refused_because": "outputs[].kind must be one of \"frame\", \"framebuffer\"."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-connected-not-a-boolean.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/connected/type",
+      "refused_because": "label_outputs[].connected must be true or false."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-kind-unknown.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/kind/enum",
+      "refused_because": "label_outputs[].kind must be one of \"epaper\"."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-missing-size.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/required",
+      "refused_because": "label_outputs[] must carry size."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-name-empty.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/name/minLength",
+      "refused_because": "label_outputs[].name must not be empty."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-name-not-text.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/name/type",
+      "refused_because": "label_outputs[].name must be text."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-not-an-object.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/type",
+      "refused_because": "label_outputs[] must be an object."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-size-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/size/minItems",
+      "refused_because": "label_outputs[].size must hold at least 2 items."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-size-not-a-list-or-null.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/size/type",
+      "refused_because": "label_outputs[].size must be a list or null."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-size-not-a-whole-number.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/size/items/type",
+      "refused_because": "label_outputs[].size[] must be a whole number."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-size-of-three.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/size/maxItems",
+      "refused_because": "label_outputs[].size must hold at most 2 items."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-size-zero.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/items/properties/size/items/minimum",
+      "refused_because": "label_outputs[].size[] must be at least 1."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-outputs-not-a-list.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/label_outputs/type",
+      "refused_because": "label_outputs must be a list."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-identity-not-text.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/identity/type",
+      "refused_because": "outputs[].identity must be text."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/output-missing-screen.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/required",
+      "refused_because": "outputs[] must carry screen."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/output-name-empty.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/name/minLength",
+      "refused_because": "outputs[].name must not be empty."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-name-not-text.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/name/type",
+      "refused_because": "outputs[].name must be text."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-not-an-object.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/type",
+      "refused_because": "outputs[] must be an object."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-screen-not-a-list-or-null.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/screen/type",
+      "refused_because": "outputs[].screen must be a list or null."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-screen-not-a-whole-number.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/screen/items/type",
+      "refused_because": "outputs[].screen[] must be a whole number."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-screen-of-three.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/screen/maxItems",
+      "refused_because": "outputs[].screen must hold at most 2 items."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-screen-zero.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/screen/items/minimum",
+      "refused_because": "outputs[].screen[] must be at least 1."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/outputs-not-a-list.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/type",
+      "refused_because": "outputs must be a list."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/reported-at-malformed.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/reported_at/pattern",
+      "refused_because": "reported_at must be an RFC 3339 instant with an offset."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/reported-at-not-text.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/reported_at/type",
+      "refused_because": "reported_at must be text."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/screen-not-a-pair.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/outputs/items/properties/screen/minItems",
+      "refused_because": "outputs[].screen must hold at least 2 items."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/settings-url-javascript.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": false
+      "server_must_refuse": false,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/settings_url/pattern",
+      "refused_because": "settings_url must be an absolute http or https URL with no user information, query or fragment."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/settings-url-null.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": false
+      "server_must_refuse": false,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/settings_url/type",
+      "refused_because": "settings_url must be text."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/settings-url-with-a-fragment.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": false
+      "server_must_refuse": false,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/settings_url/pattern",
+      "refused_because": "settings_url must be an absolute http or https URL with no user information, query or fragment."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/settings-url-with-a-query.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": false
+      "server_must_refuse": false,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/settings_url/pattern",
+      "refused_because": "settings_url must be an absolute http or https URL with no user information, query or fragment."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/settings-url-with-user-information.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": false
+      "server_must_refuse": false,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/properties/settings_url/pattern",
+      "refused_because": "settings_url must be an absolute http or https URL with no user information, query or fragment."
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema",
-      "server_must_refuse": true
+      "server_must_refuse": true,
+      "constraint": "schemas/client-heartbeat.v1.schema.json#/required",
+      "refused_because": "the document must carry reported_at."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/thirty-three-label-outputs.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "more than 32 label outputs",
+      "refused_because": "A report carries at most 32 label outputs, and the server keeps a row for each one a report names."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/thirty-three-outputs.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "more than 32 outputs",
+      "refused_because": "A report carries at most 32 outputs, and the server keeps a row for each one a report names."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/two-label-outputs-of-one-name.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "two label outputs share a name",
+      "refused_because": "Two label outputs share a name, and a label is placed on a label output by its name."
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/two-outputs-of-one-name.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "server_must_refuse": true,
+      "constraint": "two outputs share a name",
+      "refused_because": "Two outputs share a name, and a wall is placed on an output by its name."
     },
     {
       "path": "fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json",
@@ -163,46 +388,220 @@
       "valid": true
     },
     {
+      "path": "fixtures/client.v1/invalid/client-id-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/client_id/minLength",
+      "refused_because": "client_id must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/client-id-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/client_id/type",
+      "refused_because": "client_id must be text."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/document-missing-client-id.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/required",
+      "refused_because": "the document must carry client_id."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/document-not-an-object.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/type",
+      "refused_because": "the document must be an object."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-label-id-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/label_id/minLength",
+      "refused_because": "labels[].label_id must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-label-id-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/label_id/type",
+      "refused_because": "labels[].label_id must be text."
+    },
+    {
       "path": "fixtures/client.v1/invalid/label-missing-wall-id.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/required",
+      "refused_because": "labels[] must carry wall_id."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-not-an-object.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/type",
+      "refused_because": "labels[] must be an object."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-output-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/output/minLength",
+      "refused_because": "labels[].output must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-output-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/output/type",
+      "refused_because": "labels[].output must be text."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-wall-id-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/wall_id/minLength",
+      "refused_because": "labels[].wall_id must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-wall-id-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/properties/wall_id/type",
+      "refused_because": "labels[].wall_id must be text."
     },
     {
       "path": "fixtures/client.v1/invalid/labels-not-a-list.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/type",
+      "refused_because": "labels must be a list."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/name-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/name/minLength",
+      "refused_because": "name must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/name-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/name/type",
+      "refused_because": "name must be text."
     },
     {
       "path": "fixtures/client.v1/invalid/several-labels-one-without-an-output.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/labels/items/required",
+      "refused_because": "labels[] must carry output."
     },
     {
       "path": "fixtures/client.v1/invalid/wall-display-empty.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/display/minLength",
+      "refused_because": "walls[].display must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-display-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/display/type",
+      "refused_because": "walls[].display must be text."
     },
     {
       "path": "fixtures/client.v1/invalid/wall-missing-output.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/required",
+      "refused_because": "walls[] must carry output."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-name-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/name/minLength",
+      "refused_because": "walls[].name must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-name-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/name/type",
+      "refused_because": "walls[].name must be text."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-not-an-object.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/type",
+      "refused_because": "walls[] must be an object."
     },
     {
       "path": "fixtures/client.v1/invalid/wall-output-empty.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/output/minLength",
+      "refused_because": "walls[].output must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-output-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/output/type",
+      "refused_because": "walls[].output must be text."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-wall-id-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/wall_id/minLength",
+      "refused_because": "walls[].wall_id must not be empty."
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-wall-id-not-text.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/items/properties/wall_id/type",
+      "refused_because": "walls[].wall_id must be text."
     },
     {
       "path": "fixtures/client.v1/invalid/walls-not-a-list.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/client.v1.schema.json#/properties/walls/type",
+      "refused_because": "walls must be a list."
     },
     {
       "path": "fixtures/client.v1/valid/a-label-and-no-walls.json",
@@ -235,76 +634,476 @@
       "valid": true
     },
     {
+      "path": "fixtures/heartbeat.v1/invalid/announced-content-id-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/announced_content_id/type",
+      "refused_because": "announced_content_id must be text or null."
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/backend-unknown.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/backend/enum",
+      "refused_because": "capabilities.backend must be one of \"frame\", \"framebuffer\"."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-label-modes-not-a-list.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/label_modes/type",
+      "refused_because": "capabilities.label_modes must be a list."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-label-modes-repeated.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/label_modes/uniqueItems",
+      "refused_because": "capabilities.label_modes must not list an item twice."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-manifest-major-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/manifest_majors/items/type",
+      "refused_because": "capabilities.manifest_majors[] must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-manifest-major-zero.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/manifest_majors/items/minimum",
+      "refused_because": "capabilities.manifest_majors[] must be at least 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-manifest-majors-empty.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/manifest_majors/minItems",
+      "refused_because": "capabilities.manifest_majors must not be empty."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-manifest-majors-not-a-list.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/manifest_majors/type",
+      "refused_because": "capabilities.manifest_majors must be a list."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-manifest-majors-repeated.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/manifest_majors/uniqueItems",
+      "refused_because": "capabilities.manifest_majors must not list an item twice."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-kinds-not-a-list.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/kinds/type",
+      "refused_because": "capabilities.media.kinds must be a list."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-kinds-repeated.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/kinds/uniqueItems",
+      "refused_because": "capabilities.media.kinds must not list an item twice."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-missing-kinds.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/required",
+      "refused_because": "capabilities.media must carry kinds."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/type",
+      "refused_because": "capabilities.media must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-height-px-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/properties/height_px/type",
+      "refused_because": "capabilities.media.video_max_frame.height_px must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-height-px-zero.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/properties/height_px/minimum",
+      "refused_because": "capabilities.media.video_max_frame.height_px must be at least 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-missing-width-px.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/required",
+      "refused_because": "capabilities.media.video_max_frame must carry width_px."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/type",
+      "refused_because": "capabilities.media.video_max_frame must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-width-px-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/properties/width_px/type",
+      "refused_because": "capabilities.media.video_max_frame.width_px must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-media-video-max-frame-width-px-zero.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/video_max_frame/properties/width_px/minimum",
+      "refused_because": "capabilities.media.video_max_frame.width_px must be at least 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-missing-backend.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/required",
+      "refused_because": "capabilities must carry backend."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/type",
+      "refused_because": "capabilities must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-height-px-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/properties/height_px/type",
+      "refused_because": "capabilities.screen.height_px must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-height-px-zero.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/properties/height_px/minimum",
+      "refused_because": "capabilities.screen.height_px must be at least 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-missing-width-px.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/required",
+      "refused_because": "capabilities.screen must carry width_px."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/type",
+      "refused_because": "capabilities.screen must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-width-px-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/properties/width_px/type",
+      "refused_because": "capabilities.screen.width_px must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/capabilities-screen-width-px-zero.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/screen/properties/width_px/minimum",
+      "refused_because": "capabilities.screen.width_px must be at least 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/current-work-id-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/current_work_id/type",
+      "refused_because": "current_work_id must be text or null."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/display-state-in-use-naming-a-work.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/then/properties/work_id/const",
+      "refused_because": "display_state.work_id must be null unless the state is showing_art."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-missing-state.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/required",
+      "refused_because": "display_state must carry state."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/type",
+      "refused_because": "display_state must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-since-not-text.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/properties/since/type",
+      "refused_because": "display_state.since must be text."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/display-state-since-without-offset.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/properties/since/pattern",
+      "refused_because": "display_state.since must be an RFC 3339 instant with an offset."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/display-state-unknown.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/properties/state/enum",
+      "refused_because": "display_state.state must be one of \"showing_art\", \"in_use\", \"dark\", \"no_screen\", \"unreachable\"."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-with-an-unknown-key.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/additionalProperties",
+      "refused_because": "display_state must carry no key but state, work_id, since."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-work-id-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/display_state/properties/work_id/type",
+      "refused_because": "display_state.work_id must be text or null."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/document-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/type",
+      "refused_because": "the document must be an object."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/has-label-surface-null.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/has_label_surface/type",
+      "refused_because": "has_label_surface must be true or false."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/label-mode-panel.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/label_modes/items/enum",
+      "refused_because": "capabilities.label_modes[] must be one of \"none\", \"caption\", \"overlay\"."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/label-surface-working-not-a-boolean-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/label_surface_working/type",
+      "refused_because": "label_surface_working must be true, false or null."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/last-error-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/last_error/type",
+      "refused_because": "last_error must be text or null."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/manifest_schema/pattern",
+      "refused_because": "manifest_schema must be a major and a minor, as 1.4."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/manifest_schema/type",
+      "refused_because": "manifest_schema must be text or null."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/media-kind-unknown.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/kinds/items/enum",
+      "refused_because": "capabilities.media.kinds[] must be one of \"image\", \"animated\", \"video\"."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/media-kinds-empty.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/properties/kinds/minItems",
+      "refused_because": "capabilities.media.kinds must not be empty."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/no-label-modes.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/label_modes/minItems",
+      "refused_because": "capabilities.label_modes must not be empty."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/reported-at-malformed.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/reported_at/pattern",
+      "refused_because": "reported_at must be an RFC 3339 instant with an offset."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/reported-at-not-text.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/reported_at/type",
+      "refused_because": "reported_at must be text."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/scene-id-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/scene_id/type",
+      "refused_because": "scene_id must be text or null."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/schema-major-wrong.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/schema/properties/major/const",
+      "refused_because": "schema.major must be 1."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/schema-minor-negative.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/schema/properties/minor/minimum",
+      "refused_because": "schema.minor must be at least 0."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/schema-minor-not-a-whole-number.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/schema/properties/minor/type",
+      "refused_because": "schema.minor must be a whole number."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/schema-missing-major.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/schema/required",
+      "refused_because": "schema must carry major."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/schema-not-an-object.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/schema/type",
+      "refused_because": "schema must be an object."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/television-reachable-not-a-boolean-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/television_reachable/type",
+      "refused_because": "television_reachable must be true, false or null."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/television-showing-art-not-a-boolean-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/television_showing_art/type",
+      "refused_because": "television_showing_art must be true, false or null."
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/theme-id-not-text-or-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/theme_id/type",
+      "refused_because": "theme_id must be text or null."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/required",
+      "refused_because": "the document must carry reported_at."
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/video-max-frame-without-video.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/heartbeat.v1.schema.json#/properties/capabilities/properties/media/then/properties/kinds/contains",
+      "refused_because": "capabilities.media.kinds must include \"video\" when video_max_frame is given."
     },
     {
       "path": "fixtures/heartbeat.v1/valid/as-built.json",
@@ -367,40 +1166,164 @@
       "valid": true
     },
     {
+      "path": "fixtures/label.v1/invalid/display-state-missing-work-id.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/required",
+      "refused_because": "display_state must carry work_id."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/display-state-not-an-object.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/type",
+      "refused_because": "display_state must be an object."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/display-state-since-not-text-or-null.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/properties/since/type",
+      "refused_because": "display_state.since must be text or null."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/display-state-with-an-unknown-key.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/additionalProperties",
+      "refused_because": "display_state must carry no key but state, work_id, since."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/display-state-work-id-not-text-or-null.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/properties/work_id/type",
+      "refused_because": "display_state.work_id must be text or null."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/document-not-an-object.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/type",
+      "refused_because": "the document must be an object."
+    },
+    {
       "path": "fixtures/label.v1/invalid/in-use-naming-a-work.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/then/properties/work_id/const",
+      "refused_because": "display_state.work_id must be null unless the state is showing_art."
     },
     {
       "path": "fixtures/label.v1/invalid/label-missing-title.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/label/oneOf",
+      "refused_because": "label must be null or a work's label as manifest.v2 defines it, which carries a title."
     },
     {
       "path": "fixtures/label.v1/invalid/schema-major-2.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/schema/properties/major/const",
+      "refused_because": "schema.major must be 1."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-minor-negative.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/schema/properties/minor/minimum",
+      "refused_because": "schema.minor must be at least 0."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-minor-not-a-whole-number.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/schema/properties/minor/type",
+      "refused_because": "schema.minor must be a whole number."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-missing-major.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/schema/required",
+      "refused_because": "schema must carry major."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-not-an-object.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/schema/type",
+      "refused_because": "schema must be an object."
     },
     {
       "path": "fixtures/label.v1/invalid/since-without-offset.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/properties/since/pattern",
+      "refused_because": "display_state.since must be an RFC 3339 instant with an offset."
     },
     {
       "path": "fixtures/label.v1/invalid/state-unknown.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/display_state/properties/state/enum",
+      "refused_because": "display_state.state must be one of \"showing_art\", \"in_use\", \"dark\", \"no_screen\", \"unreachable\", \"unassigned\", \"silent\"."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-id-empty.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/wall_id/minLength",
+      "refused_because": "wall_id must not be empty."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-id-not-text.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/wall_id/type",
+      "refused_because": "wall_id must be text."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-name-empty.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/wall_name/minLength",
+      "refused_because": "wall_name must not be empty."
     },
     {
       "path": "fixtures/label.v1/invalid/wall-name-missing.json",
       "schema": "schemas/label.v1.schema.json",
       "valid": false,
-      "breaks": "schema"
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/required",
+      "refused_because": "the document must carry wall_name."
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-name-not-text.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "constraint": "schemas/label.v1.schema.json#/properties/wall_name/type",
+      "refused_because": "wall_name must be text."
     },
     {
       "path": "fixtures/label.v1/valid/showing-art.json",
@@ -428,144 +1351,796 @@
       "valid": true
     },
     {
+      "path": "fixtures/manifest.v2/invalid/document-missing-schema.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/required",
+      "refused_because": "the document must carry schema."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/document-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/type",
+      "refused_because": "the document must be an object."
+    },
+    {
       "path": "fixtures/manifest.v2/invalid/fact-not-a-label-key.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/facts/items/enum",
+      "refused_because": "settings.facts[] must be one of \"title\", \"artist\", \"artist_family_name\", \"artist_given_name\", \"artist_nationality\", \"artist_dates\", \"date_created\", \"medium\", \"dimensions\", \"commentary\"."
     },
     {
       "path": "fixtures/manifest.v2/invalid/fade-negative.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/fade_seconds/minimum",
+      "refused_because": "settings.fade_seconds must be at least 0."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/generated-at-malformed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/instant/pattern",
+      "refused_because": "generated_at must be an RFC 3339 instant with an offset."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/generated-at-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/instant/type",
+      "refused_because": "generated_at must be text."
     },
     {
       "path": "fixtures/manifest.v2/invalid/horizon-not-whole-days.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "the horizon is not a whole number of days",
+      "refused_because": "The horizon is not a whole number of days."
     },
     {
       "path": "fixtures/manifest.v2/invalid/horizon-of-no-length.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "the horizon is not a whole number of days",
+      "refused_because": "The horizon is not a whole number of days."
     },
     {
       "path": "fixtures/manifest.v2/invalid/label-mode-unknown.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/label/properties/mode/enum",
+      "refused_because": "settings.label.mode must be one of \"none\", \"caption\", \"overlay\"."
     },
     {
       "path": "fixtures/manifest.v2/invalid/major-1.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schema/properties/major/const",
+      "refused_because": "schema.major must be 2."
     },
     {
       "path": "fixtures/manifest.v2/invalid/mat-color-not-hex.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/mat_color/pattern",
+      "refused_because": "works[id].mat_color must be a colour written #rrggbb in lowercase."
     },
     {
       "path": "fixtures/manifest.v2/invalid/mat-mode-unknown.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/mat/properties/mode/enum",
+      "refused_because": "settings.mat.mode must be one of \"none\", \"proportional\", \"full\"."
     },
     {
       "path": "fixtures/manifest.v2/invalid/media-missing-dimensions.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/required",
+      "refused_because": "works[id].media must carry width."
     },
     {
       "path": "fixtures/manifest.v2/invalid/media-url-empty.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/url/minLength",
+      "refused_because": "works[id].media.url must not be empty."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/playlist-id-empty.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/playlist/properties/id/minLength",
+      "refused_because": "playlist.id must not be empty."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/playlist-id-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/playlist/properties/id/type",
+      "refused_because": "playlist.id must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/playlist-missing-id.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/playlist/required",
+      "refused_because": "playlist must carry id."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/playlist-name-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/playlist/properties/name/type",
+      "refused_because": "playlist.name must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/playlist-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/playlist/type",
+      "refused_because": "playlist must be an object."
     },
     {
       "path": "fixtures/manifest.v2/invalid/scene-ends-before-it-starts.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "the scene ends before it starts",
+      "refused_because": "The scene ends before it starts."
     },
     {
       "path": "fixtures/manifest.v2/invalid/scene-names-a-work-not-in-works.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a work is named that is not in works",
+      "refused_because": "A work is named that is not in works."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/scene-neither-null-nor-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/scene/oneOf",
+      "refused_because": "scene must be null or an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-horizon-missing-from.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schedule/properties/horizon/required",
+      "refused_because": "schedule.horizon must carry from."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-horizon-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schedule/properties/horizon/type",
+      "refused_because": "schedule.horizon must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-missing-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schedule/required",
+      "refused_because": "schedule must carry horizon."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schedule/type",
+      "refused_because": "schedule must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-slot-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/slot/type",
+      "refused_because": "schedule.slots[] must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-slot-work-id-empty.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/slot/properties/work_id/minLength",
+      "refused_because": "schedule.slots[].work_id must not be empty."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-slot-work-id-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/slot/properties/work_id/type",
+      "refused_because": "schedule.slots[].work_id must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schedule-slots-not-a-list.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schedule/properties/slots/type",
+      "refused_because": "schedule.slots must be a list."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schema-minor-negative.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schema/properties/minor/minimum",
+      "refused_because": "schema.minor must be at least 0."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schema-minor-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schema/properties/minor/type",
+      "refused_because": "schema.minor must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schema-missing-major.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schema/required",
+      "refused_because": "schema must carry major."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/schema-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/schema/type",
+      "refused_because": "schema must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-facts-not-a-list.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/facts/type",
+      "refused_because": "settings.facts must be a list."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-facts-repeated.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/facts/uniqueItems",
+      "refused_because": "settings.facts must not list an item twice."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-fade-seconds-not-a-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/fade_seconds/type",
+      "refused_because": "settings.fade_seconds must be a number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-label-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/label/type",
+      "refused_because": "settings.label must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-mat-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/mat/type",
+      "refused_because": "settings.mat must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/type",
+      "refused_because": "settings must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-overlay-lead-seconds-negative.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/overlay/properties/lead_seconds/minimum",
+      "refused_because": "settings.overlay.lead_seconds must be at least 0."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-overlay-lead-seconds-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/overlay/properties/lead_seconds/type",
+      "refused_because": "settings.overlay.lead_seconds must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-overlay-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/overlay/type",
+      "refused_because": "settings.overlay must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-overlay-tail-seconds-negative.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/overlay/properties/tail_seconds/minimum",
+      "refused_because": "settings.overlay.tail_seconds must be at least 0."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-overlay-tail-seconds-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/overlay/properties/tail_seconds/type",
+      "refused_because": "settings.overlay.tail_seconds must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-text-scale-not-a-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/text_scale/type",
+      "refused_because": "settings.text_scale must be a number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-text-scale-zero.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/text_scale/exclusiveMinimum",
+      "refused_because": "settings.text_scale must be more than 0."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-viewing-distance-m-not-a-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/viewing_distance_m/type",
+      "refused_because": "settings.viewing_distance_m must be a number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/settings-viewing-distance-m-zero.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/settings/properties/viewing_distance_m/exclusiveMinimum",
+      "refused_because": "settings.viewing_distance_m must be more than 0."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-ends-before-it-starts.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a slot ends before it starts",
+      "refused_because": "A slot ends before it starts."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-missing-until.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/slot/required",
+      "refused_because": "schedule.slots[] must carry until."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-names-a-work-not-in-works.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a work is named that is not in works",
+      "refused_because": "A work is named that is not in works."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-outside-the-horizon.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a slot falls outside the horizon",
+      "refused_because": "A slot falls outside the horizon."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slot-starts-before-the-horizon.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a slot falls outside the horizon",
+      "refused_because": "A slot falls outside the horizon."
     },
     {
       "path": "fixtures/manifest.v2/invalid/slots-overlap.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "slots overlap or are out of order",
+      "refused_because": "Slots overlap or are out of order."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-empty.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/staging/items/minLength",
+      "refused_because": "staging[] must not be empty."
     },
     {
       "path": "fixtures/manifest.v2/invalid/staging-names-a-work-not-in-works.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "semantics",
-      "player_must_refuse": true
+      "player_must_refuse": true,
+      "constraint": "a work is named that is not in works",
+      "refused_because": "A work is named that is not in works."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-not-a-list.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/staging/type",
+      "refused_because": "staging must be a list."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/staging/items/type",
+      "refused_because": "staging[] must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-repeated.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/staging/uniqueItems",
+      "refused_because": "staging must not list an item twice."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-artist-dates-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/artist_dates/type",
+      "refused_because": "works[id].label.artist_dates must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-artist-family-name-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/artist_family_name/type",
+      "refused_because": "works[id].label.artist_family_name must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-artist-given-name-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/artist_given_name/type",
+      "refused_because": "works[id].label.artist_given_name must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-artist-nationality-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/artist_nationality/type",
+      "refused_because": "works[id].label.artist_nationality must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-artist-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/artist/type",
+      "refused_because": "works[id].label.artist must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-commentary-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/commentary/type",
+      "refused_because": "works[id].label.commentary must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-date-created-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/date_created/type",
+      "refused_because": "works[id].label.date_created must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-dimensions-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/dimensions/type",
+      "refused_because": "works[id].label.dimensions must be text or null."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-medium-not-text-or-null.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/medium/type",
+      "refused_because": "works[id].label.medium must be text or null."
     },
     {
       "path": "fixtures/manifest.v2/invalid/work-label-missing-title.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema",
-      "player_must_refuse": false
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/required",
+      "refused_because": "works[id].label must carry title."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/type",
+      "refused_because": "works[id].label must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-title-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/label/properties/title/type",
+      "refused_because": "works[id].label.title must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-mat-color-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/mat_color/type",
+      "refused_because": "works[id].mat_color must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-bytes-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/bytes/type",
+      "refused_because": "works[id].media.bytes must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-bytes-zero.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/bytes/minimum",
+      "refused_because": "works[id].media.bytes must be at least 1."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-content-type-unknown.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/content_type/enum",
+      "refused_because": "works[id].media.content_type must be one of \"image/jpeg\", \"image/png\"."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-height-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/height/type",
+      "refused_because": "works[id].media.height must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-height-zero.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/height/minimum",
+      "refused_because": "works[id].media.height must be at least 1."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/type",
+      "refused_because": "works[id].media must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-sha256-malformed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/sha256/pattern",
+      "refused_because": "works[id].media.sha256 must be 64 lowercase hexadecimal digits."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-sha256-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/sha256/type",
+      "refused_because": "works[id].media.sha256 must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-url-not-text.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/url/type",
+      "refused_because": "works[id].media.url must be text."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-width-not-a-whole-number.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/width/type",
+      "refused_because": "works[id].media.width must be a whole number."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-media-width-zero.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/properties/media/properties/width/minimum",
+      "refused_because": "works[id].media.width must be at least 1."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-missing-media.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/required",
+      "refused_because": "works[id] must carry media."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/$defs/work/type",
+      "refused_because": "works[id] must be an object."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/works-keyed-by-an-empty-id.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/works/propertyNames/minLength",
+      "refused_because": "every key of works must be non-empty."
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/works-not-an-object.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true,
+      "constraint": "schemas/manifest.v2.schema.json#/properties/works/type",
+      "refused_because": "works must be an object."
     },
     {
       "path": "fixtures/manifest.v2/valid/a-day-with-dark-hours.json",

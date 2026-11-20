@@ -55,37 +55,44 @@ def records(services, discovery, run, resolved_work, propose, ready_work):
 
 
 def screens(records):
+    """Each screen, with what only its settled paint has: the thing that dates it
+    where it shows a date, else what it draws from the records above.
+
+    One anchor per screen, because no one condition stands for twelve: a wait
+    met by the first paint (the heading, the placeholder) would read the page
+    before the dates the records put there were drawn."""
     return [
-        "#to_review",
-        "#queue",
-        "#history",
-        "#wanted",
-        "#discover",
-        "#clients",
-        "#walls",
-        "#health",
-        f"#get/{records['run']}",
-        f"#get/{records['other']}",
-        f"#review/{records['run']}",
-        f"#work/{records['work']}",
+        ("#to_review", "#view tbody time[datetime]"),
+        ("#queue", "#view tbody time[datetime]"),
+        ("#history", "#view .history-events li time[datetime]"),
+        ("#wanted", "#view .wanted tbody tr:has-text('Lobster Telephone')"),
+        ("#discover", "#ask-words"),
+        ("#clients", "#view tbody tr:has-text('Hall Pi')"),
+        ("#walls", "#view section.wall .wall-controls"),
+        ("#health", "#view .wall-reading .reading-sentence"),
+        (f"#get/{records['run']}", "#view table.stacked tbody tr"),
+        (f"#get/{records['other']}", "#view h1:text-is('Quiet interiors')"),
+        (f"#review/{records['run']}", "#view .card-body"),
+        (f"#work/{records['work']}", "#view .kept-off"),
     ]
 
 
-def test_no_screen_shows_an_iso_timestamp_outside_details(ui, records, a_health_reading):
-    reading = a_health_reading()
-    reading["walls"][0]["heartbeat"]["reported"] = {
-        "reported_at": "2026-08-12T09:14:02+00:00",
-        "current_work_id": records["work"],
-    }
+def test_no_screen_shows_an_iso_timestamp_outside_details(ui, records, a_health_reading, a_wall_reading):
+    # The work passed into the builder, so the wall's display state names it as
+    # the server's would (Status leads with it); written into the answer after
+    # it was built, the display state still named none.
+    reading = a_health_reading(walls=[a_wall_reading(reported={"current_work_id": records["work"]})])
+    assert reading["walls"][0]["display_state"]["work_id"] == records["work"]
     ui.serve("**/api/health", reading)
 
     seen = {}
-    for fragment in screens(records):
+    for fragment, settled in screens(records):
         ui.open(fragment)
-        ui.page.wait_for_selector("#view h1")
-        # Every request a screen makes after its heading, settled.
+        ui.page.locator(settled).first.wait_for()
+        # And the top bar's indicator, which paints from its own read of Status.
+        ui.page.wait_for_selector("#status[data-state]")
+        # Every request a screen makes after its anchor, settled.
         ui.page.wait_for_load_state("networkidle")
-        ui.page.wait_for_timeout(300)  # sleep: lets a late paint land, since no one condition stands for twelve screens
         text = ui.page.evaluate(READ_OUTSIDE_DETAILS)
         found = ISO.findall(text)
         if found:

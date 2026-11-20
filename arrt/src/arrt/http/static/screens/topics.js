@@ -25,7 +25,7 @@
 
 import { api, apiLines } from "../core/api.js";
 import { facts, noPicture, workName } from "../core/badges.js";
-import { counted } from "../core/counting.js";
+import { counted, number } from "../core/counting.js";
 import { offeredThemes } from "../core/membership.js";
 import { selectionMode } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
@@ -322,7 +322,7 @@ function asking(id, title) {
 function heldSection(works, grid) {
   fill(grid, ...works.map(heldCard));
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
-    el("h2", { id: "in-your-library", text: `In your library (${works.length})` }),
+    el("h2", { id: "in-your-library", text: `In your library (${number(works.length)})` }),
     works.length ? grid : el("p", { class: "muted", text: "None of your works in circulation is in this topic." }),
   ]);
 }
@@ -336,6 +336,7 @@ function topicSelection(heldWorks, grid, themes, name) {
       themes && heldWorks.length
         ? {
             themes: offeredThemes(themes),
+            hang: true,
             filter: null,
             total: 0,
             // Archived works leave circulation, and so leave *In your library*.
@@ -403,7 +404,7 @@ function paintWorks(section, known, view, selection) {
   fill(section,
     heading,
     el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
-      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the library holds it" }),
+      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the Library holds it" }),
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),
@@ -430,7 +431,7 @@ function paintArriving(section, heading, view) {
     heading,
     el("p", { class: "muted", "aria-live": "polite", text: "Still asking Wikidata who made them…" }),
     el("div", { class: "artist-works" }, [el("table", { class: "select-column" }, [
-      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the library holds it" }),
+      el("caption", { text: "The most renowned works Wikidata lists in it, by how many Wikipedias cover them, each marked where the Library holds it" }),
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),

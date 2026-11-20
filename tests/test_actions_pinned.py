@@ -23,8 +23,9 @@ no `uses:` check reads.
 
 **Least privilege.** `issues: write` is what lets a failing drift job open an
 issue. It is granted to the job that reports, and never to a job that holds a
-secret of the repository's (the OpenRouter key): the paid probe's failure is
-reported by a job of its own that holds no key (`audit-8` F22). Permissions are
+secret of the repository's (written when a drift job held the
+OpenRouter key; no workflow holds a model key now,
+`tests/test_ci_makes_no_paid_call.py`, and the secret it guards is the pool's). Permissions are
 read as GitHub resolves them: a job that names its own `permissions` replaces the
 workflow's, and one that names none inherits them.
 """
@@ -153,13 +154,27 @@ def jobs_that_can_write_issues_while_holding_a_secret(workflow: dict) -> list[st
     return found
 
 
-def test_no_job_that_holds_a_secret_can_write_issues():
+def writers_holding_a_secret_in(directory: pathlib.Path) -> list[str]:
+    """Each job that can write issues while holding a secret, in every workflow GitHub would run: `.yml` and `.yaml`."""
     offenders = []
-    for path in sorted((GITHUB / "workflows").glob("*.yml")):
+    for path in sorted([*directory.glob("*.yml"), *directory.glob("*.yaml")]):
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         offenders += [f"{path.name}: {job}" for job in jobs_that_can_write_issues_while_holding_a_secret(workflow)]
+    return offenders
+
+
+def test_no_job_that_holds_a_secret_can_write_issues():
+    offenders = writers_holding_a_secret_in(GITHUB / "workflows")
 
     assert offenders == [], "\n".join(offenders)
+
+
+def test_a_yaml_workflow_is_read_for_a_writer_holding_a_secret(tmp_path):
+    """GitHub runs `.yaml` workflows too, so a writer holding a key in one is found as in a `.yml`."""
+    paid = {"permissions": {"issues": "write"}, "steps": [{"env": {"K": "${{ secrets.OPENROUTER_API_KEY }}"}}]}
+    (tmp_path / "nightly.yaml").write_text(yaml.safe_dump({"jobs": {"paid": paid}}), encoding="utf-8")
+
+    assert writers_holding_a_secret_in(tmp_path) == ["nightly.yaml: paid (reads OPENROUTER_API_KEY)"]
 
 
 def test_the_drift_workflow_still_has_a_job_that_can_write_issues():

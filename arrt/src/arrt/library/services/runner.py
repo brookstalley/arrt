@@ -68,12 +68,14 @@ from arrt.library.discovery.engine import (
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import JudgedImage, PhaseTwoEngine
-from arrt.library.discovery.pool import NoSourceCanAnswer
+from arrt.library.discovery.pool import NoSourceCanAnswer, SourcesNotAsked
 from arrt.library.registry import ItemId
-from arrt.library.services.discovery import ChosenWork, DiscoveryService
+from arrt.library.services.discovery import ChosenWork, DiscoveryService, SpendTotal
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import CostTier, cost_tier
+from arrt.library.sources.loading import one_pass
+from arrt.library.sources.names import museum_name
 from arrt.logs import run_context
 from arrt.persistence.discovery_records import (
     CandidateWork,
@@ -276,6 +278,10 @@ class SpendReport:
     narrower one is carried alongside rather than replaced: a run billed little
     itself whose re-searches cost ten times more is a fact worth being able to
     see.
+
+    `cost_usd` sums what the provider said; `unknown_cost_calls` counts the
+    calls in the same scope that were sent and never said what they cost, so
+    with any the figure is a floor, and `summary` says so in words.
     """
 
     scope: str
@@ -284,6 +290,12 @@ class SpendReport:
     run_direct_usd: Decimal | None = None
     year: int | None = None
     month: int | None = None
+    unknown_cost_calls: int = 0
+
+    @property
+    def summary(self) -> str:
+        """The figure in words, "at least" when any call's cost is unknown (`SpendTotal.words`)."""
+        return SpendTotal(cost_usd=self.cost_usd, unknown_calls=self.unknown_cost_calls).words
 
 
 @dataclass(frozen=True, slots=True)
@@ -469,6 +481,17 @@ def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple
 RUN_THREAD_NAME: Final = "discovery-run"
 
 
+def _not_asked(unasked: Counter[str] | None) -> str:
+    """Which museums could not be asked, and about how many works, as a sentence ending in a space; empty when none is known.
+
+    By the museum, never the plugin id: a curator reads it on the run.
+    """
+    if not unasked:
+        return ""
+    named = ", ".join(f"{museum_name(name)} ({counted(count, 'work')})" for name, count in unasked.most_common())
+    return f"Could not ask {named}. "
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
     """Run a run's phase-1 work behind the handle that was already returned.
 
@@ -624,7 +647,13 @@ class DiscoveryRunner:
                     "run's cost, or year and month on their own for a month's."
                 )
             cost = self._discovery.run_cost(run_id)
-            return SpendReport(scope="run", cost_usd=cost.total, run_id=run_id, run_direct_usd=cost.direct)
+            return SpendReport(
+                scope="run",
+                cost_usd=cost.total,
+                run_id=run_id,
+                run_direct_usd=cost.direct,
+                unknown_cost_calls=cost.total_unknown,
+            )
         if (year is None) != (month is None):
             raise ServiceError("A month needs both year and month, or neither — omitting both reports the current month.")
         now = datetime.now(UTC)
@@ -632,11 +661,13 @@ class DiscoveryRunner:
         # limit resets on. A report on the operator's local month would disagree
         # with the only figure that can actually stop spending.
         year, month = (year, month) if year is not None and month is not None else (now.year, now.month)
+        spent = self._discovery.month_spend(year=year, month=month)
         return SpendReport(
             scope="month",
-            cost_usd=self._discovery.spend_in_month(year=year, month=month),
+            cost_usd=spent.cost_usd,
             year=year,
             month=month,
+            unknown_cost_calls=spent.unknown_calls,
         )
 
     def list_runs(
@@ -1114,9 +1145,23 @@ class DiscoveryRunner:
         ]
 
     def _resolve_pending(self, run_id: str, images: PhaseTwoEngine, previews: PreviewCache) -> None:
-        """Ask the provider about each work this run is responsible for."""
+        """Ask the provider about each work this run is responsible for, as one pass.
+
+        **One pass** (`one_pass`): a plugin that answers "could not be asked"
+        three times in a row is not asked about the rest of this run's works,
+        which stay as they are for their next search; every other plugin is
+        asked as before.
+        """
+        with one_pass():
+            self._resolve_each(run_id, images, previews)
+
+    def _resolve_each(self, run_id: str, images: PhaseTwoEngine, previews: PreviewCache) -> None:
         works = self._works_to_resolve(run_id)
         tally: Counter[WorkOutcome] = Counter()
+        #: For each source, how many of the run's works it could not be asked
+        #: about (or had not answered in time) where no source answered: what a
+        #: run none of whose works could be asked about names as the reason.
+        unasked: Counter[str] = Counter()
         #: The proposing run's pages, checked once for this pass and shared by its
         #: works. Keyed by the proposing run because a re-search is a run of its
         #: own, with no search: its works' pages are the run that proposed them
@@ -1135,9 +1180,9 @@ class DiscoveryRunner:
                 return
             if work.discovery_run_id not in pages:
                 pages[work.discovery_run_id] = self._fetchable_citations(work.discovery_run_id)
-            tally[self._resolve_work(work, images, previews, pages=pages[work.discovery_run_id])] += 1
+            tally[self._resolve_work(work, images, previews, pages=pages[work.discovery_run_id], unasked=unasked)] += 1
         self._supplement(run_id, previews)
-        self._close_phase_two(run_id, tally=tally, works=len(works))
+        self._close_phase_two(run_id, tally=tally, works=len(works), unasked=unasked)
 
     def _supplement(self, run_id: str, previews: PreviewCache) -> None:
         """Offer works the collection holds by the artists this run could not confirm.
@@ -1308,7 +1353,13 @@ class DiscoveryRunner:
         return tuple(kept)
 
     def _resolve_work(
-        self, work: CandidateWork, images: PhaseTwoEngine, previews: PreviewCache, *, pages: tuple[str, ...] = ()
+        self,
+        work: CandidateWork,
+        images: PhaseTwoEngine,
+        previews: PreviewCache,
+        *,
+        pages: tuple[str, ...] = (),
+        unasked: Counter[str] | None = None,
     ) -> WorkOutcome:
         """Find and record one work's instances.
 
@@ -1347,8 +1398,12 @@ class DiscoveryRunner:
             )
             return WorkOutcome.VERDICT_STOOD
         try:
-            resolution = images.resolve(image_query(work.proposed_title, work.proposed_artist, work.wikidata_qid, pages=pages))
+            resolution = images.resolve(
+                image_query(work.proposed_title, work.proposed_artist, work.wikidata_qid, pages=pages), work_id=work.id
+            )
         except ImageSearchFailure as exc:
+            if unasked is not None and isinstance(exc, SourcesNotAsked):
+                unasked.update(exc.sources)
             # Two reasons a work goes unasked, logged apart: a source that was
             # down, and no wired source able to look a work like this up at all.
             unanswerable = isinstance(exc, NoSourceCanAnswer)
@@ -1409,7 +1464,9 @@ class DiscoveryRunner:
             selection_rationale=entry.rationale,
         )
 
-    def _close_phase_two(self, run_id: str, *, tally: Counter[WorkOutcome], works: int) -> None:
+    def _close_phase_two(
+        self, run_id: str, *, tally: Counter[WorkOutcome], works: int, unasked: Counter[str] | None = None
+    ) -> None:
         """End the run on what phase 2 actually managed.
 
         **A run whose every work was unreachable failed**, and saying otherwise
@@ -1431,6 +1488,7 @@ class DiscoveryRunner:
                 # already imported `counted` into. Nothing announces a sentence
                 # that only a failure path prints.
                 f"Phase 2 could not reach an image provider for any of this run's {counted(works, 'work')}. "
+                f"{_not_asked(unasked)}"
                 f"Nothing is known about whether {agree(works, 'it exists', 'they exist')}; "
                 f"the {noun(works, 'work')} {agree(works, 'is', 'are')} unchanged and can be re-searched.",
             )
@@ -1502,6 +1560,7 @@ class DiscoveryRunner:
                 input_tokens=entry.input_tokens,
                 output_tokens=entry.output_tokens,
                 units=entry.units,
+                cost_status=entry.cost_status,
             )
 
     def _end(self, run_id: str, ending: Callable[..., DiscoveryRun], event: str, reason: str) -> None:

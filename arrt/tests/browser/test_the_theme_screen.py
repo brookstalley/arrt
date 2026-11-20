@@ -490,7 +490,7 @@ class TestRenaming:
 
 
 class TestHanging:
-    def test_the_room_is_not_changed_until_the_question_has_been_answered(self, ui, winter, services):
+    def test_the_room_is_not_changed_until_the_question_has_been_answered(self, ui, winter, services, a_player_shows):
         """Flow 6's one confirmation, on the screen that had none at all.
 
         The dialog names the theme *and* the wall, even in a house with one wall:
@@ -500,11 +500,11 @@ class TestHanging:
         The wall is given a Player: since 2026-11-19 the question promises
         "Everyone in the house sees" only of a wall a Player shows (chunk 06 of
         `build-plan-audit-wave-1.md`, audit 6 finding 19), and the wall with no
-        Player is `test_setting_up_a_wall.py`'s case.
+        Player is `test_setting_up_a_wall.py`'s case. The Player has its token
+        and has reported: one with no token shows nothing yet, the next test.
         """
         wall = services.display.survey_walls()[0].wall
-        hall = services.clients.add_client(name="Hall Pi")
-        services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
+        a_player_shows(wall.id)
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
@@ -518,6 +518,22 @@ class TestHanging:
             f"Everyone in the house sees {wall.name} change.", use_inner_text=True
         )
         assert services.display.hanging_on(wall.id) is None
+
+    def test_a_wall_whose_player_has_no_token_is_said_to_wait_in_the_servers_words(self, ui, winter, services):
+        """Through a theme's *Hang…*: nothing shows the wall until its Player is set up, so nobody sees it change."""
+        wall = services.display.survey_walls()[0].wall
+        hall = services.clients.add_client(name="Hall Pi")
+        services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
+        words = services.health.observe_walls().waiting[wall.id].words
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+
+        _hang(ui, wall.name)
+        consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence").first
+        expect(consequence).to_contain_text(f"{words}.", use_inner_text=True)
+        assert words == f"{wall.name} waits for Hall Pi, which has no token yet"
+        expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
+        expect(consequence).not_to_contain_text("No Player shows", use_inner_text=True)
 
     def test_the_consequence_is_the_builds_own_summary_rather_than_a_guess(self, ui, winter, services):
         """Evaluated with `GET /api/manifest`, which answers without writing.
@@ -590,7 +606,7 @@ class TestDeleting:
 
         expect(ui.page.locator("dialog.confirm .confirm-title").first).to_have_text("Delete Winter?", use_inner_text=True)
         expect(ui.page.locator("dialog.confirm .confirm-consequence").first).to_have_text(
-            "The 3 works it holds stay in the collection. Only the grouping goes, and it cannot be brought back.",
+            "The 3 works it holds stay in the Library. Only the grouping goes, and it cannot be brought back.",
             use_inner_text=True,
         )
 

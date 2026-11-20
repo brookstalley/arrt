@@ -333,7 +333,15 @@ addopts = "-n auto -m 'not llm_eval and not live_api and not live_museum and not
 # seam's modules run strict (the first override below). The plan's DECISION is in
 # `.prawduct/artifacts/build-plan-audit-wave-2.md` § Goals, and
 # `tests/preferences/test_type_gate.py` at the repository root holds this block.
-files = ["src/arrt"]
+#
+# **The system tests are checked too** (2026-11-20, `build-plan-audit-wave-2b.md`
+# Chunk 50): they drive the server as a process and a real Player against it,
+# and a `None` indexed there fails as a `TypeError` at the end of a long run,
+# naming neither side. What they import from outside `src/` is checked with
+# them, by following it: `tests/` (`feed_guard`, `fakes`) and `tools/`
+# (`ux_walk`, `old_catalogue`), which are not packages, so they are on the path.
+files = ["src/arrt", "tests/system"]
+mypy_path = ["tests", "tools"]
 python_version = "3.14"
 check_untyped_defs = true
 warn_unused_ignores = true
@@ -368,3 +376,26 @@ extra_checks = true
 # `tests/preferences/test_type_gate.py` still holds the shape: a module with an
 # error that no override excuses fails `uv run mypy`, and fixing it is the only
 # way through. Never add the list back.
+
+[[tool.mypy.overrides]]
+module = ["jsonschema", "jsonschema.*", "playwright", "playwright.*"]
+# Two foreign packages the type check follows into that are not typed where it
+# runs. jsonschema ships no types (its stubs are a separate package this project
+# does not install), and `tests/feed_guard.py` imports it. Playwright is typed but
+# optional: `tools/ux_walk.py` (followed from the system tests through `mypy_path`)
+# imports it under `TYPE_CHECKING` for three annotations. On the pool the manifest's
+# setup installs the `browser` group, where this setting changes nothing. CI's
+# fallback syncs the `dev` group only (`.github/scripts/pool_or_fallback.py`,
+# `FALLBACK_SETUP`; GitHub's minutes are not spent on Playwright, by the owner's
+# ruling of 2026-11-20), and there those three annotations are typed `Any` rather
+# than the type gate going red during an outage.
+#
+# Not an excuse for any module of this project's: it names only third-party
+# packages, and `test_type_gate.py` refuses one naming `arrt`. **The contract
+# package is not here**: it ships its `py.typed` marker (Chunk 59), so what
+# `tests/feed_guard.py` imports from it is typed, and the type check is clean in
+# the pool's environment and in a fresh sync of the fallback's groups alone.
+# `tests/preferences/test_type_gate_in_the_fallback.py` is what stops the next
+# followed import of a package neither environment installs from passing on the pool
+# alone: add a package here only to answer that test, with the reason.
+ignore_missing_imports = true

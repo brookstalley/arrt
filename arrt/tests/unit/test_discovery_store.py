@@ -16,15 +16,20 @@ import pytest
 
 from arrt.persistence.catalogue import StorageError
 from arrt.persistence.discovery_records import (
+    SEARCHES_COUNTED,
     CandidateImage,
     CandidateWork,
     Confirmation,
+    CostStatus,
     DiscoveryRun,
     InitiatedBy,
     ResolutionStatus,
     ResolveRunWork,
     RunKind,
     RunStatus,
+    SearchOutcome,
+    SearchTally,
+    SourceSearch,
     SpendCategory,
     SpendRecord,
     Verdict,
@@ -32,7 +37,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from arrt.persistence.sqlite_discovery import SqliteDiscovery
+from arrt.persistence.sqlite_discovery import _SEARCH_TALLIES, _TALLY_VALUES, DISCOVERY_SCHEMA, SqliteDiscovery
 
 _EXPECTED_SCHEMA = {
     "discovery_runs": {
@@ -102,6 +107,32 @@ _EXPECTED_SCHEMA = {
         "units",
         "cost_usd",
         "occurred_at",
+        # Widened 2026-11-19: whether cost_usd is the provider's figure or a
+        # call sent that never said.
+        "cost_status",
+    },
+    "affinities": {
+        "id",
+        "kind",
+        "value",
+        "sentiment",
+        "open_to_more",
+        "derivation",
+        "rationale",
+        "artist_id",
+        "created_at",
+        "updated_at",
+    },
+    "settings": {"key", "value", "updated_at", "updated_by"},
+    # Added 2026-11-20: the newest search of each work at each source. A new table, so growth within the shape generation.
+    "source_searches": {
+        "candidate_work_id",
+        "provider",
+        "asked_at",
+        "outcome",
+        "answered_at",
+        "images",
+        "late",
     },
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
     "sightings": {"wikidata_qid", "url"},
@@ -162,18 +193,169 @@ def _image(**fields) -> CandidateImage:
     )
 
 
+def _tables_made_by(schema: str) -> set[str]:
+    """The tables a schema the code declares creates, read from SQLite running it rather than from its text."""
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.executescript(schema)
+        return {name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    finally:
+        connection.close()
+
+
 def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
+    """Every table `DISCOVERY_SCHEMA` makes is pinned, column for column, and none is pinned that the file lacks.
+
+    **Exact, in the form `test_catalogue_store.py` took on 2026-11-19.** Which tables are the pipeline's is
+    asked of SQLite running
+    `DISCOVERY_SCHEMA`, never listed here, and the file a store opened is what
+    holds them. It was `_EXPECTED_SCHEMA.keys() <= tables` until 2026-11-20, which
+    passed two tables nobody had listed (`affinities`, `settings`), so a table could
+    arrive with no one answering the migration question for it. The catalogue's own
+    tables are `test_catalogue_store.py`'s.
+    """
     path = tmp_path / "catalogue.sqlite"
     open_catalogue_file(path).close()
 
     connection = sqlite3.connect(path)
     try:
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert _EXPECTED_SCHEMA.keys() <= tables
-        for table, columns in _EXPECTED_SCHEMA.items():
-            assert {row[1] for row in connection.execute(f"PRAGMA table_info({table})")} == columns
+        held = tables & _tables_made_by(DISCOVERY_SCHEMA)
+        unlisted = sorted(held - _EXPECTED_SCHEMA.keys())
+        assert unlisted == [], f"the file holds pipeline tables _EXPECTED_SCHEMA does not list; add an entry for each: {unlisted}"
+        missing = sorted(_EXPECTED_SCHEMA.keys() - held)
+        assert missing == [], f"_EXPECTED_SCHEMA lists tables the pipeline's schema does not make in the file: {missing}"
+        differing = {
+            table: {"unlisted": sorted(found - columns), "missing": sorted(columns - found)}
+            for table, columns in _EXPECTED_SCHEMA.items()
+            if (found := {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}) != columns
+        }
+        assert differing == {}, f"columns differ from _EXPECTED_SCHEMA (list the unlisted; explain the missing): {differing}"
     finally:
         connection.close()
+
+
+# -- the search record ------------------------------------------------------------
+
+
+def _search(**fields) -> SourceSearch:
+    return SourceSearch(
+        candidate_work_id=fields.pop("candidate_work_id", "c1"),
+        provider=fields.pop("provider", "moma"),
+        asked_at=fields.pop("asked_at", _STARTED),
+        outcome=fields.pop("outcome", SearchOutcome.ANSWERED),
+        **fields,
+    )
+
+
+def test_the_search_record_holds_no_address(tmp_path):
+    """Keyed by the work and the source's name (`data-model.md` § Direction): no column holds a URL.
+
+    Read from the file's own description of the table, anchored on the columns
+    that are there, so an empty table cannot pass it.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+    connection = sqlite3.connect(path)
+    try:
+        columns = {row[1]: row for row in connection.execute('PRAGMA table_info("source_searches")')}
+        key = sorted((row[5], name) for name, row in columns.items() if row[5])
+    finally:
+        connection.close()
+
+    assert key == [(1, "candidate_work_id"), (2, "provider")]
+    assert [name for name in columns if "url" in name.lower() or "address" in name.lower() or "page" in name.lower()] == []
+
+
+def test_two_searches_of_one_work_at_one_source_leave_one_row_the_newer(discovery_store, quiet_catalogue_file):
+    discovery_store.add_run(_run())
+    discovery_store.add_candidate_work(_work())
+    later = _STARTED + timedelta(days=1)
+
+    discovery_store.record_search(_search(outcome=SearchOutcome.OWED))
+    discovery_store.record_search(_search(asked_at=later, outcome=SearchOutcome.ANSWERED, answered_at=later, images=3, late=True))
+    discovery_store.record_search(_search(provider="tate", outcome=SearchOutcome.UNREACHABLE))
+
+    assert discovery_store.searches_of("c1") == {
+        "moma": _search(asked_at=later, outcome=SearchOutcome.ANSWERED, answered_at=later, images=3, late=True),
+        "tate": _search(provider="tate", outcome=SearchOutcome.UNREACHABLE),
+    }
+    assert len(quiet_catalogue_file.select_rows("SELECT * FROM source_searches")) == 2
+
+
+def test_a_search_of_a_work_the_file_does_not_hold_is_refused(discovery_store):
+    with pytest.raises(StorageError):
+        discovery_store.record_search(_search(candidate_work_id="nobody"))
+
+
+def test_each_sources_searches_are_counted_by_what_it_said_and_survive_the_process(tmp_path):
+    """What Status reads after a restart: counted from the record, one row per source, an answer of any kind counted."""
+    path = tmp_path / "catalogue.sqlite"
+    writer = SqliteDiscovery(open_catalogue_file(path))
+    writer.add_run(_run())
+    said = {
+        "c1": SearchOutcome.ANSWERED,
+        "c2": SearchOutcome.DECLINED,
+        "c3": SearchOutcome.LINK_GONE,
+        "c4": SearchOutcome.UNREACHABLE,
+        "c5": SearchOutcome.UNREACHABLE,
+        "c6": SearchOutcome.OWED,
+    }
+    for n, (work_id, outcome) in enumerate(said.items()):
+        writer.add_candidate_work(_work(id=work_id, work_dedup_key=f"k{work_id}"))
+        answered = None if outcome in (SearchOutcome.OWED, SearchOutcome.UNREACHABLE) else _STARTED + timedelta(minutes=n)
+        writer.record_search(
+            _search(candidate_work_id=work_id, asked_at=_STARTED + timedelta(minutes=n), outcome=outcome, answered_at=answered)
+        )
+    writer.record_search(_search(candidate_work_id="c1", provider="tate", outcome=SearchOutcome.UNREACHABLE))
+    writer.close()
+
+    reader = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        assert reader.search_tallies(["moma", "tate", "never-asked"]) == {
+            "moma": SearchTally(
+                provider="moma",
+                searched=6,
+                answered=3,
+                unasked=2,
+                owed=1,
+                last_answered_at=_STARTED + timedelta(minutes=2),
+                last_asked_at=_STARTED + timedelta(minutes=5),
+            ),
+            "tate": SearchTally(
+                provider="tate", searched=1, answered=0, unasked=1, owed=0, last_answered_at=None, last_asked_at=_STARTED
+            ),
+        }
+    finally:
+        reader.close()
+
+
+def test_the_count_status_reads_reads_the_index_and_never_the_rows(quiet_catalogue_file):
+    """Status reads `search_tallies` on every page, so its own statement is planned as a search of a covering index.
+
+    A search by the source, read in the index's order: no table scan, and no sort.
+    """
+    plan = quiet_catalogue_file.select_rows("EXPLAIN QUERY PLAN " + _SEARCH_TALLIES, (*_TALLY_VALUES, "moma", SEARCHES_COUNTED))
+    details = " ".join(row["detail"] for row in plan)
+
+    assert "SEARCH source_searches USING COVERING INDEX source_searches_by_provider (provider=?)" in details, plan
+    assert "TEMP B-TREE" not in details, plan
+
+
+def test_status_counts_a_sources_newest_searches_and_no_more(discovery_store):
+    """Bounded by `SEARCHES_COUNTED`, the newest by when they were asked: an old outage is not this morning's."""
+    discovery_store.add_run(_run())
+    for n in range(SEARCHES_COUNTED + 2):
+        discovery_store.add_candidate_work(_work(id=f"c{n}", work_dedup_key=f"k{n}"))
+        # The two oldest could not be asked; every search since was answered.
+        outcome = SearchOutcome.UNREACHABLE if n < 2 else SearchOutcome.ANSWERED
+        asked = _STARTED + timedelta(minutes=n)
+        discovery_store.record_search(_search(candidate_work_id=f"c{n}", asked_at=asked, outcome=outcome, answered_at=asked))
+
+    (tally,) = discovery_store.search_tallies(["moma"]).values()
+
+    assert (tally.searched, tally.answered, tally.unasked) == (SEARCHES_COUNTED, SEARCHES_COUNTED, 0)
+    assert tally.last_asked_at == _STARTED + timedelta(minutes=SEARCHES_COUNTED + 1)
 
 
 def test_the_pipeline_survives_the_process_that_wrote_it(tmp_path):
@@ -291,6 +473,130 @@ def test_the_pipeline_survives_the_process_that_wrote_it(tmp_path):
 
         assert store.list_coverage_by_run("r2") == [ResolveRunWork(resolve_run_id="r2", candidate_work_id="c1")]
         assert store.list_coverage_by_work("c1") == [ResolveRunWork(resolve_run_id="r2", candidate_work_id="c1")]
+    finally:
+        reopened.close()
+
+
+def _spend(id_: str, cost: str, status: CostStatus = CostStatus.KNOWN) -> SpendRecord:
+    return SpendRecord(
+        id=id_,
+        category=SpendCategory.DISCOVERY_TOKENS,
+        cost_usd=Decimal(cost),
+        occurred_at=_STARTED,
+        discovery_run_id="r1",
+        model_id="lab/m",
+        cost_status=status,
+    )
+
+
+def test_a_cost_status_survives_the_round_trip(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("known", "0.07"))
+        store.add_spend_record(_spend("unknown", "0", CostStatus.UNKNOWN))
+    finally:
+        opened.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        read = {record.id: record.cost_status for record in SqliteDiscovery(reopened).list_spend_records()}
+    finally:
+        reopened.close()
+
+    assert read == {"known": CostStatus.KNOWN, "unknown": CostStatus.UNKNOWN}
+
+
+def _without_cost_status(path) -> None:
+    """Take the column away, leaving `spend_records` as every release before it declared the table."""
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE spend_records DROP COLUMN cost_status")
+        connection.commit()
+        assert "cost_status" not in {row[1] for row in connection.execute("PRAGMA table_info(spend_records)")}
+    finally:
+        connection.close()
+
+
+def test_a_row_written_before_the_column_existed_reads_as_known(tmp_path):
+    """The widening's default is what an older row is, and it held the provider's figure."""
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+    _without_cost_status(path)
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "INSERT INTO discovery_runs (id, kind, initiated_by, status, approval_required, started_at) "
+            "VALUES ('r1', 'discovery', 'mcp_client', 'completed', 0, '2026-07-27T09:30:00+00:00')"
+        )
+        connection.execute(
+            "INSERT INTO spend_records (id, discovery_run_id, category, cost_usd, occurred_at) "
+            "VALUES ('old', 'r1', 'discovery_tokens', '0.42', '2026-07-27T09:30:00+00:00')"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        [record] = SqliteDiscovery(reopened).list_spend_records()
+    finally:
+        reopened.close()
+
+    assert (record.id, record.cost_usd, record.cost_status) == ("old", Decimal("0.42"), CostStatus.KNOWN)
+
+
+def test_a_row_whose_cost_is_unknown_sums_as_nothing_to_a_reader_that_ignores_the_column(tmp_path):
+    """What v0.11.0 makes of such a row, which reads every column but this one.
+
+    With the column gone and the file reopened, the row is what a release that
+    never heard of it sees: a known cost of $0, which is what such a release
+    says today of a call that left no row at all. (Measured against the
+    v0.11.0 release itself as well; the change record says how.)
+    """
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("billed", "0.07"))
+        store.add_spend_record(_spend("unanswered", "0", CostStatus.UNKNOWN))
+    finally:
+        opened.close()
+    _without_cost_status(path)
+
+    reopened = open_catalogue_file(path)
+    try:
+        records = SqliteDiscovery(reopened).list_spend_records()
+    finally:
+        reopened.close()
+
+    assert sum((record.cost_usd for record in records), Decimal(0)) == Decimal("0.07")
+    assert {record.id: record.cost_usd for record in records} == {"billed": Decimal("0.07"), "unanswered": Decimal(0)}
+
+
+def test_a_cost_status_the_reader_does_not_know_is_refused_rather_than_read_as_known(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    opened = open_catalogue_file(path)
+    try:
+        store = SqliteDiscovery(opened)
+        store.add_run(_run())
+        store.add_spend_record(_spend("s", "0"))
+    finally:
+        opened.close()
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("UPDATE spend_records SET cost_status = 'estimated'")
+        connection.commit()
+    finally:
+        connection.close()
+
+    reopened = open_catalogue_file(path)
+    try:
+        with pytest.raises(ValueError, match="estimated"):
+            SqliteDiscovery(reopened).list_spend_records()
     finally:
         reopened.close()
 

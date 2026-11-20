@@ -13,6 +13,19 @@
  * correct inline ternary and six sentences without it.
  */
 
+/* A count as a person reads it: "2,000", never "2000". The one way a number is
+ * written in the browser (one number was written four ways: "2,000 works" beside
+ * "Select all 2000 works", "Retry 2000" and "Not on any wall (1999)"), so a
+ * sentence that prints a count says it through this, or through `counted`,
+ * which does. `en-US` and not the browser's locale: the page is in English, and
+ * a count that read "2.000" on one machine would disagree with the words round
+ * it. */
+const NUMBER = new Intl.NumberFormat("en-US");
+
+export function number(count) {
+  return NUMBER.format(count);
+}
+
 /* The form of a noun that agrees with `count` — `work`, `works`.
  *
  * `plural` defaults to suffixing an `s`, which is right for every noun this
@@ -32,7 +45,7 @@ export function noun(count, singular, plural = null) {
 
 /* A count and its noun — `1 work`, `12 works`. */
 export function counted(count, singular, plural = null) {
-  return `${count} ${noun(count, singular, plural)}`;
+  return `${number(count)} ${noun(count, singular, plural)}`;
 }
 
 /* Names said as a list in a sentence: "", "a", "a and b", "a, b and c".

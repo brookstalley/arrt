@@ -4,10 +4,15 @@
 # actions minutes" (`.prawduct/owner-rulings.md`). When the pool cannot answer, the job
 # falls back, because an outage must not block every merge (ruling 4 of 2026-11-19).
 #
-# - All four suites, governance, curation, browser and contract, run on the pool:
-#   `testament run` with no `--suite`, so a suite added to the manifest is in CI the day it
-#   is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
+# - All five suites, governance, curation, browser, player (the real-Player test: a real
+#   Arrt Player against the server) and contract, run on the pool: the line below names no
+#   `--suite`, so a suite added to the manifest is in CI the day it is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
 #   reads the report this run writes, with every declared suite required to run something.
+# - But not the sixth, the image suite (the server image's test stage, built on a runner's
+#   host): host work needs a run signed with an owner secret, which CI's key does not hold,
+#   and asking for it would end every run red. The driver adds `--suite` for every other
+#   declared suite (`NOT_CI`, `pool_run_argv`), the skip guard excuses it by name, and the
+#   summary says so (`tests/test_ci_fallback.py`).
 # - The type check runs there too, once per change: the governance suite's
 #   `tests/preferences/test_type_gate.py` runs mypy in `arrt/` and `contract/` with each
 #   project's own configuration. Lint here installs only ruff and black.
@@ -26,16 +31,18 @@
 #     would hide the failure. A refused key, a wrong address or a wheel that fails its
 #     digest is not an outage: nothing runs and the job fails.
 #   - It runs lint (already done, above) and, directly with uv, every suite that needs no
-#     labelled runner: governance, curation and contract. Not the browser suite, which
-#     needs Chrome and is the heavy one. That is the trade with the 2026-11-18 ruling:
-#     minutes are spent on suites only during an outage. `tests/test_ci_fallback.py` holds
-#     both.
+#     labelled runner and is not the pool's alone: governance, curation and contract, each
+#     by the manifest's own command and selection (`pool_or_fallback.py fallback`). Not
+#     the browser suite, which needs Chrome and is the heavy one, nor the real-Player
+#     suite, the pool's alone by the owner's ruling of 2026-11-20 ("We are almost out of
+#     ci minutes"). That is the trade with the 2026-11-18 ruling: minutes are spent on
+#     suites only during an outage. `tests/test_ci_fallback.py` holds both.
 #   - The required check, "Lint, then every suite", is then green on what ran, so an
 #     outage blocks no merge. The second job, "The browser suite ran on the pool", is not
 #     required: it is green when the pool gave the verdict and red after a fallback, the
-#     machine-readable mark that the tree has no browser verdict. Nothing else gives it
-#     one later: no workflow runs on a push to `develop` or `main`. To get one, re-run all
-#     jobs once the pool is back, or run the browser suite on the pool by hand
+#     machine-readable mark that the tree has no browser or real-Player verdict. Nothing
+#     else gives it one later: no workflow runs on a push to `develop` or `main`. To get
+#     one, re-run all jobs once the pool is back, or run both suites on the pool by hand
 #     (`docs/testing.md` § The browser suite).
 # - Every step has a ceiling, and the ceilings add up to no more than the job's, so a hung
 #   pool leaves the fallback, the guard and the summary their time. `tests/test_ci_fallback.py`
@@ -48,8 +55,11 @@
 #   CI"), so it is the version the pool runs and the CI key is the only credential.
 # - Not on a push to `main` or `develop`: the pull request already ran this on the tree it
 #   merges. The drift-freshness check, which only makes sense on `main`, has its own file.
-# - The server image's test target is `image.yml`, and runs only when what the image is
-#   built from changes.
+# - The server image's test target is `image.yml`, and runs only on a pull request into
+#   `main` and by hand: this workflow builds no image.
+#   What the image caught that nothing else did, a test reading a file the image does not
+#   carry, is the governance suite's `tests/test_the_image_carries_what_tests_read.py`, so
+#   it runs here, on the pool, on every pull request.
 name: tests
 
 on:
@@ -132,41 +142,45 @@ jobs:
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           python3 .github/scripts/pool_or_fallback.py pool --out "$OUT" -- testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback
-      # The fallback: only after `mode=fallback`, never after a verdict. Each suite
-      # `.testament.toml` declares with no `requires`, by the project's own command from
-      # CLAUDE.md, scoped to the manifest's selection (a bare `cd arrt && uv run pytest`
-      # collects the browser and live modules, whose skips the guard fails on) and writing a
-      # report named for its suite. `!cancelled()` so one red suite does not hide the next.
-      # A step that runs to its ceiling writes no report, and the guard and the summary name it.
+      # The fallback: only after `mode=fallback`, never after a verdict. One step for each
+      # suite `.testament.toml` declares with no `requires` and not in the driver's
+      # `POOL_ONLY` (the real-Player suite is the pool's alone), so each has its own ceiling.
+      # A step names its suite and nothing else: `pool_or_fallback.py fallback` runs the
+      # manifest's own command and selection for it here, with uv and without testament,
+      # less the manifest's `-n 0` (the project's addopts parallelise here), and writes the
+      # report named for the suite, which the guard and the summary read. A change to a
+      # suite's selection reaches this job with no edit here; a suite added to the manifest
+      # needs a step here, or `tests/test_ci_fallback.py` and the guard below fail.
+      # `!cancelled()` so one red suite does not hide the next. A step that runs to its
+      # ceiling writes no report, and the guard and the summary name it.
       - name: "Fallback: the governance suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 10
-        # The type gate in this suite runs mypy in `arrt/` and `contract/` without syncing
-        # (`uv run --no-sync`), so both environments are made first, with their dev groups,
-        # which hold mypy: lint no longer makes them.
+        # The driver syncs `arrt/` and `contract/` with their dev groups first: the type gate
+        # in this suite runs mypy there without syncing (`FALLBACK_SETUP`).
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          uv sync --frozen --project arrt --group dev
-          uv sync --frozen --project contract --group dev
-          uv run --frozen pytest tests -q -o junit_suite_name=governance --junitxml "$OUT/fallback/governance.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite governance
       - name: "Fallback: the curation suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 15
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          cd arrt
-          uv run --frozen pytest tests/unit tests/integration tests/contract tests/system tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation --junitxml "$OUT/fallback/curation.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite curation
       - name: "Fallback: the contract suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         timeout-minutes: 5
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          cd contract
-          uv run --frozen pytest tests -q -o junit_suite_name=contract --junitxml "$OUT/fallback/contract.xml"
+          python3 .github/scripts/pool_or_fallback.py fallback --out "$OUT" --suite contract
       - name: Fail if nothing actually ran
         # A suite that skipped itself reports green. This reads the record of where the suites
         # ran and the reports they wrote, and fails on any skip that is not an expected
         # failure, on a suite that ran nothing, and on a fallback the record does not earn.
+        # It does not fail on a failed test: after a fallback it passes over a report that
+        # holds one. What turns the job red then is the
+        # fallback step's own exit code, so no fallback step, nor the pool step nor this one,
+        # may carry `continue-on-error` or swallow its code (`tests/test_ci_fallback.py`).
         if: always()
         timeout-minutes: 1
         run: |

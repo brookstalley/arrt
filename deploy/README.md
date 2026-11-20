@@ -26,10 +26,12 @@ Player's steps are in its repository.
   curation suite inside it with `--target test --build-context repo=.`, as the
   app's own user. CI builds that target natively on amd64 on every pull request
   into `main`, which is a release, so the image is built before every release
-  without anyone remembering to; on a pull request into any other branch it builds
-  only when the image's environment changes: its Dockerfile, interpreter pin or
-  dependency files (`.github/workflows/image.yml`). A change to source or tests
-  alone does not build it there, and the workflow can also be run by hand. On an arm Mac it builds under emulation, takes far longer, and
+  without anyone remembering to, and when the workflow is run by hand
+  (`.github/workflows/image.yml`); on a pull request into any other branch it does
+  not run at all, whatever changed (since 2026-11-20, by the owner's ruling that CI
+  is kept small). So a Dockerfile, lockfile or interpreter change is first built at
+  the release's pull request unless you run the workflow, or the build below, by
+  hand on the branch. On an arm Mac it builds under emulation, takes far longer, and
   a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 
@@ -48,6 +50,49 @@ beside the house's other apps.
   which nothing reads now.)*
 - **Masters recorded before the media route existed carry no content hash.**
   They are hashed the first time a feed names them, which needs the file.
+
+### Hardening the container (2026-11-19)
+
+**`deploy/nas/compose.example.yaml` drops every capability (`cap_drop: [ALL]`),
+makes the root filesystem read-only (`read_only: true`), and mounts the three
+places the server writes.** The example holds exactly what was measured, and
+`tests/preferences/test_compose_example.py` fails when a line of it goes or a
+writable path appears that was not measured.
+
+**Measured 2026-11-19 on the operator's own machine, not a deployment:** the
+`app` image (`arrt:290e054a`, built for amd64 and run under emulation), as user
+568, with `cap_drop: [ALL]`, `read_only: true`, `no-new-privileges` and a 3 GiB
+limit, from an empty art root started once with `--init`, through the compose
+example filled in with local values. It started and answered `/healthz`
+(`healthy`), took its start-up backup, wrote a wall's feed when a theme was hung
+on it, and stopped on SIGTERM in about seven seconds with exit code 0. A
+second container of the same image ran with a writable root as a control. What
+each wrote:
+
+| Where | What | Mounted as |
+|---|---|---|
+| `/art` | `catalogue.sqlite` (and its journal while open), `kept-answers.sqlite` with its `-wal` and `-shm`, `backup-status.json`, `theme-manifest-<wall>.v2.json` | the art root's volume |
+| `/backups` | `catalogue-<UTC instant>.sqlite`, one at start | the backup volume |
+| `/tmp` | nothing in normal use; SQLite's spill of a large sort | `tmpfs`, 64 MiB, `mode=1777`, `noexec`, `nosuid` |
+| the rest of the root filesystem | nothing: `docker diff` listed only the two mount points, with the root writable | read-only |
+
+- **Why `/tmp` is mounted although nothing was seen writing it.** SQLite sorts in
+  memory until a sort outgrows its 2 MB cache, then spills to a temporary file in
+  `/tmp`, and with the root read-only and no `/tmp` the query fails with `disk I/O
+  error`. Measured with the image's own Python (SQLite 3.53.1), not through a
+  server request: 5,000 rows sorted, 20,000 failed, and 100,000 sorted with the
+  tmpfs. `HOME` is `/` for user 568, and nothing wrote there.
+- **`dezoomify-rs`** (the tile fetcher) ran read-only against a local IIIF source
+  with its tile cache and its output under `/art`, and wrote nothing else. It was
+  not run against a museum.
+- **The tmpfs counts against `mem_limit`.** 64 MiB of the 3 GiB.
+- **`cap_drop: [ALL]` assumes the server's user owns what it writes.** With no
+  `CAP_DAC_OVERRIDE`, a user that does not own the art root and the backup
+  directory cannot write them, whatever their mode; `user:` is the one that does.
+- **Not measured:** a long run, a restore, a source plugin that writes somewhere
+  of its own (a derived image's plugin: § A private source plugin), and the
+  operator's own NAS (`operator-verification.md` owes that check against the
+  private compose file).
 
 ### A private source plugin
 

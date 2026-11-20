@@ -333,7 +333,13 @@ no `Original`, or with a queue row, whose row is absent, or has no
 `next_try_at`, or one that has passed, and whose `failures` is under the limit.
 Q32 is `failures` and `next_try_at`; Q33 is `detail`; Q35 is `source_id`. Q34 is
 `failures` reaching four (the first try and three retries), read rather than
-stored, so a "gave up" flag cannot disagree with the count. What is being fetched
+stored, so a "gave up" flag cannot disagree with the count. *Since wave 2b
+(2026-11-20) both read the row's retry rule first* (`outcome`, below;
+`AcquisitionQueue._standing`, `arrt/src/arrt/library/acquisition/queue.py`): only
+the schedule's rule gives up at four, and `failures` counts the failures in a row
+under one rule, so failures under the rules that never give up do not use up the
+schedule's tries. A settled outcome also waits for a Retry, or for another
+Wikidata item. What is being fetched
 right now, and why the queue is paused, are not stored: both are facts about the
 running process, and a restart finds them out again by trying.
 
@@ -560,7 +566,8 @@ may exist at several institutions, and a broken source does not break the work.
 | `is_primary` | boolean | default false | Which source was actually used for the held original. |
 | `confidence` | float | nullable | Carried from `CandidateImage.confidence` at acceptance. |
 | `selection_rationale` | text | nullable | Why this source was chosen as primary. Carried from `CandidateImage`. **Q10.** |
-| `last_fetch_status` | enum | nullable | `ok` \| `partial_tiles` \| `failed`. `partial_tiles` is a normal dezoomify outcome, not an error. |
+| `last_fetch_status` | enum | nullable | `ok` \| `partial_tiles` \| `failed`. `partial_tiles` is a normal dezoomify outcome, not an error. **Keeps these three values** (wave 2b): the finer outcome is the column below, and this one is always written from it (`FetchOutcome.fetch_status`), because an older release reads this column as `FetchStatus(value)` and would fail on a new word. |
+| `last_fetch_outcome` | enum | nullable | *Added in wave 2b (2026-11-20, Chunk 32), widened onto an older file on open, shape generation unchanged.* `ok` \| `partial_tiles` \| `none_held` \| `unasked` \| `faulted` \| `link_gone` \| `failed` (`FetchOutcome`, `arrt/src/arrt/persistence/records.py`): what the last fetch said, finer than the status beside it. Null on a row from before it, which reads as `failed` unclassified. One fact in two columns: every outcome but `ok` and `partial_tiles` has status `failed`, and the enum's own mapping is the only rule joining them. A release from before ignores it. |
 | `last_fetched_at` | datetime | nullable | |
 
 > **Q6.** Multiple sources per work is what makes re-acquisition robust when an
@@ -679,10 +686,14 @@ prepared. So the table holds only the works still owing something:
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `artwork_id` | UUID | PK, FK → Artwork | One row per work. |
-| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry. The retry schedule and "gave up" (four) are read from it (Q32, Q34). |
+| `failures` | integer | required, default 0, ≥ 0 | Attempts that failed in a row since the last success or Retry, **under the retry rule of the last one** (since wave 2b, 2026-11-20): a failure under a different rule than the one before starts it again at 1 (`AcquisitionQueue._record_failure`). The retry schedule and "gave up" (four) are read from it (Q32, Q34). No migration: a row an older release wrote reads by the `outcome` it carries, and one already given up by a count that other rules raised stays given up until a Retry, since nothing recorded tells it apart. Failures that alternate between could-not-be-asked and a scheduled failure are never given up: each scheduled one is retried after an hour. |
 | `next_try_at` | datetime | nullable | When the work may next be tried (Q32). Null means now, or never once the queue has given up; `failures` says which. |
 | `detail` | string | nullable | Why the last attempt failed, in the words acquisition or preparation gave (Q33). |
 | `source_id` | UUID | FK → Source, nullable | The source the next fetch must use, when a Retry named one (Q35). Cleared once a fetch from it has been made. |
+| `outcome` | enum | nullable | *Added in wave 2b (2026-11-20, Chunk 32), as are the three below; each widened onto an older file, shape generation unchanged.* The last failed fetch's `FetchOutcome`. With `plugin`, it decides when the work is tried again (`RETRY_RULES`, `arrt/src/arrt/library/acquisition/queue.py`: `unasked` on the queue's next pass and never given up; `faulted` once Arrt next loads its plugins; `none_held` and `link_gone` settled until the work's Wikidata item changes; `failed` on the 1 h, 1 d, 3 d schedule, then given up) and the group Activity › Queue lists it under. Null on a row from before, tried on the schedule as before. |
+| `plugin` | string | nullable | Which plugin said `outcome`. |
+| `settled_qid` | string | nullable | The work's Wikidata item when an answer settled it (`none_held`, `link_gone`): the settled rule reads it against the work's item now. |
+| `failed_at` | datetime | nullable | When the last failure was recorded, the give-up included; cleared by a Retry; the row goes with a success. Null on a row written before the column, which the health model reads as "not recorded" and never guesses (`failed_fetches.age_unknown`). |
 
 > **What counts as a failure.** A fetch that records one (`Source.last_fetch_status
 > = failed`), a refusal about the work itself (no source, or several and none
@@ -1162,7 +1173,8 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > designed rather than defaulted.
 >
 > **A wall is emptied by `clear_wall`**, reached as `DELETE /api/walls/{wall_id}/theme`
-> and `art_theme(action='unhang')`. It exists because generalising the delete refusal
+> and `art_display(action='unhang')` (on `art_theme` until wave 2b's one MCP break,
+> 2026-11-20). It exists because generalising the delete refusal
 > to "hanging on any wall" would otherwise have made a hung theme undeletable with no
 > way out — the deadlock the 2026-08-11 last-theme ruling was written to avoid. Taking
 > a theme down does **not** advance the wall's directive sequence, for the reason
@@ -2181,7 +2193,8 @@ path consults it before spending.
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
-| `cost_usd` | decimal | required | What was actually billed. |
+| `cost_usd` | decimal | required | What was actually billed. **0 on a row whose `cost_status` is `unknown`**, which is not a claim that the call was free: the column stays NOT NULL, because widening cannot make it nullable and a rebuild of the table raises the shape generation and refuses every rollback. |
+| `cost_status` | enum | required, default `known` | *Added in wave 2b (2026-11-20, Chunk 35), widened, shape generation unchanged.* `known` \| `unknown` (`CostStatus`, `arrt/src/arrt/persistence/discovery_records.py`): whether `cost_usd` is the provider's figure, or a call that was sent and ended without saying what it cost (a read timeout, a dropped connection, a 5xx or 408, an unreadable 2xx body, an Ask reply cancelled mid-call). Every sum counts unknown rows apart (`SpendTotal`), so a month reads "at least $X, and N calls whose cost is unknown". The ledger never settles an unknown row: the generation lookup that could was measured answering 404 (`openrouter-api-findings.md`) and was not built. An older release sums such a row as $0 and writes `known` (measured on v0.11.0). |
 | `occurred_at` | datetime | auto, indexed | Indexed for reporting windows. **Not** the basis of any ceiling — see below. |
 
 > **`conversation_tokens` ships with its producer or not at all (2026-08-10).**
@@ -2260,6 +2273,40 @@ path consults it before spending.
 > of the review tool. It costs nothing today, so `image_research` rows are written by
 > nothing yet; they are where a paid image provider's cost would land (corrected
 > 2026-10-02, `build-plan-after-review.md` Chunk 05b). See `api-contract.md`.
+
+### SourceSearch
+
+> **Library-owned, in the catalogue file** (table `source_searches`, added in wave 2b,
+> 2026-11-20, Chunk 33, #313). A new table, so `CREATE TABLE IF NOT EXISTS` reaches a
+> file written before it and a release from before ignores it; the shape generation
+> is unchanged (`arrt/src/arrt/persistence/sqlite_discovery.py`).
+
+The newest search of one candidate work at one image source: when phase 2 asked,
+what the source said, and whether its answer came after the run stopped waiting.
+Designed from four questions (`SourceSearch`, `arrt/src/arrt/persistence/discovery_records.py`):
+**(1)** Status, after a restart: has this plugin answered anything in the searches it
+was asked; **(2)** phase 2: is any source still owed an answer for this work, so its
+next pass waits for that source rather than for the window; **(3)** what each source
+contributed; **(4)** retention: one row per work and source, the newest, so the table
+grows with the works searched and never with the passes.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `candidate_work_id` | UUID | PK (with `provider`), FK → CandidateWork | The work searched for. Candidate works are never deleted, so nothing cascades. |
+| `provider` | string | PK (with the work) | The source's name, the plugin's own. **Never a URL**: none of the four questions needs an address. |
+| `asked_at` | datetime | required | When the run asked. |
+| `outcome` | enum | required | `answered` \| `declined` \| `unreachable` \| `link_gone` \| `owed` (asked, and not answered within the run's window; its answer replaces it) (`SearchOutcome`). |
+| `answered_at` | datetime | nullable | When its answer arrived; null while owed. |
+| `images` | integer | required | How many images it handed over with that answer. |
+| `late` | boolean | required | Whether the answer arrived after the run stopped waiting (the look's 30 s window), so the run settled the work without it; a late answer is written by the worker that received it, and the work's next pass reads it. |
+
+> **Bounded reads.** Status counts each source's newest 100 searches
+> (`SEARCHES_COUNTED`) through a covering index, `source_searches_by_provider`, so
+> the count reads that many index entries however many works were searched
+> (measured by the chunk: 23 ms unbounded over 87,600 searches, a median of 1.33 ms
+> bounded, for 12 sources, on one machine). A search the pass did not make (a
+> plugin held back for the rest of a pass after three could-not-be-asked answers in
+> a row, `HOLD_BACK_AFTER`, `arrt/src/arrt/library/sources/loading.py`) writes no row.
 
 ### ResolveRunWork
 
@@ -2376,6 +2423,16 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 > `LibraryFacade.record`, which refuses any other kind,
 > **after** its own change commits (after a split there is no shared transaction,
 > and a history line for a hang that rolled back would be false).
+>
+> **Which act writes which, for a work leaving a wall** *(as built in audit wave 2b,
+> 2026-11-20, Chunks 39 and 60; `arrt/src/arrt/programming/themes.py`)*. One writer,
+> `Themes._record_left`, writes `work.left_theme` once for each wall the theme hangs
+> on, for removing one work from a theme (`remove_from_theme`, which `DELETE
+> /api/themes/{id}/works/{artwork_id}` and `art_theme(action='remove')` call), for HTTP's
+> *Not this one again* with `scope=theme` (`leave_theme`), and for removing a selection
+> (`remove_works_from_theme`, works × walls lines). `work.excluded` is *Not this one again* from every wall (HTTP
+> `scope=every_wall`, MCP `art_display(action='not_again')`), and it leaves the work in
+> its theme. Deleting a theme and retiring a selection write neither.
 
 ### CatalogueOpened
 
@@ -3243,6 +3300,14 @@ screen size each display reported in the last week and judges against the
 largest (§ Reported screen; built 2026-10-09, wave 4e). The Player sends no
 verdicts. This is device information held by Programming as an **observation**,
 never as configuration, and never in the Library.
+
+*The one health model (wave 2b, 2026-11-20, Chunks 30 and 40) persists nothing.* A
+Player's state (`PlayerState`, `arrt/src/arrt/programming/player_state.py`: `no_token`,
+`awaiting_report`, `reporting`, `not_heard_from`, `report_unreadable`), each output's
+state, a wall's `display_state`, the troubles and the setup steps are derived on every
+read from what is already kept: the client's `token_issued_at`, its last heartbeat file
+and its age, the walls' assignments, and the acquisition queue's rows (`failed_at`
+above). No table or column was added for them.
 
 ### Wall settings *(Programming; fields on Wall)*
 
