@@ -101,6 +101,7 @@ def test_unattended_work_reads_as_off_until_chosen_and_the_route_says_why(server
         "may_start": False,
         "refusal": "off",
         "sentence": "Unattended work is off, so nothing runs with nobody watching.",
+        "summary": "$0.00",
     }
 
 
