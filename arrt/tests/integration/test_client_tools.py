@@ -1,4 +1,8 @@
-"""Clients and wall assignment through `art_display`, driven by a real MCP client.
+"""Clients and wall assignment through `art_players`, driven by a real MCP client.
+
+`art_display` carried these until wave 2b, when every act on a wall was gathered
+there and the Player actions moved to `art_players`, unrenamed (the owner's
+ruling 3 of 2026-11-19); the walls themselves are still `art_display`'s.
 
 `clients.md` makes a client — an installed Player — something the server knows,
 and Settings › Players is where a curator keeps them. These are the same acts on
@@ -19,7 +23,13 @@ import pytest
 from async_http import request
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from unit.test_surface_parity import CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET, check_not_yet_on_mcp
+from unit.test_surface_parity import (
+    CLIENT_FIELDS_HTTP_ANSWERS_AND_MCP_DOES_NOT_YET,
+    WALL_RENAMES,
+    check_not_yet_on_mcp,
+    check_renamed,
+    in_http_names,
+)
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
@@ -33,18 +43,26 @@ _REPORT = {
 }
 
 
+#: The actions this file calls on `art_display`; every other it calls is `art_players`'.
+_ON_THE_WALL_TOOL = frozenset({"walls", "add_wall"})
+
+
+def _tool(action: str) -> str:
+    return "art_display" if action in _ON_THE_WALL_TOOL else "art_players"
+
+
 async def call(server_url: str, action: str, **arguments) -> tuple[dict, bool]:
-    """Call `art_display` over real HTTP; return its payload and the protocol's error flag."""
+    """Call the action's tool over real HTTP; return its payload and the protocol's error flag."""
     async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
         await session.initialize()
-        result = await session.call_tool("art_display", {"action": action, **arguments})
+        result = await session.call_tool(_tool(action), {"action": action, **arguments})
     return json.loads(result.content[0].text), bool(result.isError)
 
 
 async def ok(server_url: str, action: str, **arguments) -> dict:
     payload, errored = await call(server_url, action, **arguments)
-    assert errored is False, f"art_display(action={action!r}) refused: {payload}"
-    assert payload["success"] is True, f"art_display(action={action!r}) refused: {payload}"
+    assert errored is False, f"{_tool(action)}(action={action!r}) refused: {payload}"
+    assert payload["success"] is True, f"{_tool(action)}(action={action!r}) refused: {payload}"
     return payload
 
 
@@ -297,19 +315,21 @@ async def test_the_walls_read_carries_each_walls_display_state_in_the_browsers_s
         each["wall_id"]: each["display_state"] for each in (await request("GET", f"{server_url}/api/walls")).json()["walls"]
     }
 
-    # The age is read at each request, so it is the one field the two may differ in.
-    assert {k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in tool.items()} == {
+    # The age is read at each request, so it is the one field the two may differ in; and the work is
+    # `artwork_id` on the tool, `work_id` on the route (wave 2b), the rename map's one pair.
+    renames = WALL_RENAMES["DisplayState"]
+    check_renamed("DisplayState", set(tool[wall]), set(browser[wall]), renames)
+    assert {k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in in_http_names(tool, renames).items()} == {
         k: {f: v for f, v in s.items() if f != "age_seconds"} for k, s in browser.items()
     }
-    assert tool[wall].keys() == browser[wall].keys()
     assert tool[wall]["state"] == "in_use"
-    assert tool[wall]["work_id"] is None
+    assert tool[wall]["artwork_id"] is None
     assert tool[wall]["since"] == "2026-10-08T20:15:00-06:00"
     assert tool[wall]["last"] is None
     [study] = [state for wall_id, state in tool.items() if wall_id != wall]
     assert study == {
         "state": "unassigned",
-        "work_id": None,
+        "artwork_id": None,
         "since": None,
         "reported_at": None,
         "age_seconds": None,

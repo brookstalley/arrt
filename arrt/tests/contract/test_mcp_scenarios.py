@@ -112,7 +112,7 @@ async def test_a_work_can_be_put_on_the_wall_through_the_tools_alone(server_url,
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
 
-        published = await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
+        published = await caller.ok("art_display", "activate", theme_id=theme_id, wall_id=wall_id)
 
         assert published["theme"]["name"] == "Pointillism, briefly"
         # The result names the wall, so a caller reporting back says which room.
@@ -144,7 +144,7 @@ async def test_a_work_that_cannot_be_shown_is_reported_rather_than_dropped(serve
             await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=entry["artwork_id"])
 
         walls = await caller.ok("art_display", "walls")
-        published = await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=walls["walls"][0]["wall_id"])
+        published = await caller.ok("art_display", "activate", theme_id=theme_id, wall_id=walls["walls"][0]["wall_id"])
 
     assert published["on_the_wall"] == []
     excluded = {entry["title"]: entry for entry in published["not_on_the_wall"]}
@@ -240,16 +240,16 @@ async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_ur
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
         await caller.ok("art_display", "set_playback", wall_id=wall_id, shuffle="in_order")
-        await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
+        await caller.ok("art_display", "activate", theme_id=theme_id, wall_id=wall_id)
 
         shown = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
-        assert shown["work_id"] == work.id
+        assert shown["artwork_id"] == work.id
         assert shown["wall_id"] == wall_id
 
         stepped = await caller.ok("art_display", "next", wall_id=wall_id)
 
     # In the theme's order, the work after the one shown now is the first again.
-    assert stepped["work_id"] == first.id
+    assert stepped["artwork_id"] == first.id
 
 
 async def test_a_curator_can_choose_a_walls_mat_and_hand_it_back_to_the_player(server_url):
@@ -358,7 +358,7 @@ async def test_the_wall_admits_that_nothing_has_reported(server_url):
     # another was dark.
     [reading] = payload["walls"]
     assert payload["count"] == 1
-    assert reading["display_plane_has_reported"] is False
+    assert reading["has_reported"] is False
     assert reading["reported_at"] is None
     assert reading["wall_name"], "the reading did not name the wall it is about"
     assert payload["observation"], "status returned no human-readable observation"
@@ -579,3 +579,65 @@ async def test_walls_says_when_a_walls_player_cannot_read_the_feed(server_url, w
 
     assert walls["walls"][0]["reads_feed"] is False
     assert walls["walls"][0]["feed_notice"] == feed_notice(reads_feed=False)
+
+
+def _keys_anywhere(value: object, *, skip: frozenset[str] = frozenset()) -> set[str]:
+    """Every key at any depth of an answer, but under the keys in `skip`."""
+    if isinstance(value, dict):
+        return set(value) | {
+            inner for key, nested in value.items() if key not in skip for inner in _keys_anywhere(nested, skip=skip)
+        }
+    if isinstance(value, list):
+        return {inner for nested in value for inner in _keys_anywhere(nested, skip=skip)}
+    return set()
+
+
+async def test_a_theme_is_hung_and_a_scene_applied_on_one_tool_and_the_old_calls_name_it(server_url, ready_work):
+    """Ruling 3's break, as a caller meets it: every act on a wall is `art_display`'s, and says `artwork_id`.
+
+    Until wave 2b `activate` and the scene acts were `art_theme`'s and the wall
+    answers said `work_id`. The old calls are made first, as a script written
+    before the break would make them, and each is refused naming the call that
+    works; then that call is made and the wall's answers are walked for the old name.
+    """
+    first, dali = ready_work("Automat"), ready_work("Dalí")
+
+    async with connect(server_url) as caller:
+        theme_id = (await caller.ok("art_theme", "create", name="Before and after"))["theme"]["theme_id"]
+        await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=first.id)
+        wall_id = (await caller.ok("art_display", "walls"))["walls"][0]["wall_id"]
+
+        old_hang = await caller.call("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
+        old_draft = await caller.call("art_theme", "draft_scene")
+        hung = await caller.ok("art_display", "activate", theme_id=theme_id, wall_id=wall_id)
+        draft = await caller.ok("art_display", "draft_scene")
+        pinned = await caller.ok("art_display", "pin_scene", scene_id=draft["scene_id"], wall_id=wall_id, artwork_id=dali.id)
+        old_work_id = await caller.call("art_display", "show_now", wall_id=wall_id, work_id=dali.id)
+        applied = await caller.ok("art_display", "apply_scene", scene_id=draft["scene_id"], lifetime="hold")
+        answers = {
+            "walls": await caller.ok("art_display", "walls"),
+            "status": await caller.ok("art_display", "status"),
+            "scenes": await caller.ok("art_display", "scenes"),
+            "show_now": await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=first.id),
+            "next": await caller.ok("art_display", "next", wall_id=wall_id),
+        }
+        await caller.ok("art_display", "release_scene", scene_id=draft["scene_id"])
+
+    assert old_hang["success"] is False
+    assert "call art_display(action='activate') instead" in old_hang["error"]
+    assert old_draft["success"] is False
+    assert "call art_display(action='draft_scene') instead" in old_draft["error"]
+    assert old_work_id["success"] is False
+    assert "Send it as artwork_id." in old_work_id["error"]
+
+    assert [entry["artwork_id"] for entry in hung["on_the_wall"]] == [first.id]
+    assert [entry["artwork_id"] for entry in pinned["walls"]] == [dali.id]
+    assert applied["status"] == "live"
+    # Anchored on what is there before asserting what is not: each answer carries the new name.
+    assert "artwork_id" in _keys_anywhere(applied)
+    assert answers["show_now"]["artwork_id"] == first.id
+    for name, answer in {**answers, "pin_scene": pinned, "apply_scene": applied}.items():
+        # `status`' `reported` is the Player's own heartbeat, in the contract's names.
+        found = _keys_anywhere(answer, skip=frozenset({"reported"}))
+        assert "work_id" not in found, f"art_display(action={name!r}) still answers work_id"
+        assert "display_plane_has_reported" not in found, name

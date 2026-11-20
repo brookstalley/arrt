@@ -65,6 +65,7 @@ from arrt.programming.display import (
     PLAYERS_OWN_MAT,
     SHUFFLE_CHOICES,
     UNSET,
+    NotAgainScope,
     SceneView,
     SceneWall,
     SizeJudgement,
@@ -111,7 +112,7 @@ _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKin
 #: send the curator to do something pointless.
 RESTORE_NOTICE: Final[str] = "It goes back into the rotation of every wall hanging a theme that holds it."
 
-#: What `art_theme(action='allow_again')` and the Work page's *Allow on walls
+#: What `art_display(action='allow_again')` and the Work page's *Allow on walls
 #: again* both say. Restoring an archived work and letting a kept-off work back
 #: reach the wall the same way, so they are said in the same words; the client
 #: holds this verbatim (`tests/unit/test_client_vocabulary.py`).
@@ -549,7 +550,7 @@ def _scene_wall_fields(wall: SceneWall) -> dict[str, Any]:
     return {
         "wall_id": wall.wall_id,
         "wall_name": wall.wall_name,
-        "work_id": wall.work_id,
+        "artwork_id": wall.work_id,
         "title": wall.title,
         "reached": wall.reached,
         "cannot_show": wall.cannot_show,
@@ -593,7 +594,12 @@ def _release_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str
 
 
 def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    done = services.display.not_this_one_again(arguments["artwork_id"], wall_id=arguments["wall_id"], scope=arguments["scope"])
+    # Off every wall, and only that: the theme scope was `art_theme(action='remove')`
+    # under a second name, and went in wave 2b. The answer keeps `scope` and
+    # `left_theme` (null), so no key an existing reader reads disappears with it.
+    done = services.display.not_this_one_again(
+        arguments["artwork_id"], wall_id=arguments["wall_id"], scope=NotAgainScope.EVERY_WALL
+    )
     return ok(
         scope=str(done.scope),
         artwork_id=done.artwork_id,
@@ -1381,7 +1387,8 @@ def _wall_status(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
                 "wall_id": each.wall.id,
                 "wall_name": each.wall.name,
                 "observation": each.heartbeat.describe(),
-                "display_plane_has_reported": not each.heartbeat.absent,
+                # `display_plane_has_reported` until wave 2b: the display plane is the Player now.
+                "has_reported": not each.heartbeat.absent,
                 "reported_at": _moment(each.heartbeat.reported_at),
                 "age_seconds": each.heartbeat.age_seconds,
                 "problem": each.heartbeat.problem,
@@ -1826,8 +1833,8 @@ def _built(services: Services, build: ManifestBuild, *, notice: str | None = Non
 
 
 def _show_now(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    work_id = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
-    return ok(**_republished_fields(arguments["wall_id"], work_id))
+    shown = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
+    return ok(**_republished_fields(arguments["wall_id"], shown))
 
 
 def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1888,19 +1895,19 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
-    ("art_theme", "activate"): _activate_theme,
-    ("art_theme", "hang_selection"): _hang_selection,
-    ("art_theme", "not_again"): _not_again,
-    ("art_theme", "kept_off"): _kept_off,
-    ("art_theme", "allow_again"): _allow_again,
-    ("art_theme", "unhang"): _unhang,
-    ("art_theme", "scenes"): _scenes,
-    ("art_theme", "draft_scene"): _draft_scene,
-    ("art_theme", "pin_scene"): _pin_scene,
-    ("art_theme", "unpin_scene"): _unpin_scene,
-    ("art_theme", "discard_scene"): _discard_scene,
-    ("art_theme", "apply_scene"): _apply_scene,
-    ("art_theme", "release_scene"): _release_scene,
+    ("art_display", "activate"): _activate_theme,
+    ("art_display", "hang_selection"): _hang_selection,
+    ("art_display", "not_again"): _not_again,
+    ("art_display", "kept_off"): _kept_off,
+    ("art_display", "allow_again"): _allow_again,
+    ("art_display", "unhang"): _unhang,
+    ("art_display", "scenes"): _scenes,
+    ("art_display", "draft_scene"): _draft_scene,
+    ("art_display", "pin_scene"): _pin_scene,
+    ("art_display", "unpin_scene"): _unpin_scene,
+    ("art_display", "discard_scene"): _discard_scene,
+    ("art_display", "apply_scene"): _apply_scene,
+    ("art_display", "release_scene"): _release_scene,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "rename_wall"): _rename_wall,
@@ -1912,16 +1919,16 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
-    ("art_display", "clients"): _list_clients,
-    ("art_display", "add_client"): _add_client,
-    ("art_display", "rename_client"): _rename_client,
-    ("art_display", "remove_client"): _remove_client,
-    ("art_display", "issue_client_token"): _issue_client_token,
-    ("art_display", "assign_wall"): _assign_wall,
-    ("art_display", "unassign_wall"): _unassign_wall,
-    ("art_display", "assign_display"): _assign_display,
-    ("art_display", "add_label"): _add_label,
-    ("art_display", "remove_label"): _remove_label,
+    ("art_players", "clients"): _list_clients,
+    ("art_players", "add_client"): _add_client,
+    ("art_players", "rename_client"): _rename_client,
+    ("art_players", "remove_client"): _remove_client,
+    ("art_players", "issue_client_token"): _issue_client_token,
+    ("art_players", "assign_wall"): _assign_wall,
+    ("art_players", "unassign_wall"): _unassign_wall,
+    ("art_players", "assign_display"): _assign_display,
+    ("art_players", "add_label"): _add_label,
+    ("art_players", "remove_label"): _remove_label,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "brief"): _brief_taste,
     ("art_taste", "set"): _set_taste,
@@ -2193,14 +2200,14 @@ def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
         # The work it showed last, whatever its screen does now, and what its
         # schedule puts up next; in `GET /api/walls`' shape.
         "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
-        "upcoming": [{"work_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
+        "upcoming": [{"artwork_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
     }
 
 
 def _last_shown_fields(showing: Showing) -> dict[str, Any]:
     """A wall's last showing, as `LastShownOut` carries it: `until` is the end, or the last sight while it has none."""
     return {
-        "work_id": showing.work_id,
+        "artwork_id": showing.work_id,
         "started_at": _moment(showing.started_at),
         "until": _moment(showing.ended_at if showing.ended_at is not None else showing.last_seen_at),
         "ended": showing.ended_at is not None,
@@ -2212,11 +2219,11 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     last = shown.last
     return {
         "state": str(shown.state),
-        "work_id": shown.work_id,
+        "artwork_id": shown.work_id,
         "since": _moment(shown.since),
         "reported_at": _moment(shown.reported_at),
         "age_seconds": shown.age_seconds,
-        "last": None if last is None else {"state": str(last.state), "work_id": last.work_id, "since": _moment(last.since)},
+        "last": None if last is None else {"state": str(last.state), "artwork_id": last.work_id, "since": _moment(last.since)},
     }
 
 
@@ -2225,10 +2232,10 @@ def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str
     return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
 
 
-def _republished_fields(wall_id: str, work_id: str) -> dict[str, Any]:
+def _republished_fields(wall_id: str, artwork_id: str) -> dict[str, Any]:
     return {
         "wall_id": wall_id,
-        "work_id": work_id,
+        "artwork_id": artwork_id,
         # This action cannot observe the screen, so a result implying it had
         # changed would assert something the server has no way to know.
         "notice": "The wall's schedule is republished, starting with this work. "

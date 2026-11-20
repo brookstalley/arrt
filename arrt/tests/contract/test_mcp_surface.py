@@ -11,9 +11,10 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from arrt.ask.prompt import ASK_SCOPE
 from arrt.library.facade import PlayableWork, UnplayableReason
 from arrt.mcp.registry import DESCRIPTION_BUDGET_BYTES
-from arrt.mcp.tools import ART_DISPLAY, ART_THEME, TOOLS, TOOLS_BY_NAME
+from arrt.mcp.tools import ART_DISPLAY, ART_PLAYERS, ART_THEME, TOOLS, TOOLS_BY_NAME
 from arrt.persistence.records import FetchStatus, VocabularyKind
 from arrt.services.errors import ServiceError
 
@@ -25,10 +26,16 @@ from arrt.services.errors import ServiceError
 #: the tool and the operator's decision to have it — where changing one is the
 #: regression this guards. A new entry therefore belongs in the same commit as
 #: the tool; an *edited* one never belongs at all.
+#:
+#: `art_players` joined in wave 2b, with the one break the owner allowed (ruling
+#: 3 of 2026-11-19): every act on a wall went to `art_display`, and the Player
+#: actions left it for this tool so the wall acts fit its description budget.
+#: No name here was renamed or removed.
 FROZEN_TOOL_NAMES = {
     "art_catalogue",
     "art_discovery",
     "art_display",
+    "art_players",
     "art_review",
     "art_settings",
     "art_taste",
@@ -116,7 +123,15 @@ async def test_exactly_the_tools_that_leave_the_machine_declare_an_open_world(to
     # Purely local: reviewing candidates, arranging themes, writing the manifest,
     # recording what the curator likes and changing the household's settings all
     # touch this machine's catalogue and its own filesystem.
-    assert {"art_review", "art_theme", "art_display", "art_taste", "art_settings", "art_watches"} & open_world == set()
+    assert {
+        "art_review",
+        "art_theme",
+        "art_display",
+        "art_players",
+        "art_taste",
+        "art_settings",
+        "art_watches",
+    } & open_world == set()
 
 
 async def test_every_tool_requires_an_action_and_nothing_else(tools):
@@ -325,9 +340,11 @@ def test_the_delete_tip_states_the_refusal_the_service_actually_makes(display, w
         for token in tokens:
             assert token in tips, f"the delete tip does not prepare a caller for {cause!r}"
     # And the tip's remedy is one the surface offers: an instruction naming an
-    # action that does not exist is worse than none.
-    assert {entry.name for entry in ART_THEME.actions} >= {"activate", "unhang"}
-    assert "unhang" in tips
+    # action that does not exist is worse than none. Both are the wall tool's
+    # since wave 2b, and the tip names the tool with them.
+    assert {entry.name for entry in ART_DISPLAY.actions} >= {"activate", "unhang"}
+    assert "art_display(action='activate')" in tips
+    assert "art_display(action='unhang')" in tips
     # The message itself, whole, the same treatment the `unhang` notice gets and
     # for the same reason: `api-contract.md` calls this sentence normative and
     # asks two things of it — that it names the walls, and that it offers *both*
@@ -428,27 +445,27 @@ def test_no_tool_still_teaches_the_single_wall_rule_it_replaced(record):
 #: this test agree with any answer the code gave — including an action that
 #: quietly stopped naming a wall.
 _ACTS_ON_ONE_WALL = {
-    ("art_theme", "activate"),
-    ("art_theme", "unhang"),
-    ("art_theme", "hang_selection"),
-    ("art_theme", "not_again"),
+    ("art_display", "activate"),
+    ("art_display", "unhang"),
+    ("art_display", "hang_selection"),
+    ("art_display", "not_again"),
     ("art_display", "preview"),
     ("art_display", "sync"),
     ("art_display", "show_now"),
     ("art_display", "next"),
     ("art_display", "set_mat_mode"),
-    ("art_display", "assign_wall"),
-    ("art_display", "unassign_wall"),
+    ("art_players", "assign_wall"),
+    ("art_players", "unassign_wall"),
 }
 
 
 #: Every action that acts on one client, for the reason `_ACTS_ON_ONE_WALL` is
 #: written out: derived from the declarations, it would agree with any answer.
 _ACTS_ON_ONE_CLIENT = {
-    ("art_display", "rename_client"),
-    ("art_display", "remove_client"),
-    ("art_display", "issue_client_token"),
-    ("art_display", "assign_wall"),
+    ("art_players", "rename_client"),
+    ("art_players", "remove_client"),
+    ("art_players", "issue_client_token"),
+    ("art_players", "assign_wall"),
 }
 
 
@@ -464,13 +481,16 @@ def test_every_act_against_a_client_names_it_and_says_where_its_id_comes_from(to
     assert "action='clients'" in " ".join([client.description, *action.tips])
 
 
-def test_the_display_tool_declares_itself_destructive_since_it_can_forget_a_client():
+def test_the_players_tool_declares_itself_destructive_since_it_can_forget_a_client():
     """`remove_client` and `issue_client_token` cannot be undone, so the hint must not say otherwise.
 
     A client that auto-approves non-destructive tools would otherwise rotate a
-    working Player's token, refusing it, without asking anyone.
+    working Player's token, refusing it, without asking anyone. On `art_display`
+    until wave 2b; the wall tool stays destructive for `delete_wall`.
     """
-    assert {"remove_client", "issue_client_token"} <= set(ART_DISPLAY.action_names)
+    assert {"remove_client", "issue_client_token"} <= set(ART_PLAYERS.action_names)
+    assert ART_PLAYERS.destructive is True
+    assert "delete_wall" in ART_DISPLAY.action_names
     assert ART_DISPLAY.destructive is True
 
 
@@ -557,3 +577,23 @@ def test_an_id_the_catalogue_does_not_hold_is_refused_in_the_words_the_tip_uses(
         display.show_work_now(wall_id, "nope")
 
     assert excluded.detail in str(refused.value)
+
+
+# -- what the grouping guaranteed without anyone writing it down (wave 2b, Chunk 45) --
+
+
+@pytest.mark.parametrize("record", TOOLS, ids=lambda record: record.name)
+def test_every_action_has_an_example_that_calls_it_where_it_is(record):
+    """The example is what a model copies. One naming the tool an action moved from teaches a refused call."""
+    for action in record.actions:
+        assert action.example.startswith(
+            f"{record.name}(action={action.name!r}"
+        ), f"{record.name}(action={action.name!r})'s example is {action.example!r}"
+
+
+def test_every_action_ask_may_call_is_one_the_surface_takes():
+    """`ASK_SCOPE` names tools and actions by string; a regroup must not leave one pointing at nothing."""
+    for tool_name, actions in ASK_SCOPE.items():
+        assert tool_name in TOOLS_BY_NAME, f"Ask may call {tool_name}, which the surface does not have"
+        missing = actions - set(TOOLS_BY_NAME[tool_name].action_names)
+        assert not missing, f"Ask may call {tool_name}'s {sorted(missing)}, which it does not take"

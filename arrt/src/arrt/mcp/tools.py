@@ -33,7 +33,7 @@ from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREA
 from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.library.services.settings import SETTINGS
 from arrt.library.services.survey import FIT_BANDS
-from arrt.mcp.registry import Action, Param, ToolRecord
+from arrt.mcp.registry import Action, Param, RegistryError, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
 from arrt.programming.display import (
@@ -1301,12 +1301,46 @@ _SCENE_ID = Param(
     required=True,
 )
 
+#: What a caller still sending `work_id` for a catalogue work is told. Wall
+#: answers said `work_id` for the work's catalogue id until wave 2b (the owner's
+#: ruling 3 of 2026-11-19) and say `artwork_id` now, the name every action here
+#: takes; an agent reading an old answer's name and sending it back is refused
+#: with the new one rather than with "does not take" alone.
+_WORK_ID_IS_ARTWORK_ID: Final = {
+    "work_id": (
+        "a work in the Library is artwork_id on this surface, the name art_display's answers give it "
+        "where they said work_id before. Send it as artwork_id."
+    )
+}
+
+#: The acts on a wall `art_theme` carried until wave 2b, gathered on
+#: `art_display` by the owner's ruling 3 of 2026-11-19. Each is refused here
+#: naming where it went (`registry.resolve_action`), never answered as unknown.
+MOVED_FROM_THEME: Final = dict.fromkeys(
+    (
+        "activate",
+        "hang_selection",
+        "not_again",
+        "kept_off",
+        "allow_again",
+        "unhang",
+        "scenes",
+        "draft_scene",
+        "pin_scene",
+        "unpin_scene",
+        "discard_scene",
+        "apply_scene",
+        "release_scene",
+    ),
+    "art_display",
+)
+
 ART_THEME: Final = ToolRecord(
     name="art_theme",
     title="Art themes",
     summary=(
-        "Group works into themes, hang a theme or chosen works (hang_selection) on a named wall, "
-        "and show a work per wall together as a scene."
+        "Group works into themes: make, name, order and delete them, and choose the one new works join. "
+        "Hanging a theme on a wall, and every other act on a wall, is art_display's."
     ),
     read_only=False,
     destructive=True,
@@ -1318,7 +1352,7 @@ ART_THEME: Final = ToolRecord(
             example="art_theme(action='list')",
             tips=(
                 (
-                    "A theme is global and hangs nowhere until action='activate' puts it on a named wall. "
+                    "A theme is global and hangs nowhere until art_display(action='activate') puts it on a named wall. "
                     "The same theme may hang on several walls at once, and a theme hanging on none is normal."
                 ),
             ),
@@ -1338,7 +1372,7 @@ ART_THEME: Final = ToolRecord(
         ),
         Action(
             name="create",
-            description="Create a theme. It hangs nowhere until action='activate' puts it on a wall.",
+            description="Create a theme. It hangs nowhere until art_display(action='activate') puts it on a wall.",
             example="art_theme(action='create', name='American Modernists')",
             params=(
                 Param(name="name", type="string", description="What to call the theme. Must be unique.", required=True),
@@ -1369,8 +1403,9 @@ ART_THEME: Final = ToolRecord(
             tips=(
                 (
                     "A theme hanging on any wall is refused, and the refusal names those walls. Hang something else "
-                    "there with action='activate', or take it down with action='unhang', and then delete. This holds "
-                    "even when it is the only theme: a wall losing its picture has to be a choice."
+                    "there with art_display(action='activate'), or take it down with art_display(action='unhang'), "
+                    "and then delete. This holds even when it is the only theme: a wall losing its picture has to be "
+                    "a choice."
                 ),
             ),
         ),
@@ -1409,6 +1444,7 @@ ART_THEME: Final = ToolRecord(
                     "wall now; one that cannot be shown yet joins when it can. No sync is needed."
                 ),
             ),
+            retired=_WORK_ID_IS_ARTWORK_ID,
         ),
         Action(
             name="remove",
@@ -1418,7 +1454,15 @@ ART_THEME: Final = ToolRecord(
                 _THEME_ID,
                 Param(name="artwork_id", type="string", description="The work to remove.", required=True),
             ),
-            tips=("Every wall hanging the theme loses the work at once; one showing it now moves on.",),
+            tips=(
+                "Every wall hanging the theme loses the work at once; one showing it now moves on.",
+                (
+                    "This is how a work leaves what hangs on a wall: the theme_id is the wall's hanging in "
+                    "art_display(action='walls'), a chosen selection included. To keep a work off every wall "
+                    "instead, whatever hangs there, use art_display(action='not_again')."
+                ),
+            ),
+            retired=_WORK_ID_IS_ARTWORK_ID,
         ),
         Action(
             name="reorder",
@@ -1429,190 +1473,10 @@ ART_THEME: Final = ToolRecord(
                 Param(name="artwork_id", type="string", description="The work to move.", required=True),
                 _POSITION,
             ),
-        ),
-        Action(
-            name="activate",
-            description="Hang this theme on a named wall, replacing whatever was hanging there.",
-            example="art_theme(action='activate', theme_id='<a theme_id>', wall_id='<a wall_id>')",
-            params=(_THEME_ID, _WALL_ID),
-            tips=(
-                (
-                    "The wall is required even when there is only one, so the confirmation you report names it. "
-                    "Get wall ids from art_display(action='walls')."
-                ),
-                (
-                    "This publishes the theme: it rewrites the manifest, so the wall converges on it "
-                    "within about a second. No separate sync is needed."
-                ),
-                (
-                    "The result names every member that will NOT be on the wall and why, as "
-                    "art_display(action='preview') does before hanging — a theme can be half-displayable."
-                ),
-                (
-                    "Switching rewrites the wall's feed. Its Player reads it on its next poll and fetches or uploads "
-                    "any work it lacks, which can take a while."
-                ),
-            ),
-        ),
-        Action(
-            name="hang_selection",
-            description="Hang one or more chosen works on a named wall, until something else is hung there.",
-            example="art_theme(action='hang_selection', wall_id='<a wall_id>', artwork_ids=['<an artwork_id>'])",
-            params=(
-                _WALL_ID,
-                Param(
-                    name="artwork_ids",
-                    type="array",
-                    items="string",
-                    description="The works to hang, in the order they should show, as art_catalogue(action='list') names them.",
-                    required=True,
-                ),
-            ),
-            tips=(
-                (
-                    "A selection is kept as a theme marked hidden: action='list' leaves it out, and the wall it hangs "
-                    "on reports it with hidden=true. Hanging anything else there replaces it."
-                ),
-                (
-                    "The result is the same as action='activate': every work that will NOT be on the wall and why, "
-                    "including a work kept off every wall by action='not_again'."
-                ),
-            ),
-        ),
-        Action(
-            name="not_again",
-            description="Remove a work: out of the theme on a wall, or off every wall.",
-            example="art_theme(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>', scope='theme')",
-            params=(
-                _WALL_ID,
-                Param(name="artwork_id", type="string", description="The work to take off.", required=True),
-                Param(
-                    name="scope",
-                    type="string",
-                    description=(
-                        "theme: out of the theme hanging on that wall, and so off every wall hanging it. "
-                        "every_wall: off every wall until allowed again; the work stays in the library and its themes."
-                    ),
-                    choices=("theme", "every_wall"),
-                    required=True,
-                ),
-            ),
-            tips=(
-                "Ask which the curator meant; the two are different changes. Neither archives the work.",
-                "The walls carrying it lose it now, without a sync, and nothing else on them changes.",
-                "every_wall is undone with action='allow_again'.",
-            ),
-        ),
-        Action(
-            name="kept_off",
-            description="Return every work kept off every wall by action='not_again', oldest first.",
-            example="art_theme(action='kept_off')",
-        ),
-        Action(
-            name="allow_again",
-            description="Let a work kept off every wall go on walls again.",
-            example="art_theme(action='allow_again', artwork_id='<an artwork_id>')",
-            params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
-            tips=(
-                (
-                    "Every wall hanging a theme that holds the work gets it back at once, if it can be shown. "
-                    "No sync is needed."
-                ),
-            ),
-        ),
-        Action(
-            name="unhang",
-            description="Take down whatever is hanging on a wall, leaving it holding nothing.",
-            example="art_theme(action='unhang', wall_id='<a wall_id>')",
-            params=(_WALL_ID,),
-            tips=(
-                "Refused when nothing is hanging on that wall — there is nothing to take down.",
-                (
-                    "The wall goes on showing what it was showing until something else is hung: no manifest is "
-                    "rewritten, because publishing an empty one would blank the wall as a side effect of tidying up."
-                ),
-                "This is how a theme that is refused by action='delete' becomes deletable.",
-            ),
-        ),
-        Action(
-            name="scenes",
-            description="Return the scene live on the walls and the one being assembled.",
-            example="art_theme(action='scenes')",
-            tips=(
-                (
-                    "A scene is a work per wall, shown together over each wall's schedule. Each wall in it says "
-                    "whether its Player reports showing the scene (reached) and what its screen is doing: in_use "
-                    "is somebody watching television, and that wall waits until the set is free."
-                ),
-            ),
-        ),
-        Action(
-            name="draft_scene",
-            description="Start assembling a scene, or return the one being assembled.",
-            example="art_theme(action='draft_scene')",
-            tips=("The answer's scene_id is what every other scene action takes. There is one draft at a time.",),
-        ),
-        Action(
-            name="pin_scene",
-            description="Put a work on a named wall in the scene being assembled.",
-            example="art_theme(action='pin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>', artwork_id='<an artwork_id>')",
-            params=(_SCENE_ID, _WALL_ID, _ARTWORK_ID),
-            tips=(
-                (
-                    "The wall starts preparing the work at once (staging), so the walls switch together when "
-                    "the scene is applied. Nothing is shown until then."
-                ),
-                (
-                    "Refused, in the words art_display(action='show_now') uses, for a work that cannot reach a "
-                    "wall or one kept off every wall; refused for a wall with nothing ever hung on it."
-                ),
-            ),
-        ),
-        Action(
-            name="unpin_scene",
-            description="Take a named wall out of the scene being assembled.",
-            example="art_theme(action='unpin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>')",
-            params=(_SCENE_ID, _WALL_ID),
-        ),
-        Action(
-            name="discard_scene",
-            description="Forget the scene being assembled.",
-            example="art_theme(action='discard_scene', scene_id='<a scene_id>')",
-            params=(_SCENE_ID,),
-        ),
-        Action(
-            name="apply_scene",
-            description="Show the scene on its walls now, as a preview or held.",
-            example="art_theme(action='apply_scene', scene_id='<a scene_id>', lifetime='preview', minutes=20)",
-            params=(
-                _SCENE_ID,
-                Param(
-                    name="lifetime",
-                    type="string",
-                    description="preview (ends after minutes) or hold (until released).",
-                    required=True,
-                    choices=("preview", "hold"),
-                ),
-                Param(
-                    name="minutes",
-                    type="integer",
-                    description=f"A preview's length; {PREVIEW_MINUTES} when omitted, {MAX_PREVIEW_MINUTES} at most.",
-                    minimum=1,
-                    maximum=MAX_PREVIEW_MINUTES,
-                ),
-            ),
-            tips=(
-                "Any other live scene ends. Each wall returns to its schedule on its own when a preview ends.",
-                "A hold takes no minutes and stays until action='release_scene'.",
-            ),
-        ),
-        Action(
-            name="release_scene",
-            description="End the live scene; each wall returns to its schedule.",
-            example="art_theme(action='release_scene', scene_id='<a scene_id>')",
-            params=(_SCENE_ID,),
+            retired=_WORK_ID_IS_ARTWORK_ID,
         ),
     ),
+    moved=MOVED_FROM_THEME,
 )
 
 #: Shared by `add_wall`, `rename_wall`, `add_client` and `rename_client`, and described
@@ -1627,7 +1491,7 @@ _NAME = Param(
 _CLIENT_ID = Param(
     name="client_id",
     type="string",
-    description="Which client — an installed Player — to act on, as returned by art_display(action='clients').",
+    description="Which client — an installed Player — to act on, as returned by art_players(action='clients').",
     required=True,
 )
 
@@ -1637,7 +1501,7 @@ _OUTPUT = Param(
     description=(
         "Which of the client's outputs, by the name the client reports for it: a display output such as "
         "'hdmi-a-1' or 'frame' for assign_wall, a label output such as 'epd-0' for add_label. "
-        "art_display(action='clients') lists what each client last reported."
+        "art_players(action='clients') lists what each client last reported."
     ),
     required=True,
 )
@@ -1647,7 +1511,7 @@ _DISPLAY_ID = Param(
     type="string",
     description=(
         "Which display — one physical screen, kept by the identity its client read from it — as listed under "
-        "each client's displays by art_display(action='clients')."
+        "each client's displays by art_players(action='clients')."
     ),
     required=True,
 )
@@ -1668,28 +1532,50 @@ _PREVIEW_THEME_ID = Param(
     description="Which theme to look at. Omit to look at the one hanging on that wall.",
 )
 
+#: The Player actions `art_display` carried until wave 2b, moved to
+#: `art_players` so that every act on a wall fits on this tool beside the walls
+#: (the owner's ruling 3 of 2026-11-19; the byte count that decided it is in
+#: `api-contract.md` § The surface).
+MOVED_FROM_DISPLAY: Final = dict.fromkeys(
+    (
+        "clients",
+        "add_client",
+        "rename_client",
+        "remove_client",
+        "issue_client_token",
+        "assign_wall",
+        "assign_display",
+        "add_label",
+        "remove_label",
+        "unassign_wall",
+    ),
+    "art_players",
+)
+
+#: Every act on a wall, on one tool (the owner's ruling 3 of 2026-11-19): what
+#: hangs there, how it plays, what it is kept from, and the scenes across walls.
+#: Which Player and which screen show a wall are `art_players`'.
 ART_DISPLAY: Final = ToolRecord(
     name="art_display",
     title="Art display",
     summary=(
-        "Report what each wall is doing and ask it to change, and keep the clients that show the walls. "
-        "Every action writes desired state, never a command."
+        "Every wall and every act on one: hanging, playing, keeping works off, scenes. "
+        "Each action writes desired state, never a command."
     ),
     read_only=False,
-    # Destructive since the client actions arrived: `remove_client` forgets a
-    # client and `issue_client_token` replaces its token, and neither can be
-    # undone — the reason `art_taste` gives for its own flag.
+    # Destructive: `delete_wall` forgets a wall for good and cannot be undone,
+    # the reason `art_taste` gives for its own flag.
     destructive=True,
     open_world=False,
     actions=(
         Action(
             name="walls",
-            description="Return every wall, the theme hanging on each, and whether its Player reads the feed.",
+            description="Return every wall, what hangs on it, and whether its Player reads the feed.",
             example="art_display(action='walls')",
             tips=(
                 (
-                    "Start here: every other action on this tool and art_theme(action='activate') needs a wall_id, "
-                    "and this is where they come from."
+                    "Start here: almost every other action on this tool, and art_players' assignments, need a "
+                    "wall_id, and this is where they come from."
                 ),
                 "A wall with no theme hanging on it is an ordinary state, not a fault.",
                 (
@@ -1710,9 +1596,9 @@ ART_DISPLAY: Final = ToolRecord(
                 ),
                 "Refuses a name that is empty or already taken.",
                 (
-                    "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
-                    "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
-                    "walls assigned to it. Hanging a theme on a new wall disturbs no other wall."
+                    "A new wall shows nothing until art_players(action='assign_wall') puts it on one of a "
+                    "client's outputs — a client is an installed Player. Each wall has its own manifest, and a "
+                    "client is admitted only to the walls assigned to it. Hanging a theme on a new wall disturbs no other wall."
                 ),
             ),
         ),
@@ -1741,7 +1627,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="set_mat_mode",
-            description="Choose how a named wall's Player draws the mat, or leave it to the Player.",
+            description="Choose how a named wall's mat is drawn, or leave it to its Player.",
             example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
             params=(
                 _WALL_ID,
@@ -1841,13 +1727,84 @@ ART_DISPLAY: Final = ToolRecord(
             tips=(
                 (
                     "Reads only: the wall, its feed and its history are left as they were, so it is the way to check "
-                    "a theme against a wall before art_theme(action='activate') hangs it. Omit theme_id to look at "
+                    "a theme against a wall before action='activate' hangs it. Omit theme_id to look at "
                     "what is hanging there; refused when nothing is and no theme_id is given."
                 ),
                 (
                     "The result names every theme member that would NOT be on the wall and why. A theme can be "
                     "half-displayable, and this is where that is said before anything changes."
                 ),
+            ),
+        ),
+        Action(
+            name="activate",
+            description="Hang a theme on a named wall in place of what hung there.",
+            example="art_display(action='activate', theme_id='<a theme_id>', wall_id='<a wall_id>')",
+            params=(
+                Param(
+                    name="theme_id",
+                    type="string",
+                    description="The theme to hang, as art_theme(action='list') names it.",
+                    required=True,
+                ),
+                _WALL_ID,
+            ),
+            tips=(
+                (
+                    "The wall is required even when there is only one, so the confirmation you report names it. "
+                    "Get wall ids from art_display(action='walls')."
+                ),
+                (
+                    "This publishes the theme: it rewrites the manifest, so the wall converges on it "
+                    "within about a second. No separate sync is needed."
+                ),
+                (
+                    "The result names every member that will NOT be on the wall and why, as "
+                    "art_display(action='preview') does before hanging — a theme can be half-displayable."
+                ),
+                (
+                    "Switching rewrites the wall's feed. Its Player reads it on its next poll and fetches or uploads "
+                    "any work it lacks, which can take a while."
+                ),
+            ),
+        ),
+        Action(
+            name="hang_selection",
+            description="Hang chosen works on a named wall until something else is hung.",
+            example="art_display(action='hang_selection', wall_id='<a wall_id>', artwork_ids=['<an artwork_id>'])",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="artwork_ids",
+                    type="array",
+                    items="string",
+                    description="The works to hang, in the order they should show, as art_catalogue(action='list') names them.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "A selection is kept as a theme marked hidden: action='list' leaves it out, and the wall it hangs "
+                    "on reports it with hidden=true. Hanging anything else there replaces it."
+                ),
+                (
+                    "The result is the same as action='activate': every work that will NOT be on the wall and why, "
+                    "including a work kept off every wall by action='not_again'."
+                ),
+            ),
+        ),
+        Action(
+            name="unhang",
+            description="Take down what hangs on a named wall, leaving it holding nothing.",
+            example="art_display(action='unhang', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=(
+                "Refused when nothing is hanging on that wall — there is nothing to take down.",
+                (
+                    "The wall goes on showing what it was showing until something else is hung: no manifest is "
+                    "rewritten, because publishing an empty one would blank the wall as a side effect of tidying up."
+                ),
+                "This is how a theme that is refused by action='delete' becomes deletable.",
             ),
         ),
         Action(
@@ -1859,16 +1816,17 @@ ART_DISPLAY: Final = ToolRecord(
                 (
                     "Rebuilds and rewrites the feed of the theme already hanging on that wall; it takes no theme_id and "
                     "never hangs another. Refused when nothing is hanging there: hang one with "
-                    "art_theme(action='activate') first. To check a theme first, use action='preview'."
+                    "action='activate' first. To check a theme first, use action='preview'."
                 ),
                 "The result names every theme member that is NOT on the wall and why, as preview does.",
             ),
         ),
         Action(
             name="show_now",
-            description="Ask a named wall to jump to one work and carry on rotating from there.",
+            description="Ask a named wall to jump to one work, then rotate on.",
             example="art_display(action='show_now', wall_id='<a wall_id>', artwork_id='<an artwork_id>')",
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
+            retired=_WORK_ID_IS_ARTWORK_ID,
             tips=(
                 (
                     "Any work that could not reach the wall is refused rather than shown — archived, "
@@ -1881,13 +1839,13 @@ ART_DISPLAY: Final = ToolRecord(
                 (
                     "It republishes the wall's schedule starting with this work; it does not confirm the "
                     "screen changed. It lasts one slot, then rotation carries on; to put works up and keep them "
-                    "there use art_theme(action='hang_selection')."
+                    "there use action='hang_selection'."
                 ),
             ),
         ),
         Action(
             name="next",
-            description="Ask a named wall to step to the next work in the theme hanging on it.",
+            description="Ask a named wall to step to its next work.",
             example="art_display(action='next', wall_id='<a wall_id>')",
             params=(_WALL_ID,),
             tips=(
@@ -1899,9 +1857,168 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="not_again",
+            description="Keep a work off every wall until action='allow_again'.",
+            example="art_display(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>')",
+            params=(
+                _WALL_ID,
+                Param(name="artwork_id", type="string", description="The work to take off.", required=True),
+            ),
+            tips=(
+                (
+                    "The work stays in the Library and in its themes, and is not archived; the walls carrying it "
+                    "lose it now, without a sync, and nothing else on them changes. wall_id is the wall the "
+                    "curator was looking at, which its history records."
+                ),
+                (
+                    "To take a work out of what hangs on one wall instead, take it out of that theme: "
+                    "art_theme(action='remove'). Ask which the curator meant; the two are different changes."
+                ),
+            ),
+            retired={
+                # Wave 2b: the theme scope was art_theme(action='remove') under a second name.
+                "scope": (
+                    "it always keeps the work off every wall now. To take a work out of the theme hanging on a "
+                    "wall, call art_theme(action='remove', theme_id=…, artwork_id=…) with the hanging theme_id "
+                    "art_display(action='walls') gives; to keep it off every wall, call this again without scope."
+                ),
+                **_WORK_ID_IS_ARTWORK_ID,
+            },
+        ),
+        Action(
+            name="kept_off",
+            description="Return every work kept off every wall.",
+            tips=("Oldest first. Each is still in the Library; action='allow_again' lets it back.",),
+            example="art_display(action='kept_off')",
+        ),
+        Action(
+            name="allow_again",
+            description="Let a work kept off every wall go on walls again.",
+            example="art_display(action='allow_again', artwork_id='<an artwork_id>')",
+            params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
+            retired=_WORK_ID_IS_ARTWORK_ID,
+            tips=(
+                (
+                    "Every wall hanging a theme that holds the work gets it back at once, if it can be shown. "
+                    "No sync is needed."
+                ),
+            ),
+        ),
+        Action(
+            name="scenes",
+            description="Return the live scene and the one being assembled.",
+            example="art_display(action='scenes')",
+            tips=(
+                (
+                    "A scene is a work per wall, shown together over each wall's schedule. Each wall in it says "
+                    "whether its Player reports showing the scene (reached) and what its screen is doing: in_use "
+                    "is somebody watching television, and that wall waits until the set is free."
+                ),
+            ),
+        ),
+        Action(
+            name="draft_scene",
+            description="Start assembling a scene, or return the one in progress.",
+            example="art_display(action='draft_scene')",
+            tips=("The answer's scene_id is what every other scene action takes. There is one draft at a time.",),
+        ),
+        Action(
+            name="pin_scene",
+            description="Put a work on a named wall in the scene being assembled.",
+            example=(
+                "art_display(action='pin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>', artwork_id='<an artwork_id>')"
+            ),
+            params=(
+                _SCENE_ID,
+                _WALL_ID,
+                Param(
+                    name="artwork_id",
+                    type="string",
+                    description="The work to put there, as art_catalogue(action='list') names it.",
+                    required=True,
+                ),
+            ),
+            retired=_WORK_ID_IS_ARTWORK_ID,
+            tips=(
+                (
+                    "The wall starts preparing the work at once (staging), so the walls switch together when "
+                    "the scene is applied. Nothing is shown until then."
+                ),
+                (
+                    "Refused, in the words art_display(action='show_now') uses, for a work that cannot reach a "
+                    "wall or one kept off every wall; refused for a wall with nothing ever hung on it."
+                ),
+            ),
+        ),
+        Action(
+            name="unpin_scene",
+            description="Take a named wall out of the scene being assembled.",
+            example="art_display(action='unpin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>')",
+            params=(_SCENE_ID, _WALL_ID),
+        ),
+        Action(
+            name="discard_scene",
+            description="Forget the scene being assembled.",
+            example="art_display(action='discard_scene', scene_id='<a scene_id>')",
+            params=(_SCENE_ID,),
+        ),
+        Action(
+            name="apply_scene",
+            description="Show the scene on its walls now, as a preview or held.",
+            example="art_display(action='apply_scene', scene_id='<a scene_id>', lifetime='preview', minutes=20)",
+            params=(
+                _SCENE_ID,
+                Param(
+                    name="lifetime",
+                    type="string",
+                    description="preview (ends after minutes) or hold (until released).",
+                    required=True,
+                    choices=("preview", "hold"),
+                ),
+                Param(
+                    name="minutes",
+                    type="integer",
+                    description=f"A preview's length; {PREVIEW_MINUTES} when omitted, {MAX_PREVIEW_MINUTES} at most.",
+                    minimum=1,
+                    maximum=MAX_PREVIEW_MINUTES,
+                ),
+            ),
+            tips=(
+                "Any other live scene ends. Each wall returns to its schedule on its own when a preview ends.",
+                "A hold takes no minutes and stays until action='release_scene'.",
+            ),
+        ),
+        Action(
+            name="release_scene",
+            description="End the live scene; each wall returns to its schedule.",
+            example="art_display(action='release_scene', scene_id='<a scene_id>')",
+            params=(_SCENE_ID,),
+        ),
+    ),
+    moved=MOVED_FROM_DISPLAY,
+)
+
+
+#: The installed Players (clients) and where each wall shows: added in wave 2b
+#: from `art_display`'s client and assignment actions, unrenamed, so that every
+#: act on a wall fits on `art_display` (the owner's ruling 3 of 2026-11-19).
+ART_PLAYERS: Final = ToolRecord(
+    name="art_players",
+    title="Art players",
+    summary=(
+        "Keep the clients, the installed Players that show the walls: record one, issue its token, and choose "
+        "which of its screens shows a wall and which label panel captions one. Walls are art_display's."
+    ),
+    read_only=False,
+    # `remove_client` forgets a client and `issue_client_token` replaces its
+    # token, and neither can be undone — the reason `art_taste` gives for its own flag.
+    destructive=True,
+    open_world=False,
+    actions=(
+        Action(
             name="clients",
             description="Return every client, with its walls and outputs and when it last reported them.",
-            example="art_display(action='clients')",
+            example="art_players(action='clients')",
             tips=(
                 (
                     "A client is an installed Player: one token, and the walls assigned to it, each on one of its "
@@ -1920,7 +2037,7 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="add_client",
             description="Record a client, with no token and no wall yet.",
-            example="art_display(action='add_client', name='Hall Pi')",
+            example="art_players(action='add_client', name='Hall Pi')",
             params=(_NAME,),
             tips=(
                 (
@@ -1933,13 +2050,13 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="rename_client",
             description="Rename a client; its token and walls are unchanged.",
-            example="art_display(action='rename_client', client_id='<a client_id>', name='Study Pi')",
+            example="art_players(action='rename_client', client_id='<a client_id>', name='Study Pi')",
             params=(_CLIENT_ID, _NAME),
         ),
         Action(
             name="remove_client",
             description="Forget a client: its token stops working, and its walls are left unshown.",
-            example="art_display(action='remove_client', client_id='<a client_id>')",
+            example="art_players(action='remove_client', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
                 (
@@ -1952,7 +2069,7 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="issue_client_token",
             description="Issue a client's token, replacing any it had; only the answer shows it.",
-            example="art_display(action='issue_client_token', client_id='<a client_id>')",
+            example="art_players(action='issue_client_token', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
                 (
@@ -1969,10 +2086,10 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="assign_wall",
             description="Show a named wall on one of a client's outputs, by the output's name.",
-            example="art_display(action='assign_wall', wall_id='<a wall_id>', client_id='<a client_id>', output='hdmi-a-1')",
+            example="art_players(action='assign_wall', wall_id='<a wall_id>', client_id='<a client_id>', output='hdmi-a-1')",
             params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
             tips=(
-                "Get wall ids from action='walls', and client ids and output names from action='clients'.",
+                "Get wall ids from art_display(action='walls'), and client ids and output names from action='clients'.",
                 (
                     "The answer's notice says when the output is not among those the client last reported, or the "
                     "client has not reported yet. The assignment is kept either way, so a client can be set up "
@@ -1987,7 +2104,7 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="assign_display",
             description="Show a named wall on a display, by its id, wherever that display now is.",
-            example="art_display(action='assign_display', wall_id='<a wall_id>', display_id='<a display_id>')",
+            example="art_players(action='assign_display', wall_id='<a wall_id>', display_id='<a display_id>')",
             params=(_WALL_ID, _DISPLAY_ID),
             tips=(
                 (
@@ -2004,7 +2121,7 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="add_label",
             description="Caption a named wall with one of a client's label outputs, by its name.",
-            example="art_display(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
+            example="art_players(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
             params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
             tips=(
                 (
@@ -2021,16 +2138,21 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="remove_label",
             description="Stop a label output captioning a named wall. The output stays, captioning nothing.",
-            example="art_display(action='remove_label', wall_id='<a wall_id>', label_id='<a label_id>')",
+            example="art_players(action='remove_label', wall_id='<a wall_id>', label_id='<a label_id>')",
             params=(_WALL_ID, _LABEL_ID),
-            tips=("Removing one that captions no wall is not an error. Get label ids from the wall's labels in action='walls'.",),
+            tips=(
+                (
+                    "Removing one that captions no wall is not an error. Get label ids from the wall's labels in "
+                    "art_display(action='walls')."
+                ),
+            ),
         ),
         Action(
             name="unassign_wall",
             description="Take a named wall off the client showing it. Its theme stays hung.",
-            example="art_display(action='unassign_wall', wall_id='<a wall_id>')",
+            example="art_players(action='unassign_wall', wall_id='<a wall_id>')",
             params=(_WALL_ID,),
-            tips=("Unassigning a wall no client shows is not an error. Get wall ids from action='walls'.",),
+            tips=("Unassigning a wall no client shows is not an error. Get wall ids from art_display(action='walls').",),
         ),
     ),
 )
@@ -2373,9 +2495,27 @@ TOOLS: Final[tuple[ToolRecord, ...]] = (
     ART_CATALOGUE,
     ART_THEME,
     ART_DISPLAY,
+    ART_PLAYERS,
     ART_TASTE,
     ART_SETTINGS,
     ART_WATCHES,
 )
 
 TOOLS_BY_NAME: Final[dict[str, ToolRecord]] = {tool.name: tool for tool in TOOLS}
+
+
+def _check_every_move_lands() -> None:
+    """Refuse a move whose destination does not take the action.
+
+    A refusal naming a tool that does not take the action would send a caller
+    from one refusal to another, which is the dead end `moved` exists to remove.
+    Checked at import, where the registry's other structural defects fail.
+    """
+    for tool in TOOLS:
+        for name, destination in tool.moved.items():
+            landed = TOOLS_BY_NAME.get(destination)
+            if landed is None or landed.action(name) is None:
+                raise RegistryError(f"{tool.name} says {name!r} moved to {destination}, which does not take it.")
+
+
+_check_every_move_lands()
