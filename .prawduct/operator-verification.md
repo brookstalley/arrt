@@ -39,8 +39,11 @@ view, 390 px). Each item says what to look at and what to report; none is a gate
   each wall reads what it shows. Then stop the Player: once its walls have reported and
   gone quiet, that is a trouble (▲, counted), as it should be. Say whether any of this
   reads as a fault while you are still setting up, or as well while something is wrong.
-  *Not yet:* the question before a hang onto a waiting wall still says everyone will
-  see it change, and MCP's walls answer does not say whom a wall waits for.
+  Then *Hang…* a theme onto one of the waiting walls, from Walls and from a selection:
+  the question says the server's words for that wall ("The hall waits for The living
+  room Pi, which has no token yet.") and not that everyone will see it change, which it
+  still says of a wall a Player shows (Chunk 66). An agent's `art_display` `walls` and
+  `status` say the same wait (`waiting_for`).
 - **Hang a selection (Chunk 34).** On Artworks, an Artist's works, a search's results
   and a Topic: *Select*, tick some works, *Hang…*; the dialog asks which wall and says how
   many were left out (no picture, or not held); *Select all* on an Artist sends only the
