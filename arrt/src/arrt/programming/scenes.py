@@ -282,14 +282,17 @@ class Scenes:
         wall deleted between that listing and a read of its own was asserted
         present, and the answer was a fault. Whether a wall's report says
         the scene, and its screen, are from one read of that report and one
-        survey of who shows what (`WallsReading`), never a read apiece.
+        survey of who shows what (`WallsReading`), never a read apiece. Only
+        the reports of the walls it pins are read, and every Player's, which
+        the survey needs to say whether a display is in fault.
         """
         walls: list[SceneWall] = []
         answers = self._library.playable(sorted({pin.work_id for pin in view.pins}))
         with self._store.reading():
             kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
-            reading = self._walls.read_reports()
-            for pin, wall in self._held_walls(view.pins):
+            held = self._held_walls(view.pins)
+            reading = self._walls.read_wall_reports(frozenset(wall.id for _, wall in held))
+            for pin, wall in held:
                 contents = reading.reports[wall.id].contents or {}
                 walls.append(
                     SceneWall(

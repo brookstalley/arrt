@@ -360,16 +360,18 @@ class WallsNow:
     """Each wall as a walls answer says it, every part of it from one reading (`HealthService.observe_walls`).
 
     A wall's view (`views`, with its display state and whether its Player
-    reads the feed), its report (`walls[id]`), its wait (`waiting.get(id)`)
-    and who shows it, its display and its labels (`survey`) are one read of
-    the store and of each report file, so an answer built from them cannot say
-    a wall waits while saying it shows a work, nor that it is unassigned beside
-    the Player that shows it.
+    reads the feed), its wait (`waiting.get(id)`) and who shows it, its
+    display and its labels (`survey`) are one read of the store and of each
+    report file, so an answer built from them cannot say a wall waits while
+    saying it shows a work, nor that it is unassigned beside the Player that
+    shows it. **A wall's display state is held once, in its view**, and its
+    wait is judged from that one: a second copy built beside it is a second
+    place for the two to part.
     """
 
     #: Every wall read, or the one asked for, in the order walls are listed.
     views: Sequence[WallView]
-    walls: Mapping[str, WallHeartbeat]
+    #: Each wall's wait, by wall id, judged from its view's display state.
     waiting: Mapping[str, WallWait]
     #: Who shows each wall, its display and its labels, from the same read.
     survey: PlacementSurvey
@@ -705,13 +707,12 @@ class HealthService:
         wall named that the catalogue does not hold is refused (`NotFound`).
         """
         seen = self._display.read_walls(wall_id)
-        walls = wall_statuses(seen.reading)
-        return WallsNow(
-            views=seen.views,
-            walls={each.wall.id: each for each in walls},
-            waiting=walls_waiting(walls, seen.reading.players()),
-            survey=seen.reading.survey,
-        )
+        # Each wall's state as its view holds it, never judged again.
+        walls = [
+            WallHeartbeat(wall=view.wall, heartbeat=seen.reading.reports[view.wall.id], state=view.display_state)
+            for view in seen.views
+        ]
+        return WallsNow(views=seen.views, waiting=walls_waiting(walls, seen.reading.players()), survey=seen.reading.survey)
 
     def observe_failed_fetches(self) -> FailedFetches | None:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""

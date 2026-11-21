@@ -143,7 +143,7 @@ class DisplayService:
         #: Scenes (`scenes.py`).
         self._scenes = Scenes(store, library, settings, self._lookups, self._feeds, self._themes, self._walls)
         #: What each wall's Player reports, and what is answered from it (`reports.py`).
-        self._reports = Reports(store, settings, self._lookups, self._feeds, self._themes, self._scenes)
+        self._reports = Reports(store, settings, self._lookups, self._feeds, self._themes, self._walls, self._scenes)
 
     # -- reads: themes --------------------------------------------------------
 
@@ -340,8 +340,8 @@ class DisplayService:
         return self._reports.survey_wall_status()
 
     def read_wall_reports(self) -> WallsReading:
-        """Every wall's report, who shows it and every Player's, each file read once (`WallsReading`)."""
-        return self._reports.read_wall_reports()
+        """Every wall's report, who shows it and every Player's, each file read once (`Walls.read_wall_reports`)."""
+        return self._walls.read_wall_reports()
 
     # -- writes: what the wall shows now ---------------------------------------
 

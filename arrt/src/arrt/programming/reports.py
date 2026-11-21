@@ -22,7 +22,7 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import adequacy, showings
-from arrt.programming.clients import Placements, WallsReading
+from arrt.programming.clients import WallsReading
 from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
 from arrt.programming.lookups import Lookups
@@ -33,6 +33,7 @@ from arrt.programming.scenes import Scenes
 from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
 from arrt.programming.themes import Themes
+from arrt.programming.walls import Walls
 from arrt.services.errors import ServiceError
 from arrt.services.store import store_write
 
@@ -185,6 +186,7 @@ class Reports:
         lookups: Lookups,
         feeds: FeedPublisher,
         themes: Themes,
+        walls: Walls,
         scenes: Scenes,
     ) -> None:
         self._store = store
@@ -193,6 +195,8 @@ class Reports:
         self._lookups = lookups
         self._feeds = feeds
         self._themes = themes
+        #: The facade's walls, whose `read_wall_reports` is the one way into the walls reading.
+        self._walls = walls
         self._scenes = scenes
 
     # -- reads: what each wall's Player says about itself -----------------------
@@ -207,16 +211,7 @@ class Reports:
         decided — which is exactly the question a wall that has gone silent is
         answered by.
         """
-        return wall_statuses(self.read_wall_reports())
-
-    def read_wall_reports(self) -> WallsReading:
-        """Every wall's report and who shows it, one survey and one read of each file (`Placements.read_walls`).
-
-        One survey of who shows what, so every wall's state is read at one
-        instant and by `Placements`, the one place that decides it; the
-        Players' states come from the same read (`WallsReading.players`).
-        """
-        return Placements(self._store, self._settings.art_root).read_walls()
+        return wall_statuses(self._walls.read_wall_reports())
 
     # -- what a Player reads and writes --------------------------------------------
 
