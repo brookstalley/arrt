@@ -8,7 +8,6 @@ schema, the validation, `help`, and the error messages all come from one
 record.
 """
 
-import asyncio
 import logging
 from collections.abc import Mapping
 from importlib.metadata import PackageNotFoundError, version
@@ -24,6 +23,7 @@ from arrt.mcp.registry import HELP_ACTION, ArgumentError
 from arrt.mcp.tools import TOOLS, TOOLS_BY_NAME
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
+from arrt.services.threads import mcp_pool
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ def dispatch(  # noqa: PLR0911 -- one return per refusal the tool boundary disti
 def build_server(services: Services) -> Server:
     """Wire the registry and the services onto an MCP server."""
     server: Server = Server(SERVER_NAME, version=_server_version(), instructions=INSTRUCTIONS)
+    threads = mcp_pool()
 
     @server.list_tools()
     async def _list_tools() -> list[types.Tool]:
@@ -166,14 +167,15 @@ def build_server(services: Services) -> Server:
     # does not teach.
     @server.call_tool(validate_input=False)
     async def _call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-        # Dispatched on a worker thread, never on the event loop. The service
-        # layer is synchronous by design, and one of its calls deliberately
-        # holds for up to 45 seconds waiting for a run to change — on the loop
-        # that would stop every other request in the process, the browser
-        # surface included, for the length of the hold. The browser surface
-        # already reaches the same services this way, because Starlette runs a
-        # synchronous endpoint in a worker thread; the catalogue is built for
-        # it, holding one connection behind a reentrant lock.
-        return to_call_tool_result(await asyncio.to_thread(dispatch, services, name, arguments))
+        # Dispatched on a thread of MCP's own pool, never on the event loop. The
+        # service layer is synchronous by design, and one of its calls
+        # deliberately holds for up to 45 seconds waiting for a run to change —
+        # on the loop that would stop every other request in the process, the
+        # browser surface included, for the length of the hold. The pool is
+        # MCP's alone (`services/threads.py`), so holds here never take Ask's
+        # threads. The browser surface reaches the same services from anyio's
+        # threads, because Starlette runs a synchronous endpoint on one; the
+        # catalogue is built for it, holding one connection behind a reentrant lock.
+        return to_call_tool_result(await threads.run(dispatch, services, name, arguments))
 
     return server
