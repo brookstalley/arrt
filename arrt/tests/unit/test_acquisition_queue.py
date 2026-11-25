@@ -12,6 +12,7 @@ produces on demand and about days no test can wait.
 
 import errno
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -793,6 +794,63 @@ class TestThePause:
         assert result.paused.remedy is not None
         row = store.get_queued_acquisition(artwork_id)
         assert row is None or row.failures == 0
+
+    @pytest.mark.uncacheable(
+        "runs the tile fetcher's real child process against a stand-in binary: how its exit is read is what is tested"
+    )
+    def test_a_tile_fetch_meeting_a_disk_fault_with_no_words_of_its_own_pauses_with_a_sentence(
+        self, store, service, preparer, clock, work, tmp_path, monkeypatch
+    ):
+        """A third member of `atomic.DISK_FAULT_ERRNOS` (here `EIO`), met by a real tile fetch, pauses the queue saying so.
+
+        The stand-in writes what `dezoomify-rs 2.18.1` wrote on a full disk
+        (`test_acquisition_dezoomify.py`'s `FULL_DISK_LINES`, from an observed
+        run) with that `errno` and the system's words for it in place of 28's.
+        Before, the words were looked up by hand and the fetch raised `KeyError`,
+        which the queue counted against the work rather than pausing.
+        """
+        from arrt import atomic
+        from arrt.library.acquisition import queue as queue_module
+        from arrt.library.acquisition.dezoomify import tile_fetch
+
+        widened = atomic.DISK_FAULT_ERRNOS | {errno.EIO}
+        monkeypatch.setattr(atomic, "DISK_FAULT_ERRNOS", widened)
+        # The queue's name for the set is bound when it is imported, so the
+        # widened set is given to it too, as a set changed in `atomic.py` would be.
+        monkeypatch.setattr(queue_module, "_HOST_ERRNOS", widened)
+        binary = tmp_path / "fake-dezoomify"
+        binary.write_text(
+            "#!/bin/sh\n"
+            'printf "x%.0s" $(seq 1 500) > "$(eval echo \\${$#})"\n'
+            f"printf '%s\\n' '[ERROR] Input/Output error: {os.strerror(errno.EIO)} (os error {errno.EIO})' >&2\n"
+            "exit 1\n"
+        )
+        binary.chmod(0o755)
+
+        class _Tiled:
+            def acquire(self, artwork_id, *, source_id=None):
+                tile_fetch(
+                    "https://museum.example.com/info.json",
+                    destination=tmp_path / "out" / f"{artwork_id}.jpg",
+                    tile_cache=tmp_path / "tiles",
+                    binary=str(binary),
+                    user_agent="arrt/1.0 (probe)",
+                    max_width=8192,
+                    max_height=8192,
+                    timeout_seconds=30,
+                )
+                raise AssertionError("the stand-in always fails, so the fetch cannot have worked")
+
+        first = work("One")
+        queue = AcquisitionQueue(store, service, _Tiled(), preparer, clock=clock)
+
+        result = queue.run()
+
+        assert result.paused is not None, f"not paused: {queue.state_of([first])[first]}"
+        assert result.paused.condition == "EIO"
+        assert f"the disk refused the write ({os.strerror(errno.EIO)})" in result.paused.detail
+        assert (result.failed, result.gave_up) == (0, 0)
+        assert queue.state_of([first])[first].failures == 0
 
     @pytest.mark.parametrize(
         "fault", [OSError(errno.ENOENT, "No such file"), OSError(errno.EACCES, "Permission denied"), OSError("x")]

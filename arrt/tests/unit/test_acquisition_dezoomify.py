@@ -93,6 +93,14 @@ def _emits(lines: str) -> str:
 
 
 FULL_DISK = 'printf "x%.0s" $(seq 1 500) > "$(eval echo \\${$#})"\n' + _emits(FULL_DISK_LINES) + "exit 1\n"
+#: The observed run's last line with another `errno` in it (5, `EIO`), the
+#: number and the system's words swapped and the rest as the binary wrote it: a
+#: fault `atomic.DISK_FAULT_ERRNOS` does not hold today, for a test that adds it.
+A_DISK_FAULT_WITH_NO_WORDS = (
+    'printf "x%.0s" $(seq 1 500) > "$(eval echo \\${$#})"\n'
+    + _emits(f"[ERROR] Input/Output error: {os.strerror(errno.EIO)} (os error {errno.EIO})\n")
+    + "exit 1\n"
+)
 #: A finished image whose tiles could not be cached: the fetch worked.
 CACHE_FULL_ONLY = SAVES_IMAGE.replace("exit 0\n", _emits(CACHE_FULL_LINE) + "exit 0\n")
 
@@ -292,6 +300,19 @@ class TestClassification:
         assert raised.value.errno == errno.ENOSPC
         assert raised.value.errno in atomic.DISK_FAULT_ERRNOS, "the queue pauses only on these"
         assert "No space left on device" in str(raised.value)
+        assert not list((tmp_path / "out").iterdir()), "the truncated file was left to be found"
+
+    def test_a_disk_fault_with_no_words_of_its_own_is_raised_with_the_systems(self, tmp_path, monkeypatch):
+        """A member added to the set before its words: still the disk's `OSError`, said in the system's words, never a `KeyError`."""
+        monkeypatch.setattr(atomic, "DISK_FAULT_ERRNOS", atomic.DISK_FAULT_ERRNOS | {errno.EIO})
+        script = _fake_binary(tmp_path, A_DISK_FAULT_WITH_NO_WORDS)
+
+        with pytest.raises(OSError, match="the tile fetch could not write the image") as raised:
+            _run(tmp_path, script)
+
+        assert raised.value.errno == errno.EIO
+        assert type(raised.value) is OSError
+        assert str(raised.value.strerror).startswith(f"the disk refused the write ({os.strerror(errno.EIO)})")
         assert not list((tmp_path / "out").iterdir()), "the truncated file was left to be found"
 
     def test_a_tile_cache_that_could_not_be_written_is_no_fault_when_the_image_was(self, tmp_path):
