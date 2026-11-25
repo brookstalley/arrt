@@ -32,7 +32,7 @@ from arrt.library.readiness import (
     not_in_catalogue,
     playable_from,
 )
-from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.catalogue import CatalogueService, HeldWork
 from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.records import EventKind
 from arrt.services.errors import ServiceError
@@ -107,10 +107,18 @@ class LibraryFacade:
         Programming holds work ids as references that may fail to resolve, and a
         call that raised on the first one would make a theme holding one
         dangling reference unbuildable. An id asked twice is answered once.
+
+        **The whole set is read from the catalogue at once** (`held_works`), in
+        a fixed number of store reads however many works are asked about,
+        because the reconcile asks this of every work of every hung theme.
+        Each master is then hashed if it has never been, and measured, one by
+        one: those read its file, not the store.
         """
+        asked = list(dict.fromkeys(work_ids))
         # Read once per call, so every work in one answer states the same units.
         units = self._label_units()
-        return {work_id: self._answer(work_id, units) for work_id in dict.fromkeys(work_ids)}
+        held = self._catalogue.held_works(asked)
+        return {work_id: self._answer(work_id, held.get(work_id), units) for work_id in asked}
 
     def labels(self, work_ids: Iterable[str]) -> dict[str, Mapping[str, str | None] | None]:
         """Each work's label text, keyed by id, or None for an id the catalogue does not hold.
@@ -179,10 +187,10 @@ class LibraryFacade:
         """
         self._catalogue.subscribe(handler)
 
-    def _answer(self, work_id: str, units: Units) -> Playability:
-        inputs = self._gather(work_id)
-        if inputs is None:
+    def _answer(self, work_id: str, work: HeldWork | None, units: Units) -> Playability:
+        if work is None:
             return not_in_catalogue(work_id)
+        inputs = self._inputs(work)
         if inputs.master is not None:
             # Hashed and measured before the verdict, because a master whose file
             # cannot be read is a refusal like any other, named rather than sent.
@@ -193,8 +201,9 @@ class LibraryFacade:
             return refused
         return playable_from(inputs, units=units)
 
-    def _gather(self, work_id: str) -> WorkInputs | None:
-        """Collect everything the readiness rule judges one work on, or None if it is not held.
+    @staticmethod
+    def _inputs(work: HeldWork) -> WorkInputs:
+        """Everything the readiness rule judges one work on, from what the catalogue holds of it.
 
         Everything comes through the catalogue service, because it owns what
         each of these means. Renditions reached straight past it into the store
@@ -203,15 +212,10 @@ class LibraryFacade:
         membership while the first decides everything else, and only one of them
         is updated when the rule changes.
         """
-        detail = self._catalogue.find_artwork(work_id)
-        if detail is None:
-            return None
-        original = self._catalogue.get_original(work_id)
-        renditions = [view.rendition for view in self._catalogue.list_renditions(work_id)]
         return WorkInputs(
-            artwork=detail.artwork,
-            artist=detail.artist,
-            original=original,
-            mat_color=self._catalogue.current_mat_color(work_id),
-            master=master_rendition_of(renditions, original),
+            artwork=work.artwork,
+            artist=work.artist,
+            original=work.original,
+            mat_color=work.mat_color,
+            master=master_rendition_of(work.renditions, work.original),
         )

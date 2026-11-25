@@ -16,10 +16,12 @@ from collections.abc import Callable
 import pytest
 from PIL import Image
 
-from arrt.library.facade import PlayableWork, Unplayable, UnplayableReason
+from arrt.library.dimensions import Units
+from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable, UnplayableReason
+from arrt.library.readiness import WorkInputs, assess, master_rendition_of, not_in_catalogue, playable_from
 from arrt.library.services.discovery import ChosenWork
 from arrt.persistence.discovery_records import InitiatedBy, Verdict
-from arrt.persistence.records import FetchStatus, RenditionKind
+from arrt.persistence.records import FetchStatus, MatMethod, RenditionKind
 
 
 def _archived(service, ready_work) -> str:
@@ -304,3 +306,107 @@ def test_a_master_that_reads_but_cannot_be_served_is_refused_by_name(library, se
     assert isinstance(answer, Unplayable)
     assert answer.reason is UnplayableReason.NO_RENDITION
     assert "cannot be read" in answer.detail
+
+
+# -- a whole set read at once answers as each work read alone did ----------------
+
+
+def _read_one_at_a_time(service, work_id: str, units: Units):
+    """A work's answer as the facade gave it until the set was read at once: each fact through its own per-work read.
+
+    Composed from the catalogue's per-work methods, which stay, and the
+    readiness rule's own functions, so what it answers is what the Library's
+    per-work reads say, not a second statement of the rule.
+    """
+    detail = service.find_artwork(work_id)
+    if detail is None:
+        return not_in_catalogue(work_id)
+    original = service.get_original(work_id)
+    inputs = WorkInputs(
+        artwork=detail.artwork,
+        artist=detail.artist,
+        original=original,
+        mat_color=service.current_mat_color(work_id),
+        master=master_rendition_of([view.rendition for view in service.list_renditions(work_id)], original),
+    )
+    if inputs.master is not None:
+        master = service.with_content(inputs.master)
+        inputs = dataclasses.replace(inputs, master=master, master_size=service.pixel_size(master))
+    return assess(inputs) or playable_from(inputs, units=units)
+
+
+def _two_masters(service, ready_work, decodable_jpeg, art_root, *, current: int) -> str:
+    """A work holding a second, smaller master beside its first, and `current` of the two made from the original it holds.
+
+    With both current the one chosen is the first in the store's order, so
+    this is the case that tells the order the set is read in.
+    """
+    work = ready_work(title="Two masters")
+    if current == 1:
+        _re_acquired_since_render(service, lambda: work)
+    path = f"masters/{work.id}-small.jpg"
+    decodable_jpeg(art_root / path, width=200, height=150)
+    service.record_rendition(
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=3840, target_height=3840, path=path
+    )
+    if current == 0:
+        _re_acquired_since_render(service, lambda: work)
+    return work.id
+
+
+@pytest.fixture
+def every_case(service, ready_work, wall_settings, decodable_jpeg) -> list[str]:
+    """A Library holding a work in every state the readiness rule tells apart, and an id it does not hold."""
+    hopper = service.add_artist(name="Edward Hopper", nationality="American", born=1882, died=1967)
+    ids = [make(service, ready_work) for make, _ in _CASES.values()]
+    ids.append(ready_work(title="Nighthawks").id)
+    ids.append(ready_work(title="Automat", artist_id=hopper.id).id)
+    ids.append(ready_work(title="Chop Suey", artist_id=hopper.id).id)
+    rematted = ready_work(title="Rematted")
+    service.record_mat_color(artwork_id=rematted.id, hex_rgb="#5b2727", method=MatMethod.VISION_MODEL)
+    ids.append(rematted.id)
+    ids.extend(_two_masters(service, ready_work, decodable_jpeg, wall_settings.art_root, current=n) for n in (0, 1, 2))
+    unhashed = ready_work(title="Hashed on first need", master=False)
+    _record_master(service, unhashed.id, f"presentation/{unhashed.id}.jpg")
+    decodable_jpeg(wall_settings.art_root / f"presentation/{unhashed.id}.jpg", width=400, height=300)
+    ids.append(unhashed.id)
+    no_file = ready_work(title="No file", master=False)
+    _record_master(service, no_file.id, f"presentation/{no_file.id}.jpg")
+    ids.append(no_file.id)
+    tiff = ready_work(title="A TIFF", master=False)
+    (wall_settings.art_root / "presentation").mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (400, 300)).save(wall_settings.art_root / f"presentation/{tiff.id}.tif", format="TIFF")
+    _record_master(service, tiff.id, f"presentation/{tiff.id}.tif")
+    ids.append(tiff.id)
+    return ids
+
+
+def test_the_whole_set_read_at_once_answers_every_case_as_each_work_read_alone(service, discovery, every_case):
+    """Field for field, over every state readiness tells apart, the units and a master's first hashing included."""
+    library = LibraryFacade(service, discovery, label_units=lambda: Units.METRIC)
+
+    at_once = library.playable(every_case)
+    one_at_a_time = {work_id: _read_one_at_a_time(service, work_id, Units.METRIC) for work_id in every_case}
+
+    reasons = {answer.reason for answer in at_once.values() if isinstance(answer, Unplayable)}
+    assert reasons == set(UnplayableReason), "a reason no case reached is a reason this comparison never checked"
+    assert sum(isinstance(answer, PlayableWork) for answer in at_once.values()) == 7
+    assert at_once == one_at_a_time
+    assert {work_id: library.playable([work_id])[work_id] for work_id in every_case} == at_once, "asked one by one"
+
+
+def test_one_answer_states_one_set_of_units(service, discovery, ready_work):
+    """The setting is read once per call, so a change landing during one cannot split its labels between two systems."""
+    readings: list[Units] = []
+
+    def units() -> Units:
+        readings.append(Units.METRIC if len(readings) % 2 else Units.IMPERIAL)
+        return readings[-1]
+
+    library = LibraryFacade(service, discovery, label_units=units)
+    ids = [ready_work(title=title).id for title in ("Nighthawks", "Automat", "Chop Suey")]
+
+    library.playable(ids)
+    library.playable([*ids, "no-such-work"])
+
+    assert readings == [Units.IMPERIAL, Units.METRIC]

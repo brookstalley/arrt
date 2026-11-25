@@ -26,7 +26,7 @@ statement of the same rule.
 
 import json
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Final
@@ -752,6 +752,27 @@ def _matching(query: WorkQuery) -> _Restriction:
     )
 
 
+#: The ids a batch read is asked about, as one bound parameter rather than a
+#: placeholder per id, for the reason `_matching` gives for `within`: a theme may
+#: hold more works than SQLite binds variables to one statement.
+_AMONG: Final[str] = "(SELECT value FROM json_each(?))"
+
+
+def _ordering(terms: Sequence[OrderBy]) -> str:
+    """`terms` as an `ORDER BY` list, so a batch read sorts as the per-work `select_page` it stands beside.
+
+    Rendered from the same tuple the per-work read passes, so the two orders
+    have one statement. Names come from this module's own constants, never
+    from a caller.
+    """
+    rendered = []
+    for term in terms:
+        column = f'"{term.column}"'
+        sort = column + (" COLLATE NOCASE" if term.ignore_case else "") + (" DESC" if term.descending else "")
+        rendered.append(f"{column} IS NULL, {sort}" if term.nulls_last else sort)
+    return ", ".join(rendered)
+
+
 class SqliteCatalogue(TableAdapter):
     """The catalogue's own tables, mapped to its records."""
 
@@ -761,6 +782,32 @@ class SqliteCatalogue(TableAdapter):
         # is opened, so every way of reaching this adapter can search.
         store.define_function(_FOLD, search_fold)
 
+    def _among[R](
+        self,
+        table: str,
+        column: str,
+        ids: Collection[str],
+        build: Callable[[Mapping[str, Any]], R],
+        *,
+        also: str = "",
+        order_by: Sequence[OrderBy] = (),
+    ) -> list[R]:
+        """Every row of `table` whose `column` is one of `ids`, in one statement, built into records.
+
+        The batch counterpart of `_get` and `_list`, for a caller answering a
+        whole set of works at once. No ids is no statement. `table`, `column`,
+        `also` and the order are this module's constants; the ids are bound.
+        """
+        if not ids:
+            return []
+        narrowed = f" AND {also}" if also else ""
+        ordered = f" ORDER BY {_ordering(order_by)}" if order_by else ""
+        rows = self._store.select_rows(
+            f'SELECT * FROM "{table}" WHERE "{column}" IN {_AMONG}{narrowed}{ordered}',  # noqa: S608 -- constants and one ? placeholder only
+            (json.dumps(sorted(set(ids))),),
+        )
+        return [build(row) for row in rows]
+
     # -- artists --------------------------------------------------------------
 
     def add_artist(self, artist: Artist) -> None:
@@ -768,6 +815,9 @@ class SqliteCatalogue(TableAdapter):
 
     def get_artist(self, artist_id: str) -> Artist | None:
         return self._get("artists", {"id": artist_id}, _artist)
+
+    def get_artists(self, artist_ids: Collection[str]) -> Mapping[str, Artist]:
+        return {artist.id: artist for artist in self._among("artists", "id", artist_ids, _artist)}
 
     def update_artist(self, artist: Artist) -> None:
         self._update("artists", BY_ID, _artist_row(artist), subject=f"artist {artist.id!r}")
@@ -782,6 +832,9 @@ class SqliteCatalogue(TableAdapter):
 
     def get_artwork(self, artwork_id: str) -> Artwork | None:
         return self._get("artworks", {"id": artwork_id}, _artwork)
+
+    def get_artworks(self, artwork_ids: Collection[str]) -> Mapping[str, Artwork]:
+        return {artwork.id: artwork for artwork in self._among("artworks", "id", artwork_ids, _artwork)}
 
     def update_artwork(self, artwork: Artwork) -> None:
         self._update("artworks", BY_ID, _artwork_row(artwork), subject=f"artwork {artwork.id!r}")
@@ -971,6 +1024,9 @@ class SqliteCatalogue(TableAdapter):
         rows = self._store.scan("originals", {"artwork_id": artwork_id})
         return _original(rows[0]) if rows else None
 
+    def get_originals(self, artwork_ids: Collection[str]) -> Mapping[str, Original]:
+        return {original.artwork_id: original for original in self._among("originals", "artwork_id", artwork_ids, _original)}
+
     def update_original(self, original: Original) -> None:
         self._update("originals", BY_ID, _original_row(original), subject=f"original for artwork {original.artwork_id!r}")
 
@@ -989,6 +1045,12 @@ class SqliteCatalogue(TableAdapter):
     def list_renditions(self, artwork_id: str) -> Sequence[Rendition]:
         return self._list("renditions", {"artwork_id": artwork_id}, _BY_GEOMETRY, _rendition)
 
+    def list_renditions_of(self, artwork_ids: Collection[str]) -> Mapping[str, Sequence[Rendition]]:
+        grouped: dict[str, list[Rendition]] = {}
+        for rendition in self._among("renditions", "artwork_id", artwork_ids, _rendition, order_by=_BY_GEOMETRY):
+            grouped.setdefault(rendition.artwork_id, []).append(rendition)
+        return grouped
+
     def find_renditions_by_content(self, content_sha256: str) -> Sequence[Rendition]:
         return self._list("renditions", {"content_sha256": content_sha256}, _BY_GEOMETRY, _rendition)
 
@@ -1002,6 +1064,14 @@ class SqliteCatalogue(TableAdapter):
 
     def list_mat_colors(self, artwork_id: str) -> Sequence[MatColor]:
         return self._list("mat_colors", {"artwork_id": artwork_id}, _BY_RECENCY, _mat_color)
+
+    def current_mat_colors(self, artwork_ids: Collection[str]) -> Mapping[str, MatColor]:
+        current: dict[str, MatColor] = {}
+        for mat_color in self._among(
+            "mat_colors", "artwork_id", artwork_ids, _mat_color, also='"is_current" = 1', order_by=_BY_RECENCY
+        ):
+            current.setdefault(mat_color.artwork_id, mat_color)
+        return current
 
     # -- the acquisition queue ------------------------------------------------
 

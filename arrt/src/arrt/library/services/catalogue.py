@@ -26,7 +26,7 @@ without an event loop.
 import hashlib
 import logging
 import uuid
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -135,6 +135,19 @@ class ArtworkDetail:
 
     artwork: Artwork
     artist: Artist | None
+
+
+@dataclass(frozen=True, slots=True)
+class HeldWork:
+    """What the catalogue holds of one work that says whether it can go on a wall, read beside many others."""
+
+    artwork: Artwork
+    artist: Artist | None
+    original: Original | None
+    #: In `list_renditions`'s order, which is the order a master is chosen from.
+    renditions: Sequence[Rendition]
+    #: The colour in force, as `current_mat_color` answers it.
+    mat_color: MatColor | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -630,6 +643,35 @@ class CatalogueService:
             if mat_color.is_current:
                 return mat_color
         return None
+
+    def held_works(self, artwork_ids: Collection[str]) -> Mapping[str, HeldWork]:
+        """Each of these works that the catalogue holds, by id, with everything `HeldWork` carries; an id not held is absent.
+
+        **A fixed number of store reads however many works are asked about**:
+        one per kind of row, under one read scope, so the set is answered as one
+        instant of the catalogue rather than as each work was at its own
+        moment. The reconcile asks this of every work of every hung theme while
+        it holds the store's lock, and an act arriving meanwhile waits for it,
+        so its cost is a handful of statements whatever the Library holds.
+        """
+        with self._store.reading():
+            artworks = self._store.get_artworks(artwork_ids)
+            if not artworks:
+                return {}
+            artists = self._store.get_artists({work.artist_id for work in artworks.values() if work.artist_id is not None})
+            originals = self._store.get_originals(artworks.keys())
+            renditions = self._store.list_renditions_of(artworks.keys())
+            mats = self._store.current_mat_colors(artworks.keys())
+        return {
+            work_id: HeldWork(
+                artwork=artwork,
+                artist=None if artwork.artist_id is None else artists.get(artwork.artist_id),
+                original=originals.get(work_id),
+                renditions=renditions.get(work_id, ()),
+                mat_color=mats.get(work_id),
+            )
+            for work_id, artwork in artworks.items()
+        }
 
     def resolve_details(self, artwork_ids: Sequence[str]) -> Sequence[ArtworkDetail]:
         """Return these works in the order given, each with its artist resolved.
