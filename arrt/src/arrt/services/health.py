@@ -57,6 +57,7 @@ from arrt.persistence.records import BackupReading, Wall
 from arrt.programming import display_state, player_state
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import DisplayService, WallHeartbeat, WallView, describe_wall_status, wall_statuses
+from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.player_state import PlayerState
 
 
@@ -354,6 +355,10 @@ class WallsNow:
     waiting: Mapping[str, WallWait]
     #: Who shows each wall, its display and its labels, from the same read.
     survey: PlacementSurvey
+    #: Each wall's report as read, by wall id: the read its view's display
+    #: state was judged from, so what made a report unreadable is said beside
+    #: the state it made silent.
+    reports: Mapping[str, HeartbeatReading]
 
 
 def walls_waiting(walls: Sequence[WallHeartbeat], players: Sequence[ClientView]) -> dict[str, WallWait]:
@@ -709,7 +714,12 @@ class HealthService:
             WallHeartbeat(wall=view.wall, heartbeat=seen.reading.reports[view.wall.id], state=view.display_state)
             for view in seen.views
         ]
-        return WallsNow(views=seen.views, waiting=walls_waiting(walls, seen.reading.players()), survey=seen.reading.survey)
+        return WallsNow(
+            views=seen.views,
+            waiting=walls_waiting(walls, seen.reading.players()),
+            survey=seen.reading.survey,
+            reports=seen.reading.reports,
+        )
 
     def observe_failed_fetches(self) -> FailedFetches | None:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""

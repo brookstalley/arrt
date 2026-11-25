@@ -1090,6 +1090,11 @@ class WallOut(BaseModel):
     #: `display_state` still reads `silent`, and this says nothing shows the
     #: wall yet, which the question before a hang reads.
     waiting_for: WallWaitOut | None = None
+    #: Why the wall's last report cannot be read, from the read `display_state`
+    #: was judged from, as `GET /api/health`'s `heartbeat.problem` says it; null
+    #: when it can be read or none was written. A wall made `silent` by an
+    #: unreadable report is told apart from one never reported for by this.
+    report_problem: str | None = None
 
 
 class LastShownOut(BaseModel):
