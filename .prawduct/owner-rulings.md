@@ -4,6 +4,37 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-25: five answers while wave 3 was being integrated
+
+Seven questions stood at the end of the reports while `build-plan-audit-wave-3.md` was being
+integrated, five of them with the advisor's recommendation. The owner: "yes to all
+recommendations". The two without one stay open: whether the Player's once-a-minute status
+poll keeps a sleeping television's network awake or shows anything (to be seen at a set), and
+the two wave-2 questions (whether to amend the four norm texts, and which household settings
+are set where; that plan's Chunks 81 and 84). As ruled:
+
+1. **Contract 1.3.0's two narrowings are ratified as bounded exceptions to "a minor
+   version only adds".** A feed names at most 32 outputs and at most 32 label outputs, and
+   a feed that lists the same staging entry twice is refused, where 1.2.0 accepted both.
+   The home is `player-contract.md` § Releases; the tag waits for nothing else from the
+   owner.
+2. **Before any Player deploy, the costs of "remove only what it recorded uploading" are
+   accepted.** Pictures an older Player uploaded without recording them stay on the
+   television until a person deletes them. Rolling back to the Player release before
+   schema 5 brings back that release's sweep, which clears the household's own pictures,
+   so **a Player rollback across that release needs the owner's say-so each time**.
+   Recorded in Arrt Player's `owner-rulings.md` under the same date, which is its home.
+3. **MCP keeps "run" in its names; every sentence a person reads says "Get".** `run_id`,
+   `list_runs` and the action names stay, because changing them would break every MCP
+   client a second time; a sentence the server writes that reaches a screen, or a refusal
+   an agent relays to a person, says "Get".
+4. **The strings that say "your library" stay as they are.** About thirty sentences say
+   "your library" or "In your library" in lower case; they are not capitalised.
+5. **The delegate-verification norm keeps "runs all five".** There are six suites; the
+   sixth, `image`, runs only on a run signed with the owner's secret, which neither CI nor
+   a delegate's run holds. `project-preferences.md` `## Workflow`, `Delegate verification`,
+   is unchanged.
+
 ## 2026-11-20: six answers while part 2b was finishing
 
 Six questions stood, each with the advisor's recommendation, at the end of every report
