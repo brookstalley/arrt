@@ -46,7 +46,7 @@ from pathlib import Path
 
 from arrt import observations
 from arrt.counting import counted
-from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, failure_instant
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
@@ -194,30 +194,6 @@ class PicturesReading:
             f"The picture store keeps {self.pictures_files:,} {plural}, {self.pictures_bytes / 1_000_000:,.1f} MB, "
             f"{counted}. Each picture is two files, one per size kept."
         )
-
-
-def failure_instant(state: AcquisitionState) -> datetime | None:
-    """When this work's last fetch failed, or None when that is not known.
-
-    **The queue's own record of it** (`failed_at`), which
-    `AcquisitionQueue._record_failure` writes at every failure, the one it gives
-    up on included, whatever the failure's outcome.
-
-    **A derivation only for a row written before that column existed**, which
-    holds none: its instant is read back from the retry schedule the queue
-    applied at that failure (`next_try_at` is the failure's instant plus
-    `RETRY_AFTER[failures - 1]`). Such a row given up on has no `next_try_at`
-    either, so its instant is not known, and no instant is guessed.
-    `arrt/tests/unit/test_failed_fetches.py` drives the real queue for the
-    first and seeds rows without the column for the second.
-    """
-    if state.failed_at is not None:
-        return state.failed_at
-    if state.phase is not AcquisitionPhase.FAILED or state.next_try_at is None:
-        return None
-    if not 1 <= state.failures <= len(RETRY_AFTER):
-        return None
-    return state.next_try_at - RETRY_AFTER[state.failures - 1]
 
 
 @dataclass(frozen=True, slots=True)

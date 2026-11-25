@@ -4,19 +4,22 @@ Driven through a real `AcquisitionQueue` over the catalogue, with a fetcher that
 fails and a clock the test moves. The newest failure's instant is the queue's
 own `failed_at`, written at every failure whatever its outcome; only a row
 written before that column existed has its instant read back from the retry
-schedule (`services/health.py`'s `failure_instant`), so those rows are seeded
+schedule (the queue's `failure_instant`, beside the schedule), so those rows are seeded
 here as such a release left them.
 """
 
+import ast
+import pathlib
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 
-from arrt.library.acquisition.queue import GIVE_UP_AFTER, AcquisitionQueue
+from arrt.library.acquisition.queue import GIVE_UP_AFTER, AcquisitionQueue, failure_instant
 from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
 from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
+from arrt.services import health as health_module
 from arrt.services.health import HealthService, failed_fetches
 
 START = datetime(2026, 11, 19, 9, 0, tzinfo=UTC)
@@ -188,6 +191,34 @@ def test_a_mix_says_how_many_failed_at_a_time_not_recorded(queue, clock, work, s
     assert found.describe().endswith(
         "the newest whose time is recorded failed 5 minutes ago, and 1 failed at a time not recorded."
     )
+
+
+@pytest.mark.parametrize("failures", range(1, GIVE_UP_AFTER))
+def test_the_queue_reads_each_scheduled_failure_back_from_the_retry_it_wrote(queue, clock, work, failures):
+    """The queue's own inverse of its schedule, at every step: a row's `next_try_at` less its step is its `failed_at`.
+
+    Driven through the real queue, so the inverse is held to the writer
+    (`_record_failure`), not to a copy of the schedule: each step of the
+    schedule is reached and the row's recorded instant hidden, as a release
+    before the column left it.
+    """
+    work("Nighthawks")
+    _fail_until_due_again(queue, clock, passes=failures)
+    [state] = queue.failed_states()
+
+    assert state.failures == failures
+    assert state.failed_at == clock.now
+    assert failure_instant(replace(state, failed_at=None)) == clock.now
+
+
+def test_the_health_model_asks_the_queue_when_a_work_failed_and_keeps_no_schedule_of_its_own():
+    """The retry schedule's inverse is the queue's, beside the schedule: the health module imports neither half of it."""
+    tree = ast.parse(pathlib.Path(health_module.__file__).read_text(encoding="utf-8"))
+    imported = {alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names}
+
+    assert "RETRY_AFTER" not in imported
+    assert not hasattr(health_module, "RETRY_AFTER")
+    assert health_module.failure_instant is failure_instant
 
 
 @dataclass
