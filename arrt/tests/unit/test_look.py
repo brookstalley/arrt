@@ -19,18 +19,23 @@ from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnan
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, RegistryCreator, RegistryText, RegistryUnavailable, RegistryWork
+from arrt.library.services import look as look_module
 from arrt.library.services.discovery import ChosenWork
 from arrt.library.services.look import (
     ANSWER_KEPT_FOR,
+    INLINED,
     LOOK_HOLD_SECONDS,
     MAX_LOOKS,
     MODEL_LOOK_BUDGET_SECONDS,
+    PICTURES_WAIT_EVENT,
+    PREVIEW_FETCHES_AT_ONCE,
     UNREACHABLE_KEPT_FOR,
     UNWATCHED_AFTER,
     Inlined,
     LookService,
     LookState,
     LookView,
+    PreviewFetches,
     SourceState,
 )
 from arrt.library.services.pictures import PictureStore, picture_key
@@ -141,7 +146,7 @@ def clock() -> Clock:
 def build(services, settings, registry, clock):
     """A look over these finders, the plane's own registry pages, discovery and picture store."""
 
-    def build(*finders, pool: ImageSourcePool | None = None) -> LookService:
+    def build(*finders, pool: ImageSourcePool | None = None, preview_fetches: int = PREVIEW_FETCHES_AT_ONCE) -> LookService:
         """A look over `finders`, or over `pool` when the test needs to share it with a run."""
         pool = pool or ImageSourcePool(finders)
         return LookService(
@@ -159,6 +164,7 @@ def build(services, settings, registry, clock):
                 staging_token=counted_tokens(),
             ),
             now=clock,
+            preview_fetches=preview_fetches,
         )
 
     return build
@@ -858,3 +864,202 @@ def test_an_unknown_registry_state_is_refused_by_name_rather_than_failing(build)
 
     with pytest.raises(ServiceError, match="a state a look has no words for: moved"):
         look.look(TANTRA)
+
+
+# -- the pictures in transit, bounded across every look ------------------------------
+
+
+class PicturesThatHang(Source):
+    """A source whose previews wait at `gate` until the test opens it, counting how many run at once."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.counting = threading.Condition()
+        self.running = 0
+        self.most = 0
+        self.ended = 0
+
+    def fetch_preview(self, url: str) -> bytes | None:
+        with self.counting:
+            self.fetched.append(url)
+            self.running += 1
+            self.most = max(self.most, self.running)
+            self.counting.notify_all()
+        try:
+            assert self.gate.wait(SETTLE), "the test never opened the gate"
+            return a_decodable_jpeg()
+        finally:
+            with self.counting:
+                self.running -= 1
+                self.ended += 1
+                self.counting.notify_all()
+
+    def settled(self, arrived) -> None:
+        """Wait, without polling, until `arrived()` holds of the fetches."""
+        with self.counting:
+            assert self.counting.wait_for(arrived, timeout=SETTLE), "the fetches never got there"
+
+
+def works_with_pictures(registry, count: int, *, pictures: int = INLINED):
+    """`count` works the registry names, and a source's holdings of `pictures` finds of each."""
+    qids, holdings = [], {}
+    for index in range(count):
+        qid, title = ItemId(f"Q8{index:04d}"), f"Study {index}"
+        registry.works[qid] = a_work(qid, title)
+        holdings[title] = [smk_image(title, width=2201 + 50 * each) for each in range(pictures)]
+        qids.append(qid)
+    return qids, holdings
+
+
+def test_sixteen_looks_at_once_fetch_no_more_pictures_at_once_than_the_bound(build, registry, caplog):
+    # Sixteen: the looks MCP's pool can run at once. Each wants its six best
+    # pictures, none of which arrives until the test lets them.
+    qids, holdings = works_with_pictures(registry, 16)
+    smk = PicturesThatHang(holdings=holdings)
+    look = build(smk)
+    for qid in qids:
+        assert len(look.look(qid, hold=SETTLE).pictures) == INLINED
+    asked = len(qids) * INLINED
+    fetches = look.preview_fetches
+    answers = {}
+
+    def ask(qid):
+        # A budget of nothing: each look's deadline has passed by the time its
+        # fetches are asked for, so it answers with whatever is already kept.
+        answers[qid] = look.look_for_a_model(qid, hold=0, budget=0)
+
+    caplog.handler.addFilter(RunCorrelationFilter())
+    caplog.set_level(logging.WARNING, logger=look_module.__name__)
+    try:
+        threads = [threading.Thread(target=ask, args=(qid,)) for qid in qids]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(SETTLE)
+        assert len(answers) == len(qids), "a look did not answer at its deadline"
+        # Every fetch asked for is either in the source or waiting for a place.
+        smk.settled(lambda: smk.running + fetches.waiting == asked)
+
+        assert smk.running == PREVIEW_FETCHES_AT_ONCE, f"{smk.running} of {asked} fetches running at once"
+        assert fetches.running == PREVIEW_FETCHES_AT_ONCE, "a fetch past its look's deadline keeps its place"
+        assert fetches.waiting == asked - PREVIEW_FETCHES_AT_ONCE
+        for qid, (view, inlined) in answers.items():
+            assert inlined.previews == {}
+            assert inlined.failed == ()
+            assert set(inlined.deferred) == {picture.key for picture in view.pictures}, qid
+        # What the agent reads of a look whose pictures wait: the sentence for
+        # pictures that had not arrived, which a waiting fetch keeps true.
+        view, inlined = answers[qids[-1]]
+        assert bindings._look_notice(view, inlined, bindings._Pictures()) == (
+            "6 pictures had not arrived from their sources in time to send; they are being kept now, "
+            "so calling action='look' again soon brings them."
+        )
+        waits = [record for record in caplog.records if getattr(record, "event", None) == PICTURES_WAIT_EVENT]
+        assert sum(record.pictures for record in waits) == asked - PREVIEW_FETCHES_AT_ONCE
+        assert {(record.fetches_running, record.fetches_bound) for record in waits} == {
+            (PREVIEW_FETCHES_AT_ONCE, PREVIEW_FETCHES_AT_ONCE)
+        }
+        assert {record.levelno for record in waits} == {logging.WARNING}
+        assert {record.look_qid for record in waits} <= set(qids)
+    finally:
+        smk.gate.set()
+    # Each that ends hands its place on, until every fetch has run, never more at once.
+    smk.settled(lambda: smk.ended == asked)
+    assert smk.most == PREVIEW_FETCHES_AT_ONCE
+
+
+def test_a_fetch_that_ends_hands_its_place_to_the_next_and_that_look_carries_its_picture(build, registry, caplog):
+    (first, second), holdings = works_with_pictures(registry, 2, pictures=1)
+    smk = PicturesThatHang(holdings=holdings)
+    look = build(smk, preview_fetches=1)
+    for qid in (first, second):
+        look.look(qid, hold=SETTLE)
+    caplog.handler.addFilter(RunCorrelationFilter())
+    caplog.set_level(logging.INFO)
+    waited = threading.Event()
+
+    class Waits(logging.Handler):
+        def emit(self, record):
+            if getattr(record, "event", None) == PICTURES_WAIT_EVENT:
+                waited.set()
+
+    journal = logging.getLogger(look_module.__name__)
+    handler = Waits()
+    journal.addHandler(handler)
+    answers = {}
+    asking = threading.Thread(target=lambda: answers.update(second=look.look_for_a_model(second, hold=0, budget=SETTLE)))
+    try:
+        look.look_for_a_model(first, hold=0, budget=0)
+        smk.settled(lambda: smk.running == 1)
+        asking.start()
+        assert waited.wait(SETTLE), "the second look's picture never waited for a place"
+        assert (look.preview_fetches.running, look.preview_fetches.waiting) == (1, 1)
+        assert "second" not in answers, "a look waiting for a place has a whole budget left"
+
+        smk.gate.set()  # the first fetch ends, and its thread takes up the second
+        asking.join(SETTLE)
+    finally:
+        smk.gate.set()
+        journal.removeHandler(handler)
+
+    view, inlined = answers["second"]
+    assert set(inlined.previews) == {picture.key for picture in view.pictures}
+    assert inlined.deferred == ()
+    assert smk.most == 1
+    # One thread ran both fetches, and each line it wrote names the look it fetched for.
+    kept = [record for record in caplog.records if getattr(record, "event", None) == "picture.kept"]
+    assert [getattr(record, "look_qid", None) for record in kept] == [first, second]
+
+
+def test_a_second_look_at_a_work_joins_its_picture_s_fetch_rather_than_taking_another_place(build, registry):
+    (qid,), holdings = works_with_pictures(registry, 1, pictures=1)
+    smk = PicturesThatHang(holdings=holdings)
+    look = build(smk)
+    look.look(qid, hold=SETTLE)
+    try:
+        _, first = look.look_for_a_model(qid, hold=0, budget=0)
+        smk.settled(lambda: smk.running == 1)
+        _, again = look.look_for_a_model(qid, hold=0, budget=0)
+
+        assert first.deferred == again.deferred
+        assert len(first.deferred) == 1
+        assert (look.preview_fetches.running, look.preview_fetches.waiting) == (1, 0)
+    finally:
+        smk.gate.set()
+    smk.settled(lambda: smk.ended == 1)
+    assert len(smk.fetched) == 1
+    _, later = look.look_for_a_model(qid, hold=0, budget=SETTLE)
+    assert set(later.previews) == set(first.deferred), "the fetch ended into the store"
+
+
+def test_a_fetch_that_raises_is_its_look_s_to_read_and_its_place_goes_to_the_next():
+    fetches = PreviewFetches(1)
+    gate = threading.Event()
+
+    def unwritable():
+        assert gate.wait(SETTLE)
+        raise OSError("the picture store's disk is full")
+
+    first, first_waits = fetches.submit(unwritable)
+    second, second_waits = fetches.submit(lambda: None)
+    assert (first_waits, second_waits) == (False, True)
+    gate.set()
+
+    assert isinstance(first.exception(timeout=SETTLE), OSError)
+    assert second.result(timeout=SETTLE) is None
+
+
+def test_a_picture_thread_that_cannot_start_fails_its_fetch_and_gives_its_place_up():
+    def refused(_work):
+        raise RuntimeError("can't start new thread")
+
+    fetches = PreviewFetches(1, start=refused)
+    future, waits = fetches.submit(lambda: None)
+
+    assert not waits
+    assert isinstance(future.exception(timeout=0), RuntimeError)
+    assert (fetches.running, fetches.waiting) == (0, 0)
+
+
+def test_the_plane_s_looks_fetch_at_most_the_named_bound_of_pictures_at_once(services):
+    assert services.look.preview_fetches.size == PREVIEW_FETCHES_AT_ONCE
