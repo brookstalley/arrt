@@ -4,6 +4,18 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-25: contract-v1.3.0 may be cut during wave 3
+
+Asked once the Player's wave-3 phases 1 to 3 were integrated, because the Player plan's
+Chunks 07 and 08 move its pin to 1.3.0 and wait for the tag, and the plan has the owner approve
+a contract tag (it cites a 2026-11-13 ruling for that, which this file's 2026-11-13 entry does not
+state; asked either way). The advisor recommended cutting `contract-v1.3.0` on the server's
+`fix/audit-wave-3` head once Chunks 72, 88 and 89 are merged, after confirming nothing has
+changed `contract/` since Chunk 87. The owner: "yes please on your recommendations". As ruled:
+the advisor cuts and pushes that tag on that head under that condition, and
+`build-plan-audit-wave-3.md`'s Chunk 82 freezes 1.3.0 from it. The tag sits on a commit of the
+integration branch, which a true merge into `develop` keeps in its history.
+
 ## 2026-11-25: five answers while wave 3 was being integrated
 
 Seven questions stood at the end of the reports while `build-plan-audit-wave-3.md` was being
