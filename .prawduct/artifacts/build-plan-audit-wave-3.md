@@ -384,6 +384,37 @@ a ruling. Asked once, together, as the advisor recommends.
   set, and where (a wall's label facts and text size; a label output's viewing distance;
   the rest marked coming). → 84.
 
+## Decisions made mid-build
+
+- **2026-11-20 (Chunk 68, as integrated), a bound that the old shared pool was giving without
+  anyone naming it:** Ask's and MCP's calls now run on pools of their own (16 and 8 threads),
+  which ends the starvation the chunk measured (with eight calls held, a ninth MCP call and
+  an Ask reply waited for a hold to end; now neither does). The old pool of eight was also
+  the only bound on how many looks could run at once, and each look opens up to six preview
+  fetches of up to 16 MiB each, which keep running past the look's deadline: sixteen looks
+  can mean ninety-six preview reads, about 1.5 GiB at the cap, where eight meant about
+  768 MiB. Read from the code by the integrator, not measured. The server's memory is
+  bounded by its container's limit, which is the operator's and is not in this repository.
+  Chunk 89 gives the preview fetches a bound of their own, so a pool's size does not set
+  the server's memory.
+- **2026-11-20 (Chunk 67), two acceptance items met in part, accepted:** a scene's walls read
+  only their own walls' reports and still read every Player's report once, because whether a
+  display is in fault lives only there; and Walls still asks the health answer for one case
+  (a hung, Player-shown, silent wall with nothing it last said and waiting for no one),
+  because the walls answer carries no report problem. Chunk 72 puts that problem on the
+  walls answer.
+- **2026-11-20 (Chunk 70), what batching did and did not buy:** the Library answers a set of
+  works in five store reads where it sent about ten a work. Measured in-process on one
+  loaded machine, old and new taking turns: a reconcile with nothing to fix went from 629 to
+  250 ms at 2,000 works on four walls and from 3,454 to 1,534 ms at 5,000 on twelve. The
+  cadence (every sixth scheduler pass) is left as it is: what remains of a pass is outside
+  the Library (each wall's feed parsed about three times), and Chunk 72 takes that.
+- **2026-11-20, the pool and this machine were saturated by other work while this plan was
+  built:** runs lost their connection, fell back to this machine and queued for an hour, and
+  the pool's one runner with a browser crashed renderers under load (counted by the
+  integrator across its passes). Delegates and the integrator run with no fallback; a red
+  that is only a renderer crash is rerun once by file and counted.
+
 ## Chunks
 
 ### Chunk 67: One reading for the Players answers, and the walls reading's three leftovers
@@ -683,6 +714,38 @@ a ruling. Asked once, together, as the advisor recommends.
   own rule.
 - **Waits for:** —. Met on the Player's side by its plan's Chunk 01 (a refused report held
   until it changes) and Chunk 07 (the fixtures, at the 1.3.0 pin). 82 waits for it.
+
+### Chunk 89: A look's preview fetches have a bound of their own
+
+- **Type:** code
+- **Closes:** the bound Chunk 68 removed without replacing (§ Decisions made mid-build).
+- **Found at HEAD:** `arrt/src/arrt/library/discovery/look.py` opens up to `INLINED` (6)
+  preview fetches for each look, each reading up to the preview ceiling into memory, on an
+  executor of the look's own that is shut down without waiting, so a fetch past the look's
+  deadline runs on; nothing bounds how many run across looks. Before Chunk 68 the shared
+  pool of eight threads bounded concurrent looks; MCP's pool is now sixteen.
+- **Owns:** `arrt/src/arrt/library/discovery/look.py`, its tests, and
+  `arrt/src/arrt/services/threads.py` only if the bound belongs beside the pools.
+- **Deliverables:**
+  - Measure first: with N looks in flight against a source whose previews never finish,
+    how many preview fetches run at once and how many bytes they may hold, at N of 8 and 16.
+  - A process-wide bound on preview fetches in flight, a fetch past its look's deadline
+    included, set so that the bytes previews may hold at once are no more than they could
+    be before Chunk 68 (state the number and its arithmetic beside the constant).
+  - What a look does when the bound is reached is said: which previews it goes without, and
+    what the person or agent who asked sees in their place (the look's answer already has a
+    form for a preview that did not arrive: use it; add no new sentence unless none fits).
+  - The count in flight is journalled where a person diagnosing memory would look.
+- **Acceptance:** with sixteen looks in flight and previews that never finish, no more
+  preview fetches run at once than the bound, counted with controlled time and no sleeps;
+  a look past the bound still answers within its own deadline, with its previews marked as
+  not arrived; a fetch that ends frees its place for the next; red on the code at HEAD.
+  State what the old waiting bounded and what now wakes a fetch that was turned away.
+- **Verification ceiling:** the look's and the pool's test files, `arrt/tests/system`,
+  `arrt/tests/unit/test_surface_parity.py`, the governance suite whole if a file is added,
+  mypy, ruff and black in `arrt/`.
+- **Model:** Opus-class, high: a bound on concurrency, where the last two cost a review round each.
+- **Waits for:** 68.
 
 ### Chunk 72: What Status does not say yet, and the queue's two couplings
 
