@@ -25,9 +25,11 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import json
 import logging
+import threading
 import uuid
+import weakref
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
@@ -67,6 +69,94 @@ def place_identity(client_id: str, output: str) -> str:
     could not be asked, and is re-keyed to the set's own id when it can.
     """
     return f"{client_id}/{output}"
+
+
+# -- reports refused ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class RefusedReport:
+    """A Player's last report this server refused, remembered until it sends one it accepts."""
+
+    #: Why it was refused, in `client_heartbeat.problem_with`'s words: what the
+    #: Player's reading carries as its problem.
+    problem: str
+    #: When the last refused report arrived, by this server's clock.
+    at: datetime
+
+
+class RefusedReports:
+    """Each Player's last refused report, in memory only, cleared by the next report accepted.
+
+    **In memory, never written**: a refused report is one the server records
+    nothing of (`player-contract.md` § Transport, the client heartbeat's `400`
+    rows), so a restart forgets it, and the Player reads as its file says until
+    it reports again. What it keeps is what the household is told meanwhile: a
+    Player whose every report is refused is a Player in trouble, not one that has
+    not yet reported.
+    """
+
+    def __init__(self) -> None:
+        # Heartbeats are recorded on worker threads while readers survey.
+        self._lock = threading.Lock()
+        self._by_client: dict[str, RefusedReport] = {}
+
+    def note(self, client_id: str, problem: str, at: datetime) -> bool:
+        """Remember a refusal; True when it starts a run, False when it repeats the last one's problem."""
+        with self._lock:
+            previous = self._by_client.get(client_id)
+            self._by_client[client_id] = RefusedReport(problem=problem, at=at)
+        return previous is None or previous.problem != problem
+
+    def clear(self, client_id: str) -> None:
+        """Forget a Player's refusal: it sent a report that was accepted, or it was removed."""
+        with self._lock:
+            self._by_client.pop(client_id, None)
+
+    def now(self) -> Mapping[str, RefusedReport]:
+        """Every refusal remembered, by client id, as one copy taken at once."""
+        with self._lock:
+            return dict(self._by_client)
+
+
+#: One memory per store. Programming builds more than one `Placements` over the
+#: one store (`Walls` holds its own, and the health reading reads Players through
+#: it), and every one of them must read the refusals `ClientService` notes; the
+#: store is what they all share. Weak, so a store dropped takes its refusals
+#: with it, as a restart does.
+_REFUSALS: weakref.WeakKeyDictionary[object, RefusedReports] = weakref.WeakKeyDictionary()
+_REFUSALS_LOCK: Final[threading.Lock] = threading.Lock()
+
+
+def refused_reports_of(store: ProgrammingStore) -> RefusedReports:
+    """The refusals remembered for the Players of this store."""
+    with _REFUSALS_LOCK:
+        found = _REFUSALS.get(store)
+        if found is None:
+            found = _REFUSALS[store] = RefusedReports()
+        return found
+
+
+def heard(reading: ClientHeartbeatReading, refused: RefusedReport | None) -> ClientHeartbeatReading:
+    """The Player's report as the household is told of it: its file, unless its last report was refused.
+
+    A refused report replaces the file's word: the Player is talking, and what
+    it says cannot be read, which `player_state` calls `report_unreadable` and
+    every surface states with `problem`. The file's outputs say nothing about
+    now once a later report was refused, so none are carried; its settings page
+    address is, because that page is where the Player's report is put right.
+    """
+    if refused is None:
+        return reading
+    return ClientHeartbeatReading(
+        path=reading.path,
+        reported_at=None,
+        age_seconds=None,
+        outputs=(),
+        problem=refused.problem,
+        absent=False,
+        settings_url=reading.settings_url,
+    )
 
 
 # -- what is read together ---------------------------------------------------------------
@@ -139,6 +229,10 @@ class PlacementSurvey:
     readings: Mapping[str, ClientHeartbeatReading]
     #: Keyed by identity; only identities two or more clients report now.
     faults: Mapping[str, DisplayFault]
+    #: Each Player's last refused report, by client id, read after `readings`
+    #: (`RefusedReports`). Read into the Player's own reading only (`view_of`):
+    #: who shows a wall, and its faults, are the files' to say.
+    refused: Mapping[str, RefusedReport] = field(default_factory=dict)
 
     def placement_of(self, wall: Wall) -> WallPlacement:
         display = None if wall.display_id is None else self.displays.get(wall.display_id)
@@ -233,6 +327,7 @@ class Placements:
     def __init__(self, store: ProgrammingStore, art_root: Path) -> None:
         self._store = store
         self._art_root = art_root
+        self._refused = refused_reports_of(store)
 
     def survey(self) -> PlacementSurvey:
         with self._store.reading():
@@ -244,6 +339,10 @@ class Placements:
             client_id: client_heartbeat.read(client_heartbeat.client_heartbeat_path_in(self._art_root, client_id))
             for client_id in clients
         }
+        # After the files: a report accepted meanwhile is written before its
+        # refusal is cleared, so a refusal read here is never older than the
+        # file read beside it.
+        refused = {client_id: found for client_id, found in self._refused.now().items() if client_id in clients}
         return PlacementSurvey(
             clients=clients,
             displays=displays,
@@ -251,6 +350,7 @@ class Placements:
             label_outputs=label_outputs,
             readings=readings,
             faults=_faults(clients, displays, walls, readings),
+            refused=refused,
         )
 
     def placement_of(self, wall: Wall) -> WallPlacement:
@@ -391,6 +491,7 @@ class ClientService:
         self._settings = settings
         self._library = library
         self.placements = Placements(store, settings.art_root)
+        self._refused = refused_reports_of(store)
         #: Identities whose fault has been said in the journal this episode, so
         #: a fault is said once rather than at every heartbeat that meets it.
         self._faults_said: set[str] = set()
@@ -550,6 +651,7 @@ class ClientService:
         # After the commit: the report of a client the server no longer knows
         # would otherwise sit under the art root with nothing ever reading it.
         self._heartbeat_path(client.id).unlink(missing_ok=True)
+        self._refused.clear(client.id)
         log.info("Removed client %r; %d wall(s) it drove are now unassigned.", client.name, len(released))
         return released
 
@@ -651,18 +753,22 @@ class ClientService:
         """Keep what a client said about its outputs, and bring its displays and label outputs up to it.
 
         Refused, and nothing written, if it is not a document this server can
-        read — so the listing never shows a report it would call unreadable. The
-        file is what Settings › Players reads; the records are what walls and
-        labels are placed on (`_reconcile_display` says how each output is
-        matched to one).
+        read — so the listing never shows a report it would call unreadable —
+        and the refusal remembered (`refused`). The file is what Settings ›
+        Players reads; the records are what walls and labels are placed on
+        (`_reconcile_display` says how each output is matched to one). A report
+        accepted clears a refusal, after its file is written
+        (`Placements.survey` says why in that order).
         """
         client = self.get_client(client_id)
         problem = client_heartbeat.problem_with(document)
         if problem is not None:
+            self.refused(client.id, problem)
             raise ServiceError(f"That is not a client heartbeat this server can read: {problem}")
         # A dict by now: `problem_with` refuses anything else.
         report = cast("dict[str, Any]", document)
         write_atomically(self._heartbeat_path(client_id), report)
+        self._refused.clear(client.id)
         with self._store.transaction():
             for output in report["outputs"]:
                 self._reconcile_display(client, output["name"], output["kind"], output.get("identity"))
@@ -672,6 +778,22 @@ class ClientService:
                         self._store.add_label_output,
                         LabelOutput(id=str(uuid.uuid4()), client_id=client.id, output=label["name"]),
                     )
+
+    def refused(self, client_id: str, problem: str) -> None:
+        """Remember that this Player's report was refused, and say so in the journal once per run of one problem.
+
+        The Player then reads `report_unreadable`, with `problem`, until a report
+        is accepted (`RefusedReports`). A Player that sends the same refused
+        report every cycle writes one line, not one a cycle; a different problem
+        starts a new run and writes again.
+        """
+        if self._refused.note(client_id, problem, datetime.now(UTC)):
+            log.warning(
+                "A report from client %s was refused; it reads as unreadable until one is accepted: %s",
+                client_id,
+                problem,
+                extra={"event": "client.report_refused", "client_id": client_id, "problem": problem},
+            )
 
     # -- helpers --------------------------------------------------------------
 
@@ -946,6 +1068,7 @@ def view_of(client: Client, survey: PlacementSurvey, reading: ClientHeartbeatRea
     """One client's view from a survey and its report as read: the clients route's row, and the health route's Player."""
     displays = survey.displays_of(client.id)
     labels = survey.label_outputs_of(client.id)
+    reading = heard(reading, survey.refused.get(client.id))
     return ClientView(
         client=client,
         walls=survey.shown_walls(client.id),

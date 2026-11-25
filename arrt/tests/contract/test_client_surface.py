@@ -16,7 +16,10 @@ import httpx
 import pytest
 from arrt_contract import MAX_OUTPUTS_PER_REPORT, fixtures, released, root, routes, validator
 from arrt_contract import schema as contract_schema
+from async_http import request
 from jsonschema import Draft202012Validator
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
 
 from arrt.programming import client_heartbeat
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
@@ -383,6 +386,65 @@ def test_each_players_row_carries_its_state_and_each_outputs(heartbeat_url, toke
     }
     assert recorded_only
     assert {reported[key] for key in recorded_only} == {("awaiting_report", None)}
+
+
+async def _art_players(server_url: str, action: str) -> dict:
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("art_players", {"action": action})
+    assert not result.isError
+    return json.loads(result.content[0].text)
+
+
+@pytest.mark.parametrize(
+    ("body", "said"),
+    [
+        (json.dumps({"reported_at": "2026-10-02T14:00:05+00:00", "outputs": [{"name": "hdmi-a-1", "kind": "hdmi"}]}), None),
+        ("{ not json", "its body is not JSON."),
+    ],
+    ids=["unreadable-report", "not-json"],
+)
+async def test_a_player_whose_first_report_is_refused_reads_unreadable_with_the_servers_words_on_every_surface(
+    heartbeat_url, token, hall_pi, server_url, body, said
+):
+    """Not waiting for its first report, a setup step: a trouble, with what the Player was told beside it."""
+    headers = {**_bearer(token), "Content-Type": "application/json"}
+    refused = await request("POST", heartbeat_url, content=body, headers=headers)
+    assert refused.status_code == 400
+
+    [row] = [
+        each for each in (await request("GET", server_url + "/api/clients")).json()["clients"] if each["client_id"] == hall_pi.id
+    ]
+    problem = row["heartbeat"]["problem"]
+    # The words the Player was refused in, as a person reads them on Players.
+    assert problem is not None
+    if said is None:
+        assert refused.json()["error"].endswith(f": {problem}")
+    else:
+        assert problem == said
+    assert row["state"]["state"] == "report_unreadable"
+    assert row["heartbeat"]["description"] == f"Its last report could not be read: {problem}"
+
+    health = (await request("GET", server_url + "/api/health")).json()
+    assert [each["state"]["state"] for each in health["players"] if each["client_id"] == hall_pi.id] == ["report_unreadable"]
+    assert [(t["about"], t["state"]) for t in health["troubles"] if t["subject"] == hall_pi.id] == [
+        ("player", "report_unreadable")
+    ]
+    assert hall_pi.id not in {step["subject"] for step in health["setup_steps"]}
+
+    listed = await _art_players(server_url, "clients")
+    [player] = [each for each in listed["clients"] if each["client_id"] == hall_pi.id]
+    assert player["state"]["state"] == "report_unreadable"
+    assert player["heartbeat"]["problem"] == problem
+
+    # A report accepted clears it, on the same surfaces.
+    report = _fixture("fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json")
+    report["reported_at"] = datetime.now(UTC).isoformat()
+    assert (await request("POST", heartbeat_url, json=report, headers=_bearer(token))).status_code == 204
+    [row] = [
+        each for each in (await request("GET", server_url + "/api/clients")).json()["clients"] if each["client_id"] == hall_pi.id
+    ]
+    assert (row["state"]["state"], row["heartbeat"]["problem"]) == ("reporting", None)
 
 
 def test_a_player_with_two_label_panels_and_no_screen_has_a_state_for_each(server_url, services, heartbeat_url):
