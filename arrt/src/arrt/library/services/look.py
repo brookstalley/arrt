@@ -39,6 +39,14 @@ is done with it (`ImageSourcePool.wait_for_runs`), because a run is what a curat
 pressed Get for. A Get does not reuse a look's answers: its journal records its
 own per-result lines, and a kept answer would tie it to an age it cannot see.
 
+**The pictures a look fetches for a model are bounded across every look.** At
+most `PREVIEW_FETCHES_AT_ONCE` run at once, a fetch that outlived its look's
+deadline included, because each may hold a preview up to the deployment's
+ceiling in memory. One that finds every place taken waits its turn, and its look
+answers at its own deadline without it, as it answers without one that is slow
+(`Inlined.deferred`). A look asking again for a picture already being fetched
+joins that fetch.
+
 **Pictures are served by key, never by URL.** A find's key is the picture
 store's own (`picture_key`), computed here from the source's answer, and a
 picture is served only for a key the work's current look names. No surface takes
@@ -51,7 +59,7 @@ import threading
 import time
 from collections import OrderedDict, deque
 from collections.abc import Callable, Mapping
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import Future, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -107,6 +115,24 @@ _RECHECK_SECONDS: Final[float] = 1.0
 #: How many of a look's pictures travel inline with the MCP answer: the page's
 #: first screenful, at the model's inline size (`INLINE_MAX_EDGE_PX`).
 INLINED: Final[int] = 6
+
+#: Preview fetches the looks may have running at once, across every look this
+#: service serves, a fetch still running after its look's deadline included:
+#: eight looks' worth of `INLINED`. Each fetch may hold a preview up to the
+#: deployment's ceiling (`PREVIEW_MAX_BYTES`, 16 MiB by default), so 48 x 16 MiB
+#: = 768 MiB at most, what eight looks at once could hold. Unbounded, the
+#: sixteen looks MCP's pool can run at once (`MCP_CALL_THREADS`) could hold
+#: 96 x 16 MiB = 1.5 GiB, and fetches outliving their looks more. A plugin's own
+#: call that outlives its preview deadline is outside this count, bounded apart
+#: (`STRAGGLERS_PER_PLUGIN` per plugin).
+PREVIEW_FETCHES_AT_ONCE: Final[int] = 8 * INLINED
+
+#: The name every thread fetching a look's picture runs under.
+PICTURE_THREAD_NAME: Final = "look-picture"
+
+#: The journal's `event` for a look whose pictures wait for a place among
+#: `PREVIEW_FETCHES_AT_ONCE`, with how many run and wait across every look.
+PICTURES_WAIT_EVENT: Final[str] = "look.pictures_wait"
 
 #: How long the model's look holds for the sources to answer, and its whole
 #: budget, picture fetches included. A client abandons a single tool call at 60
@@ -214,7 +240,8 @@ class Inlined:
     """The pictures a model's look carries inline, by key, and the ones it does not.
 
     `deferred` were not kept yet and did not arrive within the call's budget:
-    their fetches go on into the store, so the next call carries them.
+    their fetches go on into the store, or wait their turn for a place among
+    `PREVIEW_FETCHES_AT_ONCE` and then do, so a later call carries them.
     `failed` were fetched and could not be kept or read.
     """
 
@@ -245,6 +272,97 @@ class _Look:
     watchers: int = 0
 
 
+def _picture_thread(work: Callable[[], None]) -> None:
+    threading.Thread(target=work, name=PICTURE_THREAD_NAME, daemon=True).start()
+
+
+@dataclass(frozen=True, slots=True)
+class _Fetch:
+    """One picture to fetch, and the future its look waits on."""
+
+    future: Future[InlinePreview | None]
+    job: Callable[[], InlinePreview | None]
+
+
+class PreviewFetches:
+    """The looks' picture fetches: at most `size` running at once, the rest waiting their turn in the order they came.
+
+    **A fetch that finds every place taken waits; it is never refused.** The
+    thread that ran a fetch takes up the next waiting one as soon as its own
+    ends, so a place is never idle while a fetch waits, and a fetch that
+    outlives its look's deadline keeps its place until it ends. The threads are
+    daemons, started as fetches need them, so a fetch still running or waiting
+    never holds the process open.
+    """
+
+    def __init__(self, size: int, *, start: Callable[[Callable[[], None]], None] = _picture_thread) -> None:
+        if size < 1:
+            raise ValueError(f"at least one picture fetch must be able to run, not {size}")
+        self.size = size
+        self._start = start
+        self._lock = threading.Lock()
+        self._running = 0
+        self._waiting: deque[_Fetch] = deque()
+
+    @property
+    def running(self) -> int:
+        """The fetches holding a place: running, or a thread about to run them."""
+        with self._lock:
+            return self._running
+
+    @property
+    def waiting(self) -> int:
+        """The fetches waiting for a place."""
+        with self._lock:
+            return len(self._waiting)
+
+    def submit(self, job: Callable[[], InlinePreview | None]) -> tuple[Future[InlinePreview | None], bool]:
+        """`job` on a thread of its own once a place is free; its future, and whether it waits for a place."""
+        fetch = _Fetch(Future(), job)
+        with self._lock:
+            if self._running >= self.size:
+                self._waiting.append(fetch)
+                return fetch.future, True
+            self._running += 1
+        self._launch(fetch)
+        return fetch.future, False
+
+    def _launch(self, fetch: _Fetch | None) -> None:
+        """Start a thread for a fetch that holds a place; one that cannot start fails, handing its place on."""
+        while fetch is not None:
+            try:
+                self._start(partial(self._work, fetch))
+            except RuntimeError as exc:
+                fetch.future.set_exception(exc)
+                fetch = self._handed_on()
+            else:
+                return
+
+    def _work(self, fetch: _Fetch) -> None:
+        """Run this fetch, then every fetch waiting when it ends, then give the place up."""
+        current: _Fetch | None = fetch
+        while current is not None:
+            if current.future.set_running_or_notify_cancel():
+                try:
+                    result = current.job()
+                except BaseException as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- the future's
+                    # As a ThreadPoolExecutor's worker does: the fault is
+                    # carried to the look waiting on the future, and the place
+                    # goes on to the next fetch.
+                    current.future.set_exception(exc)
+                else:
+                    current.future.set_result(result)
+            current = self._handed_on()
+
+    def _handed_on(self) -> _Fetch | None:
+        """The next waiting fetch, which keeps the place of the one that ended; `None` gives the place up."""
+        with self._lock:
+            if self._waiting:
+                return self._waiting.popleft()
+            self._running -= 1
+            return None
+
+
 #: The name every thread draining a look is started under, for the reason
 #: `runner.RUN_THREAD_NAME` is named.
 LOOK_THREAD_NAME: Final = "look"
@@ -267,6 +385,7 @@ class LookService:
         pictures: PictureStore,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         spawn: Callable[[Callable[[], None]], None] = _daemon_thread,
+        preview_fetches: int = PREVIEW_FETCHES_AT_ONCE,
     ) -> None:
         if (pool is None) != (judge is None):
             raise ServiceError("A look needs both the image sources and phase 2's judge, or neither.")
@@ -285,6 +404,15 @@ class LookService:
         #: which sources have a thread working through theirs.
         self._lanes: dict[str, deque[_Look]] = {}
         self._draining: set[str] = set()
+        self._fetches = PreviewFetches(preview_fetches)
+        #: Each picture being fetched or waiting to be, by work and key, so a
+        #: second look at the work joins the fetch rather than taking a place.
+        self._fetching: dict[tuple[str, str], Future[InlinePreview | None]] = {}
+
+    @property
+    def preview_fetches(self) -> PreviewFetches:
+        """The bound on this service's picture fetches, and how many run and wait."""
+        return self._fetches
 
     # -- the look ----------------------------------------------------------------
 
@@ -633,16 +761,17 @@ class LookService:
 
         For `art_discovery(action='look')`, whose client abandons a call at a
         minute. The hold is the smaller of `hold` and the budget; what is left
-        fetches the pictures not kept yet, together, and a picture that has not
-        arrived when the budget runs out is `deferred`: its fetch goes on into
-        the store, and the next call carries it.
+        fetches the pictures not kept yet, together, among every look's fetches
+        (`PREVIEW_FETCHES_AT_ONCE`), and a picture that has not arrived when the
+        budget runs out is `deferred`: its fetch goes on into the store, or
+        waits its turn and then does, and a later call carries it.
         """
         deadline = time.monotonic() + budget
         view = self.look(qid, hold=min(hold, budget))
         return view, self._inline(view, deadline=deadline)
 
     def _inline(self, view: LookView, *, deadline: float) -> Inlined:
-        """The first `INLINED` pictures, read from the store, fetching those it lacks in parallel until `deadline`."""
+        """The first `INLINED` pictures, read from the store, fetching those it lacks together until `deadline`."""
         with look_context(view.qid):
             previews: dict[str, InlinePreview] = {}
             failed: list[str] = []
@@ -657,24 +786,56 @@ class LookService:
                 (previews.__setitem__(key, preview) if preview is not None else failed.append(key))
             deferred: list[str] = []
             if missing:
-                fetching = ThreadPoolExecutor(max_workers=len(missing), thread_name_prefix="look-picture")
-                futures = {
-                    fetching.submit(contextvars.copy_context().run, self._fetched, view.qid, picture): key
-                    for key, picture in missing
-                }
-                done, waiting = wait(futures, timeout=max(0.0, deadline - time.monotonic()))
-                # Not waited for: a fetch still under way finishes into the store.
-                fetching.shutdown(wait=False)
-                for future in done:
-                    preview = future.result()
-                    (previews.__setitem__(futures[future], preview) if preview is not None else failed.append(futures[future]))
-                deferred = [futures[future] for future in waiting]
+                fetching: dict[str, Future[InlinePreview | None]] = {}
+                waits = 0
+                for key, picture in missing:
+                    fetching[key], waited = self._fetch(view.qid, key, picture)
+                    waits += waited
+                if waits:
+                    log.warning(
+                        "a look's pictures wait for a place: %d picture fetches are running, the most at once",
+                        self._fetches.size,
+                        extra={
+                            "event": PICTURES_WAIT_EVENT,
+                            "pictures": waits,
+                            "fetches_running": self._fetches.running,
+                            "fetches_waiting": self._fetches.waiting,
+                            "fetches_bound": self._fetches.size,
+                        },
+                    )
+                # Not waited for past the deadline: a fetch still under way, or
+                # still waiting for a place, finishes into the store.
+                done, _waiting = wait(set(fetching.values()), timeout=max(0.0, deadline - time.monotonic()))
+                for key, future in fetching.items():
+                    if future not in done:
+                        deferred.append(key)
+                    elif (preview := future.result()) is not None:
+                        previews[key] = preview
+                    else:
+                        failed.append(key)
             order = [key for key, _picture in wanted]
             return Inlined(
                 previews={key: previews[key] for key in order if key in previews},
                 deferred=tuple(key for key in order if key in deferred),
                 failed=tuple(key for key in order if key in failed),
             )
+
+    def _fetch(self, qid: str, key: str, picture: LookPicture) -> tuple[Future[InlinePreview | None], bool]:
+        """The fetch of this work's picture, joining one under way or waiting; whether a new one waits for a place."""
+        with self._changed:
+            under_way = self._fetching.get((qid, key))
+            if under_way is not None:
+                return under_way, False
+            future, waits = self._fetches.submit(partial(contextvars.copy_context().run, self._fetched, qid, picture))
+            self._fetching[(qid, key)] = future
+        future.add_done_callback(partial(self._fetch_ended, (qid, key)))
+        return future, waits
+
+    def _fetch_ended(self, fetched: tuple[str, str], future: Future[InlinePreview | None]) -> None:
+        """Forget a fetch that ended, so the next look reads its picture from the store."""
+        with self._changed:
+            if self._fetching.get(fetched) is future:
+                del self._fetching[fetched]
 
     def _already_kept(self, picture: LookPicture) -> Path | None:
         """The store's file for a find at the inline size, if it keeps one, without fetching."""
