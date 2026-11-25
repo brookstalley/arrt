@@ -921,6 +921,73 @@ class TestHealth:
         assert found["count"] == http.get("/api/acquisitions").json()["failing"]
         assert [t["words"] for t in health["troubles"] if t["about"] == "failed_fetches"] == ["3 works could not fetch a picture"]
 
+    def test_a_wall_whose_next_feed_is_too_large_is_a_trouble_on_both_surfaces_until_one_fits(
+        self, http, services, settings, wall, ready_work, shown_by_a_reporting_player, monkeypatch
+    ):
+        """A theme grown past the bound a Player reads stops the wall rolling forward: Status says so, and stops when it fits.
+
+        The bound is lowered past the wall's feed (as the publisher's tests
+        do), the feed aged to under the horizon a roll leaves, and the wall's
+        Player reports: the roll is refused and the wall keeps its feed. Before,
+        only the journal said so, once. The trouble is the health answer's and
+        `art_display(action='status')`'s alike, and a feed of the wall published
+        again ends it.
+        """
+        from arrt.mcp import bindings
+        from arrt.programming import feeds as feeds_module
+
+        wall_id = wall["wall_id"]
+        shown_by_a_reporting_player(wall_id)
+        theme = services.display.add_theme(name="Late night")
+        for title in ("Nighthawks", "Automat"):
+            services.display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title).id)
+        services.display.activate_theme(theme.id, wall_id=wall_id)
+        path = settings.manifest_v2_path(wall_id)
+        document = json.loads(path.read_text(encoding="utf-8"))
+        for span in [document["schedule"]["horizon"], *document["schedule"]["slots"]]:
+            for key in ("from", "until"):
+                span[key] = (datetime.fromisoformat(span[key]) - timedelta(days=1, hours=1)).isoformat()
+        path.write_text(json.dumps(document), encoding="utf-8")
+        aged = path.read_bytes()
+        assert not [t for t in http.get("/api/health").json()["troubles"] if t["about"] == "feed"]
+        bound = feeds_module.FEED_MAX_BYTES
+        monkeypatch.setattr(feeds_module, "FEED_MAX_BYTES", 1024, raising=False)
+
+        beat = {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None}
+        services.display.record_heartbeat(wall_id, beat)
+
+        assert path.read_bytes() == aged, "the roll was not refused, so nothing is held back"
+        said = [t for t in http.get("/api/health").json()["troubles"] if t["about"] == "feed"]
+        told = [t for t in bindings._wall_status(services, {})["troubles"] if t["about"] == "feed"]
+        assert [(t["subject"], t["state"]) for t in said] == [(wall_id, None)]
+        assert said[0]["words"].startswith(f"{wall['name']}'s new feed is too large for its Player")
+        assert told == said
+
+        monkeypatch.setattr(feeds_module, "FEED_MAX_BYTES", bound, raising=False)
+        services.display.activate_theme(theme.id, wall_id=wall_id)
+
+        assert not [t for t in http.get("/api/health").json()["troubles"] if t["about"] == "feed"]
+        assert not [t for t in bindings._wall_status(services, {})["troubles"] if t["about"] == "feed"]
+
+    def test_every_kind_of_trouble_is_listed_on_the_model_and_linked_from_status_but_the_backup(self):
+        """`TroubleKind` is the kinds' owner; `TroubleOut`'s field says each, and Status links each but the backup to its page.
+
+        Read from the two files a reader of the answer reads: the model's field
+        comment and `screens/health.js`'s `troubleTarget`. A kind added to the
+        server and to neither is a trouble Status cannot send anyone to mend.
+        """
+        import inspect
+
+        from arrt.http import models
+        from arrt.services.health import TroubleKind
+
+        documented = inspect.getsource(models.TroubleOut)
+        linking = (STATIC_DIR / "screens" / "health.js").read_text(encoding="utf-8")
+        target = linking[linking.index("function troubleTarget(") : linking.index("\n}\n", linking.index("function troubleTarget("))]
+
+        assert [kind for kind in TroubleKind if f"`{kind}`" not in documented] == []
+        assert [kind for kind in TroubleKind if f'trouble.about === "{kind}"' not in target] == [TroubleKind.BACKUP]
+
     def test_the_panel_reports_what_the_display_plane_said_about_itself(self, http, settings, wall):
         """The failure table maps TV, panel and last-error state onto this document.
 

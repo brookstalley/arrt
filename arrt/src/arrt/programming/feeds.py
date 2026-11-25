@@ -1157,6 +1157,19 @@ class FeedPublisher:
         self._over_bound[wall_id] = size
         return FeedTooLarge(wall.name, size)
 
+    def feeds_over_bound(self) -> Mapping[str, int]:
+        """Each wall whose last feed was refused for being over the bound, with that feed's size, by wall id.
+
+        The record the refusal is said once by (`_over_the_bound`): a wall is in
+        it from that refusal until a feed of its is next staged, and the wall
+        keeps the feed it has meanwhile. Kept in memory, so a start begins with
+        none, and a wall is found again at its next refused publish (its Player's
+        heartbeat that rolls it, or a reconcile that republishes it). Read under
+        the store's lock, which every writer of it holds.
+        """
+        with self._store.reading():
+            return dict(self._over_bound)
+
     def _control_layer(self, wall_id: str) -> _Control:
         """The scene this wall shows now and the works a draft stages on it, with their entries.
 

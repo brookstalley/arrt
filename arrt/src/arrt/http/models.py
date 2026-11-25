@@ -1535,11 +1535,13 @@ class FailedFetchesOut(BaseModel):
 class TroubleOut(BaseModel):
     """One fault the top bar and the System badge count, never a setup step (`HealthReading.troubles`)."""
 
-    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch` or
-    #: `failed_fetches`: what it is about, so a screen links it to where it is mended.
+    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch`,
+    #: `failed_fetches` or `feed` (a wall keeping the feed it has because its
+    #: next would be larger than a Player reads): what it is about, so a screen
+    #: links it to where it is mended.
     about: str
-    #: The wall's or Player's id, the plugin's name, or the display's identity;
-    #: null for the backup, a Watch and the failed fetches.
+    #: The wall's or Player's id (the wall's for `feed`), the plugin's name, or
+    #: the display's identity; null for the backup, a Watch and the failed fetches.
     subject: str | None
     #: The wall's display state or the Player's state, for those two; null otherwise.
     state: str | None

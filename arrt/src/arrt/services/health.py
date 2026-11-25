@@ -263,6 +263,9 @@ class TroubleKind(StrEnum):
     SOURCE = "source"
     WATCH = "watch"
     FAILED_FETCHES = "failed_fetches"
+    #: A wall keeping the feed it has because its next would be larger than a
+    #: Player reads (`FeedPublisher.feeds_over_bound`); its subject is the wall.
+    FEED = "feed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,8 +273,8 @@ class Trouble:
     """One thing the household is told of on the top bar and the System badge: a fault, never a setup step."""
 
     about: TroubleKind
-    #: The wall's or Player's id, the plugin's name, the display's identity; null
-    #: for the backup, a Watch and the failed fetches.
+    #: The wall's or Player's id (the wall's for a feed), the plugin's name, the
+    #: display's identity; null for the backup, a Watch and the failed fetches.
     subject: str | None
     #: The wall's display state or the Player's state, for those two; null otherwise.
     state: str | None
@@ -410,6 +413,10 @@ class HealthReading:
     players: Sequence[ClientView] = ()
     #: What the queue holds as failed, or None when it holds nothing failed.
     failed_fetches: FailedFetches | None = None
+    #: Each wall whose next feed was refused for being larger than a Player
+    #: reads, with that feed's size in bytes, by wall id: the wall keeps the
+    #: feed it has until one of its feeds fits (`FeedPublisher.feeds_over_bound`).
+    feeds_over_bound: Mapping[str, int] = field(default_factory=dict)
 
     def troubles(self) -> tuple[Trouble, ...]:
         """Every fault this reading holds, in one list: what the top bar and the System badge count.
@@ -455,6 +462,11 @@ class HealthReading:
         for identity, fault in faults.items():
             names = " and ".join(client.name for client in fault.clients)
             found.append(Trouble(TroubleKind.DISPLAY_FAULT, identity, None, f"{names} both report one display"))
+        found.extend(
+            Trouble(TroubleKind.FEED, seen.wall.id, None, _feed_words(seen.wall))
+            for seen in self.walls
+            if seen.wall.id in self.feeds_over_bound
+        )
         found.extend(_backup_troubles(self.backup))
         found.extend(_source_troubles(self.sources))
         found.extend(Trouble(TroubleKind.WATCH, None, None, f"Watch “{words}” is overdue") for words in self.watches.overdue)
@@ -538,6 +550,14 @@ def _wall_words(seen: WallHeartbeat) -> str:
     if seen.heartbeat.problem is not None:
         return f"{name}'s last report cannot be read"
     return f"{name} has not reported"
+
+
+def _feed_words(wall: Wall) -> str:
+    """A wall whose next feed was too large, as the top bar says it, with what makes it smaller (`FeedTooLarge`'s remedy)."""
+    return (
+        f"{wall.name}'s new feed is too large for its Player, so it keeps the one it has; "
+        "a longer time for each work on it makes the feed smaller"
+    )
 
 
 def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
@@ -664,6 +684,7 @@ class HealthService:
             watches=self._watches(),
             players=tuple(walls.players()),
             failed_fetches=self.observe_failed_fetches(),
+            feeds_over_bound=self._display.feeds_over_bound(),
         )
 
     def observe_walls(self, wall_id: str | None = None) -> WallsNow:
