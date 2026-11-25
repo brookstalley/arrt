@@ -50,6 +50,10 @@ from arrt.services.container import Services
 #: before anything judged it, by any holder of a client token.
 BODY_LIMIT_BYTES: Final[int] = 256 * 1024
 
+#: Why a client heartbeat whose body is not JSON was refused, in the words its
+#: Player's reading carries (`ClientService.refused`).
+NOT_JSON: Final[str] = "its body is not JSON."
+
 _BodyHandler = Callable[[Request], Coroutine[Any, Any, Response]]
 
 
@@ -202,6 +206,9 @@ async def client_heartbeat(request: Request, presenting: Annotated[Client, Depen
     try:
         document = json.loads(await request.body())
     except ValueError:
+        # Remembered and journalled as any refused report is, so the Player
+        # reads as one whose reports are refused, not one never heard from.
+        await run_in_threadpool(services.clients.refused, presenting.id, NOT_JSON)
         return JSONResponse(status_code=400, content={"error": "A client heartbeat is a JSON object, and this body is not JSON."})
     await run_in_threadpool(services.clients.record_heartbeat, presenting.id, document)
     return Response(status_code=204)

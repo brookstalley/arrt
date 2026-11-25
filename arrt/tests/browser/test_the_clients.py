@@ -37,6 +37,7 @@ pytest.importorskip(
 from playwright.sync_api import expect
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
+from arrt.services.errors import ServiceError
 
 #: A report of two outputs. `reported_at` is stamped when `report` writes it,
 #: never at import: one older than three heartbeats says nothing about now, and
@@ -472,6 +473,23 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, services, settings, 
     expect(status).to_contain_text("Its last report could not be read: ", use_inner_text=True)
     expect(cell(ui, hall, "Screens")).to_have_text("Not known: its last report could not be read.", use_inner_text=True)
     expect(row(ui, hall)).not_to_contain_text("Not reported yet", use_inner_text=True)
+
+
+def test_a_player_whose_reports_are_refused_says_so_with_the_servers_words(ui, services, hall):
+    """Its first report refused: a trouble with what it was told, never "waiting for its first report"."""
+    services.access.issue(hall.id)
+    refused = {**TWO_OUTPUTS, "reported_at": datetime.now(UTC).isoformat(), "outputs": [{"name": "hdmi-a-1", "kind": "hdmi"}]}
+    with pytest.raises(ServiceError):
+        services.clients.record_heartbeat(hall.id, refused)
+    open_players(ui)
+
+    status = cell(ui, hall, "Status")
+    expect(status).to_have_text(starting("▲ Report unreadable"), use_inner_text=True)
+    expect(status).to_contain_text(
+        "Its last report could not be read: output 0: 'kind' is one of frame, framebuffer.", use_inner_text=True
+    )
+    expect(cell(ui, hall, "Screens")).to_have_text("Not known: its last report could not be read.", use_inner_text=True)
+    expect(row(ui, hall)).not_to_contain_text("Once it is running with its token", use_inner_text=True)
 
 
 def test_a_report_of_no_outputs_says_so_and_lists_none(ui, services, settings, hall):

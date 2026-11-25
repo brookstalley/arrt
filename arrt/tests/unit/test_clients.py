@@ -14,8 +14,10 @@ from datetime import UTC, datetime
 import pytest
 
 from arrt.persistence.catalogue import StorageError
+from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS, Admission, PlayerAccess
 from arrt.programming.client_heartbeat import MAX_OUTPUTS, client_heartbeat_path_in
+from arrt.programming.clients import Placements, refused_reports_of
 from arrt.programming.display_state import ScreenState
 from arrt.programming.player_state import PlayerState
 from arrt.services.errors import ServiceError
@@ -504,3 +506,118 @@ def test_a_player_whose_report_cannot_be_read_is_a_trouble(services, clients, pi
     assert [(t.subject, t.state, t.words) for t in troubles] == [
         (pi.id, "report_unreadable", "The Pi in the hall's report cannot be read")
     ]
+
+
+# -- a Player whose reports are refused ----------------------------------------------------
+
+#: A report the server refuses, and the words it refuses it in (`client_heartbeat.problem_with`).
+_REFUSED = {**_REPORT, "outputs": [{**_REPORT["outputs"][0], "kind": "hdmi"}]}
+_REFUSED_PROBLEM = "output 0: 'kind' is one of frame, framebuffer."
+
+
+def _refuse(clients, client_id, document=_REFUSED):
+    with pytest.raises(ServiceError):
+        clients.record_heartbeat(client_id, document)
+
+
+def _now_report():
+    return {**_REPORT, "reported_at": datetime.now(UTC).isoformat()}
+
+
+def test_a_player_whose_first_report_is_refused_reads_unreadable_with_the_servers_words(services, clients, pi, access):
+    """Not `awaiting_report`, a setup step: it is talking, and what it says cannot be read, so it is a trouble."""
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+
+    view = clients.get_client_view(pi.id)
+    assert view.player.state is PlayerState.REPORT_UNREADABLE
+    assert view.heartbeat.problem == _REFUSED_PROBLEM
+    assert view.heartbeat.describe() == f"Its last report could not be read: {_REFUSED_PROBLEM}"
+    reading = services.health.observe()
+    assert {each.client.id: each.player.state for each in reading.players} == {pi.id: PlayerState.REPORT_UNREADABLE}
+    assert [(t.subject, t.state) for t in reading.troubles() if t.about == "player"] == [(pi.id, "report_unreadable")]
+    assert pi.id not in {step.subject for step in reading.setup_steps()}
+
+
+def test_a_refusal_after_an_accepted_report_reads_unreadable_and_keeps_the_settings_page(clients, pi, access):
+    """The file still holds the last report accepted; the Player's reading is the refusal, but its settings page stays."""
+    access.issue(pi.id)
+    clients.record_heartbeat(pi.id, {**_now_report(), "settings_url": "http://player.example:8080/"})
+    assert clients.get_client_view(pi.id).player.state is PlayerState.REPORTING
+
+    _refuse(clients, pi.id)
+
+    view = clients.get_client_view(pi.id)
+    assert view.player.state is PlayerState.REPORT_UNREADABLE
+    assert view.heartbeat.problem == _REFUSED_PROBLEM
+    assert view.heartbeat.outputs == ()
+    assert view.heartbeat.settings_url == "http://player.example:8080/"
+    # The outputs recorded for it read as its state, never as reported now.
+    assert {(output.name, output.state, output.connected) for output in view.player.outputs} == {
+        ("hdmi-a-1", PlayerState.REPORT_UNREADABLE, None),
+        ("frame", PlayerState.REPORT_UNREADABLE, None),
+    }
+
+
+def test_an_accepted_report_clears_a_refusal(services, clients, pi, access):
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+    clients.record_heartbeat(pi.id, _now_report())
+
+    view = clients.get_client_view(pi.id)
+    assert view.player.state is PlayerState.REPORTING
+    assert view.heartbeat.problem is None
+    assert not [t for t in services.health.observe().troubles() if t.about == "player"]
+
+
+def test_ten_identical_refusals_write_one_journal_line_and_another_problem_writes_one_more(clients, pi, access, caplog):
+    """A Player resending a refused report every cycle writes one line, not one a cycle; the line carries its event."""
+    access.issue(pi.id)
+    with caplog.at_level(logging.WARNING, logger="arrt.programming.clients"):
+        for second in range(10):
+            # Each one a new report: only its instant differs, as a Player's resend does.
+            _refuse(clients, pi.id, {**_REFUSED, "reported_at": f"2026-10-02T14:00:{second:02d}+00:00"})
+        _refuse(clients, pi.id, {**_REPORT, "reported_at": "yesterday"})
+
+    lines = [record for record in caplog.records if getattr(record, "event", None) == "client.report_refused"]
+    assert [(record.client_id, record.problem) for record in lines] == [
+        (pi.id, _REFUSED_PROBLEM),
+        (pi.id, "it carries 'reported_at' as an RFC 3339 timestamp with an offset."),
+    ]
+
+
+def test_a_refusal_after_an_accepted_report_starts_a_new_run_in_the_journal(clients, pi, access, caplog):
+    access.issue(pi.id)
+    with caplog.at_level(logging.WARNING, logger="arrt.programming.clients"):
+        _refuse(clients, pi.id)
+        clients.record_heartbeat(pi.id, _now_report())
+        _refuse(clients, pi.id)
+
+    assert sum(getattr(record, "event", None) == "client.report_refused" for record in caplog.records) == 2
+
+
+def test_every_placements_over_the_store_reads_a_refusal_and_it_is_forgotten_with_its_player(
+    store, clients, pi, access, wall_settings
+):
+    """Walls holds a `Placements` of its own, which the health reading reads Players through; both read one memory."""
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+
+    elsewhere = Placements(store, wall_settings.art_root)
+    assert [view.player.state for view in elsewhere.read_walls().players()] == [PlayerState.REPORT_UNREADABLE]
+
+    clients.remove_client(pi.id)
+    assert refused_reports_of(store).now() == {}
+
+
+def test_a_refusal_is_not_written_so_a_store_opened_afresh_knows_nothing_of_it(
+    clients, pi, access, wall_settings, quiet_catalogue_file
+):
+    """In memory only: a refused report is one the server records nothing of, so a restart forgets it."""
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+
+    restarted = Placements(SqliteCatalogue(quiet_catalogue_file), wall_settings.art_root)
+    [view] = restarted.read_walls().players()
+    assert view.player.state is PlayerState.AWAITING_REPORT
+    assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
