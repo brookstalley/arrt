@@ -653,12 +653,15 @@ class _Fixed:
 
 
 class _NoWalls:
-    """The one display question the health service asks, answered with no walls and no Players."""
+    """The two display questions the health service asks, answered with no walls, no Players and no feed held back."""
 
     def read_wall_reports(self) -> WallsReading:
         return WallsReading(
             survey=PlacementSurvey(clients={}, displays={}, walls=[], label_outputs=[], readings={}, faults={}), reports={}
         )
+
+    def feeds_over_bound(self) -> dict[str, int]:
+        return {}
 
 
 #: A tree no file is ever written to, inside this one: what the health service

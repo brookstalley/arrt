@@ -47,6 +47,7 @@ block on or answer with EOF, which it reports as a silent success.
 
 import errno
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -68,7 +69,9 @@ _PARTIAL: Final[re.Pattern[str]] = re.compile(r"Only (\d+) tiles? out of (\d+) c
 #: 2.18.1; the number is this machine's `errno`, which the binary shares).
 _OS_ERROR: Final[re.Pattern[str]] = re.compile(r"\(os error (\d+)\)")
 
-#: What a disk fault the binary met is called, in the household's words.
+#: What a disk fault the binary met is called, in the household's words, by the
+#: members of `atomic.DISK_FAULT_ERRNOS`, the set's owner. A member with no
+#: words here is said in the system's (`_disk_words`).
 _DISK_FAULT_WORDS: Final[dict[int, str]] = {
     errno.ENOSPC: "the disk is full",
     errno.EROFS: "the disk can no longer be written to",
@@ -230,7 +233,7 @@ def tile_fetch(
         # Before the file is judged: what the binary left is truncated, and an
         # image read from it would be recorded as this work's.
         _discard(staged)
-        raise OSError(disk, f"{_DISK_FAULT_WORDS[disk]}: the tile fetch could not write the image ({_last_error(messages)})")
+        raise OSError(disk, f"{_disk_words(disk)}: the tile fetch could not write the image ({_last_error(messages)})")
     fetched, expected = _tile_counts(messages)
     size = staged.stat().st_size if staged.exists() else 0
 
@@ -340,6 +343,18 @@ def _disk_fault(messages: str) -> int | None:
         return None
     number = int(found.group(1))
     return number if number in atomic.DISK_FAULT_ERRNOS else None
+
+
+def _disk_words(number: int) -> str:
+    """A disk fault's words: the household's where `_DISK_FAULT_WORDS` has them, else the system's name for the `errno`.
+
+    A lookup that raised here would end the queue's pass with a `KeyError`
+    where it pauses on the disk's `OSError`, so a fault added to
+    `atomic.DISK_FAULT_ERRNOS` before its words still pauses the queue with a
+    sentence.
+    """
+    words = _DISK_FAULT_WORDS.get(number)
+    return words if words is not None else f"the disk refused the write ({os.strerror(number)})"
 
 
 def _failure_detail(messages: str, returncode: int) -> str:

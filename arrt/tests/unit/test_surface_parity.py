@@ -28,6 +28,7 @@ is the case the recorded decision actually describes. Theme, Artist and the
 candidate-work summary are not that: they are one shape written twice.
 """
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -857,6 +858,43 @@ def test_a_wall_reads_alike_on_the_walls_answer_and_mcp_walls_but_for_the_one_re
     waits = services.health.observe_walls().waiting
     assert tool["waiting_for"] == route["waiting_for"] == bindings._wall_wait_fields(waits[wall.id])
     assert route["waiting_for"]["client_id"] == player.id
+
+
+def test_an_unreadable_report_is_named_alike_on_the_walls_answer_mcp_walls_and_the_health_answer(services, settings):
+    """`report_problem`, by value: the walls answer says what the health answer's `heartbeat.problem` does.
+
+    A wall shown by a reporting Player whose own report is not JSON: silent,
+    and the reason it is silent said on every surface, from the reading its
+    state is. Before, only the health answer said it, so Walls asked that
+    answer for it, and a card said nothing of why when it could not be read.
+    """
+    wall = services.display.add_wall(name="The hall")
+    player = services.clients.add_client(name="Hall Pi")
+    services.access.issue(player.id)
+    services.clients.assign_wall(wall.id, client_id=player.id, output="hdmi-a-1")
+    services.clients.record_heartbeat(
+        player.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(),
+            "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
+        },
+    )
+    settings.heartbeat_path(wall.id).write_text("{not json", encoding="utf-8")
+    now = services.health.observe_walls(wall.id)
+    [view] = now.views
+    tool = bindings._wall_view_fields(services, view, now)
+    route = http_api._wall(services, view, now).model_dump()
+    [health] = [e for e in http_api._health(services.health.observe()).model_dump()["walls"] if e["wall_id"] == wall.id]
+
+    assert route["display_state"]["state"] == "silent"
+    assert health["heartbeat"]["problem"]
+    assert tool["report_problem"] == route["report_problem"] == health["heartbeat"]["problem"]
+
+    settings.heartbeat_path(wall.id).write_text(json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8")
+    now = services.health.observe_walls(wall.id)
+    [view] = now.views
+    assert bindings._wall_view_fields(services, view, now)["report_problem"] is None
+    assert http_api._wall(services, view, now).report_problem is None
 
 
 def test_a_walls_last_showing_agrees_value_for_value_but_for_the_one_rename():

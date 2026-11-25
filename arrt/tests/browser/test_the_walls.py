@@ -35,24 +35,23 @@ from playwright.sync_api import expect
 from arrt.persistence.records import MatMethod, RenditionKind
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
-#: The phrase each reason states, keyed by the reason. Several for the silent
-#: one, because "nothing has reported", "something reported and cannot be read"
-#: and "the reading says nothing about this wall" send a person to three
-#: different places on the Player while being one reason: its Player is not
-#: speaking, and the wall is dark either way. In the household's words since
-#: audit 2026-11-19 (F5): no plane, no heartbeat, no display for a Player.
+#: The phrase each reason states, keyed by the reason. Two for the silent one,
+#: because "nothing has reported" and "something reported and cannot be read"
+#: send a person to different places on the Player while being one reason: its
+#: Player is not speaking, and the wall is dark either way. In the household's
+#: words since audit 2026-11-19 (F5): no plane, no heartbeat, no display for a
+#: Player. Every phrase is the walls answer's or the manifest's: the cards ask
+#: the status reading for nothing, so none is said of it.
 REASONS = {
     "no theme hung": ("Nothing is hanging on",),
     "an empty theme": ("holds no works yet",),
     "its Player silent": (
         "has not reported for",
         "last report cannot be read",
-        "The status reading says nothing about",
     ),
     "a reading out of reach": (
         "The walls could not be read",
         "The server could not work out what",
-        "and what its Player reports was not",
     ),
 }
 
@@ -395,46 +394,58 @@ def test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice(ui,
     expect(card).not_to_contain_text("Not reporting", use_inner_text=True)
 
 
-def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_quiet_wall, a_health_reading, a_wall_reading):
-    """Still its Player not speaking, and still the same way on.
+def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, services, settings, a_quiet_wall):
+    """Still its Player not speaking, and still the same way on, said from the walls answer with Status out of reach.
 
     A report that cannot be parsed leaves the wall exactly as dark as no report
     at all, so it is one reason rather than two — but the sentence carries what
     could not be read, because that is the half a person acts on. On a Player
-    that reports (`a_quiet_wall`): a wall whose Player has not reported waits
-    for it, in the walls answer's words, and its card asks Status for nothing.
+    that reports (`a_quiet_wall`), the wall's own report not JSON: what made it
+    unreadable is the walls answer's (`report_problem`), read from the server's
+    own reading, so the card says it with `/api/health` refused. Before, the
+    card asked the health answer for it, and with that refused said the wall's
+    reading was out of reach.
     """
-    ui.serve(
-        "**/api/health",
-        a_health_reading(walls=[a_wall_reading(wall_id=a_quiet_wall.id, name=a_quiet_wall.name, problem="the file is not JSON")]),
-    )
+    settings.heartbeat_path(a_quiet_wall.id).write_text("{not json", encoding="utf-8")
+    problem = services.health.observe_walls(a_quiet_wall.id).report_problems.get(a_quiet_wall.id)
+    assert problem, "the server reads the report as readable, so there is nothing to say of it"
+    ui.serve("**/api/health", (500, {"error": "the reading could not be taken"}))
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
     _expect_reasons_named(ui, "its Player silent")
-    expect(ui.view).to_contain_text(
-        f"{a_quiet_wall.name}'s last report cannot be read: the file is not JSON.", use_inner_text=True
+    expect(ui.view).to_contain_text(f"{a_quiet_wall.name}'s last report cannot be read: {problem}.", use_inner_text=True)
+    expect(ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_quiet_wall.name}'s reading")).to_have_count(
+        1
     )
     expect(ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_quiet_wall.name}'s reading")).to_have_count(
         1
     )
 
 
-def test_a_reading_that_says_nothing_about_this_wall_is_never_read_as_well(ui, a_quiet_wall, a_health_reading):
+def test_a_wall_answered_without_its_state_is_never_read_as_well(ui, services, a_quiet_wall):
     """A wall reported as fine because its observation was missing is the failure this product refuses.
 
-    The aggregate can arrive carrying no reading for a wall — a shape change, a
-    wall created between two requests — and the safe direction is to say so.
-    On a Player that reports (`a_quiet_wall`), for the reason the test above gives.
+    The walls answer is the one reading a card is said from, so a wall that
+    arrives in it with no `display_state` (a shape change) reads as not
+    reported, never as hanging well. An answer the server would not send, so
+    the real answer is edited here: its one wall's state taken out. Before, the
+    case was a status reading carrying no entry for the wall, which the cards
+    no longer ask for.
     """
-    ui.serve("**/api/health", a_health_reading(walls=[]))
+    from arrt.http import api as http_api
+
+    answer = http_api._walls(services).model_dump()
+    [entry] = [wall for wall in answer["walls"] if wall["wall_id"] == a_quiet_wall.id]
+    del entry["display_state"]
+    ui.serve("**/api/walls", answer)
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
     _expect_reasons_named(ui, "its Player silent")
-    expect(ui.view).to_contain_text(f"The status reading says nothing about {a_quiet_wall.name}", use_inner_text=True)
+    expect(ui.view).to_contain_text(f"has not reported for {a_quiet_wall.name} yet", use_inner_text=True)
 
 
 def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
@@ -548,26 +559,28 @@ def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
 # -- reason four: a reading this screen could not reach ------------------------
 
 
-def test_a_health_reading_that_never_arrives_says_which_side_did_answer(ui, a_quiet_wall):
-    """Not "something went wrong": which read answered.
+def test_a_quiet_walls_card_says_what_its_player_reports_with_status_out_of_reach_and_never_asks_it(ui, a_quiet_wall):
+    """A hung wall a Player shows, silent with nothing it last said and waiting for no one: said from the walls answer alone.
 
-    The distinction is the curator's next move. The walls answering and what
-    their Players report not arriving is a fault in one place; the walls not
-    answering at all is a fault in another. The status reading is asked only
-    for a card that needs it (`a_quiet_wall`: silent, its Player reporting,
-    waiting for no one); every other card is said from the walls answer, and
-    `test_a_waiting_wall_says_whom_it_waits_for_with_status_out_of_reach_and_never_asks_it`
-    holds that one.
+    The one card that asked the status reading, for what made a report
+    unreadable; the walls answer carries that now (`report_problem`), so with
+    `/api/health` refused the card still says its Player has not reported for
+    it, and the page asks `/api/health` once, for the top bar
+    (`core/status.js`). Before, the card said the wall was read and what its
+    Player reports was not, with *Ask again*.
     """
     ui.serve("**/api/health", (500, {"error": "the heartbeat directory could not be opened"}))
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    _expect_reasons_named(ui, "a reading out of reach")
-    expect(ui.view).to_contain_text(f"{a_quiet_wall.name} was read, and what its Player reports was not", use_inner_text=True)
-    expect(ui.view).to_contain_text("the heartbeat directory could not be opened", use_inner_text=True)
-    expect(ui.page.locator("button", has_text="Ask again")).to_have_count(1)
+    _expect_reasons_named(ui, "its Player silent")
+    expect(ui.view).to_contain_text(f"has not reported for {a_quiet_wall.name} yet", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("the heartbeat directory could not be opened", use_inner_text=True)
+    expect(ui.page.locator("button", has_text="Ask again")).to_have_count(0)
+    # The top bar's read has been answered too, so every read the page makes is in.
+    ui.page.wait_for_selector("#status[data-state='unwell']")
+    assert len(ui.requests_matching("/api/health")) == 1, ui.requests_matching("/api/health")
 
 
 def test_a_waiting_wall_says_whom_it_waits_for_with_status_out_of_reach_and_never_asks_it(ui, services, a_hung_wall):

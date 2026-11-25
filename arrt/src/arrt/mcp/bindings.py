@@ -1542,6 +1542,7 @@ _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the Library's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
     "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
+    "feeds_over_bound": "each such wall is a `feed` entry of `troubles`, as on GET /api/health, which has no field of it",
 }
 
 
@@ -2467,6 +2468,8 @@ def _wall_view_fields(services: Services, view: WallView, now: WallsNow) -> dict
         "upcoming": [{"artwork_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
         # Whom the wall waits for while its Player is set up, as `GET /api/walls` says it.
         "waiting_for": _wall_wait_fields(now.waiting.get(view.wall.id)),
+        # Why its last report cannot be read, from the read its state is; null when it can.
+        "report_problem": now.report_problems.get(view.wall.id),
     }
 
 

@@ -46,7 +46,7 @@ from pathlib import Path
 
 from arrt import observations
 from arrt.counting import counted
-from arrt.library.acquisition.queue import RETRY_AFTER, AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, failure_instant
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
@@ -196,30 +196,6 @@ class PicturesReading:
         )
 
 
-def failure_instant(state: AcquisitionState) -> datetime | None:
-    """When this work's last fetch failed, or None when that is not known.
-
-    **The queue's own record of it** (`failed_at`), which
-    `AcquisitionQueue._record_failure` writes at every failure, the one it gives
-    up on included, whatever the failure's outcome.
-
-    **A derivation only for a row written before that column existed**, which
-    holds none: its instant is read back from the retry schedule the queue
-    applied at that failure (`next_try_at` is the failure's instant plus
-    `RETRY_AFTER[failures - 1]`). Such a row given up on has no `next_try_at`
-    either, so its instant is not known, and no instant is guessed.
-    `arrt/tests/unit/test_failed_fetches.py` drives the real queue for the
-    first and seeds rows without the column for the second.
-    """
-    if state.failed_at is not None:
-        return state.failed_at
-    if state.phase is not AcquisitionPhase.FAILED or state.next_try_at is None:
-        return None
-    if not 1 <= state.failures <= len(RETRY_AFTER):
-        return None
-    return state.next_try_at - RETRY_AFTER[state.failures - 1]
-
-
 @dataclass(frozen=True, slots=True)
 class FailedFetches:
     """The works whose picture the queue failed to fetch: how many, and when the newest failed, where known.
@@ -287,6 +263,9 @@ class TroubleKind(StrEnum):
     SOURCE = "source"
     WATCH = "watch"
     FAILED_FETCHES = "failed_fetches"
+    #: A wall keeping the feed it has because its next would be larger than a
+    #: Player reads (`FeedPublisher.feeds_over_bound`); its subject is the wall.
+    FEED = "feed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,8 +273,8 @@ class Trouble:
     """One thing the household is told of on the top bar and the System badge: a fault, never a setup step."""
 
     about: TroubleKind
-    #: The wall's or Player's id, the plugin's name, the display's identity; null
-    #: for the backup, a Watch and the failed fetches.
+    #: The wall's or Player's id (the wall's for a feed), the plugin's name, the
+    #: display's identity; null for the backup, a Watch and the failed fetches.
     subject: str | None
     #: The wall's display state or the Player's state, for those two; null otherwise.
     state: str | None
@@ -375,6 +354,12 @@ class WallsNow:
     waiting: Mapping[str, WallWait]
     #: Who shows each wall, its display and its labels, from the same read.
     survey: PlacementSurvey
+    #: Why each wall's report cannot be read, by wall id, for the walls whose
+    #: report cannot be (`HeartbeatReading.problem`): from the read its view's
+    #: display state was judged from, so what made a report unreadable is said
+    #: beside the state it made silent. The reason alone, never the reading, so
+    #: no reader can judge a wall's state a second time from it.
+    report_problems: Mapping[str, str]
 
 
 def walls_waiting(walls: Sequence[WallHeartbeat], players: Sequence[ClientView]) -> dict[str, WallWait]:
@@ -434,6 +419,10 @@ class HealthReading:
     players: Sequence[ClientView] = ()
     #: What the queue holds as failed, or None when it holds nothing failed.
     failed_fetches: FailedFetches | None = None
+    #: Each wall whose next feed was refused for being larger than a Player
+    #: reads, with that feed's size in bytes, by wall id: the wall keeps the
+    #: feed it has until one of its feeds fits (`FeedPublisher.feeds_over_bound`).
+    feeds_over_bound: Mapping[str, int] = field(default_factory=dict)
 
     def troubles(self) -> tuple[Trouble, ...]:
         """Every fault this reading holds, in one list: what the top bar and the System badge count.
@@ -479,6 +468,11 @@ class HealthReading:
         for identity, fault in faults.items():
             names = " and ".join(client.name for client in fault.clients)
             found.append(Trouble(TroubleKind.DISPLAY_FAULT, identity, None, f"{names} both report one display"))
+        found.extend(
+            Trouble(TroubleKind.FEED, seen.wall.id, None, _feed_words(seen.wall))
+            for seen in self.walls
+            if seen.wall.id in self.feeds_over_bound
+        )
         found.extend(_backup_troubles(self.backup))
         found.extend(_source_troubles(self.sources))
         found.extend(Trouble(TroubleKind.WATCH, None, None, f"Watch “{words}” is overdue") for words in self.watches.overdue)
@@ -562,6 +556,14 @@ def _wall_words(seen: WallHeartbeat) -> str:
     if seen.heartbeat.problem is not None:
         return f"{name}'s last report cannot be read"
     return f"{name} has not reported"
+
+
+def _feed_words(wall: Wall) -> str:
+    """A wall whose next feed was too large, as the top bar says it, with what makes it smaller (`FeedTooLarge`'s remedy)."""
+    return (
+        f"{wall.name}'s new feed is too large for its Player, so it keeps the one it has; "
+        "a longer time for each work on it makes the feed smaller"
+    )
 
 
 def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
@@ -688,6 +690,7 @@ class HealthService:
             watches=self._watches(),
             players=tuple(walls.players()),
             failed_fetches=self.observe_failed_fetches(),
+            feeds_over_bound=self._display.feeds_over_bound(),
         )
 
     def observe_walls(self, wall_id: str | None = None) -> WallsNow:
@@ -712,7 +715,14 @@ class HealthService:
             WallHeartbeat(wall=view.wall, heartbeat=seen.reading.reports[view.wall.id], state=view.display_state)
             for view in seen.views
         ]
-        return WallsNow(views=seen.views, waiting=walls_waiting(walls, seen.reading.players()), survey=seen.reading.survey)
+        return WallsNow(
+            views=seen.views,
+            waiting=walls_waiting(walls, seen.reading.players()),
+            survey=seen.reading.survey,
+            report_problems={
+                wall_id: report.problem for wall_id, report in seen.reading.reports.items() if report.problem is not None
+            },
+        )
 
     def observe_failed_fetches(self) -> FailedFetches | None:
         """What the queue holds as failed now, or None when it holds nothing failed (or no queue was given)."""

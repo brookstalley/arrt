@@ -1046,6 +1046,6 @@ def test_a_walls_answer_judges_each_walls_state_once_and_carries_it_once(service
     monkeypatch.setattr(clients_module, "display_state_of", counting)
     now = services.health.observe_walls()
 
-    assert {field.name for field in fields(WallsNow)} == {"views", "waiting", "survey"}
+    assert {field.name for field in fields(WallsNow)} == {"views", "waiting", "survey", "report_problems"}
     assert len(now.views) >= 3, "the walls the test added, and the one a catalogue starts with"
     assert sorted(judged) == sorted(str(settings.heartbeat_path(view.wall.id)) for view in now.views)

@@ -2455,6 +2455,7 @@ def _wall(services: Services, view: WallView, now: WallsNow) -> WallOut:
         last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
         upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
         waiting_for=_wall_wait(now.waiting.get(view.wall.id)),
+        report_problem=now.report_problems.get(view.wall.id),
     )
 
 

@@ -1090,6 +1090,11 @@ class WallOut(BaseModel):
     #: `display_state` still reads `silent`, and this says nothing shows the
     #: wall yet, which the question before a hang reads.
     waiting_for: WallWaitOut | None = None
+    #: Why the wall's last report cannot be read, from the read `display_state`
+    #: was judged from, as `GET /api/health`'s `heartbeat.problem` says it; null
+    #: when it can be read or none was written. A wall made `silent` by an
+    #: unreadable report is told apart from one never reported for by this.
+    report_problem: str | None = None
 
 
 class LastShownOut(BaseModel):
@@ -1535,11 +1540,13 @@ class FailedFetchesOut(BaseModel):
 class TroubleOut(BaseModel):
     """One fault the top bar and the System badge count, never a setup step (`HealthReading.troubles`)."""
 
-    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch` or
-    #: `failed_fetches`: what it is about, so a screen links it to where it is mended.
+    #: `wall`, `player`, `display_fault`, `backup`, `source`, `watch`,
+    #: `failed_fetches` or `feed` (a wall keeping the feed it has because its
+    #: next would be larger than a Player reads): what it is about, so a screen
+    #: links it to where it is mended.
     about: str
-    #: The wall's or Player's id, the plugin's name, or the display's identity;
-    #: null for the backup, a Watch and the failed fetches.
+    #: The wall's or Player's id (the wall's for `feed`), the plugin's name, or
+    #: the display's identity; null for the backup, a Watch and the failed fetches.
     subject: str | None
     #: The wall's display state or the Player's state, for those two; null otherwise.
     state: str | None

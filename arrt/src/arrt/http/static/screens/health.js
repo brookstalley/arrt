@@ -265,7 +265,9 @@ function heartbeatPanels(health, titles) {
 /* Where a trouble is mended, by what it is about (`TroubleOut.about`): the
  * wall on Walls, the Player on Players, a display two Players claim on
  * Players, a source on Sources, a Watch on Watches, the failed fetches on
- * Queue. The backup has no page of its own: its panel is below. */
+ * Queue, a feed held back for its size on its wall, whose *Edit…* sets how
+ * long each work stays up. The backup has no page of its own: its panel is
+ * below. */
 function troubleTarget(trouble) {
   if (trouble.about === "wall" && trouble.subject) return { view: "walls", params: { wall: trouble.subject } };
   if (trouble.about === "player" && trouble.subject) return { view: "clients", params: { client: trouble.subject } };
@@ -273,6 +275,7 @@ function troubleTarget(trouble) {
   if (trouble.about === "source") return { view: "sources" };
   if (trouble.about === "watch") return { view: "watches" };
   if (trouble.about === "failed_fetches") return { view: "queue" };
+  if (trouble.about === "feed" && trouble.subject) return { view: "walls", params: { wall: trouble.subject } };
   return null;
 }
 

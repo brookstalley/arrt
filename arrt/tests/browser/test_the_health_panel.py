@@ -338,3 +338,48 @@ def test_a_healthy_store_shows_no_could_not_be_read_fact(ui, a_health_reading):
     # The panel has its own words before its absence means anything.
     expect(panel).to_contain_text("Kept pictures", use_inner_text=True)
     expect(panel).not_to_contain_text("Could not be read", use_inner_text=True)
+
+
+def test_a_wall_whose_next_feed_is_too_large_is_on_status_linked_to_its_wall_and_counted(
+    ui, services, settings, two_walls, ready_work, monkeypatch
+):
+    """A theme grown past the bound a Player reads: Status names the wall, sends the reader to it, and the badge counts it.
+
+    The real server refuses the wall's roll (the bound lowered past its feed,
+    the feed aged under the horizon a roll leaves, its Player reporting), so
+    what the page says is the server's trouble; its words are read from the
+    server's own reading. Before, only the journal said so, once.
+    """
+    from arrt.programming import feeds as feeds_module
+
+    living_room, study = two_walls
+    _on_a_player(services, living_room, study)
+    theme = services.display.add_theme(name="Late night")
+    for title in ("Nighthawks", "Automat"):
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title).id)
+    services.display.activate_theme(theme.id, wall_id=study.id)
+    path = settings.manifest_v2_path(study.id)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for span in [document["schedule"]["horizon"], *document["schedule"]["slots"]]:
+        for key in ("from", "until"):
+            span[key] = (datetime.fromisoformat(span[key]) - timedelta(days=1, hours=1)).isoformat()
+    path.write_text(json.dumps(document), encoding="utf-8")
+    for wall in (living_room, study):
+        _reported(settings, wall)
+    monkeypatch.setattr(feeds_module, "FEED_MAX_BYTES", 1024, raising=False)
+    services.display.record_heartbeat(
+        study.id, {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None}
+    )
+    troubles = services.health.observe().troubles()
+    [words] = [trouble.words for trouble in troubles if str(trouble.about) == "feed"]
+
+    ui.open("#health")
+
+    trouble = ui.page.locator("#view .troubles li[data-about='feed'] a")
+    expect(trouble).to_have_text(words, use_inner_text=True)
+    expect(trouble).to_have_attribute("href", f"#walls?wall={study.id}")
+    expect(ui.page.locator("#status")).to_contain_text(words, use_inner_text=True)
+    badge = ui.page.locator("nav.sidebar a.section-link[data-view='health'] .status-count")
+    expect(badge).to_have_text(str(len(troubles)), use_inner_text=True)
+    trouble.click()
+    ui.page.wait_for_selector(f"section.wall[data-wall='{study.id}']")

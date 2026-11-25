@@ -134,6 +134,7 @@ BEFORE = {
 #: answer (`read_wall_reports`), and a wall's sizes judged by the row that
 #: reading read (`judge_sizes_of`).
 ADDED = {
+    "feeds_over_bound": "(self) -> 'Mapping[str, int]'",
     "judge_sizes_of": "(self, wall: 'Wall') -> 'SizeJudgement'",
     "read_wall_reports": "(self) -> 'WallsReading'",
     "read_walls": "(self, wall_id: 'str | None' = None) -> 'WallsSeen'",

@@ -260,6 +260,29 @@ class AcquisitionState:
         return None if self.condition is None else remedy_for(self.condition)
 
 
+def failure_instant(state: AcquisitionState) -> datetime | None:
+    """When this work's last fetch failed, or None when that is not known.
+
+    **The queue's own record of it** (`failed_at`), which
+    `AcquisitionQueue._record_failure` writes at every failure, the one it gives
+    up on included, whatever the failure's outcome.
+
+    **Read back from the retry schedule only for a row written before that
+    column existed**, which holds none: `_record_failure` set its `next_try_at`
+    to the failure's instant plus `RETRY_AFTER[failures - 1]`, so the instant is
+    that less the same step. Here, beside the schedule it inverts, so a change
+    to the schedule is made where its inverse is. Such a row given up on has no
+    `next_try_at` either, so its instant is not known, and none is guessed.
+    """
+    if state.failed_at is not None:
+        return state.failed_at
+    if state.phase is not AcquisitionPhase.FAILED or state.next_try_at is None:
+        return None
+    if not 1 <= state.failures <= len(RETRY_AFTER):
+        return None
+    return state.next_try_at - RETRY_AFTER[state.failures - 1]
+
+
 @dataclass(frozen=True, slots=True)
 class QueuePause:
     """Why the queue is paused: a condition that is the deployment's, not any work's."""
@@ -1270,6 +1293,7 @@ __all__ = [
     "QueuePause",
     "RetryAllResult",
     "RetryRule",
+    "failure_instant",
     "retry_rule",
     "start_acquisition_queue",
 ]

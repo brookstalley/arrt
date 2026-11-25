@@ -93,6 +93,11 @@ class _Act:
     #: which is inside the store's lock: every schedule, step and scene layer
     #: of the act is decided for this moment (`FeedPublisher._now`).
     now: datetime | None = None
+    #: Each wall's feed as published, parsed the first time the act reads it
+    #: (`FeedPublisher.published`). A published feed changes only when an act
+    #: writes its staged feeds, which is the act's last step, so within one act
+    #: the file is the one first read.
+    read: dict[str, Published | None] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -288,12 +293,22 @@ class FeedPublisher:
         return act.now
 
     def published(self, wall_id: str) -> Published | None:
-        """The wall's feed as this act has decided it, else as published: what every build reads back."""
+        """The wall's feed as this act has decided it, else as published: what every build reads back.
+
+        **The published file is parsed once per act** (`_Act.read`): a
+        reconciliation reads every wall's feed to learn what it carries, again
+        as each wall's turn comes, and again to see which theme it carries, and
+        a feed can be megabytes. Outside an act each call reads the file.
+        """
         act = self._act.current()
-        if act is not None and wall_id in act.staged:
+        if act is None:
+            return read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if wall_id in act.staged:
             # Through JSON, so it reads exactly as the file it will be.
             return published_from(json.loads(json.dumps(act.staged[wall_id])), where=f"the feed staged for wall {wall_id}")
-        return read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if wall_id not in act.read:
+            act.read[wall_id] = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        return act.read[wall_id]
 
     def _write_staged(self, staged: Mapping[str, dict[str, Any]]) -> None:
         """Write the feeds an act decided: each beside its feed first, then each into place.
@@ -1141,6 +1156,19 @@ class FeedPublisher:
             )
         self._over_bound[wall_id] = size
         return FeedTooLarge(wall.name, size)
+
+    def feeds_over_bound(self) -> Mapping[str, int]:
+        """Each wall whose last feed was refused for being over the bound, with that feed's size, by wall id.
+
+        The record the refusal is said once by (`_over_the_bound`): a wall is in
+        it from that refusal until a feed of its is next staged, and the wall
+        keeps the feed it has meanwhile. Kept in memory, so a start begins with
+        none, and a wall is found again at its next refused publish (its Player's
+        heartbeat that rolls it, or a reconcile that republishes it). Read under
+        the store's lock, which every writer of it holds.
+        """
+        with self._store.reading():
+            return dict(self._over_bound)
 
     def _control_layer(self, wall_id: str) -> _Control:
         """The scene this wall shows now and the works a draft stages on it, with their entries.

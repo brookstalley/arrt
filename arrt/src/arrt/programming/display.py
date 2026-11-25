@@ -479,3 +479,7 @@ class DisplayService:
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published feed agree with what the Library will show (`FeedPublisher.reconcile`)."""
         return self._feeds.reconcile(work_ids, cause=cause)
+
+    def feeds_over_bound(self) -> Mapping[str, int]:
+        """Each wall whose next feed was over the bound, with its size (`FeedPublisher.feeds_over_bound`)."""
+        return self._feeds.feeds_over_bound()
