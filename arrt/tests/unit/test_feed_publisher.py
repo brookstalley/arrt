@@ -385,3 +385,100 @@ def test_every_wall_of_an_act_has_its_scene_layer_decided_for_the_acts_one_insta
         ("schedule", study),
     }
     assert len({now for _, _, now in seen}) == 1, seen
+
+
+# -- a reconcile reads each wall's feed once ------------------------------------------
+
+
+def _counting_feed_reads(monkeypatch) -> list[str]:
+    """Every parse of a published feed file, by path, through the one reader `feeds.py` calls."""
+    read: list[str] = []
+    real = feeds_module.read_published_v2
+
+    def counting(path):
+        read.append(str(path))
+        return real(path)
+
+    monkeypatch.setattr(feeds_module, "read_published_v2", counting)
+    return read
+
+
+@pytest.mark.parametrize("cause", ["startup", feeds_module.SCHEDULED])
+def test_a_reconcile_with_nothing_to_fix_parses_each_hung_walls_feed_once(
+    display, themed, wall_id, wall_settings, monkeypatch, cause
+):
+    """Four walls, each with a theme hung and its feed published: one parse of each file, and the same answer.
+
+    A pass with nothing to fix read each feed to learn what it carries, again
+    as each wall's turn came, and again to see which theme it carries: three
+    parses a wall, most of what was left of a pass once the Library's lookups
+    were batched. Its answer is unchanged: every wall looked at, nothing
+    refused, nothing republished, each file as it was.
+    """
+    walls = [wall_id, *(display.add_wall(name=name).id for name in ("Study", "Landing", "Attic"))]
+    for index, wall in enumerate(walls):
+        themed(wall, f"Work {index} a", f"Work {index} b", name=f"Theme {index}")
+    before = {wall: wall_settings.manifest_v2_path(wall).read_bytes() for wall in walls}
+    read = _counting_feed_reads(monkeypatch)
+
+    done = display.reconcile(cause=cause)
+
+    paths = {str(wall_settings.manifest_v2_path(wall)): wall for wall in walls}
+    assert {paths[path]: read.count(path) for path in paths} == dict.fromkeys(walls, 1), read
+    assert (done.walls, done.refused, done.republished) == (len(walls), (), ())
+    assert {wall: wall_settings.manifest_v2_path(wall).read_bytes() for wall in walls} == before
+
+
+def test_within_an_act_a_feed_staged_after_it_was_parsed_is_read_as_staged(display, themed, wall_id, wall_settings, monkeypatch):
+    """The parse kept for the act never hides what the act decided since: a step after a patch builds on the patch.
+
+    A reconcile reads every wall at its start, and an earlier wall's republish
+    can rebuild a later one beside it; that later wall's turn must read the
+    rebuilt feed, or it writes the old schedule back over the new.
+    """
+    themed(wall_id, "Nighthawks", "Automat", name="Late night")
+    path = wall_settings.manifest_v2_path(wall_id)
+    on_disk = path.read_bytes()
+    read = _counting_feed_reads(monkeypatch)
+    feeds = display._feeds
+
+    with feeds.publishing():
+        first = feeds.published(wall_id)
+        assert first is not None
+        work_id, entry = next(iter(first.works.items()))
+        feeds.patch_v2_works(wall_id, first, {work_id: {**entry, "mat_color": "#010203"}})
+        again = feeds.published(wall_id)
+        assert path.read_bytes() == on_disk, "the act wrote before its end"
+
+    assert again is not None
+    assert again.works[work_id]["mat_color"] == "#010203"
+    assert read.count(str(path)) == 1, read
+
+
+def test_a_wall_mended_in_a_pass_is_read_back_as_staged_and_its_file_parsed_once(
+    display, themed, wall_id, wall_settings, monkeypatch
+):
+    """Parsed once per act, never stale within it: the pass's later steps read the wall as it staged it.
+
+    The hall's feed is changed on disk behind the server's back (a work's mat
+    colour), so the pass points it at the Library's entry and stages it; the
+    step after, which asks which theme the feed carries, reads the staged feed.
+    The file is parsed once, and the feed written carries the Library's entry
+    with the theme the hall has hung.
+    """
+    theme = themed(wall_id, "Nighthawks", "Automat", name="Late night")
+    path = wall_settings.manifest_v2_path(wall_id)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    work_id, entry = next(iter(document["works"].items()))
+    true_colour = entry["mat_color"]
+    entry["mat_color"] = "#010203"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    read = _counting_feed_reads(monkeypatch)
+
+    done = display.reconcile(cause=feeds_module.SCHEDULED)
+
+    assert done.republished == (wall_id,)
+    assert read.count(str(path)) == 1, read
+    written = read_published(path)
+    assert written is not None
+    assert (written.playlist_id, written.works[work_id]["mat_color"]) == (theme.id, true_colour)
