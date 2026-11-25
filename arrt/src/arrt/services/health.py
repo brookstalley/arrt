@@ -57,7 +57,6 @@ from arrt.persistence.records import BackupReading, Wall
 from arrt.programming import display_state, player_state
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import DisplayService, WallHeartbeat, WallView, describe_wall_status, wall_statuses
-from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.player_state import PlayerState
 
 
@@ -355,10 +354,12 @@ class WallsNow:
     waiting: Mapping[str, WallWait]
     #: Who shows each wall, its display and its labels, from the same read.
     survey: PlacementSurvey
-    #: Each wall's report as read, by wall id: the read its view's display
-    #: state was judged from, so what made a report unreadable is said beside
-    #: the state it made silent.
-    reports: Mapping[str, HeartbeatReading]
+    #: Why each wall's report cannot be read, by wall id, for the walls whose
+    #: report cannot be (`HeartbeatReading.problem`): from the read its view's
+    #: display state was judged from, so what made a report unreadable is said
+    #: beside the state it made silent. The reason alone, never the reading, so
+    #: no reader can judge a wall's state a second time from it.
+    report_problems: Mapping[str, str]
 
 
 def walls_waiting(walls: Sequence[WallHeartbeat], players: Sequence[ClientView]) -> dict[str, WallWait]:
@@ -718,7 +719,9 @@ class HealthService:
             views=seen.views,
             waiting=walls_waiting(walls, seen.reading.players()),
             survey=seen.reading.survey,
-            reports=seen.reading.reports,
+            report_problems={
+                wall_id: report.problem for wall_id, report in seen.reading.reports.items() if report.problem is not None
+            },
         )
 
     def observe_failed_fetches(self) -> FailedFetches | None:

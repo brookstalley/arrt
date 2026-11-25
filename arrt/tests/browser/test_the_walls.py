@@ -407,7 +407,7 @@ def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, 
     reading was out of reach.
     """
     settings.heartbeat_path(a_quiet_wall.id).write_text("{not json", encoding="utf-8")
-    problem = services.health.observe_walls(a_quiet_wall.id).reports[a_quiet_wall.id].problem
+    problem = services.health.observe_walls(a_quiet_wall.id).report_problems.get(a_quiet_wall.id)
     assert problem, "the server reads the report as readable, so there is nothing to say of it"
     ui.serve("**/api/health", (500, {"error": "the reading could not be taken"}))
 

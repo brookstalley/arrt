@@ -2469,7 +2469,7 @@ def _wall_view_fields(services: Services, view: WallView, now: WallsNow) -> dict
         # Whom the wall waits for while its Player is set up, as `GET /api/walls` says it.
         "waiting_for": _wall_wait_fields(now.waiting.get(view.wall.id)),
         # Why its last report cannot be read, from the read its state is; null when it can.
-        "report_problem": now.reports[view.wall.id].problem,
+        "report_problem": now.report_problems.get(view.wall.id),
     }
 
 
