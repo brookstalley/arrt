@@ -451,6 +451,15 @@ class Services:
         # sweep: the work is fetched now rather than at the next pass. A lost
         # announcement delays the fetch until the next start, which catches up.
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
+
+        def identity_changed() -> None:
+            # A Wikidata item set, cleared or matched changes what a work's
+            # topics come from, and makes a work the queue settled under
+            # another item due again (`AcquisitionQueue._standing`): both are
+            # woken, so neither waits for its next pass or its idle day.
+            topic_sweep.nudge()
+            acquisition_queue.nudge()
+
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
         # One judge for a run and a look, so the two cannot judge a find apart.
         judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
@@ -516,7 +525,7 @@ class Services:
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
             taste=taste_service,
-            identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
+            identity=IdentityService(catalogue, registry, on_changed=identity_changed),
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
             registry_search=RegistrySearchService(

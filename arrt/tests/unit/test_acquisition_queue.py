@@ -21,6 +21,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from queue import Empty
+from queue import Queue as PassQueue
 
 import pytest
 from PIL import Image
@@ -48,6 +50,7 @@ from arrt.library.acquisition.queue import (
 from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
 from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
+from arrt.library.services.topic_sweep import run_topic_sweeps
 from arrt.library.readiness import PlayableWork
 from arrt.library.sources.loading import NotAskedThisPass
 from arrt.persistence.discovery_records import Verdict
@@ -214,6 +217,68 @@ class TestThroughTheApplication:
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert rgb_to_lab(parse_hex(services.catalogue.current_mat_color(artwork_id).hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
         assert len(open_stream.served) == 1, "choosing a mat again must not fetch the image again"
+
+    @pytest.mark.parametrize("subject", ["work", "artist"])
+    def test_an_item_set_through_the_identity_service_wakes_the_sleeping_queue_and_the_topic_sweep(self, services, subject):
+        """A Wikidata item changed while the queue sleeps its idle day is acted on at once, as an acceptance is.
+
+        The queue gives up on a work its holder said it does not hold until the
+        work's item is another (`RetryRule.SETTLED`), so a changed item makes it
+        due again; before, the container woke only the topic sweep, and the queue
+        learned of it at its next nudge or after `IDLE_SECONDS`. Both loops run
+        as the entry point runs them, with their own pass seams; the second pass
+        of each is waited for with a bound far under either's idle wait.
+        """
+        artwork = services.catalogue.add_artwork(title="Nighthawks")
+        artist = services.catalogue.add_artist(name="Edward Hopper") if subject == "artist" else None
+        # Adding the work announced it, which nudged both: that nudge is taken
+        # here, so the only one left to wake either loop is the identity's.
+        for loop in (services.acquisition_queue, services.topic_sweep):
+            loop.nudge()
+            loop.wait_for_work()
+        queue_passes: PassQueue[int] = PassQueue()
+        sweep_passes: PassQueue[int] = PassQueue()
+        stop = threading.Event()
+        loops = [
+            threading.Thread(
+                target=run_acquisition_queue,
+                args=(services.acquisition_queue,),
+                kwargs={"stop": stop, "after_pass": lambda: queue_passes.put(1)},
+                daemon=True,
+            ),
+            threading.Thread(
+                target=run_topic_sweeps,
+                args=(services.topic_sweep,),
+                kwargs={"stop": stop, "after_pass": lambda: sweep_passes.put(1)},
+                daemon=True,
+            ),
+        ]
+        for loop in loops:
+            loop.start()
+        try:
+            queue_passes.get(timeout=10)
+            sweep_passes.get(timeout=10)
+            assert services.acquisition_queue._seconds_until_due() > 60, "the queue was due soon anyway, so a wake proves nothing"
+
+            if artist is None:
+                services.identity.set_work_identity(artwork.id, "Q123")
+            else:
+                services.identity.set_artist_identity(artist.id, "Q123")
+
+            woken = []
+            for name, passes in (("the acquisition queue", queue_passes), ("the topic sweep", sweep_passes)):
+                try:
+                    passes.get(timeout=10)
+                except Empty:
+                    continue
+                woken.append(name)
+            assert woken == ["the acquisition queue", "the topic sweep"]
+        finally:
+            stop.set()
+            services.acquisition_queue.nudge()
+            services.topic_sweep.nudge()
+            for loop in loops:
+                loop.join(timeout=10)
 
     async def test_the_queue_stops_when_the_application_does(self, services):
         app = create_app(services, acquire_queue=True)
