@@ -1542,7 +1542,7 @@ _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the Library's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
     "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
-    "feeds_over_bound": "each such wall is a `feed` entry of `troubles`, as on GET /api/health, which carries no field of it either",
+    "feeds_over_bound": "each such wall is a `feed` entry of `troubles`, as on GET /api/health, which has no field of it",
 }
 
 

@@ -50,8 +50,8 @@ from arrt.library.acquisition.queue import (
 from arrt.library.acquisition.service import AcquisitionOutcome, AcquisitionResult
 from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
-from arrt.library.services.topic_sweep import run_topic_sweeps
 from arrt.library.readiness import PlayableWork
+from arrt.library.services.topic_sweep import run_topic_sweeps
 from arrt.library.sources.loading import NotAskedThisPass
 from arrt.persistence.discovery_records import Verdict
 from arrt.persistence.errors import StorageFault

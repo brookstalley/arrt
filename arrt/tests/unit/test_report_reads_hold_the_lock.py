@@ -87,7 +87,7 @@ def household(services, settings):
 
 
 class _Reads:
-    """Every report read and feed parse an answer makes, each with whether the store's lock was held; a writer started at the first."""
+    """Every report read and feed parse an answer makes, each with whether the store was held; a writer started at the first."""
 
     def __init__(self, monkeypatch, store, write) -> None:
         self.lock = _WatchedLock(store._store._lock)

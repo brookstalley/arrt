@@ -983,7 +983,8 @@ class TestHealth:
 
         documented = inspect.getsource(models.TroubleOut)
         linking = (STATIC_DIR / "screens" / "health.js").read_text(encoding="utf-8")
-        target = linking[linking.index("function troubleTarget(") : linking.index("\n}\n", linking.index("function troubleTarget("))]
+        begins = linking.index("function troubleTarget(")
+        target = linking[begins : linking.index("\n}\n", begins)]
 
         assert [kind for kind in TroubleKind if f"`{kind}`" not in documented] == []
         assert [kind for kind in TroubleKind if f'trouble.about === "{kind}"' not in target] == [TroubleKind.BACKUP]

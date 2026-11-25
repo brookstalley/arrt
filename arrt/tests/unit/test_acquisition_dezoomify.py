@@ -303,7 +303,7 @@ class TestClassification:
         assert not list((tmp_path / "out").iterdir()), "the truncated file was left to be found"
 
     def test_a_disk_fault_with_no_words_of_its_own_is_raised_with_the_systems(self, tmp_path, monkeypatch):
-        """A member added to the set before its words: still the disk's `OSError`, said in the system's words, never a `KeyError`."""
+        """A member added to the set before its words: the disk's `OSError` in the system's words, never a `KeyError`."""
         monkeypatch.setattr(atomic, "DISK_FAULT_ERRNOS", atomic.DISK_FAULT_ERRNOS | {errno.EIO})
         script = _fake_binary(tmp_path, A_DISK_FAULT_WITH_NO_WORDS)
 
