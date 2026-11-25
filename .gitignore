@@ -241,3 +241,6 @@ all.json.backup2
 .prawduct/.native-reviews/
 .prawduct/.pr-body.md
 .prawduct/.session-activity.json
+
+# Prawduct session files
+.prawduct/**/*.prawduct.tmp
