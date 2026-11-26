@@ -19,6 +19,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import json
 import logging
+import threading
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -98,6 +99,11 @@ class _Act:
     #: writes its staged feeds, which is the act's last step, so within one act
     #: the file is the one first read.
     read: dict[str, Published | None] = field(default_factory=dict)
+    #: Each wall whose feed this act refused for its size and went on without,
+    #: with that feed's size: kept by the publisher only if the act completes
+    #: (`FeedPublisher._settle`). An act that ends by raising the refusal told
+    #: whoever asked for it, and an act rolled back changed no wall.
+    held_back: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -225,12 +231,21 @@ class FeedPublisher:
         #: only by the act that opened it: any other reads the published file,
         #: which is what Players have.
         self._act: ActState[_Act] = ActState(store)
-        #: The size of the feed last refused for each wall for being over the
-        #: bound (`_publish_feed`), so a refusal repeated at every heartbeat's
-        #: roll or every scheduled reconcile is said once, not each time. A wall
-        #: leaves it when a feed of its is next staged. Touched only under the
-        #: store's lock, inside an act.
+        #: Each wall held back for its feed's size, with that feed's size: a
+        #: refusal nobody was told of, because no person asked for the act (a
+        #: heartbeat's roll, a reconcile of its own, a neighbour rebuilt beside
+        #: the wall a person acted on). What Status names (`feeds_over_bound`).
+        #: A wall enters it when such an act completes or such a roll is refused,
+        #: and leaves it when an act that wrote a feed of it completes.
         self._over_bound: dict[str, int] = {}
+        #: The walls whose refusal for size the journal has said since a feed of
+        #: theirs was last written, so a refusal repeated at every heartbeat's
+        #: roll, every scheduled reconcile or every attempt of a person's is
+        #: said once (`feed.over_bound`).
+        self._said_over: set[str] = set()
+        #: Guards the two above. A roll's refusal is kept after its act has
+        #: ended, outside the store's lock (`roll_v2`).
+        self._over_lock = threading.Lock()
 
     # -- the feeds' transaction -----------------------------------------------
 
@@ -273,6 +288,21 @@ class FeedPublisher:
         with self._act.opened(_Act()) as act:
             yield
             self._write_staged(act.staged)
+            self._settle(act)
+
+    def _settle(self, act: _Act) -> None:
+        """What a completed act leaves Status: the walls it held back, and none it wrote a feed of.
+
+        Only after the act's feeds are written, so a fitting feed staged by an
+        act that is then rolled back leaves a held-back wall held back: its
+        Player has no new feed. A wall held back at one step and written at a
+        later one of the same act has a new feed, so it is not held back.
+        """
+        with self._over_lock:
+            self._over_bound.update(act.held_back)
+            for wall_id in act.staged:
+                self._over_bound.pop(wall_id, None)
+                self._said_over.discard(wall_id)
 
     def _now(self) -> datetime:
         """The open act's one instant, or the clock's when no act is open.
@@ -559,7 +589,8 @@ class FeedPublisher:
             return
         try:
             yield
-        except FeedTooLarge:
+        except FeedTooLarge as refused:
+            self._held_back(refused)
             return
 
     def _held(self, theme_id: str, work_ids: set[str] | None) -> set[str]:
@@ -728,10 +759,13 @@ class FeedPublisher:
                 if previous is None or previous.horizon_until - self._now() >= ROLL_WHEN_LEFT:
                     return
                 build = self.republish(wall_id, previous)
-        except FeedTooLarge:
+        except FeedTooLarge as refused:
             # A Player's heartbeat is no place to refuse: the wall keeps the
             # feed it has, which is what a Player does with one over the bound,
-            # and the refusal was said once (`_publish_feed`).
+            # and the refusal was said once (`_publish_feed`). Nobody asked for
+            # the roll, so Status says the wall is held back.
+            with self._over_lock:
+                self._over_bound[wall_id] = refused.size
             return
         if build is not None:
             # Said, because this is also how a work whose announcement was
@@ -906,8 +940,15 @@ class FeedPublisher:
                 household.staged.append(neighbour)
             if not household.run_again(discounted, refused_at_staging=refused_at_staging):
                 break
+        self._hold_back_refused(household)
         self._say_pass(household, wall_id, schedule)
         return schedule
+
+    def _hold_back_refused(self, household: _Household) -> None:
+        """Each neighbour of a pass refused for its size keeps its feed: held back, for Status, since nobody acted on it."""
+        for error in household.refused.values():
+            if isinstance(error, FeedTooLarge):
+                self._held_back(error)
 
     def _household(self, wall_id: str, works: Mapping[str, Any], cycle: Sequence[str]) -> _Household:
         """The household pass that republishes this wall: its neighbours, as the act has their feeds now."""
@@ -1120,7 +1161,9 @@ class FeedPublisher:
         the act asked for on it is refused whole, and a neighbour rebuilt
         beside it keeps its feed as one that cannot be rebuilt does
         (`_write_v2`). Said once per wall, with the event `feed.over_bound`,
-        until a feed of that wall is staged again.
+        until a feed of that wall is written again. Held back, for Status, only
+        where the act goes on without it (`_held_back`, `_settle`): a refusal
+        raised to a person is said to them, and is no trouble.
         """
         control = self._control_layer(wall_id)
         feed = Feed(
@@ -1139,13 +1182,15 @@ class FeedPublisher:
         size = served_size(document)
         if size > FEED_MAX_BYTES:
             raise self._over_the_bound(wall_id, size)
-        self._over_bound.pop(wall_id, None)
         act.staged[wall_id] = document
 
     def _over_the_bound(self, wall_id: str, size: int) -> FeedTooLarge:
         """The refusal of a feed over the bound, said once for the wall (`_publish_feed`)."""
         wall = self._lookups.get_wall(wall_id)
-        if wall_id not in self._over_bound:
+        with self._over_lock:
+            first = wall_id not in self._said_over
+            self._said_over.add(wall_id)
+        if first:
             log.warning(
                 "Wall %r: its feed would be %d bytes, over the %d a Player reads, so it was not published; "
                 "the wall keeps the feed it has.",
@@ -1154,20 +1199,28 @@ class FeedPublisher:
                 FEED_MAX_BYTES,
                 extra={"event": "feed.over_bound", "wall_id": wall_id, "bytes": size, "max_bytes": FEED_MAX_BYTES},
             )
-        self._over_bound[wall_id] = size
-        return FeedTooLarge(wall.name, size)
+        return FeedTooLarge(wall.name, size, wall_id=wall_id)
+
+    def _held_back(self, refused: FeedTooLarge) -> None:
+        """A refusal for size that its act goes on without: Status's to say if the act completes (`_settle`)."""
+        act = self._act.current()
+        if act is not None and refused.wall_id is not None:
+            act.held_back[refused.wall_id] = refused.size
 
     def feeds_over_bound(self) -> Mapping[str, int]:
-        """Each wall whose last feed was refused for being over the bound, with that feed's size, by wall id.
+        """Each wall held back for its feed's size, with that feed's size, by wall id.
 
-        The record the refusal is said once by (`_over_the_bound`): a wall is in
-        it from that refusal until a feed of its is next staged, and the wall
-        keeps the feed it has meanwhile. Kept in memory, so a start begins with
-        none, and a wall is found again at its next refused publish (its Player's
-        heartbeat that rolls it, or a reconcile that republishes it). Read under
-        the store's lock, which every writer of it holds.
+        **A wall held back is one whose refusal nobody was told of**: its
+        Player's heartbeat rolled it, a reconcile of its own republished it, or
+        it was rebuilt beside a wall a person acted on, and it keeps the feed it
+        has. A person's own act refused for size is said to them and is never
+        here. A wall leaves it when an act that wrote a feed of it completes;
+        one rolled back after staging a fitting feed leaves it as it was.
+
+        Kept in memory, so a start begins with none, and a wall is found again
+        at its next refused roll or reconcile.
         """
-        with self._store.reading():
+        with self._over_lock:
             return dict(self._over_bound)
 
     def _control_layer(self, wall_id: str) -> _Control:
@@ -1277,13 +1330,15 @@ def served_size(document: Mapping[str, Any]) -> int:
 class FeedTooLarge(ServiceError):
     """A wall's feed would be over `FEED_MAX_BYTES`, so it was not published and the wall keeps the one it has."""
 
-    def __init__(self, wall_name: str, size: int) -> None:
+    def __init__(self, wall_name: str, size: int, *, wall_id: str | None = None) -> None:
         super().__init__(
             f"The feed for {wall_name!r} would be {size:,} bytes, past the {FEED_MAX_BYTES:,} a Player reads, "
             "so nothing was changed and the wall keeps the feed it has. A longer rotation interval on the wall "
             "makes its feed smaller."
         )
         self.size = size
+        #: The wall refused, so an act that goes on without it can say which (`FeedPublisher._held_back`).
+        self.wall_id = wall_id
 
 
 #: When a wall's published horizon has less than this left, its next heartbeat

@@ -90,7 +90,8 @@ class PlayerReading:
     state: PlayerState
     #: When the Player entered this state, where the server knows it: the last
     #: report's instant for `reporting` and `not_heard_from` ("Not heard from since
-    #: {date}"); null otherwise.
+    #: {date}"); for `report_unreadable` because this server refused its reports,
+    #: the first refusal since one was accepted (`clients.view_of`); null otherwise.
     since: datetime | None
     #: Every output the Player reports or the server has recorded for it: the
     #: report's displays in its order, then its label outputs in its order, then

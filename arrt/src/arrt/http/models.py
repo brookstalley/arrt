@@ -1203,7 +1203,8 @@ class PlayerStateOut(BaseModel):
 
     state: str
     #: The last report's instant for `reporting` and `not_heard_from` ("Not heard
-    #: from since {date}"); null otherwise.
+    #: from since {date}"); for `report_unreadable` because the server refused its
+    #: reports, the first refusal since one was accepted; null otherwise.
     since: str | None
     outputs: list[OutputStateOut]
 

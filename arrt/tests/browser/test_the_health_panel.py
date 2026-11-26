@@ -383,3 +383,31 @@ def test_a_wall_whose_next_feed_is_too_large_is_on_status_linked_to_its_wall_and
     expect(badge).to_have_text(str(len(troubles)), use_inner_text=True)
     trouble.click()
     ui.page.wait_for_selector(f"section.wall[data-wall='{study.id}']")
+
+
+def test_a_player_whose_reports_are_refused_is_on_status_in_the_servers_words_and_for_how_long(ui, services):
+    """Its first report refused: Status says what Players says it was refused for, and for how long, linked to the Player.
+
+    Before, Status said only that its report could not be read, and nowhere
+    when the server began refusing it.
+    """
+    from arrt.services.errors import ServiceError
+
+    player = services.clients.add_client(name="The Pi in the hall")
+    services.access.issue(player.id)
+    refused = {"reported_at": datetime.now(UTC).isoformat(), "outputs": [{"name": "hdmi-a-1", "kind": "hdmi"}]}
+    with pytest.raises(ServiceError):
+        services.clients.record_heartbeat(player.id, refused)
+    players_words = services.clients.get_client_view(player.id).heartbeat.describe()
+
+    ui.open("#health")
+
+    trouble = ui.page.locator("#view .troubles li[data-about='player'] a")
+    expect(trouble).to_have_text(
+        re.compile(rf"^The Pi in the hall's reports have been refused for \d+ seconds?\. {re.escape(players_words)}$"),
+        use_inner_text=True,
+    )
+    expect(trouble).to_have_attribute("href", f"#clients?client={player.id}")
+    expect(ui.page.locator("#status")).to_contain_text(players_words, use_inner_text=True)
+    state = ui.page.locator(f"#view .player-readings li[data-player='{player.id}'] .player-state")
+    expect(state).to_have_text(re.compile(r"Report unreadable"), use_inner_text=True)

@@ -431,10 +431,18 @@ async def test_a_player_whose_first_report_is_refused_reads_unreadable_with_the_
         ("player", "report_unreadable")
     ]
     assert hall_pi.id not in {step["subject"] for step in health["setup_steps"]}
+    # Since when, on each surface, and Status says it in the words Players does.
+    since = row["state"]["since"]
+    assert since is not None
+    assert [each["state"]["since"] for each in health["players"] if each["client_id"] == hall_pi.id] == [since]
+    [words] = [t["words"] for t in health["troubles"] if t["subject"] == hall_pi.id]
+    assert words.startswith(f"{hall_pi.name}'s reports have been refused for ")
+    assert words.endswith(f". {row['heartbeat']['description']}")
 
     listed = await _art_players(server_url, "clients")
     [player] = [each for each in listed["clients"] if each["client_id"] == hall_pi.id]
     assert player["state"]["state"] == "report_unreadable"
+    assert player["state"]["since"] == since
     assert player["heartbeat"]["problem"] == problem
 
     # A report accepted clears it, on the same surfaces.

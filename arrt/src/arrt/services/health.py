@@ -264,7 +264,8 @@ class TroubleKind(StrEnum):
     WATCH = "watch"
     FAILED_FETCHES = "failed_fetches"
     #: A wall keeping the feed it has because its next would be larger than a
-    #: Player reads (`FeedPublisher.feeds_over_bound`); its subject is the wall.
+    #: Player reads, and no person asked for that feed, so nobody else was told
+    #: (`FeedPublisher.feeds_over_bound`); its subject is the wall.
     FEED = "feed"
 
 
@@ -419,13 +420,18 @@ class HealthReading:
     players: Sequence[ClientView] = ()
     #: What the queue holds as failed, or None when it holds nothing failed.
     failed_fetches: FailedFetches | None = None
-    #: Each wall whose next feed was refused for being larger than a Player
-    #: reads, with that feed's size in bytes, by wall id: the wall keeps the
-    #: feed it has until one of its feeds fits (`FeedPublisher.feeds_over_bound`).
+    #: Each wall held back because its next feed would be larger than a Player
+    #: reads, with that feed's size in bytes, by wall id: a refusal no person
+    #: was told of (a roll, a reconcile, a neighbour's rebuild), and the wall
+    #: keeps the feed it has until one of its feeds is written
+    #: (`FeedPublisher.feeds_over_bound`).
     feeds_over_bound: Mapping[str, int] = field(default_factory=dict)
 
-    def troubles(self) -> tuple[Trouble, ...]:
+    def troubles(self, now: datetime | None = None) -> tuple[Trouble, ...]:
         """Every fault this reading holds, in one list: what the top bar and the System badge count.
+
+        `now` is the instant a trouble's age is counted to (a Player refused
+        for how long), the clock's when none is given.
 
         **Derived only from states whose setup flag is false** (`display_state.SETUP`,
         `player_state.SETUP`): a wall with no Player, and a Player with no token or
@@ -457,7 +463,8 @@ class HealthReading:
                     if view.player.state is PlayerState.NOT_HEARD_FROM and states.get(shown.wall.id) in display_state.TROUBLES
                 ]
                 with_their_player.update(wall.id for wall in quiet)
-                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), _player_words(view, quiet)))
+                words = _player_words(view, quiet, now=datetime.now(UTC) if now is None else now)
+                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), words))
             for fault in view.faults:
                 faults.setdefault(fault.identity, fault)
         found[:0] = [
@@ -566,11 +573,20 @@ def _feed_words(wall: Wall) -> str:
     )
 
 
-def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
-    """A Player in fault, as the top bar says it, naming the walls not reporting with it."""
+def _player_words(view: ClientView, quiet: Sequence[Wall] = (), *, now: datetime) -> str:
+    """A Player in fault, as the top bar says it, naming the walls not reporting with it.
+
+    **A Player whose reports this server refuses** (its state's `since` is the
+    first refusal, `clients.view_of`) is said for how long, then in the words
+    Players says it in (`ClientHeartbeatReading.describe`): the problem the
+    Player was refused for.
+    """
     name = view.client.name
     if view.player.state is PlayerState.REPORT_UNREADABLE:
-        return f"{name}'s report cannot be read"
+        if view.player.since is None:
+            return f"{name}'s report cannot be read"
+        refused_for = observations.in_words((now - view.player.since).total_seconds())
+        return f"{name}'s reports have been refused for {refused_for}. {view.heartbeat.describe()}"
     said = f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
     if not quiet:
         return said
