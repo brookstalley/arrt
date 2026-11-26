@@ -22,7 +22,7 @@ from playwright.sync_api import expect
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
-from conftest import Ui
+from page_ui import Ui
 
 ROUTES = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
 PAGES = sorted(key for key, route in ROUTES.items() if route.page)

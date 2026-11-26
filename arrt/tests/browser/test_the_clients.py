@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from fixed_instant import A_FIXED_NOON
 
 # At import time, not in a fixture. A marker deselection still *collects* this
 # module, so the default run — which does not install the browser group — has to
@@ -414,7 +415,8 @@ def test_a_report_is_listed_screen_by_screen_with_its_age(ui, services, settings
     expect(wall).to_have_attribute("href", f"#walls?wall={the_wall.id}")
 
 
-def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, services, settings, hall, the_wall):
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
+def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, services, settings, hall, the_wall, shared_clock):
     """A Player that stopped leaves its last report saying "connected" for ever.
 
     So past the threshold Players says the screen is not known now, and Walls,
@@ -422,7 +424,7 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     on one report, in the same words for its age (#295).
     """
     services.access.issue(hall.id)
-    old = datetime.now(UTC) - timedelta(days=5)
+    old = shared_clock() - timedelta(days=5)
     report(settings, hall, TWO_OUTPUTS | {"reported_at": old.isoformat(timespec="seconds")})
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
@@ -446,10 +448,11 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     expect(line).not_to_contain_text("Shown by", use_inner_text=True)
 
 
-def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, settings, hall, the_wall):
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
+def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, settings, hall, the_wall, shared_clock):
     """The paired case: two minutes old is a report, not a stopped Player."""
     services.access.issue(hall.id)
-    recent = datetime.now(UTC) - timedelta(minutes=2)
+    recent = shared_clock() - timedelta(minutes=2)
     report(settings, hall, TWO_OUTPUTS | {"reported_at": recent.isoformat(timespec="seconds")})
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)

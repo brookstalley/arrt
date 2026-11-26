@@ -23,6 +23,7 @@ import pytest
 from fakes import FakeEngine, FakeReader, Ticking, counted_ids, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
+from fixed_instant import AT_A_FIXED_INSTANT_MARKER, fixed_instant
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
 from report_guard import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
@@ -87,6 +88,7 @@ from arrt.persistence.records import (
     RightsStatus,
     SourceClass,
     VocabularyKind,
+    WorkFacet,
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
@@ -94,6 +96,7 @@ from arrt.programming import feeds as feeds_module
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.reports import Reports
 from arrt.services.container import Services
+from arrt.services.fields import require_text
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
 
@@ -110,6 +113,11 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     bound_the_suites_requests()
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
+    config.addinivalue_line(
+        "markers",
+        f"{AT_A_FIXED_INSTANT_MARKER}(instant): a browser test whose assertion reads a date or an age: the services' clock "
+        "starts at the instant and the page's Date is fixed at it (`fixed_instant.py`)",
+    )
     config.addinivalue_line(
         "markers",
         f"{NO_PLAYER_REPORTS_MARKER}(why): the test keeps a wall's report while no Player shows the wall, on purpose "
@@ -227,12 +235,16 @@ def shared_clock(request: pytest.FixtureRequest) -> Callable[[], datetime]:
     happened) takes this fixture and reads it, never `datetime.now()`; one that
     needs time to pass calls `advance` on it.
 
-    **The browser suite keeps the machine's clock.** Its page reads the browser's
-    own (`Date.now`) against the server's instants, so a fixed day would put every
-    age a screen shows months out; its seeds move with the clock or not at all.
+    **The browser suite keeps the machine's clock** unless the test says otherwise.
+    Its page reads the browser's own (`Date.now`) against the server's instants, so
+    a clock fixed on the server alone would put every age a screen shows months
+    out. A test whose assertion reads a date or an age carries
+    `@pytest.mark.at_a_fixed_instant(instant)`: this is then a `Ticking` from that
+    instant, and the `ui` fixture fixes the page's `Date` at it (`fixed_instant.py`).
     """
     if request.path.is_relative_to(_BROWSER_TESTS):
-        return machine_now
+        instant = fixed_instant(request)
+        return machine_now if instant is None else Ticking(start=instant)
     return Ticking()
 
 
@@ -1048,22 +1060,49 @@ def build_large_catalogue(
         # collection reliably carries. That split is the corpus's job here: a
         # fixture where every row said `inferred` could not tell a surface that
         # marks the rare sourced value from one that marks nothing.
-        for kind, value, derivation in (
+        claims = [
             (VocabularyKind.MOVEMENT, movement, FacetDerivation.INFERRED),
             (VocabularyKind.ERA, _century(year), FacetDerivation.INFERRED),
             (VocabularyKind.SUBJECT, subject, FacetDerivation.INFERRED),
             (VocabularyKind.MEDIUM, medium, FacetDerivation.SOURCED),
-        ):
-            service.record_facet(artwork_id=work.id, kind=kind, value=value, derivation=derivation)
+        ]
         if artist is not None:
-            service.record_facet(
-                artwork_id=work.id,
-                kind=VocabularyKind.ARTIST,
-                value=artist.name,
-                derivation=FacetDerivation.SOURCED,
-            )
+            claims.append((VocabularyKind.ARTIST, artist.name, FacetDerivation.SOURCED))
+        for kind, value, derivation in claims:
+            _record_facet_of_a_new_work(service, work.id, kind, value, derivation)
         works.append(work)
     return works
+
+
+def _record_facet_of_a_new_work(
+    service: CatalogueService, artwork_id: str, kind: VocabularyKind, value: str, derivation: FacetDerivation
+) -> None:
+    """`service.record_facet` for a work this fixture just added, without the two reads that make it safe for any work.
+
+    `record_facet` reads the work, to refuse one that is not there, and its facets,
+    to make a claim made twice a no-op: 40,000 reads here, more than half of what
+    the 4,000-work build cost. Neither can find anything for a work added a line
+    before, with one value of each kind. **What it keeps is what the service
+    writes**: the value stripped and non-empty, the service's own clock read once
+    and its id source drawn once per row, in `record_facet`'s order, so the
+    instants and ids a test's shared clock and id counter hand out are the same
+    as they were. `test_large_corpus.py` holds the rows' shape.
+    """
+    # Private names of the service: a rename fails here, loudly, as an AttributeError.
+    store = service._store
+    at = service._now()
+    store.add_facet(
+        WorkFacet(
+            id=service._mint_id(),
+            artwork_id=artwork_id,
+            kind=kind,
+            value=require_text(value, field="value"),
+            derivation=derivation,
+            created_at=at,
+            source_note=None,
+            value_qid=None,
+        )
+    )
 
 
 def _century(year: int) -> str:
@@ -1309,14 +1348,10 @@ def reports_only_where_a_player_shows(request: pytest.FixtureRequest) -> Iterato
     patches are its own**, as the feed guard's are, and a writer renamed fails
     here, at the patch, rather than leaving a guard that watches nothing.
 
-    **Not over the browser suite yet**, as the shared clock is not: its seeds
-    are its own, and four of its tests (`test_the_walls.py`'s card tests) keep a
-    report for a wall no Player shows. They move when its seeds do.
+    The browser suite is under it too: its server runs in this process, so a report
+    its page or a seed keeps goes through the same writers.
     """
     found = ReportsForNoPlayer()
-    if request.path.is_relative_to(_BROWSER_TESTS):
-        yield found
-        return
     patches = pytest.MonkeyPatch()
     for writer in _REPORT_WRITERS:
         patches.setattr(Reports, writer, found.watching(writer, getattr(Reports, writer)))

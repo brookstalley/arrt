@@ -10,7 +10,7 @@ budget is spent, in the server's words.
 """
 
 import pytest
-from conftest import Ui
+from page_ui import Ui
 from payloads import a_candidate, a_run, a_run_view, a_spend, a_spend_history, an_estimate
 
 from arrt.http.models import BudgetOut, CostTiersOut

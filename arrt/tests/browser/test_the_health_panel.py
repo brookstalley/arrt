@@ -18,6 +18,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fixed_instant import A_FIXED_NOON
 
 # At import time, not in a fixture. A marker deselection still *collects* this
 # module, so the default run — which does not install the browser group — has to
@@ -37,10 +38,10 @@ def two_walls(services):
     return living_room, services.display.add_wall(name="Study")
 
 
-def _reported(settings, wall, *, ago_seconds: float = 0.0) -> None:
-    """Put a heartbeat where the display serving that wall would have put one."""
+def _reported(settings, wall, *, ago_seconds: float = 0.0, now: datetime | None = None) -> None:
+    """Put a heartbeat where the display serving that wall would have put one, `ago_seconds` before `now` (the machine's)."""
     settings.heartbeat_path(wall.id).write_text(
-        json.dumps({"reported_at": (datetime.now(UTC) - timedelta(seconds=ago_seconds)).isoformat()}),
+        json.dumps({"reported_at": ((now or datetime.now(UTC)) - timedelta(seconds=ago_seconds)).isoformat()}),
         encoding="utf-8",
     )
 
@@ -75,7 +76,7 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
         expect(ui.page.locator(".wall-reading h2").filter(has_text=re.compile(rf"^\s*{re.escape(name)}\s*$"))).to_have_count(1)
 
 
-def _on_a_player(services, *walls) -> None:
+def _on_a_player(services, *walls, now: datetime | None = None) -> None:
     """Put each wall on one of a reporting Player's screens, as Walls › Edit… does: only then is a report expected of it.
 
     The Player has reported: one that has not, or has no token, is
@@ -90,7 +91,7 @@ def _on_a_player(services, *walls) -> None:
         {"name": f"hdmi-a-{index}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}
         for index in range(1, len(walls) + 1)
     ]
-    services.clients.record_heartbeat(player.id, {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs})
+    services.clients.record_heartbeat(player.id, {"reported_at": (now or datetime.now(UTC)).isoformat(), "outputs": outputs})
 
 
 def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, services, two_walls):
@@ -134,7 +135,8 @@ def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, t
     expect(ui.page.locator("#status")).not_to_contain_text("has not reported", use_inner_text=True)
 
 
-def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, services, two_walls):
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
+def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, services, two_walls, shared_clock):
     """Absent is a true reading, and never a fault or a colour.
 
     A wall no display has been pointed at yet is the state of every second room
@@ -144,8 +146,8 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     a Player reports, and its report is four days old.
     """
     living_room, study = two_walls
-    _on_a_player(services, living_room)
-    _reported(settings, living_room, ago_seconds=4 * 24 * 60 * 60)
+    _on_a_player(services, living_room, now=shared_clock())
+    _reported(settings, living_room, ago_seconds=4 * 24 * 60 * 60, now=shared_clock())
 
     ui.open("#health")
     # Wait on the wall that never reported: it is the one this test is about, and
