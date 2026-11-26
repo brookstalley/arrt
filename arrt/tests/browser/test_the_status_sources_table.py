@@ -108,6 +108,17 @@ def test_each_source_is_one_row_with_its_state_in_words_and_what_it_has_given(ui
         ("4", "67%", "2 minutes"),
         ("0", "—", "—"),
     ]
+    # "75%" beside "Searches 100" is not 75 of 100: the column is headed as a rate of what was
+    # answered, and the figure says which numbers it is of (60 of the 80 answered, 20 not).
+    expect(ui.page.locator(".source-table thead th.col-hit-rate")).to_have_text("Hit rate of answered")
+    titles = ui.page.evaluate(
+        "() => [...document.querySelectorAll('.source-table tbody td.col-hit-rate span')].map((span) => span.title)"
+    )
+    assert titles == [
+        "60 of the 80 searches it answered had an image; 20 of the 100 searches were not answered.",
+        "2 of the 3 searches it answered had an image; 1 of the 4 searches were not answered.",
+        "",
+    ]
     assert [row["faults"] for row in rows] == ["2", "0", "—"]
     assert rows[0]["last-fault"] == "12 seconds ago: KeyError: 'x'"
     assert rows[1]["last-fault"] == "—"
@@ -222,5 +233,5 @@ def test_the_three_search_columns_read_what_the_record_says(ui, a_health_reading
     (row,) = _rows(ui)
     assert (row["searches"], row["hit-rate"], row["latency"]) == said
     # Each under its own heading, in words.
-    for name, heading in (("searches", "Searches"), ("hit-rate", "Hit rate"), ("latency", "Median latency")):
+    for name, heading in (("searches", "Searches"), ("hit-rate", "Hit rate of answered"), ("latency", "Median latency")):
         expect(ui.page.locator(f".source-table thead th.col-{name}")).to_have_text(heading)
