@@ -408,7 +408,7 @@ def test_a_step_moves_on_from_the_work_on_the_wall_at_the_instant_its_feed_start
             real = datetime.now(tz)
             return real if len(readings) == 1 else real + jump
 
-    monkeypatch.setattr(feeds_module, "datetime", Jumping)
+    monkeypatch.setattr(display._feeds, "_clock", lambda: Jumping.now(UTC))
 
     shown = display.step_display(wall_id)
 
@@ -444,7 +444,7 @@ def test_every_wall_of_an_act_has_its_scene_layer_decided_for_the_acts_one_insta
         seen.append(("schedule", arguments["wall_id"], arguments["now"]))
         return build(**arguments)
 
-    monkeypatch.setattr(feeds_module, "datetime", Slow)
+    monkeypatch.setattr(display._feeds, "_clock", lambda: Slow.now(UTC))
     monkeypatch.setattr(display._feeds, "_control_pins", recording_pins)
     monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
 
