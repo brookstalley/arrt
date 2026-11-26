@@ -20,7 +20,7 @@ import uvicorn
 #: was 2.1 s and the slowest 4.4 s, on ordinary routes holding no lock; and with
 #: the browser suite running beside a curation suite, `/openapi.json` took longer
 #: than the 10 s its test then gave it. A 5 s bound, or any one call's own
-#: shorter one, fails a test for the machine's load (#372), which says nothing
+#: shorter one, fails a test for the machine's load, which says nothing
 #: about the server. Thirty seconds is the browser suite's Playwright default,
 #: so both of the suite's transports give a server the same time before
 #: calling it hung.

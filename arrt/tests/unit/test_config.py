@@ -515,7 +515,7 @@ def test_the_search_price_matches_the_engine_that_is_pinned(monkeypatch, tmp_pat
 
 
 def test_the_retired_approval_threshold_is_not_read(monkeypatch, tmp_path):
-    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290), so a
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07), so a
     deployment's leftover `DISCOVERY_APPROVAL_THRESHOLD` is not read, even when
     it would not parse."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))

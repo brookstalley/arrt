@@ -1,4 +1,4 @@
-"""The Work page shows the work inside its mat, as a wall shows it (#346).
+"""The Work page shows the work inside its mat, as a wall shows it.
 
 The owner's ruling of 2026-10-07: the Work page shows the work as a wall does,
 mat and all. The server composes no canvas, so the browser draws the mat by
@@ -215,7 +215,7 @@ def test_a_work_with_no_recorded_master_is_matted_at_its_pictures_shape(ui, matt
     expect(ui.page.locator(".work-hero .mat-surround")).to_be_visible()
 
 
-# -- the mat control (#91) --------------------------------------------------------
+# -- the mat control --------------------------------------------------------
 
 
 def open_control(ui, work):

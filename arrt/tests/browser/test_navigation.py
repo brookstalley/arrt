@@ -122,7 +122,7 @@ def test_back_returns_to_card_20_with_focus_on_it(ui, a_long_artworks):
     assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 20 has focus but is off screen"
 
 
-#: The card Back has to find well past the first page (#131): Artworks pages as
+#: The card Back has to find well past the first page: Artworks pages as
 #: the curator scrolls, so card 900 exists only because 36 pages were loaded.
 FAR_CARD = 900
 
@@ -269,7 +269,7 @@ def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artwork
     """Ctrl-click or Cmd-click is a new tab, so this page stays where it is.
 
     **The tab is seen by the document it starts, not by Playwright's `page`
-    event (#441).** Under load the event sometimes never comes: on the pool,
+    event.** Under load the event sometimes never comes: on the pool,
     9 runs in 300 with the click on the link, Ctrl held and not prevented,
     and Chromium's own list of tabs showing the new one at `#work/<id>`
     within a second, Playwright reported no page in 30 seconds. Playwright

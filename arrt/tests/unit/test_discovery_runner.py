@@ -53,7 +53,7 @@ def start(runner: DiscoveryRunner, intent: str = "Surrealist paintings with stro
 
 @pytest.mark.parametrize("found", [3, 25, 26, 200])
 def test_a_run_goes_straight_on_however_many_works_it_proposed(services, runner, engine, found):
-    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290).
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07).
 
     200 is the run "you asked for Dalí and I found 200 works" was written for,
     and 26 the one the retired gate stopped at 25.

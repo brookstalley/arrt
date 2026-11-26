@@ -1,6 +1,6 @@
 """Wanting a work, and the Wanted section, in a real browser.
 
-The owner's ruling on #168 (2026-10-02): a work its search found no scan for
+The owner's ruling (2026-10-02): a work its search found no scan for
 offers **Want** and **Forget** in place of Accept and Reject; wanted works, with
 or without a scan, wait in **Wanted**, each with *Get again* and *Forget*, and
 *Get all again*; Get again on a work with no Wikidata item first offers

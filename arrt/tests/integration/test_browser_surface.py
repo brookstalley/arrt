@@ -1087,7 +1087,7 @@ class TestHealth:
     def test_no_budget_balance_appears_anywhere_on_the_panel(self, http):
         """The month's budget is the sidebar's, from `/api/budget`, and never this panel's.
 
-        Shown since the owner's ruling of 2026-10-07 (#290), which reversed the
+        Shown since the owner's ruling of 2026-10-07, which reversed the
         2026-08-04 decision to show it nowhere. It stays off this panel: the
         panel states observations with their ages, and `limit_remaining` fails
         by inversion rather than by staleness (it reads non-zero while calls are

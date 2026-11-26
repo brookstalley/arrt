@@ -79,7 +79,7 @@ def test_each_act_reads_as_a_sentence_newest_first(ui, services, work_with_an_im
 
 @pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
 def test_a_date_is_said_as_a_readable_date_and_how_long_ago(ui, services, work_with_an_image):
-    """One date formatter everywhere (#283): the readable date and the age, both read.
+    """One date formatter everywhere: the readable date and the age, both read.
 
     The server stamps the event at the fixed noon and the page's clock stands thirty seconds
     later, so what is read is that day and that age: no calendar boundary or slow run moves them.

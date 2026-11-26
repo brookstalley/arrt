@@ -1,4 +1,4 @@
-"""The one-press mats obey the same bounds every mat does (#91).
+"""The one-press mats obey the same bounds every mat does.
 
 Parametrised over `MAT_PRESETS` itself, so a preset added later is held to the
 floor and the ceiling the day it is added.

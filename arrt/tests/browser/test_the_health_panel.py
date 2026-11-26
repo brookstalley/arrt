@@ -233,7 +233,7 @@ def test_a_player_being_set_up_that_shows_two_walls_reads_as_one_step_everywhere
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
     """Declined, failed and loaded each as its own row, the state a word and never only a colour.
 
-    A row rather than a sentence since the owner's ruling of 2026-10-08 (#265):
+    A row rather than a sentence since the owner's ruling of 2026-10-08:
     a box per source was too long. What the sentence carried is still on the
     row: the state in words, the reason a plugin is not working here, and the
     fault count (`test_the_status_sources_table.py` holds it at every width).

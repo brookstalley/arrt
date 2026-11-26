@@ -125,8 +125,8 @@ def test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched
 
     **The requirement is unchanged; where it is answered is.** `product-brief.md`
     used to ask the *rationale* to say this, and the surface duly printed one
-    thirty-word sentence on every offered card. The brief was amended for issue
-    #95 to ask the review surface to say it once for the query's group, so the
+    thirty-word sentence on every offered card. The brief was amended to ask
+    the review surface to say it once for the query's group, so the
     work now carries the two facts and no view has to parse a sentence to group
     or reconcile them.
 
@@ -572,8 +572,8 @@ def test_the_run_notice_rates_resolution_over_proposed_works_only(services, engi
     # The wording, not only the counts. This clause used to say the collection
     # offered works "by artists this run named but could not confirm" — which the
     # rows beside it contradict, since the run did name works for that artist and
-    # each carries an `unresolved_reason`. Issue #95 fixed that on the review
-    # grid; the same sentence lived here and on the run view, and this is the only
+    # each carries an `unresolved_reason`. The review
+    # grid says it the right way; the same sentence lived here and on the run view, and this is the only
     # one of the three an agent reads. Asserted because the count assertion above
     # passes word-for-word on the old sentence too, so nothing here would have
     # noticed the surface drifting back.

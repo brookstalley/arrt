@@ -111,7 +111,7 @@ GET_ACTS = ["button.get-open"]
 
 #: Each list, the address that opens it, and the acts its bar must offer. A
 #: list holding both kinds offers both halves' acts: one that wires only one
-#: half fails here by name (#317).
+#: half fails here by name.
 LISTS = {
     "artworks": ("#collection", HELD_ACTS),
     "artist": (f"#artist/{BRUEGEL}", GET_ACTS),
@@ -537,7 +537,7 @@ def test_archiving_asks_first_and_a_no_changes_nothing(ui, seeded_service):
     expect(ui.page.locator(f"li.card[data-artwork='{work.id}'] input.tile-select")).to_be_checked()
 
 
-# -- held works on Search and a Topic (#317) ------------------------------------
+# -- held works on Search and a Topic ------------------------------------
 
 #: The two lists that once offered only the not-held half, the address of each,
 #: and the fixture that puts a held work on it.

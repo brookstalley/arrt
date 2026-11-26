@@ -339,7 +339,7 @@ def test_status_is_reached_by_the_top_bar_indicator(ui, seeded_service, a_health
     ui.page.wait_for_selector("#view h1:has-text('Status')")
 
     # A panel only Status has, so the page reached is that one's whole body. It
-    # was the geometry panel's heading until the owner removed it (#266).
+    # was the geometry panel's heading until the owner removed it.
     expect(ui.view).to_contain_text("Image sources", use_inner_text=True)
 
 

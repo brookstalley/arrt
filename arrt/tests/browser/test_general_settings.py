@@ -83,7 +83,7 @@ def test_a_setting_nobody_has_changed_says_nothing_about_where_it_came_from(ui):
 
 
 def test_a_choice_set_aside_says_so_and_why_and_its_control_still_offers_a_new_one(ui, discovery_store):
-    """A stored choice this release no longer allows reads as the default, and the screen says it was set aside (#417)."""
+    """A stored choice this release no longer allows reads as the default, and the screen says it was set aside."""
     from datetime import UTC, datetime
 
     from arrt.persistence.discovery_records import InitiatedBy, StoredSetting

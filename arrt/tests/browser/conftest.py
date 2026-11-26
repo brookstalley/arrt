@@ -570,7 +570,7 @@ def ui(page, server_url, request):
     The client asks Commons for the pictures a reply or a search names, and an
     unguarded page fetched them from the live site: a test then read a picture
     box that filled with "Picture unavailable" whenever the internet answered,
-    which is when it failed (#343). Aborted here, every outside request fails
+    which is when it failed. Aborted here, every outside request fails
     the same way on every run, and a test that needs a picture to load says so
     with `pictures_load` or a route of its own, which Playwright tries first
     because it was registered later.

@@ -1216,7 +1216,7 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —
     # after which deleting the artist's name from the h2 would leave the whole
-    # browser suite green while putting #95's symptom back, hidden behind an
+    # browser suite green while putting the run sentence's denial back, hidden behind an
     # attribute nobody can see.
     # `h2:not(.card-title)` because a card's own title is an h2 too — the group
     # heading and the works it heads are the same rank in the markup, which is

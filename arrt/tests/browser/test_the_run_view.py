@@ -285,8 +285,7 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     expect(ui.view).to_contain_text("What it cost with the Gets that retried it could not be read", use_inner_text=True)
     # The panel survives the failure: the Get's own cost is read off the run
     # record and is still true, so losing the rollup must not cost it.
-    # *(Since 2026-10-14, #359: one Cost row where "Spent by this Get alone"
-    # was one of four.)*
+    # *(One Cost row, not "Spent by this Get alone" as one of four.)*
     cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
     expect(cost.locator("dt")).to_have_text(["Cost"], use_inner_text=True)
     # The run's own figure in the server's words (`RunOut.summary`): $0.0134 as it is, not "$0.01".
@@ -326,8 +325,8 @@ def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
     """The paired negative — the notice appears on failure and not otherwise —
     and a family total that differs from the Get's own is said beside it.
 
-    *(Since 2026-10-14, #359: in the Cost row, "$0.25 with the Gets that
-    retried it", where "Spent including every Get again" was a row of its own.)*
+    *(In the Cost row, "$0.25 with the Gets that
+    retried it", not "Spent including every Get again" as a row of its own.)*
     """
     ui = a_finished_run
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
@@ -492,7 +491,7 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
 
     *(This test held a 400 until 2026-10-14. A 400 is the service saying the
     run does not exist, which now ends the watch at its first answer with the
-    not-found page (#361) — pinned by the test below — so the limit is held
+    not-found page — pinned by the test below — so the limit is held
     here by the failure it was always for: one that might pass.)*
     """
     ui.serve(f"**/api/runs/{RUN_ID}", DOWN)
@@ -928,7 +927,7 @@ def test_one_work_the_provider_could_not_be_asked_about_reads_in_the_singular(ui
 
 
 def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
-    """Issue #95's denial lived on this page too, and this is the page seen first.
+    """The run view must not deny the works listed underneath it either; this is the page seen first.
 
     The review grid's version was the reported one, but the same claim — that the
     run named nothing it could confirm for those artists — was composed here, in
@@ -1233,7 +1232,7 @@ def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection
     expect(_has_heading(ui, "Also offered by the collection (1)")).to_be_attached()
 
 
-# -- the Get page shows pictures, links, and only acts that lead somewhere (#363) --
+# -- the Get page shows pictures, links, and only acts that lead somewhere --
 
 
 #: What the server says of a picture it cannot show: a sentence for whoever asks

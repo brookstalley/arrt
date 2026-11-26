@@ -559,8 +559,8 @@ def test_a_fault_in_phase_two_points_the_run_at_the_log_and_keeps_its_text_there
 def test_the_failure_log_line_agrees_with_itself_over_a_single_work(services, engine, runner, museum, caplog):
     """Three agreements over one count, on the sentence this failure leaves behind.
 
-    The seventh site of #113 and the last found — in a module the fix had already
-    edited and already imported `counted` into, with every test that reaches it
+    The seventh site of the count's agreement and the last found — in a module that
+    already imports `counted`, with every test that reaches it
     proposing two works, where all three spellings are right.
 
     **It is a log line, not a screen**, which is why no surface test could have

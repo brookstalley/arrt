@@ -1,4 +1,4 @@
-"""The month's budget and the estimate's tier, over real HTTP (#290).
+"""The month's budget and the estimate's tier, over real HTTP.
 
 The provider's key is a stated answer in place of OpenRouter's `/key`, wired
 where the entry point wires the real client's.

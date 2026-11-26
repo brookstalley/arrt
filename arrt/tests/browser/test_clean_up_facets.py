@@ -1,4 +1,4 @@
-"""Artworks' clean-up facets in the rail: *Size* and *Not on any wall* (#288), and *Last shown* (#316).
+"""Artworks' clean-up facets in the rail: *Size* and *Not on any wall*, and *Last shown*.
 
 The server's half — the counts, the composition, the seam — is
 `tests/integration/test_clean_up_facet_routes.py`. This is what the rail does with
@@ -149,7 +149,7 @@ def test_hidden_rails_still_say_a_clean_up_filter_is_narrowing(ui, hung):
     expect(ui.page.locator(".page-toolbar-controls button", has_text="Show filters")).to_have_count(1)
 
 
-# -- Last shown (#316) ----------------------------------------------------------------
+# -- Last shown ----------------------------------------------------------------
 
 
 @pytest.fixture

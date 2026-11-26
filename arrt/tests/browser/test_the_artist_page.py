@@ -77,12 +77,12 @@ def _registry_answered(ui):
 
 class TestTheIndex:
     # Library › Artists became Lidarr's poster index, in surname order (the
-    # owner's ruling on #173). The table it was is the second view, so the old
+    # owner's ruling). The table it was is the second view, so the old
     # "listed with counts" test is replaced by one per view rather than dropped.
 
     def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service, give_a_master):
         artist, work = rothko
-        # Only a work holding a master pictures its artist (2026-10-14, #358).
+        # Only a work holding a master pictures its artist (2026-10-14).
         give_a_master(work)
         ui.serve_image(f"**/api/works/{work.id}/thumbnail*")
         ui.open("#artist")
@@ -250,7 +250,7 @@ class TestTheArtistPage:
             re.compile(r"Not held · Image found\s*$"), use_inner_text=True
         )
         # A work with neither says so in glyph and word, as every state does,
-        # rather than a dash (the owner's ruling on #172).
+        # rather than a dash (the owner's ruling).
         expect(_their_row(ui, "No 1").locator("td").nth(3)).to_have_text("○ Not held", use_inner_text=True)
         expect(_their_row(ui, "No English title (Q16682090)")).to_have_count(1)
         expect(ui.page.locator("section[aria-labelledby='their-work'] caption")).to_contain_text("1,276", use_inner_text=True)
@@ -490,7 +490,7 @@ class TestAnUnlinkedArtist:
 
         expect(_their_work(ui).locator("li")).to_have_text(
             [
-                # The item is each link's target, not words in the row (#359).
+                # The item is each link's target, not words in the row.
                 "Mark Rothko 1903–1970 · on Wikidata · their years agree This is them",
                 "Mark Rothko 1850–1900 · on Wikidata This is them",
             ],
@@ -499,7 +499,7 @@ class TestAnUnlinkedArtist:
         targets = _their_work(ui).locator("li a:text-is('on Wikidata')").evaluate_all("(links) => links.map((a) => a.href)")
         assert [target.rsplit("/", 1)[-1] for target in targets] == [ROTHKO, "Q900001"]
         # Said once: where people are offered, their list asks the question and
-        # the server's "not matched" note is not said beside it (#359).
+        # the server's "not matched" note is not said beside it.
         expect(_their_work(ui)).to_contain_text("Is it one of these?", use_inner_text=True)
         expect(_their_work(ui).locator("p.note")).to_have_count(0)
         expect(ui.view).not_to_contain_text("not matched", use_inner_text=True)

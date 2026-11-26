@@ -235,7 +235,7 @@ def test_a_spent_key_is_reported_as_exhaustion():
     with pytest.raises(BudgetExhausted) as raised:
         engine_over(handler).enumerate_works(asked())
 
-    # The halted run's reason, which the run view shows: it names the budget (#290).
+    # The halted run's reason, which the run view shows: it names the budget.
     assert str(raised.value).startswith("This month's budget is spent")
 
 

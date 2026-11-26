@@ -1,4 +1,4 @@
-"""The Work page's mat control, over HTTP (#91).
+"""The Work page's mat control, over HTTP.
 
 `GET /api/works/{id}/mat` answers the current mat, the one-press presets, and
 what re-deriving would give, recording nothing. `POST` records a preset as the

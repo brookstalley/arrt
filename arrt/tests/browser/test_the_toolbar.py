@@ -56,7 +56,7 @@ def test_artworks_has_view_sort_and_filter_on_its_toolbar(ui, seeded_service):
     controls = ui.page.locator(".page-toolbar-controls")
     expect(controls.locator("button", has_text="View:")).to_have_count(1)
     expect(controls.locator("button", has_text="Sort:")).to_have_count(1)
-    # Named for what pressing it does (#288), where it was a *Filter* toggle
+    # Named for what pressing it does, where it was a *Filter* toggle
     # read by its pressed state; with the rails out, it puts them away.
     expect(controls.locator("button", has_text="Hide filters")).to_have_count(1)
     expect(controls.locator("button", has_text="Show filters")).to_have_count(0)
@@ -167,7 +167,7 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
 
 
 def test_a_theme_filtered_here_is_in_the_sort_menus_order(ui, services, seeded_service):
-    """A theme is one more filter on Artworks (the owner's ruling on #169), so Sort applies to it.
+    """A theme is one more filter on Artworks (the owner's ruling), so Sort applies to it.
 
     Replaces "a theme is shown in its own order, so sort is not offered": that
     was true while the rail's theme showed the theme's curated order. The

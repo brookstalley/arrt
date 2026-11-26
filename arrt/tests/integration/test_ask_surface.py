@@ -338,7 +338,7 @@ def terminals(events: list[dict]) -> list[dict]:
 
 
 class TestAtTheSpendingCap:
-    """The owner's ruling 3 of 2026-10-07 (#290): a reply refused at the cap leads with the budget."""
+    """The owner's ruling 3 of 2026-10-07: a reply refused at the cap leads with the budget."""
 
     @pytest.fixture
     def ask_model(self):

@@ -528,7 +528,7 @@ def test_a_facet_value_holding_the_separator_survives_the_address(ui):
 
 # -- the Theme filter, and membership edited in Select mode -------------------
 #
-# The owner ruled on #169 for Radarr's pattern: a theme is one more group in the
+# The owner ruled for Radarr's pattern: a theme is one more group in the
 # *Filter* rail, composing with the facets, and adding and removing appear only
 # in a *Select* mode. Three tests of the old rail are retired with it, each
 # replaced by the contract the new design owes:
@@ -581,7 +581,7 @@ def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_wor
 
 
 def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui, a_theme_holding_one_work):
-    """The confusion #169 was filed for: the theme dropdown read as a filter and was an editor.
+    """The confusion to avoid: a theme dropdown that reads as a filter and is an editor.
 
     Outside *Select* mode, nothing on the screen changes a theme's members:
     no tick on any tile and no theme picker. The rail's theme options are

@@ -757,7 +757,7 @@ def _skip(ui, wall_name):
 def _press_skip(ui, wall):
     """Press Skip and wait for the step's own answer, as `test_walls_lead_with_the_work.py` does.
 
-    So a red says which link broke (#442): no POST at all is the click lost, an
+    So a red says which link broke: no POST at all is the click lost, an
     answer that is not ok is the server refusing, and an ok answer with no
     "Skipped." after it is the card.
     """
@@ -788,7 +788,7 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_reporting
     assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     card = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}']")
     # Asserted rather than waited for, and on the whole card first, so a red
-    # prints everything the card says, a failure beside Skip included (#442).
+    # prints everything the card says, a failure beside Skip included.
     expect(card).to_contain_text("Skipped.", use_inner_text=True)
     expect(card.locator(".wall-said")).to_contain_text(f"Skipped. {a_hung_wall.name} shows its next work", use_inner_text=True)
 

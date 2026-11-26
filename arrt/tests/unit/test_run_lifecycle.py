@@ -41,7 +41,7 @@ def test_a_discovery_run_starts_in_phase_one_with_the_intent_recorded_verbatim(d
 
 @pytest.mark.parametrize("count", [1, 26])
 def test_a_work_list_goes_straight_to_phase_two_however_long(discovery, run, propose, count):
-    """Asking is the approval (the owner's ruling 3 of 2026-10-07, #290): no list stops for the curator."""
+    """Asking is the approval (the owner's ruling 3 of 2026-10-07): no list stops for the curator."""
     for index in range(count):
         propose(f"Work {index}")
 

@@ -106,7 +106,7 @@ def stored(discovery: SqliteDiscovery, key: str, value: str) -> None:
 
 
 def test_a_stored_value_this_release_cannot_take_is_set_aside_saying_why(discovery):
-    """A value an earlier or later release wrote must not make every label build fail, nor pass for the default (#417).
+    """A value an earlier or later release wrote must not make every label build fail, nor pass for the default.
 
     Rewritten from "reads as the default and says so" (in the log only): the
     default still applies, which the first assertion keeps, and the state now

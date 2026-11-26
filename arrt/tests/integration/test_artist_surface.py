@@ -57,7 +57,7 @@ def http(server_url):
 
 class TestTheIndex:
     def test_held_artists_by_surname_with_works_in_circulation_counted(self, http, held, service):
-        """By surname, the owner's ruling on #173 (it was by first name).
+        """By surname, the owner's ruling (it was by first name).
 
         Replaces "by name": that order put Charles Demuth before Mark Rothko and
         Salvador Dalí after both. A stored family name wins over the last word —
@@ -78,7 +78,7 @@ class TestTheIndex:
         """Among works that hold a master: both here do, so the first is the picture.
 
         *(Until 2026-10-14 neither work held one and the first was still the
-        picture. A work with no master is no longer one (#358): its thumbnail
+        picture. A work with no master is no longer one: its thumbnail
         answers 400. The order this test is for is held with both mastered.)*
         """
         rothko, kept = held

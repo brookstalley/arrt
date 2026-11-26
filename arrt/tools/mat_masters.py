@@ -153,7 +153,7 @@ def _lightness_report(paired: list[Pair], engine: MatEngine) -> None:
 
 
 def _stability_report(paired: list[Pair], scratch: Path) -> None:
-    """Whether a benign re-encode moves the answer, which is the other half of #115.
+    """Whether a benign re-encode moves the answer, which is the other half of what the mat bar measures.
 
     The re-encode is deliberately gentle — **the same picture at the same
     dimensions, saved again at a different quality** — because the claim under test

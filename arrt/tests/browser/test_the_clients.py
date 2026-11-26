@@ -419,7 +419,7 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
 
     So past the threshold Players says the screen is not known now, and Walls,
     reading the same threshold, never says "Shown by" for it: the two pages agree
-    on one report, in the same words for its age (#295).
+    on one report, in the same words for its age.
     """
     services.access.issue(hall.id)
     old = shared_clock() - timedelta(days=5)

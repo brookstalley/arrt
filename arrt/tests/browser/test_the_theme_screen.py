@@ -248,8 +248,8 @@ class TestReordering:
         """A move to where a work already is sends nothing.
 
         *(Until 2026-10-14 the order was four buttons a row, and this test held
-        that the first work's ↑ and the last's ↓ were disabled. #352 made the
-        order one Position field a row, and ruling 9 of 2026-10-27 a drag handle
+        that the first work's ↑ and the last's ↓ were disabled. The order then became
+        one Position field a row, and ruling 9 of 2026-10-27 a drag handle
         a row; the same rule is held on the handle's keys: Up and Home on the
         first work, Down and End on the last, send nothing.)*
         """
@@ -697,7 +697,7 @@ class TestDeleting:
 
 
 class TestOneThemeHasItsOwnAddress:
-    """`#theme/<id>` — the address a theme had no way to be given (#133).
+    """`#theme/<id>` — the address a theme had no way to be given.
 
     `information-architecture.md` § Navigation Structure requires that every
     screen and every consequential state be addressable, and one theme is one:

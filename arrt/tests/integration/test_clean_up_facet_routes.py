@@ -1,4 +1,4 @@
-"""Artworks' clean-up facets: *Size* and *Not on any wall* (#288).
+"""Artworks' clean-up facets: *Size* and *Not on any wall*.
 
 Both are counted by the
 server like the existing facets — each option's count is what choosing it

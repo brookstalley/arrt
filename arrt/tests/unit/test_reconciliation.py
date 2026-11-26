@@ -469,7 +469,7 @@ def test_a_step_that_cannot_reach_the_wall_leaves_the_feed_as_it_was(
 
 
 def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_work, hung, wall_id, monkeypatch):
-    """The catalogue must not name a theme the wall is not showing (backlog #35)."""
+    """The catalogue must not name a theme the wall is not showing."""
     first = hung(wall_id, ready_work(title="Nighthawks"))
     second = display.add_theme(name="Daylight")
     display.add_to_theme(theme_id=second.id, artwork_id=ready_work(title="Automat").id)

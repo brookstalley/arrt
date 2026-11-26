@@ -78,7 +78,7 @@ def test_only_the_durable_store_imports_the_storage_driver():
 #: The persistence modules a surface (`arrt.http`, `arrt.mcp`) may import from:
 #: the record types and enums its answers are shaped from. A store, the backup
 #: writer or the driver is reached through a service, by the boundary the owner
-#: drew on 2026-10-05 (issue #24): records yes, stores no.
+#: drew on 2026-10-05: records yes, stores no.
 _SURFACES_MAY_IMPORT = {"arrt.persistence.records", "arrt.persistence.discovery_records"}
 _SURFACES = ("arrt.http", "arrt.mcp")
 

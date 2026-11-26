@@ -1,4 +1,4 @@
-"""The month's budget, read from the provider, and the tier an estimate shows (#290).
+"""The month's budget, read from the provider, and the tier an estimate shows.
 
 The budget is display only and read from the key, never tallied from the
 ledger; the tiers are one rule with its boundaries in one place.

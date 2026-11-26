@@ -91,7 +91,7 @@ def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
     ui.open("?debug#health")
     ui.page.wait_for_selector(".raw-details")
     # The server's own sentence for the wall, which names the file it read, is
-    # debug's (#359): beside the curator's "Last heard from", not instead of it.
+    # debug's: beside the curator's "Last heard from", not instead of it.
     raw = ui.page.locator(".wall-reading .raw-sentence")
     expect(raw).to_have_count(1)
     # The server's sentence itself, word for word: it says "This wall's Player
