@@ -600,7 +600,7 @@ ART_CATALOGUE: Final = ToolRecord(
 #: on the four actions where omitting it is simply an error. What each action does
 #: with it belongs in that action's own description and tips, which `help` shows.
 _RUN_ID_DESCRIPTION = (
-    "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
+    "A Get's id, as returned by action='start', action='get', action='resolve_images' or action='list_runs'."
 )
 
 #: One description for every art_discovery action taking an item, because the
@@ -639,7 +639,7 @@ ART_DISCOVERY: Final = ToolRecord(
     #: curator should call it that (`information-architecture.md` § Vocabulary).
     summary=(
         "Propose and resolve new works. The only tool that spends money in amounts worth pricing first. "
-        "Each run is what the curator's browser calls a Get, at #get/<run_id>; say Get, not run or search, to them."
+        "The names say run_id and list_runs; the curator's browser calls each one a Get, at #get/<run_id>: say Get to them."
     ),
     read_only=False,
     destructive=True,
@@ -647,7 +647,7 @@ ART_DISCOVERY: Final = ToolRecord(
     actions=(
         Action(
             name="estimate",
-            description="Price a run before starting it, or price resolving one that has found works.",
+            description="Price a Get before starting it, or price resolving one that has found works.",
             example="art_discovery(action='estimate')",
             params=(_OPTIONAL_RUN_ID,),
             tips=(
@@ -657,21 +657,21 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
-                    "run_id it is that run's stored phase-2 figure."
+                    "run_id it is that Get's stored phase-2 figure."
                 ),
                 (
                     "Both figures are bounded rather than typical: they price the whole search allowance, because a "
-                    "number a run may freely exceed is not an estimate."
+                    "number a Get may freely exceed is not an estimate."
                 ),
                 (
                     "`tier` is the figure as the curator sees it before acting: free, $ (under $0.05), $$ (under "
-                    "$0.50) or $$$. Starting the run is the approval; nothing stops to ask."
+                    "$0.50) or $$$. Starting the Get is the approval; nothing stops to ask."
                 ),
             ),
         ),
         Action(
             name="start",
-            description="Begin a discovery run from an intent. Returns a handle at once.",
+            description="Begin a Get from an intent. Returns a handle at once.",
             example="art_discovery(action='start', intent='Surrealist paintings with strong blues')",
             params=(
                 Param(
@@ -683,71 +683,71 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
             tips=(
                 (
-                    "This returns immediately with a run_id and does not wait for the run. Poll action='status' "
+                    "This returns immediately with a run_id and does not wait for the Get. Poll action='status' "
                     "with that id, which holds until something changes rather than answering straight away."
                 ),
                 (
-                    "Starting is the approval: a run goes from its work list straight on to finding images, "
+                    "Starting is the approval: a Get goes from its work list straight on to finding images, "
                     "however many works it proposed. Price it first with action='estimate'."
                 ),
                 (
-                    "Works the curator has already rejected are skipped rather than proposed again, so a run may "
+                    "Works the curator has already rejected are skipped rather than proposed again, so a Get may "
                     "return fewer works than the intent would suggest."
                 ),
             ),
         ),
         Action(
             name="status",
-            description="Report where a run is, holding until that changes while it is worked on.",
+            description="Report where a Get is, holding until that changes while it is worked on.",
             example="art_discovery(action='status', run_id='<a run_id from action=start>')",
             params=(_RUN_ID,),
             tips=(
                 (
-                    "The call holds for up to 45 seconds while a run is being worked on, and answers immediately "
+                    "The call holds for up to 45 seconds while a Get is being worked on, and answers immediately "
                     "when it is waiting for you or has ended. Call it again to keep watching."
                 ),
                 (
-                    "The state itself says how a run ended: 'completed', 'failed', 'halted_by_budget' (out of "
+                    "The state itself says how a Get ended: 'completed', 'failed', 'halted_by_budget' (out of "
                     "money — stop, do not retry), 'declined', 'cancelled', or 'interrupted' (the process was "
-                    "restarted underneath it — simply run it again)."
+                    "restarted underneath it — simply start it again)."
                 ),
             ),
         ),
         Action(
             name="approve",
-            description="Accept a run's work list and its price, letting it find images.",
+            description="Accept a Get's work list and its price, letting it find images.",
             example="art_discovery(action='approve', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
             tips=(
                 (
-                    "Only a run in 'awaiting_approval' can be approved, and no run stops there now: only one "
+                    "Only a Get in 'awaiting_approval' can be approved, and no Get stops there now: only one "
                     "stored there before asking became the approval. Check action='status' first."
                 ),
             ),
         ),
         Action(
             name="decline",
-            description="Refuse a run's work list. The run ends and phase 2 never spends.",
+            description="Refuse a Get's work list. The Get ends and phase 2 never spends.",
             example="art_discovery(action='decline', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
             tips=(
                 (
                     "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
-                    "available only for a run stored waiting for one before asking became the approval."
+                    "available only for a Get stored waiting for one before asking became the approval."
                 ),
             ),
         ),
         Action(
             name="cancel",
-            description="Stop a run wherever it is. Money spent stays recorded.",
+            description="Stop a Get wherever it is. Money spent stays recorded.",
             example="art_discovery(action='cancel', run_id='<a run_id from action=list_runs>')",
             params=(_RUN_ID,),
             tips=(
                 (
-                    "Available from every state a run can still leave, including a run stored waiting for "
-                    "approval — wanting a run gone is a different thing from declining what it found."
+                    "Available from every state a Get can still leave, including a Get stored waiting for "
+                    "approval — wanting a Get gone is a different thing from declining what it found."
                 ),
-                "A run that has already ended cannot be cancelled; the refusal names how it ended.",
+                "A Get that has already ended cannot be cancelled; the refusal names how it ended.",
             ),
         ),
         Action(
@@ -761,13 +761,13 @@ ART_DISCOVERY: Final = ToolRecord(
                     name="work_ids",
                     type="array",
                     items="string",
-                    description="The candidate works to re-search, by id. They must all come from the same discovery run.",
+                    description="The candidate works to re-search, by id. They must all come from the same Get.",
                     required=True,
                 ),
             ),
             tips=(
                 (
-                    "This is a run like any other: it returns a run_id, and action='status', action='cancel' and "
+                    "This is a Get like any other: it returns a run_id, and action='status', action='cancel' and "
                     "action='spend' all take it."
                 ),
                 (
@@ -775,11 +775,11 @@ ART_DISCOVERY: Final = ToolRecord(
                     "submitting the same ids twice would search twice for one result."
                 ),
                 (
-                    "The works must all come from one discovery run, because a re-search hangs its cost on the "
-                    "intent that proposed them. Start one re-search per originating run."
+                    "The works must all come from one Get, because a re-search hangs its cost on the "
+                    "intent that proposed them. Start one re-search per originating Get."
                 ),
                 (
-                    "What this costs rolls up into the originating run's figure, so action='spend' on that run "
+                    "What this costs rolls up into the originating Get's figure, so action='spend' on that Get "
                     "still answers what asking for it cost altogether."
                 ),
                 (
@@ -790,7 +790,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="get",
-            description="Get works by their Wikidata items, as one run that finds their images. Returns at once.",
+            description="Get works by their Wikidata items, as one Get that finds their images. Returns at once.",
             example="art_discovery(action='get', qids=['Q45585'])",
             params=(
                 Param(
@@ -814,10 +814,10 @@ ART_DISCOVERY: Final = ToolRecord(
                 (
                     "An item the library already holds, one a Get under way is already looking for, one waiting "
                     "in To review, and one Wikidata has no work for are skipped and listed under `skipped`, not "
-                    "refused. When every item is skipped no run starts and `run_id` is null."
+                    "refused. When every item is skipped no Get starts and `run_id` is null."
                 ),
                 (
-                    "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
+                    "The Get is like any other: action='status' and action='cancel' take its run_id, and its works "
                     "are judged with art_review. Accepting one records the item on the new work."
                 ),
                 (
@@ -834,7 +834,7 @@ ART_DISCOVERY: Final = ToolRecord(
             params=(_ITEM,),
             tips=(
                 (
-                    "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
+                    "This spends nothing and records nothing: no Get starts. Each source is asked what a Get would "
                     "ask, and its finds are judged as a Get judges them, so the pictures are what a Get would find."
                 ),
                 (
@@ -950,32 +950,32 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="list_runs",
-            description="List runs, newest first, optionally narrowed to one state or kind.",
+            description="List Gets, newest first, optionally narrowed to one state or kind.",
             example="art_discovery(action='list_runs', status='resolving_images')",
             params=(
                 Param(
                     name="status",
                     type="string",
-                    description="Restrict to runs in this state. Omit to list every run.",
+                    description="Restrict to Gets in this state. Omit to list every Get.",
                     choices=tuple(member.value for member in RunStatus),
                 ),
                 Param(
                     name="kind",
                     type="string",
-                    description="Restrict to first-time discovery runs, re-searches or Gets. Omit for all.",
+                    description="Restrict to Gets from an intent, re-searches or Gets of chosen items. Omit for all.",
                     choices=tuple(member.value for member in RunKind),
                 ),
                 Param(
                     name="awaiting",
                     type="boolean",
-                    description="Only runs holding works that found an image and await a verdict: what is left to review.",
+                    description="Only Gets holding works that found an image and await a verdict: what is left to review.",
                 ),
             ),
-            tips=("Listings carry the fields needed to choose; use action='status' for one run in full.",),
+            tips=("Listings carry the fields needed to choose; use action='status' for one Get in full.",),
         ),
         Action(
             name="spend",
-            description="Report what one run cost, or what a calendar month cost.",
+            description="Report what one Get cost, or what a calendar month cost.",
             example="art_discovery(action='spend', run_id='<a run_id>')",
             params=(
                 _OPTIONAL_RUN_ID,
@@ -995,8 +995,8 @@ ART_DISCOVERY: Final = ToolRecord(
             ),
             tips=(
                 (
-                    "A run's figure includes every re-search descended from it, which is what 'what did asking "
-                    "for this cost' means once spend is spread across a chain of runs."
+                    "A Get's figure includes every re-search descended from it, which is what 'what did asking "
+                    "for this cost' means once spend is spread across a chain of Gets."
                 ),
                 (
                     "Months are UTC calendar months, matching the boundary the provider's own credit limit "
@@ -1104,13 +1104,13 @@ ART_REVIEW: Final = ToolRecord(
     actions=(
         Action(
             name="list_works",
-            description="Page through a run's works, each with the image standing for it.",
+            description="Page through a Get's works, each with the image standing for it.",
             example="art_review(action='list_works', run_id='<a run_id from art_discovery(action=list_runs)>')",
             params=(
                 Param(
                     name="run_id",
                     type="string",
-                    description="Which run's works to review, as returned by art_discovery(action='list_runs').",
+                    description="Which Get's works to review, as returned by art_discovery(action='list_runs').",
                     required=True,
                 ),
                 Param(
@@ -1123,7 +1123,7 @@ ART_REVIEW: Final = ToolRecord(
                 Param(
                     name="offset",
                     type="integer",
-                    description="How many works to skip, for paging through a large run.",
+                    description="How many works to skip, for paging through a large Get.",
                     minimum=0,
                 ),
             ),
@@ -1142,7 +1142,7 @@ ART_REVIEW: Final = ToolRecord(
                 ),
                 (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
-                    "`offered` is one the museum volunteered by an artist the run named but could not "
+                    "`offered` is one the museum volunteered by an artist the Get named but could not "
                     "confirm a work for. An offered row carries the museum's own title and attribution "
                     "verbatim and is never the work that was asked for — its `rationale` says which artist "
                     "produced it and how many works that artist has there."
@@ -1317,7 +1317,7 @@ ART_REVIEW: Final = ToolRecord(
         ),
         Action(
             name="list_wanted",
-            description="List every wanted work across runs, newest run first.",
+            description="List every wanted work across Gets, newest Get first.",
             example="art_review(action='list_wanted')",
             tips=(
                 ("scans_turned_down counts the scans the curator turned down. wikidata_qid is null " "when no item is known."),
@@ -2551,7 +2551,7 @@ _WATCH_FIELDS = (
         name="monthly_cap_usd",
         type="string",
         description=(
-            "What its runs may spend in a calendar month (UTC), in dollars, such as 2.50. It cannot be more than "
+            "What its Gets may spend in a calendar month (UTC), in dollars, such as 2.50. It cannot be more than "
             "the unattended allowance. Empty leaves only the allowance."
         ),
     ),

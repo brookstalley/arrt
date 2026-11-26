@@ -523,28 +523,40 @@ def test_a_start_up_module_reaches_no_person():
 # other.
 #
 # What it reads: every refusal the source builds, in any module (`ALL`), and every prose string in
-# the two modules that write a Get's own sentences (`GET_MODULES`).
+# the two modules that write a Get's own sentences (`GET_MODULES`) and in every module under
+# `mcp/` (`GET_PACKAGES`, by its prefix, so a module added there tomorrow is read tomorrow): the
+# tool descriptions, their tips and the status notices an agent relays to the household.
 #
 # What it reads for: "run" used as the noun for a Get, in the forms a Get's sentence takes
-# ("a run", "this run's", "discovery run", "Run '…'", "run in …"). A verb is not read ("nothing
-# runs with nobody watching", "cannot run in this deployment"), and neither is a Watch's own
+# ("a run", "this run's", "discovery run", "Run '…'", "run in …", "across runs", "{total} runs").
+# A verb is not read ("nothing runs with nobody watching", "cannot run in this deployment", a
+# Watch's "how often it runs"), nor a name (`run_id`, `list_runs`), and neither is a Watch's own
 # "Last run finished".
 #
-# What it does not read, and says so: a sentence about a Get built in another module. The status
-# notices and the tool descriptions in `mcp/bindings.py` and `mcp/tools.py` still say "this run"
-# for a Get, and the Watches' sentences say "run" for a Watch's pass; neither is in this guard's
-# reach, and the guard cannot see a sentence assembled from parts.
+# What it does not read, and says so: a sentence about a Get built in another module, and a
+# sentence assembled from parts.
 
 RUN_FOR_A_GET = re.compile(
     r"\b(?:(?:discovery|resolve) runs?\b"
-    r"|(?:this|the|a|an|one|that|its|each|every|no|originating) runs?\b"
+    r"|(?:this|the|a|an|one|that|its|each|every|no|originating|which|large|newest|across) runs?\b"
     r"|Run (?:\{|')"
-    r"|runs? in \{)",
+    r"|runs? in \{)"
+    # A count of them, as an f-string's literal part after the count reads it: " runs.". The
+    # punctuation is what tells the noun closing a clause from a verb ("{name} runs hourly").
+    r"|(?:\}|^) runs(?=[.,;:)])",
     re.IGNORECASE,
 )
 
 #: The modules whose every sentence is read for it: where a Get's own sentences are written.
 GET_MODULES = ("library/services/discovery.py", "library/services/runner.py")
+
+#: The packages whose every module's every sentence is read for it: what an agent reads and relays.
+GET_PACKAGES = ("mcp/",)
+
+
+def reads_for_a_get(module: str) -> bool:
+    """Whether every prose string in this module is read for a Get called a run."""
+    return module in GET_MODULES or module.startswith(GET_PACKAGES)
 
 
 def run_for_a_get(found: list[Sentence]) -> list[Sentence]:
@@ -560,7 +572,7 @@ def test_no_refusal_calls_a_get_a_run(refusal):
 
 @pytest.mark.parametrize(
     "sentence",
-    run_for_a_get([each for each in SENTENCES if each.module in GET_MODULES]) or [None],
+    run_for_a_get([each for each in SENTENCES if reads_for_a_get(each.module)]) or [None],
     ids=lambda sentence: getattr(sentence, "site", "none"),
 )
 def test_no_sentence_in_the_modules_that_write_a_gets_calls_it_a_run(sentence):
@@ -583,10 +595,14 @@ def _refusals_in(source: str, tmp_path: Path) -> list[Refusal]:
         'raise ServiceError(f"{doing} needs a run in {expected}.")',
         'raise ServiceError("Start one per originating run.")',
         'raise ServiceError("Nothing here: this run\'s works are off.")',
+        'raise ServiceError(f"showing the 5 most recent of {total} runs.")',
+        'raise ServiceError("List every wanted work across runs, newest run first.")',
+        'raise ServiceError("Which run\'s works to review.")',
+        'raise ServiceError("for paging through a large run.")',
     ],
 )
 def test_a_planted_refusal_calling_a_get_a_run_is_named(planted, tmp_path):
-    found = _refusals_in(f"def f(run_id, status, doing, expected):\n    {planted}\n", tmp_path)
+    found = _refusals_in(f"def f(run_id, status, doing, expected, total):\n    {planted}\n", tmp_path)
     assert [refusal.site for refusal in found if RUN_FOR_A_GET.search(refusal.text)] == ["planted.py:2"]
 
 
@@ -598,10 +614,13 @@ def test_a_planted_refusal_calling_a_get_a_run_is_named(planted, tmp_path):
         'raise ServiceError(f"No Get with id {run_id!r} exists.")',
         'raise ServiceError("Last run finished; what it found is in To review.")',
         'raise ServiceError(f"Get {run_id!r} is {status}, so it cannot cancel; that needs a Get in {expected}.")',
+        'raise ServiceError("How often it runs: hourly, daily or weekly.")',
+        'raise ServiceError("As returned by action=\'list_runs\', with its run_id.")',
+        'raise ServiceError(f"{name} runs hourly.")',
     ],
 )
 def test_what_does_not_call_a_get_a_run_is_not_named(innocent, tmp_path):
-    found = _refusals_in(f"def f(run_id, status, doing, expected):\n    {innocent}\n", tmp_path)
+    found = _refusals_in(f"def f(run_id, status, doing, expected, name):\n    {innocent}\n", tmp_path)
     assert [refusal.site for refusal in found if RUN_FOR_A_GET.search(refusal.text)] == []
 
 
@@ -610,3 +629,20 @@ def test_the_get_modules_are_modules_that_say_something_a_person_reads():
     assert {sentence.module for sentence in SENTENCES} >= set(GET_MODULES)
     for module in GET_MODULES:
         assert any(sentence.module == module and "Get" in sentence.text for sentence in SENTENCES), module
+
+
+def test_every_module_under_mcp_is_read_and_one_planted_there_is_named(tmp_path):
+    """The package is read by its prefix: the two modules that write an agent's sentences are in it,
+    each says a Get, and a status notice planted in a module the guard has never seen is named."""
+    read = {sentence.module for sentence in SENTENCES if reads_for_a_get(sentence.module)}
+    assert {"mcp/tools.py", "mcp/bindings.py"} <= read
+    for module in ("mcp/tools.py", "mcp/bindings.py"):
+        assert any(sentence.module == module and "Get" in sentence.text for sentence in SENTENCES), module
+    (tmp_path / "mcp").mkdir()
+    planted = tmp_path / "mcp" / "notices.py"
+    source = 'NOTICE = "This run was stopped on request."\n'
+    planted.write_text(source, encoding="utf-8")
+    found = list(sentences({planted: ast.parse(source)}, root=tmp_path))
+    assert [sentence.site for sentence in run_for_a_get([each for each in found if reads_for_a_get(each.module)])] == [
+        "mcp/notices.py:1"
+    ]

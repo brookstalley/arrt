@@ -539,7 +539,7 @@ def test_the_run_notice_counts_one_offered_work_in_the_singular(services, engine
     run_id = start(runner).id
     notice = _run_notice(runner.run_status(run_id, wait=False))
 
-    assert "offered 1 more work by artists this run found no image for" in notice
+    assert "offered 1 more work by artists this Get found no image for" in notice
     assert "1 more works" not in notice
 
 
@@ -734,7 +734,7 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
 
     notice = _run_notice(gated)
 
-    assert "This run proposed 1 work and stopped to ask" in notice
+    assert "This Get proposed 1 work and stopped to ask" in notice
     assert "1 works" not in notice
 
 

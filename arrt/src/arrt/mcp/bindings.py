@@ -809,7 +809,7 @@ def _start_discovery(services: Services, arguments: Mapping[str, Any]) -> dict[s
     return ok(
         **_run_fields(run, services.discovery),
         notice=(
-            "The run is under way; this is a handle, not a result. Call "
+            "The Get is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes."
         ),
     )
@@ -841,7 +841,7 @@ def _resolve_images(services: Services, arguments: Mapping[str, Any]) -> dict[st
         notice=(
             "The re-search is under way; this is a handle, not a result. Call "
             f"art_discovery(action='status', run_id='{run.id}'), which holds until something changes. "
-            "It costs nothing today; whatever a re-search spends is added to the run that first proposed these works."
+            "It costs nothing today; whatever a re-search spends is added to the Get that first proposed these works."
         ),
     )
 
@@ -2723,7 +2723,7 @@ def _runs_truncation_notice(listing: RunListing) -> str | None:
     if not listing.truncated:
         return None
     return (
-        f"showing the {len(listing.runs)} most recent of {listing.total} runs. "
+        f"showing the {len(listing.runs)} most recent of {listing.total} Gets. "
         "There is no paging on this action; narrow with status= or kind= to reach older ones."
     )
 
@@ -3185,7 +3185,7 @@ def _works_truncation_notice(view: RunView, listed: int) -> str | None:
     if listed >= view.work_count:
         return None
     return (
-        f"Only the first {listed} of this run's {view.work_count} works are listed; the rest are omitted to "
+        f"Only the first {listed} of this Get's {view.work_count} works are listed; the rest are omitted to "
         "keep the result inside a client's token budget, not because anything is wrong with them."
     )
 
@@ -3202,7 +3202,7 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
         return "Phase 1 is working out which works match the intent. Call status again to keep watching."
     if status is RunStatus.AWAITING_APPROVAL:
         return (
-            f"This run proposed {counted(view.work_count, 'work')} and stopped to ask, as runs did before "
+            f"This Get proposed {counted(view.work_count, 'work')} and stopped to ask, as Gets did before "
             "asking became the approval. Approve it to let it look for images, or decline it — nothing more "
             "is spent until you do."
         )
@@ -3222,7 +3222,7 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
             return (
                 f"There {agree(waiting, 'is', 'are')} {counted(waiting, 'work')} to find images for, "
                 "but no image provider is configured "
-                "in this deployment, so the run will stay here; cancel it when you are done reading it."
+                "in this deployment, so the Get will stay here; cancel it when you are done reading it."
             )
         # A re-search never had a work list of its own to settle — the curator
         # named its works — so the sentence a discovery run gets would describe
@@ -3241,7 +3241,7 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
             # The proposed count, not the total: the supplement writes its works
             # during this same window, so a total read mid-run climbs while the
             # sentence claims a settled work list.
-            f"The work list of {counted(view.proposed_count, 'work')} is settled and the run is looking for an image of each. "
+            f"The work list of {counted(view.proposed_count, 'work')} is settled and the Get is looking for an image of each. "
             "Call status again to keep watching."
         )
     if status is RunStatus.COMPLETED:
@@ -3275,7 +3275,7 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
             # is re-searched to nothing, which is a flow this same file
             # recommends.
             settled = (
-                f"This run finished: {view.resolved_proposals} of "
+                f"This Get finished: {view.resolved_proposals} of "
                 f"{counted(view.proposed_count, 'proposed work', 'proposed works')} "
                 f"{agree_partitive(view.resolved_proposals, view.proposed_count, 'has', 'have')} an image."
             )
@@ -3290,7 +3290,7 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
                 # failure `http/models.py` and this module exist to prevent.
                 settled += (
                     f" Separately, the collection offered "
-                    f"{counted(view.offered_count, 'more work', 'more works')} by artists this run "
+                    f"{counted(view.offered_count, 'more work', 'more works')} by artists this Get "
                     "found no image for. They are labelled `offered` and are not what was asked for."
                 )
         if view.unresolved:
@@ -3308,12 +3308,12 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
             settled += (
                 f" {view.pending} could not be looked up at all — the image provider was unreachable for "
                 f"{agree(view.pending, 'it', 'them')}, which says nothing about whether "
-                f"{agree(view.pending, 'it exists', 'they exist')}. Re-run to try those again."
+                f"{agree(view.pending, 'it exists', 'they exist')}. A re-search tries those again."
             )
         return settled
     if status is RunStatus.HALTED_BY_BUDGET:
         return (
-            "The provider refused further spend, so this run stopped where it was. This is not a transient "
+            "The provider refused further spend, so this Get stopped where it was. This is not a transient "
             "error: retrying will fail the same way until the credit limit resets or is raised."
         )
     if status is RunStatus.INTERRUPTED and view.run.kind is RunKind.GET:
@@ -3323,19 +3323,19 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
         )
     if status is RunStatus.INTERRUPTED:
         return (
-            "The process working on this run stopped underneath it — a restart or a crash, not a fault in the "
-            "run. Start it again with the same intent; there is nothing to investigate."
+            "The process working on this Get stopped underneath it — a restart or a crash, not a fault in the "
+            "Get. Start it again with the same intent; there is nothing to investigate."
         )
     if status is RunStatus.FAILED and view.run.end_reason is not None:
-        return "This run hit an error and stopped; `end_reason` says why. This is worth investigating."
+        return "This Get hit an error and stopped; `end_reason` says why. This is worth investigating."
     if status is RunStatus.FAILED:
         # A run that failed before reasons were kept: the log is the only record.
-        return "This run hit an error and stopped. The server log has the details; this is worth investigating."
+        return "This Get hit an error and stopped. The server log has the details; this is worth investigating."
     if status is RunStatus.DECLINED:
         return "The work list was declined, so no images were looked for and nothing further was spent."
     if status is RunStatus.CANCELLED:
-        return "This run was stopped on request. Anything it had already spent is still recorded against it."
-    return f"This run {status}."
+        return "This Get was stopped on request. Anything it had already spent is still recorded against it."
+    return f"This Get {status}."
 
 
 def _sync_notice(build: ManifestBuild) -> str:
