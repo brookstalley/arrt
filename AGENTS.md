@@ -30,8 +30,8 @@ Read the JSON on stdout:
   `failed` verdict is a result and never retryable, so fix it rather than rerun it away.
   130 is an interrupt (no verdict). These codes are frozen: none changes meaning, a new one
   is announced a release ahead, and any other code is a failure (never fall back on it).
-- `verdict`: `passed`, `failed` or `unavailable`, with `verdict_reason` (`passed`, `tests_failed`,
-  `no_tests` or the `error.code`). A failed or errored test makes it `failed` whatever ended the
+- `verdict`: `passed`, `failed` or `unavailable`, with `verdict_reason` (`passed`, `passed_flaky`,
+  `tests_failed`, `no_tests` or the `error.code`). A failed or errored test makes it `failed` whatever ended the
   run; `unavailable` (exit 75) is only the pool's own trouble, never a refusal.
   Key a script on `verdict` (and `error.retryable`) rather than `exit_code`: `verdict` carries
   the reason, and 0.46 moved "the pool could not decide" from 2 to 75 before the codes froze.
@@ -70,10 +70,13 @@ Read the JSON on stdout:
   the person. Kind `agent_block`: this repo's copy of these instructions is older than the
   client's (`files`, `block_version`, `current_version`); replace it with what
   `testament guide agent-block` prints, keeping the repo's own additions, when that is
-  your task, or tell the person. Every entry has an `id`
+  your task, or tell the person. Kind `retry_flaky`: which of a run's failures have flipped
+  before (`tests`, `suite`), on a run that asked for no retry, and that `--retry-failed`
+  would retry them once on another runner; it is `info`, and acting on it is the person's
+  call. Every entry has an `id`
   (its kind and eight hex digits, stable while what it names is unchanged), a `severity` and
   a one-line `headline`; entries are ordered `upgrade`, then the other important ones by
-  delay, then `info` (cache, slow tests, slow batch). `important` is every `upgrade`, every `areas` and every `agent_block`, a
+  delay, then `info` (cache, slow tests, slow batch, retry flaky). `important` is every `upgrade`, every `areas` and every `agent_block`, a
   `slow_test` that delayed the run over 30 s, a `slow_batch` that did, from a group, and the `cache`
   advice when at least a quarter of a full run's tests are uncacheable and not declined; a batch slow from a slow test is `info` (its test's entry carries it), and one slow from the
   pool is no advice at all, only a figure (the pool's operator hears of it). Important entries are the last lines of the run's output (stderr
@@ -118,9 +121,19 @@ pool, newest first, each with its outcome, runner, commit and failure text, and 
 it flipped on one tree. `testament report --json` ranks the project's slowest and flakiest
 tests and those failing only on some runners.
 
+A run with `--retry-failed` (or `[retry] failed = 1` in the manifest) retries each failed
+test once, alone, on another runner when one can take it. A test that passed only on its
+retry carries `flaky` (its first outcome, runner and failure text), is listed in
+`report.flaky`, and makes `verdict_reason` `passed_flaky`; the run passed (exit 0). A flaky
+test isn't yours to fix and testament tracks it (`testament history`, `testament report`):
+tell the person, and don't rerun the run to clear it. A test that failed on both attempts
+carries `retried` and is a real red. `report.retry` says what was retried, or why nothing
+was (`skipped.reason`, for example `too_many` failures, a `missing` test, a `stopped` run, a
+non-pytest or exclusive suite, an older coordinator, or a run that ran here).
+
 `testament status` shows the runners and what's queued.
 
-This is testament agent block v3. When a newer testament changes it, `testament run`
+This is testament agent block v4. When a newer testament changes it, `testament run`
 says so on every run, and `testament guide agent-block` prints the current one.
 
 <!-- PRAWDUCT:ANCHOR — governance pointer managed by the prawduct plugin; keep it small and version-free. -->
