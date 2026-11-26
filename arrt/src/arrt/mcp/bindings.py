@@ -1206,6 +1206,9 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
         "searches_unasked": 0 if searches is None else searches.unasked,
         "searches_owed": 0 if searches is None else searches.owed,
         "last_search_answered_at": None if searches is None else _moment(searches.last_answered_at),
+        # Status's Hit rate (over `searches_answered`) and Median latency.
+        "searches_with_images": 0 if searches is None else searches.with_images,
+        "searches_median_latency_seconds": None if searches is None else searches.median_latency_seconds,
         "description": health.describe(),
         "distribution": reading.identity.distribution,
         "version": reading.identity.version,

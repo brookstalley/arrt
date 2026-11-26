@@ -442,7 +442,15 @@ def test_the_wikidata_match_projections_carry_the_same_field_names():
 #: fields, on HTTP and MCP alike.
 #: Each named so the value test below holds every one to its own reading.
 SOURCE_PLUGIN_COUNTS = ("unasked", "last_unasked_at", "last_unasked_age_seconds", "last_unasked", "answered")
-SOURCE_PLUGIN_SEARCH_COUNTS = ("searched", "searches_answered", "searches_unasked", "searches_owed", "last_search_answered_at")
+SOURCE_PLUGIN_SEARCH_COUNTS = (
+    "searched",
+    "searches_answered",
+    "searches_unasked",
+    "searches_owed",
+    "last_search_answered_at",
+    "searches_with_images",
+    "searches_median_latency_seconds",
+)
 
 
 def test_the_source_plugin_projections_agree_value_for_value():
@@ -460,7 +468,16 @@ def test_the_source_plugin_projections_agree_value_for_value():
         last_unasked="the Met plugin could not be asked: it did not answer within 60 seconds",
         answered=5,
     )
-    searches = SearchTally(provider="met", searched=9, answered=4, unasked=3, owed=2, last_answered_at=WHEN)
+    searches = SearchTally(
+        provider="met",
+        searched=9,
+        answered=4,
+        unasked=3,
+        owed=2,
+        last_answered_at=WHEN,
+        with_images=3,
+        median_latency_seconds=4.5,
+    )
     health = SourceHealth(reading=reading, last_fault_age_seconds=12.0, last_unasked_age_seconds=7.0, searches=searches)
 
     check_parity("SourcePlugin", set(bindings._source_plugin_fields(health)), _fields(http_models.SourcePluginOut))
@@ -480,8 +497,10 @@ def test_the_source_plugin_projections_agree_value_for_value():
         "last_search_answered_at": WHEN.isoformat(),
         "searched": 9,
         "searches_answered": 4,
+        "searches_median_latency_seconds": 4.5,
         "searches_owed": 2,
         "searches_unasked": 3,
+        "searches_with_images": 3,
     }
 
 
@@ -501,6 +520,7 @@ def test_a_plugin_never_searched_reads_alike_on_both_surfaces():
     tool = bindings._source_plugin_fields(health)
     assert tool == http_api._source_plugin(health).model_dump()
     assert (tool["searched"], tool["searches_owed"], tool["last_search_answered_at"]) == (0, 0, None)
+    assert (tool["searches_with_images"], tool["searches_median_latency_seconds"]) == (0, None)
 
 
 def test_a_works_place_in_the_queue_agrees_value_for_value():
