@@ -481,5 +481,5 @@ class DisplayService:
         return self._feeds.reconcile(work_ids, cause=cause)
 
     def feeds_over_bound(self) -> Mapping[str, int]:
-        """Each wall whose next feed was over the bound, with its size (`FeedPublisher.feeds_over_bound`)."""
+        """Each wall held back because its next feed was over the bound, with its size (`FeedPublisher.feeds_over_bound`)."""
         return self._feeds.feeds_over_bound()

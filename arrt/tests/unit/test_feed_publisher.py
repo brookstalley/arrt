@@ -32,7 +32,7 @@ import pytest
 from arrt_contract import transport
 
 from arrt.programming import feeds as feeds_module
-from arrt.programming.feeds import FEED_MAX_BYTES, served_size
+from arrt.programming.feeds import FEED_MAX_BYTES, FeedTooLarge, served_size
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
 
@@ -218,6 +218,74 @@ def test_a_roll_over_the_bound_leaves_the_heartbeat_answered_and_the_feed_as_it_
     assert len(_over_bound_lines(caplog)) == 1
 
 
+def _feed_troubles(services):
+    """The walls Status names as held back for their feed's size, as the health answer lists them."""
+    return [trouble.subject for trouble in services.health.observe().troubles() if trouble.about == "feed"]
+
+
+def _beat():
+    return {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None}
+
+
+def test_a_persons_change_refused_for_its_size_is_said_to_them_and_is_no_trouble_after(
+    services, display, themed, wall_id, wall_settings, monkeypatch, a_player_shows_the_wall
+):
+    """Quickening the wall is refused, and the dialog said why; the wall's feed is the one it had, held back by nothing.
+
+    So neither the refusal nor the heartbeats and the scheduled pass that
+    follow it put a trouble on Status about a change that never happened.
+    """
+    themed(wall_id, "Nighthawks", "Automat", name="Late night")
+    path = wall_settings.manifest_v2_path(wall_id)
+    before = path.read_bytes()
+    _bound(monkeypatch, len(before) + 64)
+
+    with pytest.raises(FeedTooLarge):
+        display.set_playback(wall_id, rotation_interval_seconds=HOUR // 2)
+    assert _feed_troubles(services) == []
+    display.record_heartbeat(wall_id, _beat())
+    services.scheduler.run_pass()
+
+    assert path.read_bytes() == before
+    assert _feed_troubles(services) == []
+
+
+def test_a_wall_held_back_stays_so_when_an_act_that_staged_a_fitting_feed_of_it_is_rolled_back(
+    services, display, themed, wall_id, wall_settings, monkeypatch, a_player_shows_the_wall
+):
+    """Its roll held back, then a fitting feed staged by an act whose later step fails.
+
+    No feed reached the Player, so Status still says the wall is held back.
+    """
+    theme = themed(wall_id, "Nighthawks", "Automat", name="Late night")
+    _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
+    path = wall_settings.manifest_v2_path(wall_id)
+    aged = path.read_bytes()
+    _bound(monkeypatch, 1024)
+    display.record_heartbeat(wall_id, _beat())
+    assert _feed_troubles(services) == [wall_id]
+    _bound(monkeypatch, FEED_MAX_BYTES)
+
+    publisher = display._feeds
+    staged: list[str] = []
+
+    def an_act_failing_after_it_staged_the_wall():
+        with publisher.publishing():
+            publisher.sync(wall_id)
+            act = publisher._act.current()
+            staged.extend([] if act is None else act.staged)
+            raise RuntimeError("a later step of the act failed")
+
+    with pytest.raises(RuntimeError, match="a later step"):
+        an_act_failing_after_it_staged_the_wall()
+    assert staged == [wall_id], "no fitting feed was staged, so nothing tests a rollback"
+
+    assert path.read_bytes() == aged
+    assert _feed_troubles(services) == [wall_id]
+    display.activate_theme(theme.id, wall_id=wall_id)
+    assert _feed_troubles(services) == []
+
+
 def test_a_reconcile_of_its_own_passes_a_wall_over_the_bound_over_and_mends_the_rest(
     services, display, themed, wall_id, wall_settings, monkeypatch, caplog
 ):
@@ -241,6 +309,8 @@ def test_a_reconcile_of_its_own_passes_a_wall_over_the_bound_over_and_mends_the_
     assert not hall_path.exists()
     assert study_path.exists()
     assert [line.wall_id for line in _over_bound_lines(caplog)] == [wall_id]
+    # Nobody asked for these passes, so the hall is held back, for Status.
+    assert set(display.feeds_over_bound()) == {wall_id}
     assert not [record for record in caplog.records if getattr(record, "event", None) == "scheduler.pass_failed"]
 
 
@@ -271,6 +341,8 @@ def test_a_neighbour_over_the_bound_keeps_its_feed_and_the_wall_acted_on_steps_a
 
     assert wall_settings.manifest_v2_path(study).read_bytes() == study_before
     assert [line.wall_id for line in _over_bound_lines(caplog)] == [study]
+    # The hang was the person's and it was done; the study, held back beside it, is Status's to say.
+    assert set(display.feeds_over_bound()) == {study}
     assert any("Study" in r.getMessage() and "could not be rebuilt" in r.getMessage() for r in caplog.records)
     assert _overlaps_after(feed(wall_id), feed(study), datetime.now(UTC)) == []
 

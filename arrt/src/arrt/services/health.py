@@ -264,7 +264,8 @@ class TroubleKind(StrEnum):
     WATCH = "watch"
     FAILED_FETCHES = "failed_fetches"
     #: A wall keeping the feed it has because its next would be larger than a
-    #: Player reads (`FeedPublisher.feeds_over_bound`); its subject is the wall.
+    #: Player reads, and no person asked for that feed, so nobody else was told
+    #: (`FeedPublisher.feeds_over_bound`); its subject is the wall.
     FEED = "feed"
 
 
@@ -419,9 +420,11 @@ class HealthReading:
     players: Sequence[ClientView] = ()
     #: What the queue holds as failed, or None when it holds nothing failed.
     failed_fetches: FailedFetches | None = None
-    #: Each wall whose next feed was refused for being larger than a Player
-    #: reads, with that feed's size in bytes, by wall id: the wall keeps the
-    #: feed it has until one of its feeds fits (`FeedPublisher.feeds_over_bound`).
+    #: Each wall held back because its next feed would be larger than a Player
+    #: reads, with that feed's size in bytes, by wall id: a refusal no person
+    #: was told of (a roll, a reconcile, a neighbour's rebuild), and the wall
+    #: keeps the feed it has until one of its feeds is written
+    #: (`FeedPublisher.feeds_over_bound`).
     feeds_over_bound: Mapping[str, int] = field(default_factory=dict)
 
     def troubles(self) -> tuple[Trouble, ...]:
