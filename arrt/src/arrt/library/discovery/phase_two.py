@@ -69,7 +69,7 @@ than an absent row.
 
 import logging
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -78,7 +78,6 @@ from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery
 from arrt.library.discovery.pool import ImageSourcePool, SourcesNotAsked
 from arrt.library.registry import Registry, RegistryUnavailable
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX, Fit, QualityProfile
-from arrt.library.sources.names import museum_name
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import RightsStatus
 
@@ -183,6 +182,10 @@ class PhaseTwoEngine:
         #: no registry, where only the title comparison identifies a work.
         self._registry = registry
 
+    def museum(self, provider: str) -> str:
+        """What a sentence calls `provider`: the museum it declares, which only the pool holding its source knows."""
+        return self._sources.museum(provider)
+
     def resolve(self, query: ImageQuery, *, work_id: str | None = None) -> Resolution:
         """Every credible instance for this work, most confident first, and the refusals.
 
@@ -226,7 +229,7 @@ class PhaseTwoEngine:
         if in_doubt and all(entry.below_minimum for entry in judged):
             # By the museum, not the plugin id: the sentence reaches a curator.
             raise SourcesNotAsked(
-                f"{_doubt(answer.unreachable, answer.owed)}, and no other source has an image of "
+                f"{_doubt(answer.unreachable, answer.owed, self.museum)}, and no other source has an image of "
                 f"{query.title!r} that meets the quality minimum.",
                 sources=in_doubt,
             )
@@ -358,7 +361,9 @@ class PhaseTwoEngine:
             found=found,
             confidence=confidence,
             quality_score=quality,
-            rationale=_rationale(found, confidence=confidence, fit=fit, linked=linked, renamed=renamed),
+            rationale=_rationale(
+                found, self.museum(found.provider), confidence=confidence, fit=fit, linked=linked, renamed=renamed
+            ),
             fit=fit,
         )
 
@@ -464,13 +469,13 @@ class WikidataLink:
         return "names_unavailable" if unavailable else "not_a_creators_name"
 
 
-def _doubt(unreachable: Sequence[str], owed: Sequence[str]) -> str:
+def _doubt(unreachable: Sequence[str], owed: Sequence[str], museum: Callable[[str], str]) -> str:
     """Which sources leave a work in doubt, by museum: those that could not be asked, and those that had not yet answered."""
     said = []
     if unreachable:
-        said.append(f"{', '.join(map(museum_name, unreachable))} could not be asked")
+        said.append(f"{', '.join(map(museum, unreachable))} could not be asked")
     if owed:
-        said.append(f"{', '.join(map(museum_name, owed))} had not answered yet")
+        said.append(f"{', '.join(map(museum, owed))} had not answered yet")
     return "; ".join(said)
 
 
@@ -560,7 +565,9 @@ def _within_band(fit: Fit, *, long_edge: int, profile: QualityProfile) -> float:
     return min(1.0, (long_edge - minimum) / headroom)
 
 
-def _rationale(found: FoundImage, *, confidence: float, fit: Fit, linked: bool = False, renamed: bool = False) -> str:
+def _rationale(
+    found: FoundImage, museum: str, *, confidence: float, fit: Fit, linked: bool = False, renamed: bool = False
+) -> str:
     """Why this instance was chosen, in the words a curator asking gets back.
 
     Written for the review card rather than for a log: it names what the museum
@@ -574,7 +581,7 @@ def _rationale(found: FoundImage, *, confidence: float, fit: Fit, linked: bool =
     already stored is a record of what the run said and is left as written;
     this governs runs from now on.
     """
-    holder = f"{museum_name(found.provider)} holds this as {found.title!r}"
+    holder = f"{museum} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
     if renamed:
         # The artist's name differs too, so the sentence says what made it the

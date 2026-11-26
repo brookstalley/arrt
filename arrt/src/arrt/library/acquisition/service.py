@@ -318,9 +318,13 @@ class AcquisitionService:
             # Raised rather than recorded, like a missing tile binary: the plugin
             # that reads this URL is installed and not loaded, no source is at
             # fault, and retrying the work cannot fix it.
-            raise SourcePluginUnavailable(route.unavailable or f"the {route.plugin} source plugin is not loaded")
+            raise SourcePluginUnavailable(
+                route.unavailable or f"the {museum_name(route.plugin, route.museum)} source plugin is not loaded"
+            )
         if route.reader is not None:
-            return self._acquire_read(source, plugin=route.plugin or "", read=route.reader.read, destination=destination)
+            return self._acquire_read(
+                source, plugin=route.plugin or "", declared=route.museum, read=route.reader.read, destination=destination
+            )
         if source.provider and not route.plugin:
             # Fetched as recorded: no installed plugin claims this URL. Ordinary
             # for a 2024 seed row (`google_arts_culture` was never a plugin) and for
@@ -370,6 +374,7 @@ class AcquisitionService:
         source: Source,
         *,
         plugin: str,
+        declared: str | None,
         read: Callable[[str], FetchLocator],
         destination: Path,
     ) -> AcquisitionResult:
@@ -384,7 +389,7 @@ class AcquisitionService:
         """
         # The museum, not the plugin id: these sentences are recorded against
         # the source and read by a curator.
-        museum = museum_name(plugin)
+        museum = museum_name(plugin, declared)
         try:
             locator = read(source.url)
         except ImageSearchFailure as exc:

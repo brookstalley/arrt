@@ -287,7 +287,7 @@ class DiscoveryService:
         """Return one run, or refuse if there is no such id."""
         run = self._store.get_run(run_id)
         if run is None:
-            raise NotFound(f"No discovery run with id {run_id!r} exists.")
+            raise NotFound(f"No Get with id {run_id!r} exists.")
         return run
 
     def list_runs(self, *, status: RunStatus | str | None = None, kind: RunKind | str | None = None) -> Sequence[DiscoveryRun]:
@@ -501,7 +501,7 @@ class DiscoveryService:
         costs is configuration, and this layer holds no configuration.
         """
         if not candidate_work_ids:
-            raise ServiceError("A resolve run needs at least one candidate work to re-search.")
+            raise ServiceError("A re-search needs at least one candidate work.")
         with self._store.transaction():
             works = [self.get_candidate_work(work_id) for work_id in dict.fromkeys(candidate_work_ids)]
             self._refuse_covered(works)
@@ -511,8 +511,8 @@ class DiscoveryService:
                 # is what keeps its spend attributable to the intent that caused
                 # it. Works from several runs have no single such intent.
                 raise ServiceError(
-                    "A resolve run covers works from one discovery run, and these come from "
-                    f"{len(parent_ids)}. Start one per originating run."
+                    "A re-search covers works from one Get, and these come from "
+                    f"{len(parent_ids)}. Start one per originating Get."
                 )
             run = DiscoveryRun(
                 id=self._mint_id(),
@@ -632,7 +632,7 @@ class DiscoveryService:
         """Which works a resolve run is re-searching — its scope, not its provenance."""
         run = self.get_run(resolve_run_id)
         if run.kind is not RunKind.RESOLVE:
-            raise ServiceError(f"Run {resolve_run_id!r} is a {run.kind} run, and only a resolve run covers works.")
+            raise ServiceError(f"Get {resolve_run_id!r} has kind {run.kind}; only a Get of kind resolve covers works.")
         return self._works_of(run)
 
     # -- repair ---------------------------------------------------------------
@@ -885,8 +885,8 @@ class DiscoveryService:
             kind = self.get_run(run_id).kind
             if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
-                    "only a discovery run proposes works."
+                    f"Get {run_id!r} has kind {kind}, whose works were named before it started; "
+                    "only a Get of kind discovery proposes works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="propose works")
             if not reconsider and self.is_work_suppressed(key):
@@ -942,8 +942,8 @@ class DiscoveryService:
             kind = self.get_run(run_id).kind
             if kind is not RunKind.DISCOVERY:
                 raise ServiceError(
-                    f"Run {run_id!r} is a {kind} run, whose works were named before it started; "
-                    "only a discovery run is offered works."
+                    f"Get {run_id!r} has kind {kind}, whose works were named before it started; "
+                    "only a Get of kind discovery is offered works."
                 )
             self._require_status(run_id, RunStatus.RESOLVING_IMAGES, doing="offer works")
             if self.is_work_suppressed(key):
@@ -1767,7 +1767,7 @@ class DiscoveryService:
         """Refuse a transition the run is not standing on the edge of."""
         run = self.get_run(run_id)
         if run.status is not expected:
-            raise ServiceError(f"Run {run_id!r} is {run.status}, so it cannot {doing}; that needs a run in {expected}.")
+            raise ServiceError(f"Get {run_id!r} is {run.status}, so it cannot {doing}; that needs a Get in {expected}.")
         return run
 
     def _end_active(
@@ -1793,14 +1793,14 @@ class DiscoveryService:
         stored as failing "because" of nothing is the defect the field ends.
         """
         if reason is not None and not reason.strip():
-            raise ValueError(f"A run cannot {doing} without a reason; the reason is what a curator reads on it.")
+            raise ValueError(f"A Get cannot {doing} without a reason; the reason is what a curator reads on it.")
         with self._store.transaction():
             run = self.get_run(run_id)
             if run.status.is_terminal:
-                raise ServiceError(f"Run {run_id!r} already ended as {run.status}, so it cannot {doing}.")
+                raise ServiceError(f"Get {run_id!r} already ended as {run.status}, so it cannot {doing}.")
             if from_working and not run.status.is_process_held:
                 raise ServiceError(
-                    f"Run {run_id!r} is {run.status}, so nothing is running that could {doing}; "
+                    f"Get {run_id!r} is {run.status}, so nothing is running that could {doing}; "
                     "approve, decline, or cancel it instead."
                 )
             ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
