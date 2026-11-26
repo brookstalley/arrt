@@ -426,6 +426,8 @@ class HealthReading:
     #: keeps the feed it has until one of its feeds is written
     #: (`FeedPublisher.feeds_over_bound`).
     feeds_over_bound: Mapping[str, int] = field(default_factory=dict)
+    #: The instant this reading was taken, which a trouble's age is counted to.
+    now: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def troubles(self) -> tuple[Trouble, ...]:
         """Every fault this reading holds, in one list: what the top bar and the System badge count.
@@ -460,7 +462,8 @@ class HealthReading:
                     if view.player.state is PlayerState.NOT_HEARD_FROM and states.get(shown.wall.id) in display_state.TROUBLES
                 ]
                 with_their_player.update(wall.id for wall in quiet)
-                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), _player_words(view, quiet)))
+                words = _player_words(view, quiet, now=self.now)
+                found.append(Trouble(TroubleKind.PLAYER, view.client.id, str(view.player.state), words))
             for fault in view.faults:
                 faults.setdefault(fault.identity, fault)
         found[:0] = [
@@ -569,11 +572,20 @@ def _feed_words(wall: Wall) -> str:
     )
 
 
-def _player_words(view: ClientView, quiet: Sequence[Wall] = ()) -> str:
-    """A Player in fault, as the top bar says it, naming the walls not reporting with it."""
+def _player_words(view: ClientView, quiet: Sequence[Wall] = (), *, now: datetime) -> str:
+    """A Player in fault, as the top bar says it, naming the walls not reporting with it.
+
+    **A Player whose reports this server refuses** (its state's `since` is the
+    first refusal, `clients.view_of`) is said for how long, then in the words
+    Players says it in (`ClientHeartbeatReading.describe`): the problem the
+    Player was refused for.
+    """
     name = view.client.name
     if view.player.state is PlayerState.REPORT_UNREADABLE:
-        return f"{name}'s report cannot be read"
+        if view.player.since is None:
+            return f"{name}'s report cannot be read"
+        refused_for = observations.in_words((now - view.player.since).total_seconds())
+        return f"{name}'s reports have been refused for {refused_for}. {view.heartbeat.describe()}"
     said = f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
     if not quiet:
         return said
@@ -694,6 +706,7 @@ class HealthService:
             players=tuple(walls.players()),
             failed_fetches=self.observe_failed_fetches(),
             feeds_over_bound=self._display.feeds_over_bound(),
+            now=self._now(),
         )
 
     def observe_walls(self, wall_id: str | None = None) -> WallsNow:

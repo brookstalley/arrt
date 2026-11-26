@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -539,6 +539,41 @@ def test_a_player_whose_first_report_is_refused_reads_unreadable_with_the_server
     assert pi.id not in {step.subject for step in reading.setup_steps()}
 
 
+def test_status_names_a_refused_players_problem_in_the_players_words_and_how_long_it_has_been_refused(
+    services, store, clients, pi, access, monkeypatch
+):
+    """The trouble says what Players says, and for how long: from the first refusal since a report was accepted."""
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+    first = clients.get_client_view(pi.id).player.since
+    assert first is not None, "the Player's reading says nothing of when its reports began to be refused"
+    _refuse(clients, pi.id, {**_REFUSED, "reported_at": "2026-10-02T14:00:59+00:00"})
+    view = clients.get_client_view(pi.id)
+    monkeypatch.setattr(services.health, "_now", lambda: first + timedelta(minutes=3))
+
+    [trouble] = [t for t in services.health.observe().troubles() if t.about == "player"]
+
+    assert view.player.since == first
+    assert refused_reports_of(store).now()[pi.id].at > first
+    assert trouble.words == (
+        f"The Pi in the hall's reports have been refused for 3 minutes. Its last report could not be read: {_REFUSED_PROBLEM}"
+    )
+    assert trouble.words.endswith(view.heartbeat.describe())
+
+
+def test_a_refusal_after_an_accepted_report_is_dated_from_itself(clients, pi, access):
+    access.issue(pi.id)
+    _refuse(clients, pi.id)
+    first = clients.get_client_view(pi.id).player.since
+    clients.record_heartbeat(pi.id, _now_report())
+    _refuse(clients, pi.id)
+
+    again = clients.get_client_view(pi.id).player.since
+    assert first is not None
+    assert again is not None
+    assert again > first
+
+
 def test_a_refusal_after_an_accepted_report_reads_unreadable_and_keeps_the_settings_page(clients, pi, access):
     """The file still holds the last report accepted; the Player's reading is the refusal, but its settings page stays."""
     access.issue(pi.id)
@@ -621,3 +656,20 @@ def test_a_refusal_is_not_written_so_a_store_opened_afresh_knows_nothing_of_it(
     [view] = restarted.read_walls().players()
     assert view.player.state is PlayerState.AWAITING_REPORT
     assert not client_heartbeat_path_in(wall_settings.art_root, pi.id).exists()
+
+
+def test_a_player_refused_after_an_accepted_report_reads_its_file_after_a_restart(
+    clients, pi, access, wall_settings, quiet_catalogue_file
+):
+    """The other half of a restart's forgetting: the Player reads as its last report accepted, reporting until it is stale."""
+    access.issue(pi.id)
+    clients.record_heartbeat(pi.id, _now_report())
+    _refuse(clients, pi.id)
+    kept = client_heartbeat_path_in(wall_settings.art_root, pi.id).read_bytes()
+
+    restarted = Placements(SqliteCatalogue(quiet_catalogue_file), wall_settings.art_root)
+    [view] = restarted.read_walls().players()
+
+    assert view.player.state is PlayerState.REPORTING
+    assert view.heartbeat.problem is None
+    assert client_heartbeat_path_in(wall_settings.art_root, pi.id).read_bytes() == kept

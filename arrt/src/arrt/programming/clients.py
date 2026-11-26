@@ -43,7 +43,7 @@ from arrt.programming.lookups import Lookups
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading, heartbeat_path_in
-from arrt.programming.player_state import PlayerReading, player_reading
+from arrt.programming.player_state import PlayerReading, PlayerState, player_reading
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import NotFound, ServiceError
 from arrt.services.fields import require_text
@@ -83,17 +83,30 @@ class RefusedReport:
     problem: str
     #: When the last refused report arrived, by this server's clock.
     at: datetime
+    #: When the first of the refusals since the Player last had a report
+    #: accepted arrived (or since this server started), by this server's
+    #: clock: the instant the Player's reading is `report_unreadable` since.
+    since: datetime
 
 
 class RefusedReports:
     """Each Player's last refused report, in memory only, cleared by the next report accepted.
 
-    **In memory, never written**: a refused report is one the server records
+    **In memory, never written**: a refused report is one the server writes
     nothing of (`player-contract.md` § Transport, the client heartbeat's `400`
-    rows), so a restart forgets it, and the Player reads as its file says until
-    it reports again. What it keeps is what the household is told meanwhile: a
-    Player whose every report is refused is a Player in trouble, not one that has
-    not yet reported.
+    rows). What it keeps is what the household is told meanwhile: a Player whose
+    every report is refused is a Player in trouble, not one that has not yet
+    reported.
+
+    **A restart forgets it.** The Player then reads as its file says: one whose
+    report was accepted before reads `reporting`, then `not_heard_from` (a
+    trouble) once that report is stale; one never accepted reads
+    `awaiting_report`, a setup step that is counted nowhere. Either lasts until
+    the server refuses its next report, which a Player at contract 1.3.0 sends
+    only when its report changes or it restarts, so possibly never. Accepted
+    for what a durable record would cost: the contract's sentence that the
+    server writes nothing of a refused report, and, since a restart is most
+    often an upgrade, a trouble kept about a report the new server might accept.
     """
 
     def __init__(self) -> None:
@@ -105,7 +118,8 @@ class RefusedReports:
         """Remember a refusal; True when it starts a run, False when it repeats the last one's problem."""
         with self._lock:
             previous = self._by_client.get(client_id)
-            self._by_client[client_id] = RefusedReport(problem=problem, at=at)
+            since = at if previous is None else previous.since
+            self._by_client[client_id] = RefusedReport(problem=problem, at=at, since=since)
         return previous is None or previous.problem != problem
 
     def clear(self, client_id: str) -> None:
@@ -1068,7 +1082,18 @@ def view_of(client: Client, survey: PlacementSurvey, reading: ClientHeartbeatRea
     """One client's view from a survey and its report as read: the clients route's row, and the health route's Player."""
     displays = survey.displays_of(client.id)
     labels = survey.label_outputs_of(client.id)
-    reading = heard(reading, survey.refused.get(client.id))
+    refused = survey.refused.get(client.id)
+    reading = heard(reading, refused)
+    player = player_reading(
+        token_issued=client.token_issued_at is not None,
+        reading=reading,
+        recorded_displays=[display.output for display in displays],
+        recorded_labels=[label.output for label in labels],
+    )
+    if refused is not None and player.state is PlayerState.REPORT_UNREADABLE:
+        # Its reports have been refused since then: what Status says beside the
+        # server's words (`health._player_words`).
+        player = replace(player, since=refused.since)
     return ClientView(
         client=client,
         walls=survey.shown_walls(client.id),
@@ -1076,12 +1101,7 @@ def view_of(client: Client, survey: PlacementSurvey, reading: ClientHeartbeatRea
         label_outputs=labels,
         faults=survey.faults_of(client.id),
         heartbeat=reading,
-        player=player_reading(
-            token_issued=client.token_issued_at is not None,
-            reading=reading,
-            recorded_displays=[display.output for display in displays],
-            recorded_labels=[label.output for label in labels],
-        ),
+        player=player,
     )
 
 
