@@ -1,6 +1,6 @@
 """Pictures where a person decides what to hang.
 
-The second UX walk (`ux-review-2026-10.md` findings 37, 38 and 34; #358) found:
+What went wrong, and is pinned here:
 - Two works whose master the museum refuses read as text everywhere, in three
   wordings of the server's exception across four screens, with thumbnails
   asked for and refused.

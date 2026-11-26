@@ -154,7 +154,7 @@ def test_publishing_calls_subscribers_in_the_order_they_subscribed():
 
 
 def test_a_bulk_archive_is_one_announcement_naming_every_work_it_archived(service, ready_work, heard):
-    """Audit-2 S4: fifty announcements of one made Programming rebuild every wall fifty times, on the request."""
+    """Fifty announcements of one would make Programming rebuild every wall fifty times, on the request."""
     first, already, second = ready_work(title="Nighthawks"), ready_work(title="Automat"), ready_work(title="Chop Suey")
     service.archive_artwork(already.id)
     heard.clear()

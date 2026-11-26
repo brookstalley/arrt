@@ -1,13 +1,12 @@
 """The way back out of a page, and a page whose thing is not there.
 
 `information-architecture.md` § Direction rules that a back link "returns to the
-page it was opened from". The second UX walk (`ux-review-2026-10.md` finding 35,
-#356) found it built for a Work opened from a list and nothing else: a work
+page it was opened from". It was once built for a Work opened from a list and nothing else: a work
 opened from Dalí's page said "← Artists", an artist opened from a work said
 "← Artworks", and a work opened from search results lost the query. The
 browser's Back was right every time, so the two disagreed.
 
-The same walk (finding 42, #361) found that an address naming nothing left the
+An address naming nothing once left the
 previous page painted under the new title, and that a fresh load of a dead
 work's address sat on "Loading the Library…" for good.
 """

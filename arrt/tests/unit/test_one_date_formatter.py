@@ -1,6 +1,6 @@
 """Every date the client shows is written by one formatter, `core/dates.js`.
 
-`ux-review-2026-10.md` finding 20: To review and History showed
+To review and History once showed
 `2026-10-05T14:46:52.225416+00:00`, while Clients and Queue wrote dates for
 people, each with its own copy of the formatting. One formatter is what makes
 "a readable date and how long ago" the only way a moment reaches a screen, so

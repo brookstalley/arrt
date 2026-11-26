@@ -686,7 +686,7 @@ function paint(detail, generation, { where, focus = null }) {
   const page = { work, generation, where, strip, hang: null, add: null, more: null };
   // A work with no picture yet has nothing a wall could show, so *Hang…* is
   // there, disabled, with why under it: an act that vanished said nothing, and
-  // the curator went looking for it (audit 6, finding 5). `hangSlot` is what the
+  // the curator went looking for it. `hangSlot` is what the
   // toolbar holds, the button or the button with its reason.
   page.hang = archived
     ? null

@@ -1,6 +1,6 @@
 """A failed act is said beside the control that sent it, naming the act and what became of it.
 
-`ux-review-2026-10.md` finding 11: a refused action said "Failed to fetch", at the
+A refused action once said "Failed to fetch", at the
 top of the page, often off-screen from the button pressed. `core/acting.js` is
 the one helper every write goes through; these pin what it promises, through
 three of the acts that use it — a verdict, a theme hang, and (in

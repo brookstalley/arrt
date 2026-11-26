@@ -606,7 +606,7 @@ function picturesPanel(health) {
   return el("div", { class: "panel pictures-reading" }, [
     el("h2", { text: "Kept pictures" }),
     // The server's sentence carries the count's age, so the facts below do not
-    // say it a second time (audit 2026-11-19, finding 20: "counted 226 seconds
+    // say it a second time ("counted 226 seconds
     // ago" over "Counted 4 minutes ago"). The sentence stays because it also
     // carries what an unreadable store means; its wording is the server's.
     el("p", { class: "reading-sentence", text: pictures.description }),
@@ -683,7 +683,7 @@ export async function viewHealth(generation) {
     el("div", { class: "panel" }, [
       el("h2", { text: "Backup" }),
       // The server's sentence names the record's file when there is no backup
-      // or it cannot be read, which is plumbing (audit 2026-11-19, finding 8):
+      // or it cannot be read, which is plumbing:
       // then the sentence is debug's, and the facts and the note below say it
       // in words. A completed backup's sentence names no file and is said.
       health.backup.absent || health.backup.problem

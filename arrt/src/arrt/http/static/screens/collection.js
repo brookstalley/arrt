@@ -218,9 +218,8 @@ function resolveDensity(total) {
 
 /* `inTabOrder` is false on the Overview card, whose title link opens the same
  * page: two Tab stops to one place, one of them a picture that announces the
- * title again, was a third of every card's stops (`ux-review-2026-10.md`
- * finding 30). The picture still opens the work to a pointer. On a Posters
- * tile the picture is the only way in, so it keeps its stop and its name. */
+ * title again, was a third of every card's stops. The picture still opens the work to
+ * a pointer. On a Posters tile the picture is the only way in, so it keeps its stop and its name. */
 function cardImage(work, { inTabOrder = true } = {}) {
   if (!work.image.available) {
     // Still the way in on a Posters tile, whose picture is its only link: a
@@ -288,8 +287,7 @@ function artistName(work) {
 /* The Posters tile: the picture, and its label beneath it on the page's
  * ground — title, then artist — as the Artists index's posters carry theirs
  * (`design-direction.md` § Tiles). **Never behind hover**: a phone has none, and
- * a grid of untitled squares at thousands of works was the home page there
- * (audit 2026-11-19, finding 4). Smaller than an Overview card's label, one
+ * a grid of untitled squares at thousands of works was the home page there. Smaller than an Overview card's label, one
  * line of each, because Posters is the view for many works at once.
  *
  * The picture is the tile's one Tab stop, named with the whole label
@@ -448,7 +446,7 @@ function facetRail(groups, chosen, narrowed) {
 }
 
 /* A group whose every option counts nothing in the whole collection is a
- * heading over dead controls (`ux-review-2026-10.md` finding E7: *Walls* over a
+ * heading over dead controls (*Walls* over a
  * lone "Not on any wall (0)"), so the group is left out.
  *
  * **Only while nothing narrows the counts.** Under a theme, a facet or a search,

@@ -87,7 +87,7 @@ def test_the_act_reads_archive_and_is_behind_more(ui, service):
     which is the wrong lesson on the day one of them is not. And it is not the
     page's primary: a wall card opens this page, and the loudest button in reach
     of a curator who wanted one picture off one wall must not take it out of the
-    whole library (`ux-review-2026-10.md` finding 3). Ruling 8 of 2026-10-27
+    whole library. Ruling 8 of 2026-10-27
     moves it from a quiet button under the facts to ⋯, with "…" because it asks.
     """
     work = service.add_artwork(title="Chop Suey")

@@ -1,8 +1,7 @@
 """A wall, a Player or a topic named on a page that is not its own is a link to it.
 
-`information-architecture.md` § Direction: navigation is a link. The second UX
-walk (`ux-review-2026-10.md` findings 34 and 43, #362) found walls and clients
-named on six screens and linked from none, and a work's topics named on its page
+`information-architecture.md` § Direction: navigation is a link. Walls and clients
+were named on six screens and linked from none, and a work's topics named on its page
 as plain text. A wall is addressed as Walls with that wall's card brought to the
 reader (`#walls?wall=<id>`), a Player as Players with its row brought to them
 (`#clients?client=<id>`, the address Clients had before ruling 7 of 2026-10-27).

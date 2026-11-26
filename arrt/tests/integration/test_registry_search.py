@@ -209,7 +209,7 @@ def test_a_works_maker_the_library_holds_links_there_though_the_name_search_foun
 
 
 def test_a_held_work_names_the_held_work_there_is_a_picture_of_and_none_without_one(http, held, services, service):
-    """The search says which held work there is a picture of (audit 6, finding 14).
+    """The search says which held work there is a picture of.
 
     A held row folded in from Wikidata's results is drawn without the library's
     own listing, so the page cannot read `image.available` for it; without this

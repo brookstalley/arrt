@@ -1,7 +1,6 @@
 """The shared rules a page is laid out by, and the pages at a phone's width.
 
-The second UX walk (`ux-review-2026-10.md` findings 36 and 40, 41 and 45; #360
-and #357) found rows, gaps and type drifting in a few shared rules, not page by
+Rows, gaps and type drift in a few shared rules, not page by
 page: a row aligning text to its button's bottom edge, a tile's title taking a
 heading's margin inside a panel, its badge floating to the next row's picture,
 three gaps under a page's name, every quiet act gilt in dark, prose running the
@@ -10,7 +9,7 @@ the open drawer covered its own Menu button, Artworks put its toolbar before
 any picture, and Clients' tables overflowed and wrapped identifiers mid-word.
 
 Measured, not looked at: each test reads the geometry or the computed style the
-finding was about.
+rule is about.
 """
 
 import json

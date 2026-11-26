@@ -34,7 +34,7 @@ def a_budget(state, *, remaining=None, budget=None, spent=None, note=None) -> di
 def _the_budget_says(ui, said: list[str]) -> None:
     """The sidebar's budget words are exactly `said`, in the order drawn, each with its whitespace folded.
 
-    The line is a link since audit-6 finding 10 and its note a paragraph; one
+    The line is a link and its note a paragraph; one
     union locator keeps them in the order they are drawn.
     """
     expect(ui.page.locator("#sidebar .budget .budget-line, #sidebar .budget .budget-note")).to_have_text(

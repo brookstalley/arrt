@@ -95,7 +95,7 @@ export async function viewClients(generation) {
 
 /* The one line under the page's name: how many Players, how many report, and
  * how many the page is waiting on for a first report, which is the step a
- * household setting one up is on (audit 2026-11-19, finding 2). "1 Player ·
+ * household setting one up is on. "1 Player ·
  * waiting for it to report"; "3 Players · 1 reporting · waiting for 2 to
  * report". */
 function pageFacts(count, reporting, waiting) {
@@ -163,7 +163,7 @@ function statusOf(player) {
   if (state === "no_token") return { ...status, more: "Admitted nowhere until one is issued, in Edit…" };
   // A token and no report yet: the page is waiting for it, and the words say so
   // and what it waits on, rather than "Never reported", which read as a fault
-  // on the evening the Player was added (audit 2026-11-19, finding 2).
+  // on the evening the Player was added.
   if (state === "awaiting_report") {
     return { ...status, more: "Once it is running with its token, it reports here within a minute or so.", waiting: true };
   }
@@ -337,8 +337,8 @@ function addOpener() {
 
 /* Issue a token and show it once, in a dialog of its own. The page behind is
  * repainted first, so the list under the dialog already holds the Player and
- * says it is waiting for its report (audit 2026-11-19, finding 15: it read
- * "0 Players" until the dialog closed). A failure is said above the table
+ * says it is waiting for its report (not "0 Players" until the dialog
+ * closes). A failure is said above the table
  * instead. */
 async function issueInto(player, lead = null) {
   let issued;

@@ -341,7 +341,7 @@ def test_a_second_start_finds_nothing_to_do_and_says_so(store, services, ready_w
 
 
 def test_startup_publishes_the_hung_themes_feed_for_a_wall_that_has_none(services, ready_work, hung, wall_id, wall_settings):
-    """A wall with a theme hung and no feed, as the wave 4g upgrade left one: it shows nothing new until it has one."""
+    """A wall with a theme hung and no feed, as an upgrade can leave one: it shows nothing new until it has one."""
     works = [ready_work(title="Nighthawks"), ready_work(title="Automat")]
     hung(wall_id, *works)
     wall_settings.manifest_v2_path(wall_id).unlink()

@@ -194,7 +194,7 @@ def test_choosing_a_view_writes_it_into_the_address(ui):
 
 
 def test_every_posters_tile_shows_its_title_and_artist_beneath_it_on_a_phone(ui, service):
-    """Audit 6, finding 4: Posters, the default above a few hundred works, showed
+    """Posters, the default above a few hundred works, would show
     a work's words only as an overlay on hover or focus, so on a phone, with no
     hover, every tile was anonymous. The label is beneath the picture, on the
     page's ground, untouched by any pointer (`design-direction.md` § Tiles).

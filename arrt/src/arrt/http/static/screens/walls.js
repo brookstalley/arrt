@@ -205,9 +205,8 @@ function sceneOpener(scene) {
  * for a failed one — the same inference `activate_theme`'s docstring cites when
  * it argues that hanging must publish immediately.
  *
- * In the card when one wall hangs nothing, where it is about that wall (audit
- * 2026-11-19, finding 6: outside the card it sat wider than it and touching
- * it). Once, under the cards, when several do: then it is one fact about how
+ * In the card when one wall hangs nothing, where it is about that wall (outside
+ * the card it sat wider than it and touching it). Once, under the cards, when several do: then it is one fact about how
  * taking down works, not a property of any particular wall, and three empty
  * rooms would otherwise print it three times. `information-architecture.md`
  * states the general form — a qualifier that applies to every row is a
@@ -254,8 +253,7 @@ function setupLine(wall, edit, shownBy) {
     ]),
     // A Player added and not yet reporting is the step a household is on
     // while setting a wall up, so what the page waits for is said where the
-    // next step is, rather than found as a screen picker with nothing in it
-    // (audit 2026-11-19, finding 2).
+    // next step is, rather than found as a screen picker with nothing in it.
     waiting.length
       ? el("p", {
           class: "muted wall-waiting",
@@ -435,8 +433,8 @@ function reasonFor(wall, build) {
   return "hanging";
 }
 
-/* The card's one notice, chosen by the wall's state (audit 2026-11-19, finding
- * 6: a card was a column of notices at one weight). Each candidate is a fault
+/* The card's one notice, chosen by the wall's state (a card of
+ * several notices was a column of them at one weight). Each candidate is a fault
  * that stops the wall's job, in the order a household would mend them: a
  * display two Players claim, then a read that did not arrive, then a Player
  * that cannot read this server's feed, then a Player that has not reported
@@ -1133,7 +1131,7 @@ function emptyTheme(wall, manifest) {
  * the Player. Which of the two is the walls answer's (`report_problem`), from
  * the reading its state is, so the card asks no second reading for it.
  *
- * **One notice, said once** (audit 2026-11-19, finding 6). A wall no Player
+ * **One notice, said once.** A wall no Player
  * shows has its *No Player* line, which already says nothing can show it, so
  * nothing is added here. When none of the theme reaches the wall either, that
  * sentence leads this one in the same notice rather than stacking a second.
@@ -1494,8 +1492,8 @@ const EXCLUSION_WORDS = {
  * on working in, and the card's *Changes*, next works and what it cannot show
  * catch up on the way out.
  *
- * **One filled act** (`design-direction.md` § Buttons; audit 2026-11-19, finding
- * 7, where five were filled). Chosen over one *Save* for every section, and
+ * **One filled act** (`design-direction.md` § Buttons; five filled acts on one card
+ * were five answers to "what next"). Chosen over one *Save* for every section, and
  * recorded why: each section is its own write on its own route, the server can
  * refuse one or keep one with a notice the curator has to read where it was made
  * (`closeUnlessNoticed`), and a single Save would have to report several partial
@@ -1710,7 +1708,7 @@ const AWAIT_REPORT_MS = 3000;
  * it can. A wall goes on a screen the Player reported, so until it has
  * reported one there is nothing to put it on: the server would refuse the
  * empty choice ("output cannot be empty"), and the household would meet that
- * refusal at the step the screens point them to (audit 2026-11-19, finding 2). */
+ * refusal at the step the screens point them to. */
 function notYet(client) {
   if (!client || screensOf(client).length) return null;
   // The Player's state as the server states it (`core/states.js` words it on Players).

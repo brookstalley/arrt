@@ -3,7 +3,7 @@
  * Every write in the client goes through `attempt`. A failed one used to land in
  * the banner at the top of the view as the fetch's own words — "Failed to
  * fetch" — often off-screen from the button pressed, naming neither the act nor
- * what became of it (`ux-review-2026-10.md` finding 11). So the failure is said
+ * what became of it. So the failure is said
  * where the curator is looking, as a sentence: what they asked for, and what
  * happened instead.
  *

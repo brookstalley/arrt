@@ -222,13 +222,13 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_no_retry
         "href", re.compile("^" + re.escape(f"#work/{failed.id}"))
     )
     # One Retry for the group; a row has none (design direction: never one button
-    # per row, audit-6 finding 11). A single work is retried on its own page.
+    # per row). A single work is retried on its own page.
     expect(ui.page.locator(".failure-cause-works button")).to_have_count(0)
     expect(ui.page, "opening a group is an address").to_have_url(re.compile(re.escape("cause=refused.")))
 
 
 def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, seed_the_served_catalogue, catalogue_file, store):
-    """`ux-review-2026-10.md` finding 18: Queue at 2,000 failures was one 209,000-px table naming each work by id."""
+    """Queue at 2,000 failures was once one 209,000-px table naming each work by id."""
     works = seed_the_served_catalogue(size=2000)
     with catalogue_file.transaction():
         for work in works:

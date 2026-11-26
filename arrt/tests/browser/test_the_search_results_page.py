@@ -28,9 +28,9 @@ GIRAFFE = "Q1062364"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/G.jpg"
 
 #: The seeded Persistence of Memory, which has no master: under *Held*, said
-#: once by the heading and never again on the row (audit 6, finding 14), and
-#: its picture's place saying it has none, as its own page does. Until
-#: 2026-11-19 the row ended "● Held" and said nothing of the picture.
+#: once by the heading and never again on the row, and
+#: its picture's place saying it has none, as its own page does, not a row
+#: ending "● Held" that says nothing of the picture.
 HELD_WITHOUT_A_PICTURE = ["No picture The Persistence of Memory — Salvador Dalí"]
 
 
@@ -181,7 +181,7 @@ def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing
 
 
 def test_held_is_said_once_by_its_group_and_a_held_row_says_whether_it_has_a_picture(ui, service, work_with_an_image):
-    """Audit 6, finding 14. Two held works the words find, one with its master on
+    """Two held works the words find, one with its master on
     disk and one without: the Held group's heading is the only "Held" in it, and
     only the work with nothing to show says *No picture*, in its picture's place.
     The pictured one is the case that keeps the placeholder from being drawn on
@@ -254,9 +254,9 @@ def test_a_held_match_the_librarys_rows_do_not_show_is_under_held(ui, matched):
     _answered(ui)
 
     # Held with no master, so it says *No picture* in its picture's place, as the
-    # library's own rows do (audit 6 finding 14). Until 2026-11-19 a row folded
-    # in from Wikidata's results asked for a thumbnail the server refuses, and
-    # the picture's frame went with the failed load, leaving the title alone.
+    # library's own rows do: a row folded
+    # in from Wikidata's results must not ask for a thumbnail the server refuses,
+    # which would take the picture's frame with the failed load, leaving the title alone.
     expect(_rows(ui, "held", "works")).to_have_text(["No picture The Persistence of Memory — Salvador Dalí"], use_inner_text=True)
     expect(_rows(ui, "not-held", "works")).not_to_contain_text(["The Persistence of Memory"], use_inner_text=True)
     ui.page.click("section[aria-labelledby='results-held-works'] a:has-text('The Persistence of Memory')")

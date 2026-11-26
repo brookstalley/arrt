@@ -663,7 +663,7 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
     open_walls(ui)
 
     # The summary's own words: with its Player not yet reporting, the card says
-    # that in the same notice, after it (audit 2026-11-19, finding 6).
+    # that in the same notice, after it.
     warning = card(ui, the_wall).locator(".wall-dark .wall-dark-summary")
     expect(warning).to_have_text(
         re.compile(re.escape("2 are outside this wall's shapes, so the wall is dark.") + "$"), use_inner_text=True

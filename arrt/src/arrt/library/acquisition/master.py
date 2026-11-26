@@ -2,7 +2,7 @@
 
 **Rendered for no screen.** It is the Original, upright, in RGB, with no mat,
 brought down to at most `PRESENTATION_MASTER_LONG_EDGE_PX` on its long edge and
-never enlarged. A Player composes its own wall from it (re-architecture wave 4),
+never enlarged. A Player composes its own wall from it,
 so it carries nothing that belongs to a screen: no mat, no bars, no label. That
 is why transporting it conforms to "derived artifacts are regenerated, never
 transported" (`data-model.md` § Direction, the ruling of 2026-09-30): the norm

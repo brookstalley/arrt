@@ -1105,11 +1105,11 @@ class TestHealth:
         # the word check above. `pictures` is the picture store's files and bytes,
         # added 2026-10-06 by the owner's ruling that the store has no ceiling and
         # is watched here instead. There is no `artwork_box`: the geometry was one
-        # television's, and the owner removed it on 2026-10-08 (#266). `watches` is
+        # television's, and the owner removed it on 2026-10-08. `watches` is
         # the overdue Watches and whether a spent allowance holds one, added
-        # 2026-11-09 because a Watch runs with nobody watching (`build-plan-watches.md`).
-        # `players`, `failed_fetches` and `troubles` are the one health model
-        # (audit 2026-11-19): each Player's state, the queue's failed works, and
+        # 2026-11-09 because a Watch runs with nobody watching.
+        # `players`, `failed_fetches` and `troubles` are the one health model:
+        # each Player's state, the queue's failed works, and
         # the faults among every reading here, which the top bar counts.
         # `setup_steps` is what remains to be set up, which it states and never
         # counts: a step, never a verdict.

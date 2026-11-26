@@ -136,8 +136,8 @@ def test_hang_is_the_one_filled_act_and_archive_is_behind_more(ui, hangable):
 
 
 def test_a_work_with_no_picture_offers_hang_disabled_and_says_why(ui, service, hangable):
-    """Audit 6, finding 5: on a work with no picture *Hang…* was left out of the
-    toolbar, and nothing said why. It stays, disabled, with its reason under it
+    """On a work with no picture *Hang…* must not be left out of the
+    toolbar with nothing to say why. It stays, disabled, with its reason under it
     and tied to it for a screen reader. The pictured work beside it is the case
     that keeps the reason from being said where Hang… can be pressed."""
     bare = service.add_artwork(title="Untitled, unfetched", date_created="1950")

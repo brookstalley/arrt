@@ -204,7 +204,7 @@ class RenditionKind(StrEnum):
 
     A `PRESENTATION_MASTER` is the Original, upright and unmatted, capped at
     7,680 px on its long edge: the device-independent image a Player composes
-    its own wall from (re-architecture wave 4). Its target size is the cap,
+    its own wall from. Its target size is the cap,
     not the size it came out at.
     """
 

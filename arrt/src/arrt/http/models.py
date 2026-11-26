@@ -1588,8 +1588,8 @@ class WatchesHealthOut(BaseModel):
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, the source plugins and the picture store.
 
-    **No geometry**, since 2026-10-08 (#266): there is no longer one television
-    to state it for. A wall's own geometry is wave 4's, under Clients.
+    **No geometry**: there is no longer one television to state it for. A wall's
+    own geometry is a Player's to report, under Clients.
 
     **The heartbeat is a list, one entry per wall**, since 2026-08-12. Each wall's
     display writes its own file, so "has the Player reported" stopped being

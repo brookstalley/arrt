@@ -1,17 +1,17 @@
 """What the server's edge says about who may call it, who may frame it, and what it writes down (`arrt.http.hosts`, `arrt.logs`).
 
-**Each case is a request the audit of 2026-11-19 named, or the one that must keep
+**Each case is a hostile request the edge must refuse, or the one that must keep
 working beside it**, over a real server. The hostile requests are described by
 their headers alone: a page elsewhere sends a plain `GET` with the headers its
 browser adds, and that is all these send.
 
 - A `GET` from a page of another site carries no `Origin`, so the guard's `Origin`
   rule never sees it; `Sec-Fetch-Site: cross-site` is what a browser adds, and
-  `/api` and `/mcp` refuse it (F7).
+  `/api` and `/mcp` refuse it.
 - The interface's own requests say `same-origin`; an MCP client, `curl` and a
-  Player send no such header. None of those is refused (F7).
-- Every HTML response forbids being framed (F8).
-- A Player's successful poll writes no access line, and a refused one does (F3).
+  Player send no such header. None of those is refused.
+- Every HTML response forbids being framed.
+- A Player's successful poll writes no access line, and a refused one does.
 """
 
 import json
@@ -57,7 +57,7 @@ def _mcp(url: str, **headers: str) -> httpx.Response:
     )
 
 
-# -- F7: a cross-site GET --------------------------------------------------------------
+# -- a cross-site GET -------------------------------------------------------------
 
 
 @pytest.fixture
@@ -147,7 +147,7 @@ def test_the_refused_prefixes_are_a_path_or_its_parent_and_never_a_lookalike(gua
     assert set(CROSS_SITE_REFUSED_UNDER) == {"/api", "/mcp"}
 
 
-# -- F8: framing ------------------------------------------------------------------------
+# -- framing -----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("path", ["/", "/walls", "/queue", "/settings", "/docs", "/redoc"])
@@ -200,7 +200,7 @@ def test_a_page_that_already_names_its_own_frame_options_keeps_it_and_gains_no_s
     assert b"content-security-policy" in names
 
 
-# -- F3: a Player's polls out of the access log ------------------------------------------
+# -- a Player's polls out of the access log -----------------------------------------
 
 
 class _AccessLines(logging.Handler):

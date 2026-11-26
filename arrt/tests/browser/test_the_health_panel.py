@@ -154,7 +154,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     # waiting on the other would let the assertions run before its panel painted.
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
-    # In the household's words (audit 2026-11-19, F5): a Player reports for a
+    # In the household's words: a Player reports for a
     # wall; "heartbeat" and "display" for the Player are retired. "No Player
     # has ever reported for this wall." is not said of a wall no Player shows:
     # it is said of a wall a Player shows that has never reported

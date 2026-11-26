@@ -139,7 +139,7 @@ def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     expect(ui.page.locator("#view .empty")).to_have_count(0)
 
 
-# -- Queue at scale (audit-6 finding 11) ---------------------------------------
+# -- Queue at scale ---------------------------------------
 
 
 def _owing(failing: int, causes: list[dict]) -> dict:

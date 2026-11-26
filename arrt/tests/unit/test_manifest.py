@@ -99,7 +99,7 @@ def test_a_work_with_no_acquired_original_is_excluded_and_named(display, ready_w
 
     assert build.entries == []
     assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_ORIGINAL]
-    # "acquired" until 2026-11-19, when "master image" became "picture" (audit-2 M7).
+    # "picture", not "master image" or "acquired": the words a person reads.
     assert "no picture yet" in build.exclusions[0].detail
 
 

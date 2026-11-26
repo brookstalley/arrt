@@ -1,7 +1,6 @@
 """Each screen says one thing once, in the curator's words.
 
-The second UX walk (`ux-review-2026-10.md` findings 39 and 44, #359) found copy
-that explains the system rather than the art:
+Copy that explains the system rather than the art is what these pin out:
 - Status under three names, its first lines one fact three times.
 - Topic pages titled "Wikidata Q7049".
 - An unmatched artist told so three times, with a QID.

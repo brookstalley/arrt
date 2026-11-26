@@ -73,7 +73,7 @@ def topic(qid: str, label: str, *kinds: TopicKind, **fields) -> RegistryTopic:
 
 @pytest.fixture
 def ask_model():
-    """A server with a key: the dropdown offers Ask only where Ask can answer (audit-6 finding 9)."""
+    """A server with a key: the dropdown offers Ask only where Ask can answer."""
     return ScriptedModel(replies=[])
 
 

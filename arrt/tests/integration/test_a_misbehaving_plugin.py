@@ -1,6 +1,6 @@
 """A misbehaving source plugin, installed as a real one is, asked by a real Get, read back as a curator reads it.
 
-Wave 1 tested the plugin host's parts (`tests/unit/test_plugin_deadlines.py`,
+The plugin host's parts have their own tests (`tests/unit/test_plugin_deadlines.py`,
 `tests/unit/test_source_plugins.py`). This is the whole product around them: the
 fixture distribution (`tests/fixtures/plugins/misbehaving/`) is installed into a
 directory of this test's own, as an installer would lay it out, and found by the
@@ -555,7 +555,7 @@ def test_a_1_5_plugin_that_says_a_dead_link_the_old_way_is_could_not_be_asked_ex
 
 @pytest.mark.parametrize("plugin_names", [("gone", "steady")])
 def test_a_finder_answering_that_every_page_is_gone_settles_the_work_it_alone_might_hold(http, plugin):
-    """Audit-4 finding 4: a work whose only page at a holder is dead settled nowhere, searched again for ever."""
+    """A work whose only page at a holder is dead settled nowhere, searched again for ever."""
     plugin.CONTROL.gone_for = {TITLES[ONLY_THERE]}
 
     view = finished(http, start_get(http, HELD, ONLY_THERE))

@@ -347,7 +347,7 @@ def test_escape_closes_the_dialog_and_changes_nothing(ui, services, the_wall, ha
 
 
 def test_the_dialog_has_one_filled_act_and_it_is_show_it_there(ui, services, the_wall, hall, a_theme_to_hang):
-    """One filled act per region (`design-direction.md` § Buttons; audit 2026-11-19, finding 7).
+    """One filled act per region (`design-direction.md` § Buttons).
 
     Every section is drawn: a hung wall, so its rotation, shapes and mat are
     offered, and a Player with a free label panel, so *Caption it* is too.
@@ -374,7 +374,7 @@ def test_the_dialog_has_one_filled_act_and_it_is_show_it_there(ui, services, the
 
 
 def test_close_names_the_sections_it_would_leave_unset(ui, services, the_wall, hall, a_theme_to_hang):
-    """Audit 2026-11-19, finding 7: edit two sections, set one, and Close could not say which was saved.
+    """Edit two sections, set one, and Close must say which was saved.
 
     The line above *Close* names each section whose fields differ from what the
     server last took, in the dialog's order; setting one takes it off the line,

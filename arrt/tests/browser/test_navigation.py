@@ -2,9 +2,8 @@
 the place it left where Back returns, and a name for every page.
 
 `information-architecture.md` § Direction rules that navigation is a link and an
-act is a button. The walkthrough that led to the rule (`ux-review-2026-10.md`
-findings 4, 5 and 21) found three costs of the buttons it replaced, and each is
-pinned here at the screen where it was found: a work opened from low on
+act is a button. The rule's reason is three costs of the buttons it replaced, and each is
+pinned here at the screen where it showed: a work opened from low on
 Artworks opened part-way down its own page, Back to Artworks returned to the top
 of the grid rather than to the card, and every page in the browser's tabs and
 history read "Arrt".
@@ -33,7 +32,7 @@ from scripted_model import ScriptedModel
 ROUTES = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
 
 #: The card a curator opens from well below the fold. Twenty, because that is
-#: the card the walkthrough measured Back losing (68 Tabs from the top).
+#: the card Back was measured to lose (68 Tabs from the top).
 CARD = 20
 
 

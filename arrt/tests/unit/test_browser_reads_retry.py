@@ -3,7 +3,7 @@
 A one-shot read (`loc.inner_text()`, `loc.count()`, `loc.is_visible()`, …)
 returns what the page holds at the instant it is called, and an `assert` on it
 passes or fails on whichever side of a repaint that instant fell. That is the
-mechanism behind most of this suite's flakes (audit 7, S1a; #441, #442, #371),
+mechanism behind most of this suite's flakes,
 and a prose rule in `tests/browser/conftest.py` did not stop new ones being
 written. `expect(loc).to_have_text(…)` asks the same question and keeps asking
 until the page agrees or the timeout passes.

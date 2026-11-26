@@ -298,7 +298,7 @@ _RELEASED_HEARTBEATS = [
 
 @pytest.mark.parametrize("fixture", _RELEASED_HEARTBEATS, ids=lambda path: f"{path.parents[3].name}:{path.name}")
 def test_every_valid_heartbeat_of_a_released_contract_is_accepted(server_url, token, wall_id, fixture):
-    """What a Player pinned to an older tag writes, this server still takes (audit-7 M6)."""
+    """What a Player pinned to an older tag writes, this server still takes."""
     document = json.loads(fixture.read_text(encoding="utf-8"))
 
     response = httpx.post(server_url + _path("heartbeat", wall_id=wall_id), json=document, headers=_bearer(token))
@@ -652,7 +652,7 @@ async def test_the_tool_surface_refuses_the_retired_action(server_url, wall_id):
     assert "token_issued_at" not in wall
 
 
-# -- the body cap (audit-8 F10) ---------------------------------------------------------
+# -- the body cap ----------------------------------------------------------------------
 
 _HEARTBEAT_FIXTURES = {
     "heartbeat": "heartbeat.v1/valid/minor-1-with-schema.json",

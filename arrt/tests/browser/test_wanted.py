@@ -281,8 +281,8 @@ def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_says_wh
 
     empty = ui.page.locator("#view .empty")
     expect(empty).to_contain_text("Nothing is wanted.", use_inner_text=True)
-    # What Wanted holds, not the clicks that fill it (audit-6 finding 21: the
-    # sentence used to give a click path through a review card).
+    # What Wanted holds, not the clicks that fill it (no click path through a
+    # review card).
     expect(empty).to_contain_text("Wanted holds the works you want and have no acceptable scan of", use_inner_text=True)
     expect(empty).to_contain_text("a Get found no scan for", use_inner_text=True)
     expect(empty).not_to_contain_text("press Want", use_inner_text=True)

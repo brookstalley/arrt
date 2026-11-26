@@ -1058,7 +1058,7 @@ def _counts(ui):
 
 
 def test_a_finished_get_says_three_counts_rather_than_a_paragraph(ui):
-    """Asked for, found with an image, not matched (`build-plan-get-and-review-clarity.md`)."""
+    """Asked for, found with an image, not matched."""
     found = a_candidate(work_id="found", title="The Persistence of Memory")
     missing = [
         a_candidate(

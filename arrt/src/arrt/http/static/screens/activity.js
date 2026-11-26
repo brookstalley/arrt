@@ -501,7 +501,7 @@ async function titlesFor(events, subject = null) {
 
 /* Verdicts from one Get in a row of at least this many are one line: a review
  * of forty works made forty near-identical rows and pushed every other event off
- * the page (`ux-review-2026-10.md` finding E20). Fewer read fine one by one. */
+ * the page. Fewer read fine one by one. */
 const VERDICT_RUN = 3;
 const VERDICT_WORDS = { "work.accepted": "Accepted", "work.rejected": "Turned down" };
 

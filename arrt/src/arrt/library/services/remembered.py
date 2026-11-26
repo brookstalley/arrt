@@ -12,8 +12,7 @@ from arrt.services.errors import ServiceError
 
 #: The sentence every registry page shows when `WIKIDATA_USER_AGENT` is unset.
 #:
-#: In the household's words, naming no setting (`build-plan-audit-wave-1.md`'s
-#: DECISION): it reaches the Artist page, the search results, a work's page and
+#: In the household's words, naming no setting: it reaches the Artist page, the search results, a work's page and
 #: Ask's agent, which reads the same answer through the MCP surface and speaks
 #: to the household. The setting is named where the operator sets it: Settings ›
 #: Sources and Status, through each declined source's reason.

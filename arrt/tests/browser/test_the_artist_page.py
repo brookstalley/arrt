@@ -178,7 +178,7 @@ class TestTheArtistPage:
         _page(ui, artist)
 
         # The count is the page's line of facts, above the toolbar, as on every
-        # list page (audit 6, finding 12); the section's heading names it only.
+        # list page; the section's heading names it only.
         expect(ui.page.locator("#view .page-facts")).to_have_text("1 work in your library", use_inner_text=True)
         expect(ui.page.locator("#in-your-library")).to_have_text("In your library", use_inner_text=True)
         expect(ui.page.locator("section[aria-labelledby='in-your-library'] .card-title")).to_have_text(
@@ -368,7 +368,7 @@ class TestTheArtistPage:
         assert (str(recorded.sentiment), recorded.open_to_more) == ("loves", True)
 
     def test_the_reactions_are_acts_on_the_toolbars_left_and_select_is_on_its_right(self, ui, rothko):
-        """Audit 6, finding 12: the three reactions sat stacked in the head above
+        """The three reactions must not sit stacked in the head above
         *Select*. They are acts on the artist, so they take the toolbar's left
         side, and *Select* stands on the right with the other controls; their
         answer is still said, under the toolbar."""

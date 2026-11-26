@@ -148,8 +148,7 @@ def test_the_page_opens_with_its_name_its_facts_and_its_toolbar(ui, services, se
     assert "page-facts" in tags[1]
     assert "page-toolbar" in tags[2]
     assert "table-scroll" in tags[3]
-    # The one with a token and no report is waited for, and the line says so
-    # (audit 2026-11-19, finding 2).
+    # The one with a token and no report is waited for, and the line says so.
     expect(view.locator(".page-facts")).to_have_text("2 Players · 1 reporting · waiting for 1 to report", use_inner_text=True)
     expect(view.locator("thead th")).to_have_text(["Player", "Status", "Screens", "Label panel", "Settings"])
 
@@ -260,9 +259,9 @@ def test_adding_a_player_shows_its_token_once_with_what_to_do_with_it(ui, servic
     note = ui.page.locator(".token-once")
     expect(note).to_contain_text("the only time it is shown", use_inner_text=True)
     # In the Player's own settings page's words, not the environment variables
-    # behind them (audit 2026-11-19, F6): its fields are *Token* and *Server
-    # address* (the Player renamed them from *Client token* and *Server ›
-    # Address* in its own audit wave; the old names would send nobody anywhere).
+    # behind them: its fields are *Token* and *Server
+    # address* (the old names, *Client token* and *Server › Address*, would send
+    # nobody anywhere).
     expect(note).to_contain_text("put this token in Token, and", use_inner_text=True)
     expect(note).to_contain_text(
         f"this server's address in Server address, as that Player reaches it — from this browser, {server_url}.",
@@ -373,8 +372,7 @@ def test_a_player_that_has_not_reported_says_so_in_words(ui, services, hall):
     services.access.issue(hall.id)
     open_players(ui)
 
-    # Waiting for it, with what it waits on (audit 2026-11-19, finding 2): it
-    # was "Never reported", which read as a fault on the evening it was added.
+    # Waiting for it, with what it waits on: not "Never reported", which reads as a fault on the evening it was added.
     # Two lines, the state and what it waits on: a pattern over the raw text, which a string would fold into one.
     expect(cell(ui, hall, "Status")).to_have_text(
         re.compile(

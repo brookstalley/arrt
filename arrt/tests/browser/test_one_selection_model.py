@@ -1,6 +1,6 @@
 """One selection model on every list: Artworks, an Artist's page, the search results, a Topic.
 
-`ux-review-2026-10.md` finding 23: selection worked three ways and offered one action. Now every list
+Selection once worked three ways and offered one action. Now every list
 has a *Select* toggle whose label says which mode the page is in, ticks only in
 that mode, and a bar at the foot of the window with *Select all* and every act
 valid for what is ticked — Add to theme (with *New theme…*), Archive, Get.
@@ -375,7 +375,7 @@ def tab_stops(ui, presses=120) -> list[str]:
 
 @pytest.mark.parametrize("a_list", list(LISTS), indirect=True)
 def test_no_tick_is_a_tab_stop_outside_select_mode(ui, a_list):
-    """Finding 30: a tick on every card was one more Tab stop per card.
+    """A tick on every card would be one more Tab stop per card.
 
     Walked with the keyboard rather than read off the markup, since what
     matters is where Tab lands; and walked again in *Select* mode, where the

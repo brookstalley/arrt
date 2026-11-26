@@ -139,8 +139,7 @@ function defaultReturn(view) {
  *
  * **A breadcrumb link, never a button** (`design-direction.md` § How a page
  * reads; ruling 1 of 2026-10-27): `back-link`, small and muted above the
- * page's name. It wore the act's bordered shape until 2026-11-19 (audit 6,
- * finding 13). */
+ * page's name, not the act's bordered shape. */
 export function backLink() {
   const from = state.params && state.params.from;
   const opener = returnTarget(from);

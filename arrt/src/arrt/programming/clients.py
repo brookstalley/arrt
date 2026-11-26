@@ -903,7 +903,7 @@ class ClientService:
 
         The move is automatic (`clients.md`: a Frame moved to another Pi), and it
         is also what any Player's token can do by reporting a display another
-        Player has stopped reporting (audit-8 F10), so a move nobody made is one
+        Player has stopped reporting, so a move nobody made is one
         an operator can find in the journal.
         """
         holder = None if display.client_id in (None, client.id) else self._store.get_client(display.client_id)
@@ -1096,7 +1096,7 @@ class ClientService:
 
         An empty name is what Walls sends for a Player that has reported no
         screens, since it has none to offer; "output cannot be empty" told the
-        curator nothing of that (the 2026-11-19 UX walk's finding 2).
+        curator nothing of that.
         """
         if output.strip():
             return output.strip()

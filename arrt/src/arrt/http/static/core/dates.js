@@ -3,8 +3,7 @@
  *
  * **One formatter, because a timestamp reaching the page as the server spells
  * it is the failure this exists to end**: `2026-10-05T14:46:52.225416+00:00`
- * wrapping every row of To review and History (`ux-review-2026-10.md` finding
- * 20). A screen showing a moment shows `dated` (or `stamp`, for a `<time>`);
+ * wrapping every row of To review and History. A screen showing a moment shows `dated` (or `stamp`, for a `<time>`);
  * the instant itself goes only into the element's `datetime`, or inside a
  * Details disclosure where raw fields are the point.
  * `tests/unit/test_one_date_formatter.py` refuses a date formatted anywhere

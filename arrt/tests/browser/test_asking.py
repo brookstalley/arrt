@@ -670,7 +670,7 @@ def test_a_thread_the_server_forgot_is_an_empty_page_when_it_is_opened_and_the_n
 
 
 class TestWithNoKey:
-    """Ask on a server with no key: disabled with its reason, never accepted and then refused (audit-6 finding 9)."""
+    """Ask on a server with no key: disabled with its reason, never accepted and then refused."""
 
     @pytest.fixture
     def ask_model(self):

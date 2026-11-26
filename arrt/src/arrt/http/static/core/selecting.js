@@ -11,7 +11,7 @@
  *
  * **Outside the mode a card has no tick at all**, hidden by `hidden` rather
  * than by colour, so it is out of the tab order too: a tick on every card was
- * one more Tab stop per card (`ux-review-2026-10.md` finding 30).
+ * one more Tab stop per card.
  *
  * **Select all means every work the list's filter matches, loaded or not.** A
  * held list that pages from the server passes its filter (`held.filter`, the

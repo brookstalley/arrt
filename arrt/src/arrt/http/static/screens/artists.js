@@ -194,8 +194,7 @@ async function oneArtist(artistId, generation) {
     ]),
     // The list's count, where every list page says it, then the one toolbar
     // shape (`core/toolbar.js`): the reactions are acts on the artist, so they
-    // stand on the left, and *Select* on the right. They sat stacked above it,
-    // in the head, until 2026-11-19 (audit 6, finding 12).
+    // stand on the left, and *Select* on the right, not stacked above it in the head.
     el("p", { class: "muted page-facts", text: `${counted(works.total, "work")} in your library` }),
     toolbar({ actions: taste.acts, selection }),
     taste.said,
