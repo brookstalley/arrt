@@ -79,10 +79,15 @@ class Feed:
             raise ValueError(f"The feed names works it does not carry: {', '.join(sorted(missing))}.")
 
 
-def as_document(feed: Feed) -> dict[str, Any]:
+def as_document(feed: Feed, *, generated_at: datetime) -> dict[str, Any]:
+    """The feed as the document a Player reads, stamped with the instant its publisher decided it for.
+
+    The instant is the caller's (`FeedPublisher._now`), so one act's feeds carry
+    one `generated_at`, and a clock handed to the publisher is what every feed says.
+    """
     document: dict[str, Any] = {
         "schema": {"major": SCHEMA_MAJOR, "minor": SCHEMA_MINOR},
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": generated_at.isoformat(),
         "playlist": {"id": feed.playlist_id, "name": feed.playlist_name},
     }
     if feed.settings:

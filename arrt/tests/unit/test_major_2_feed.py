@@ -22,12 +22,8 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
-from arrt.programming import display as display_module
 from arrt.programming import feeds as feeds_module
-from arrt.programming import reports as reports_module
-from arrt.programming import scenes as scenes_module
-from arrt.programming import themes as themes_module
-from arrt.programming import walls as walls_module
+from arrt.programming import lookups as lookups_module
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.builder import KeptOff
 from arrt.programming.manifest.v2 import read_published
@@ -526,8 +522,8 @@ def clock(monkeypatch):
         def now(cls, tz=None):
             return datetime.now(tz) + held.offset
 
-    for module in (display_module, feeds_module, themes_module, walls_module, scenes_module, reports_module):
-        monkeypatch.setattr(module, "datetime", Moved)
+    # The machine's clock every Programming collaborator reads when it was handed none (`lookups.machine_now`).
+    monkeypatch.setattr(lookups_module, "datetime", Moved)
     return held
 
 
@@ -987,7 +983,7 @@ def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered,
         builds.append((arguments["wall_id"], arguments["now"]))
         return build(**arguments)
 
-    monkeypatch.setattr(feeds_module, "datetime", Slow)
+    monkeypatch.setattr(display._feeds, "_clock", lambda: Slow.now(UTC))
     monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
 
     display.show_work_now(wall_id, a.id)

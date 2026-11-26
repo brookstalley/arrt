@@ -37,12 +37,13 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from typing import Final
 
 from arrt.persistence.records import Client
 from arrt.programming.clients import Placements
+from arrt.programming.lookups import Clock, machine_now
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import NotFound
 from arrt.services.store import store_write
@@ -88,10 +89,20 @@ def verifier_of(token: str) -> str:
 class PlayerAccess:
     """Issue client tokens, and decide whether a presented one opens a wall."""
 
-    def __init__(self, store: ProgrammingStore, placements: Placements, *, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        store: ProgrammingStore,
+        placements: Placements,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        now: Clock = machine_now,
+    ) -> None:
         self._store = store
         self._placements = placements
+        #: Seconds on a clock that only moves forward, for how long a refusal stays quiet (`_log_refusal`).
         self._clock = clock
+        #: The instant a token is recorded as issued (`issue`).
+        self._now = now
         self._last_logged: dict[str, float] = {}
         self._logging = threading.Lock()
 
@@ -104,7 +115,7 @@ class PlayerAccess:
         and shown.
         """
         token = secrets.token_urlsafe(32)
-        issued_at = datetime.now(UTC)
+        issued_at = self._now()
         # Read where it is written: the whole row goes back, and a client read
         # before a rename landed would put the old name back with the new token.
         with self._store.transaction():
