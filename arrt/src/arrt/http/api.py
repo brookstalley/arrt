@@ -218,6 +218,7 @@ from arrt.http.models import (
     WorksFilter,
 )
 from arrt.library.acquisition.mat import MAT_PRESETS
+from arrt.library.acquisition.preparation import MatRequest
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services import spend_history
 from arrt.library.services.artists import HeldArtist, RegistryView
@@ -1257,15 +1258,8 @@ def set_work_mat(request: Request, artwork_id: str, body: SetWorkMat) -> WorkMat
 
     Read-back-after-mutate, so the control repaints from what was recorded.
     """
-    if (body.preset is None) == (not body.derive):
-        raise ServiceError("Choose a mat by naming one preset or by asking to derive it, and not both.")
     services = _services(request)
-    services.catalogue.get_artwork(artwork_id)
-    if body.derive:
-        services.preparation.derive_mat(artwork_id)
-    else:
-        assert body.preset is not None  # noqa: S101 -- not deriving, and the check above refused no preset beside no derive
-        services.preparation.set_mat_preset(artwork_id, body.preset)
+    services.preparation.set_work_mat(artwork_id, MatRequest.named(preset=body.preset, derived=body.derive))
     return _work_mat(services, artwork_id)
 
 

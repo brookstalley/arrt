@@ -8,10 +8,16 @@ and answers the same shape, so the control repaints from what was recorded.
 Against a real uvicorn server, per the suite's standing rule.
 """
 
+import ast
+import inspect
+
 import httpx
 import pytest
 
+from arrt.http import api as http_api
 from arrt.library.acquisition.mat import MAT_PRESETS, derive
+from arrt.mcp import bindings
+from arrt.mcp.server import dispatch
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -98,18 +104,103 @@ def test_re_deriving_records_the_works_own_colour_as_derived(http, service, held
 
 
 @pytest.mark.parametrize(
-    "body",
-    [{"preset": "dark", "derive": True}, {}, {"derive": False}],
+    ("body", "refusal"),
+    [
+        ({"preset": "dark", "derive": True}, "MORE_THAN_ONE_MAT"),
+        ({}, "NO_MAT_NAMED"),
+        ({"derive": False}, "NO_MAT_NAMED"),
+    ],
     ids=["both", "neither", "derive-false"],
 )
-def test_a_choice_must_be_exactly_one(http, service, held, body):
+def test_a_choice_must_be_exactly_one(http, service, held, body, refusal):
+    """In the service's words: the handler refuses nothing itself, and asking for no mat never reaches the paid model."""
+    from arrt.library.acquisition import preparation
+
     work, _ = held
 
     answer = http.post(f"/api/works/{work.id}/mat", json=body)
 
     assert answer.status_code == 400
-    assert "not both" in answer.json()["error"]
+    assert answer.json()["error"] == getattr(preparation, refusal)
     assert service.current_mat_color(work.id).hex_rgb == "#27285b"
+    assert len(service.mat_color_history(work.id)) == 1
+
+
+#: Every way to name more than one mat, as each surface spells it.
+_MORE_THAN_ONE = {
+    "HTTP, a preset and derive": ("http", {"preset": "dark", "derive": True}),
+    "MCP, a colour and a preset": ("mcp", {"hex_rgb": "#f4efe6", "preset": "dark"}),
+    "MCP, a colour and the derived mat": ("mcp", {"hex_rgb": "#f4efe6", "preset": "derived"}),
+}
+
+
+def _refusal(http, services, work_id: str, surface: str, choice: dict) -> str:
+    if surface == "http":
+        answer = http.post(f"/api/works/{work_id}/mat", json=choice)
+        assert answer.status_code == 400, answer.text
+        return answer.json()["error"]
+    payload = dispatch(services, "art_catalogue", {"action": "set_mat_color", "artwork_id": work_id, **choice})
+    assert payload["success"] is False, payload
+    return payload["error"]
+
+
+def test_more_than_one_mat_is_refused_in_the_same_words_on_both_surfaces(http, services, held):
+    """One act, one refusal: the sentence is the service's, whichever surface was asked and however it spells the choice.
+
+    Before, HTTP refused a preset beside derive in its handler's words and MCP
+    a colour beside a preset in its binding's, two validators for one act.
+    """
+    work, _ = held
+
+    said = {name: _refusal(http, services, work.id, *case) for name, case in _MORE_THAN_ONE.items()}
+
+    assert len(set(said.values())) == 1, said
+    from arrt.library.acquisition.preparation import MORE_THAN_ONE_MAT
+
+    assert set(said.values()) == {MORE_THAN_ONE_MAT}
+    assert services.catalogue.current_mat_color(work.id).hex_rgb == "#27285b"
+
+
+def _body(function) -> ast.FunctionDef:
+    [node] = ast.parse(inspect.getsource(function).strip()).body
+    assert isinstance(node, ast.FunctionDef)
+    return node
+
+
+@pytest.mark.parametrize("binding", [http_api.set_work_mat, bindings._set_mat_color], ids=lambda f: f.__module__)
+def test_neither_binding_judges_the_mat_choice_itself(binding):
+    """Each binding maps its arguments onto the one act and refuses nothing of its own (the thin-binding norm).
+
+    Read from the source: no raise and no assert in the binding, and of
+    preparation it calls only the one act, `set_work_mat`.
+    """
+    body = _body(binding)
+    judged = [type(node).__name__ for node in ast.walk(body) if isinstance(node, (ast.Raise, ast.Assert))]
+    called = {
+        node.func.attr
+        for node in ast.walk(body)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Attribute)
+        and node.func.value.attr == "preparation"
+    }
+
+    assert judged == [], f"{binding.__name__} judges the choice itself: {judged}"
+    assert called == {"set_work_mat"}, f"{binding.__name__} calls preparation's {sorted(called)}"
+
+
+def test_the_http_binding_cannot_ask_the_paid_model():
+    """HTTP cannot ask the model: its choice is built with no fallback, so naming nothing is refused."""
+    body = _body(http_api.set_work_mat)
+    named = [
+        node
+        for node in ast.walk(body)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "named"
+    ]
+
+    assert len(named) == 1, "set_work_mat builds its choice once, through MatRequest.named"
+    assert "otherwise" not in {keyword.arg for keyword in named[0].keywords}
+    assert "MODEL" not in inspect.getsource(http_api.set_work_mat)
 
 
 def test_an_unknown_preset_is_refused_by_name(http, service, held):

@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
+from arrt.library.acquisition.preparation import ASK_THE_MODEL, MatRequest, MatWay, PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
 from arrt.library.services import spend_history
@@ -435,19 +435,18 @@ def _set_mat_color(services: Services, arguments: Mapping[str, Any]) -> dict[str
     `choose_mat_color` would make a caller pick between them before knowing that
     only one of them costs anything. The tip says which does.
     """
-    artwork_id = arguments["artwork_id"]
-    hex_rgb = arguments.get("hex_rgb")
+    # `preset='derived'` is how this surface spells the derived mat, beside
+    # the presets the Work page offers; naming nothing asks the model.
     preset = arguments.get("preset")
-    if hex_rgb and preset:
-        raise ServiceError("Give hex_rgb or preset, not both: each sets the mat on its own.")
-    if preset == "derived":
-        result = services.preparation.derive_mat(artwork_id)
-    elif preset:
-        result = services.preparation.set_mat_preset(artwork_id, str(preset))
-    elif hex_rgb:
-        result = services.preparation.set_mat(artwork_id, str(hex_rgb))
-    else:
-        result = services.preparation.choose_mat(artwork_id)
+    result = services.preparation.set_work_mat(
+        arguments["artwork_id"],
+        MatRequest.named(
+            hex_rgb=arguments.get("hex_rgb"),
+            preset=None if preset == MatWay.DERIVED else preset,
+            derived=preset == MatWay.DERIVED,
+            otherwise=ASK_THE_MODEL,
+        ),
+    )
     return ok(
         artwork_id=result.artwork_id,
         hex_rgb=result.mat_hex,

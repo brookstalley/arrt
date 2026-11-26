@@ -24,6 +24,11 @@ from PIL import Image
 from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MAT_PRESETS, MatChoice, MatEngine
 from arrt.library.acquisition.preparation import (
+    ASK_THE_MODEL,
+    MORE_THAN_ONE_MAT,
+    NO_MAT_NAMED,
+    MatRequest,
+    MatWay,
     PreparationOutcome,
     PreparationService,
     PreparationSettings,
@@ -40,7 +45,7 @@ from arrt.persistence.records import (
     SourceClass,
 )
 from arrt.programming.manifest.v2 import read_published
-from arrt.services.errors import ServiceError
+from arrt.services.errors import NotFound, ServiceError
 
 
 @pytest.fixture
@@ -1024,3 +1029,95 @@ class TestOneWorkAtATime:
             prep.prepare(work.id)
 
         assert prep._in_flight == {}
+
+
+# -- the one mat act ----------------------------------------------------------------------
+
+
+class TestTheOneMatAct:
+    """`MatRequest.named` decides which mats a caller asked for, and `set_work_mat` records it.
+
+    Both surfaces map their own arguments onto these two, so the refusals and
+    the one paid way are decided here and nowhere else.
+    """
+
+    @pytest.mark.parametrize(
+        "asked",
+        [
+            {"hex_rgb": "#f4efe6", "preset": "dark"},
+            {"hex_rgb": "#f4efe6", "derived": True},
+            {"preset": "dark", "derived": True},
+            {"hex_rgb": "#f4efe6", "preset": "dark", "derived": True},
+            {"hex_rgb": "", "preset": ""},
+        ],
+        ids=["colour-and-preset", "colour-and-derived", "preset-and-derived", "all-three", "two-empty"],
+    )
+    def test_more_than_one_way_is_refused_in_one_sentence_whatever_naming_none_would_ask(self, asked):
+        for otherwise in (None, ASK_THE_MODEL):
+            with pytest.raises(ServiceError) as refused:
+                MatRequest.named(**asked, otherwise=otherwise)
+            assert str(refused.value) == MORE_THAN_ONE_MAT
+
+    @pytest.mark.parametrize(
+        ("asked", "expected"),
+        [
+            ({"hex_rgb": "#f4efe6"}, MatRequest(MatWay.COLOUR, "#f4efe6")),
+            ({"preset": "dark"}, MatRequest(MatWay.PRESET, "dark")),
+            ({"derived": True}, MatRequest(MatWay.DERIVED)),
+            ({"hex_rgb": ""}, MatRequest(MatWay.COLOUR, "")),
+            ({"preset": "", "derived": False}, MatRequest(MatWay.PRESET, "")),
+        ],
+        ids=["colour", "preset", "derived", "empty-colour", "empty-preset"],
+    )
+    def test_one_way_named_is_that_way_and_never_the_model(self, asked, expected):
+        """An empty value is still named: an empty colour is refused as a colour, never read as asking the paid model."""
+        assert MatRequest.named(**asked) == expected
+        assert MatRequest.named(**asked, otherwise=ASK_THE_MODEL) == expected
+
+    def test_naming_none_is_refused_unless_the_surface_says_what_none_asks(self):
+        with pytest.raises(ServiceError) as refused:
+            MatRequest.named()
+        assert str(refused.value) == NO_MAT_NAMED
+        with pytest.raises(ServiceError, match="Choose the mat"):
+            MatRequest.named(derived=False)
+
+        assert MatRequest.named(otherwise=ASK_THE_MODEL) == MatRequest(MatWay.MODEL)
+
+    def test_each_way_records_as_its_own_method_and_keeps_the_last(
+        self, service, discovery, discovery_store, settings, prep_settings
+    ):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#d8cfc0", Decimal("0.0002")), prep_settings, spend=discovery)
+
+        asked = [
+            MatRequest(MatWay.COLOUR, "#ABC"),
+            MatRequest(MatWay.PRESET, MAT_PRESETS[1].key),
+            MatRequest(MatWay.DERIVED),
+            MatRequest(MatWay.MODEL),
+        ]
+        results = [prep.set_work_mat(work.id, each) for each in asked]
+
+        assert [(result.mat_hex, result.mat_method) for result in results[:2]] == [
+            ("#aabbcc", "manual"),
+            (MAT_PRESETS[1].hex_rgb, "manual"),
+        ]
+        assert results[2].mat_method == "derived"
+        assert (results[3].mat_hex, results[3].mat_method, results[3].cost_usd) == ("#d8cfc0", "vision_model", Decimal("0.0002"))
+        assert len(service.mat_color_history(work.id)) == 4
+        assert _mat_spend(discovery_store) == {(work.id, Decimal("0.0002"), "qwen/qwen3.7-flash", 1)}
+
+    @pytest.mark.parametrize("way", list(MatWay), ids=str)
+    def test_a_work_the_library_does_not_hold_is_refused_before_anything_is_asked_or_spent(
+        self, service, discovery, discovery_store, prep_settings, way
+    ):
+        engine = _spending_engine("#d8cfc0", Decimal("0.0002"))
+        asked: list[object] = []
+        engine.choose = asked.append  # type: ignore[assignment]
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
+        value = {MatWay.COLOUR: "#f4efe6", MatWay.PRESET: MAT_PRESETS[0].key}.get(way)
+
+        with pytest.raises(NotFound, match="no-such-work"):
+            prep.set_work_mat("no-such-work", MatRequest(way, value))
+
+        assert asked == []
+        assert _mat_spend(discovery_store) == set()

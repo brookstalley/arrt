@@ -34,9 +34,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
@@ -82,6 +82,76 @@ class PreparationResult:
     #: encode — needs a different thing done about it, and a caller handed a
     #: false-valued result would have to re-derive which.
     mat_fallback_detail: str | None = None
+
+
+class MatWay(StrEnum):
+    """How a mat is asked for: the four ways the one mat act takes (`PreparationService.set_work_mat`)."""
+
+    #: One of the one-press mats (`MAT_PRESETS`), by its key. Free.
+    PRESET = "preset"
+    #: A colour of the asker's own, as a hex triplet. Free.
+    COLOUR = "colour"
+    #: The work's own dominant colour, worked out mechanically. Free.
+    DERIVED = "derived"
+    #: The vision model's choice. The one way that spends.
+    MODEL = "model"
+
+
+#: What asking for a mat more than one way at once is refused with, on every surface.
+MORE_THAN_ONE_MAT: Final[str] = "Choose the mat one way, not both: a colour, a preset, or the colour derived from the picture."
+
+#: What asking for no mat is refused with, where naming none asks for nothing (the browser's control).
+NO_MAT_NAMED: Final[str] = "Choose the mat: a colour, a preset, or the colour derived from the picture."
+
+
+@dataclass(frozen=True, slots=True)
+class MatRequest:
+    """One mat asked for, one way (`MatWay`), with the preset's key or the colour where the way has one.
+
+    **Built by `named` from whatever a surface was sent**, so which
+    combinations are refused, and in what words, is decided here once: HTTP
+    and MCP each map their own arguments onto it and judge nothing themselves.
+    """
+
+    way: MatWay
+    #: The preset's key or the colour's hex triplet; None for the derived mat and the model's.
+    value: str | None = None
+
+    @classmethod
+    def named(
+        cls,
+        *,
+        hex_rgb: str | None = None,
+        preset: str | None = None,
+        derived: bool = False,
+        otherwise: MatRequest | None = None,
+    ) -> MatRequest:
+        """The one mat a caller named, or `otherwise` when it named none.
+
+        A caller naming two ways is refused (`MORE_THAN_ONE_MAT`). Naming none
+        is refused (`NO_MAT_NAMED`) unless `otherwise` says what naming none
+        asks for: over MCP, the model's choice (`ASK_THE_MODEL`), which is the
+        one that spends, so a surface that passes no `otherwise` can never
+        reach it. A value is named when it is given at all, an empty one
+        included, so an empty colour is refused as a colour and never read as
+        a request for the model.
+        """
+        asked = [
+            *([cls(MatWay.COLOUR, hex_rgb)] if hex_rgb is not None else []),
+            *([cls(MatWay.PRESET, preset)] if preset is not None else []),
+            *([cls(MatWay.DERIVED)] if derived else []),
+        ]
+        if len(asked) > 1:
+            raise ServiceError(MORE_THAN_ONE_MAT)
+        if asked:
+            return asked[0]
+        if otherwise is None:
+            raise ServiceError(NO_MAT_NAMED)
+        return otherwise
+
+
+#: Naming no mat over MCP: ask the vision model, which spends.
+ASK_THE_MODEL: Final[MatRequest] = MatRequest(MatWay.MODEL)
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,6 +310,25 @@ class PreparationService:
             cost_usd=Decimal(0) if chosen is None else chosen.cost_usd,
             mat_fallback_detail=None if chosen is None else chosen.fallback_detail,
         )
+
+    def set_work_mat(self, artwork_id: str, request: MatRequest) -> PreparationResult:
+        """Give a work the mat asked for: the one mat act both surfaces call.
+
+        Each way keeps what its own method guarantees: a preset and a colour
+        are recorded as the curator's (`manual`), the derived mat as `derived`,
+        and the model's choice records its spend before its colour; each
+        refuses a work the Library does not hold by its id (`NotFound`) before
+        anything is asked or spent. Every way keeps the previous colour.
+        """
+        match request.way:
+            case MatWay.PRESET:
+                return self.set_mat_preset(artwork_id, str(request.value))
+            case MatWay.COLOUR:
+                return self.set_mat(artwork_id, str(request.value))
+            case MatWay.DERIVED:
+                return self.derive_mat(artwork_id)
+            case MatWay.MODEL:
+                return self.choose_mat(artwork_id)
 
     def choose_mat(self, artwork_id: str) -> PreparationResult:
         """Ask the vision model for this work's mat colour again.
