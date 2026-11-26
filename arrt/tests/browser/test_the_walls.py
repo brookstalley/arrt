@@ -890,8 +890,9 @@ def _reads(services, wall, majors):
     )
 
 
-def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, services, a_hung_wall):
+def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, services, a_hung_wall, a_player_shows):
     """The one sign of a Player missed in the upgrade: it asks for a feed that is no longer published."""
+    a_player_shows(a_hung_wall.id)
     _reads(services, a_hung_wall, [1])
 
     ui.open("#walls")
@@ -902,7 +903,8 @@ def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, servic
     expect(notice).to_contain_text("Update Arrt Player", use_inner_text=True)
 
 
-def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, a_hung_wall):
+def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, a_hung_wall, a_player_shows):
+    a_player_shows(a_hung_wall.id)
     _reads(services, a_hung_wall, [2, 1])
 
     ui.open("#walls")
@@ -916,7 +918,9 @@ def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, 
     expect(ui.view).not_to_contain_text("can't read this server's feed")
 
 
-def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(ui, services, an_all_excluded_theme, the_wall):
+def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(
+    ui, services, an_all_excluded_theme, the_wall, a_player_shows
+):
     """Audit-6 6: a card was a column of notices at one weight. Two faults here, one notice.
 
     The wall's Player cannot read the feed, and none of its theme reaches it,
@@ -926,6 +930,7 @@ def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(ui, services
     said until it is mended.
     """
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    a_player_shows(the_wall.id)
     _reads(services, the_wall, [1])
     ui.open("#walls")
     card = ui.page.locator(f"section.wall[data-wall='{the_wall.id}']")
@@ -940,9 +945,10 @@ def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(ui, services
     assert filled.count() <= 1, "more than one filled act on one card"  # one-shot: the card has painted (the notice above)
 
 
-def test_a_card_whose_only_fault_is_its_dark_theme_says_that_one(ui, services, an_all_excluded_theme, the_wall):
+def test_a_card_whose_only_fault_is_its_dark_theme_says_that_one(ui, services, an_all_excluded_theme, the_wall, a_player_shows):
     """The paired case: with the Player reading the feed, the next notice in the order is the one said."""
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    a_player_shows(the_wall.id)
     _reads(services, the_wall, [2, 1])
     ui.open("#walls")
     card = ui.page.locator(f"section.wall[data-wall='{the_wall.id}']")

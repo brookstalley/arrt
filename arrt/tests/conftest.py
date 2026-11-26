@@ -1338,14 +1338,10 @@ def reports_only_where_a_player_shows(request: pytest.FixtureRequest) -> Iterato
     patches are its own**, as the feed guard's are, and a writer renamed fails
     here, at the patch, rather than leaving a guard that watches nothing.
 
-    **Not over the browser suite yet**, as the shared clock is not: its seeds
-    are its own, and four of its tests (`test_the_walls.py`'s card tests) keep a
-    report for a wall no Player shows. They move when its seeds do.
+    The browser suite is under it too: its server runs in this process, so a report
+    its page or a seed keeps goes through the same writers.
     """
     found = ReportsForNoPlayer()
-    if request.path.is_relative_to(_BROWSER_TESTS):
-        yield found
-        return
     patches = pytest.MonkeyPatch()
     for writer in _REPORT_WRITERS:
         patches.setattr(Reports, writer, found.watching(writer, getattr(Reports, writer)))
