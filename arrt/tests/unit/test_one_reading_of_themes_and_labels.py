@@ -183,6 +183,33 @@ def test_the_themes_listing_says_one_instant_of_each_wall_whatever_commits_while
         assert entry["display_id"] != after, "the move waited for the listing, which must say the instant before it"
 
 
+def test_the_browsers_themes_listing_never_names_a_hung_theme_as_hanging_nowhere(
+    services, quiet_catalogue_file, monkeypatch, wall_id
+):
+    """`GET /api/themes` reads `survey_themes`: the walls, the hangs and the themes, in one scope.
+
+    The writer makes a theme and hangs it, started at the listing's read of the
+    themes, after its read of the hangs. Read apart, the listing held the new
+    theme beside hangs read before it was hung, and said it hung nowhere.
+    """
+
+    def make_and_hang() -> None:
+        theme = services.display.add_theme(name="Late")
+        services.display.activate_theme(theme.id, wall_id=wall_id)
+
+    writer = _WriterBetweenReads(
+        monkeypatch, quiet_catalogue_file, services.clients.placements._store, "list_themes", make_and_hang
+    )
+
+    listed = {placement.theme.name: [wall.id for wall in placement.walls] for placement in services.display.survey_themes()}
+    writer.finish()
+
+    if writer.committed_while_reading:
+        assert listed.get("Late") == [wall_id], f"the theme was made and hung while the listing was read: {listed}"
+    else:
+        assert "Late" not in listed, f"the write waited for the listing, which must say the instant before it: {listed}"
+
+
 # -- a label's document ------------------------------------------------------------------
 
 
