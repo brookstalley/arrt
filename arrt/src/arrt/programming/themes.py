@@ -650,10 +650,10 @@ class Themes:
 
         **`position` is an index here for the same reason it is one on a move**,
         and saying nothing means the end rather than nowhere. Ruled by the
-        operator on 2026-08-12, when the two had drifted apart: an add wrote the
-        number it was handed into the column as a sort key while a move had
-        become an index, so one MCP parameter description was covering two
-        meanings — and, worse, every work added through a screen or a tool came
+        operator on 2026-08-12: an add that wrote the
+        number it was handed into the column as a sort key, while a move took an
+        index, would leave one MCP parameter description covering two
+        meanings — and, worse, every work added through a screen or a tool would come
         out *unplaced*, because nothing a curator touches sends a number. The
         list a surface renders is placed-then-unplaced; the list a move renumbers
         was the placed ones alone. Two different lists, indexed against each
@@ -890,11 +890,9 @@ class Themes:
         it. The curator hangs something else, or takes it down, and then deletes
         — either way what happens to those walls is a choice.
 
-        This generalises a narrower rule. Until 2026-08-12 the refusal was "the
-        active theme, while another theme exists", and the last theme was
-        deletable *even while active* because there was no way to take one down
-        and a curator has to be able to empty the catalogue. `clear_wall` is that
-        way, which is what lets this be absolute.
+        The refusal is absolute because a curator can take a theme down: a rule
+        that spared the last theme only while it was active would exist for want
+        of a way to empty the catalogue, and `clear_wall` is that way.
 
         **A deletion that is permitted does not rewrite any manifest.** A theme
         that hangs nowhere is on no wall to take a picture off, and a wall whose

@@ -212,9 +212,9 @@ def test_only_the_client_beyond_the_engine_seam_can_reach_the_network():
     or worse, spending money.
 
     **Stated as an allowlist over the whole package, not as a list of guarded
-    files.** It was the latter until 2026-08-02, naming three modules chosen when
-    those three were the whole of discovery; a phase-2 engine added above the seam
-    would have been unguarded, and the guard would have gone on passing with no
+    files.** A list of guarded files would name modules chosen when
+    they were the whole of discovery; a phase-2 engine added above the seam
+    would be unguarded, and the guard would have gone on passing with no
     sign that its scope no longer matched the tree. A guard's effective scope has
     to be visible in its result, and the only formulation with that property is
     the one that covers everything by default. Its sibling above already worked

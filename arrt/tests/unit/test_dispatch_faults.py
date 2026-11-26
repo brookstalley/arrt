@@ -1,8 +1,8 @@
 """The tool boundary's last catch: an unexpected fault must not read as success.
 
 `dispatch`'s `except Exception` carries a `prawduct:allow prawduct/broad-except`
-waiver, and until 2026-08-05 no test exercised it. That is the combination that
-rots — a waiver says "reviewed and intentional", and nothing was checking that
+waiver, and a waiver no test exercises is the combination that
+rots — a waiver says "reviewed and intentional", and nothing would check that
 what it waives still does what the review approved.
 
 It matters more here than a coverage gap usually does, because the failure it

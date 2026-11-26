@@ -77,8 +77,7 @@ class TestTheIndex:
     def test_each_artist_is_pictured_by_their_first_accepted_work_in_circulation(self, http, held, service):
         """Among works that hold a master: both here do, so the first is the picture.
 
-        *(Until 2026-10-14 neither work held one and the first was still the
-        picture. A work with no master is no longer one: its thumbnail
+        *(A work with no master is not one: its thumbnail
         answers 400. The order this test is for is held with both mastered.)*
         """
         rothko, kept = held

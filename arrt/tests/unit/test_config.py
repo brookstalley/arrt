@@ -89,9 +89,9 @@ def _dotenv_supplying(monkeypatch, **values):
 def test_an_exported_value_beats_the_dotenv_file(monkeypatch):
     """`.env` supplies defaults; whatever is already exported wins.
 
-    The inverse shipped until 2026-08-05 and made
+    The inverse would make
     `ART_ROOT=/tmp/scratch uv run python -m arrt` boot against the real
-    catalogue — the export was discarded rather than refused, so the wrong
+    catalogue — the export would be discarded rather than refused, so the wrong
     tree looked exactly like the right one.
     """
     monkeypatch.setenv("ART_ROOT", "/from-the-environment")
@@ -197,8 +197,8 @@ def test_the_manifest_and_heartbeat_are_anchored_under_art_root_and_named_per_wa
 
     And both are **per wall**: the file set is indexed by wall id, which is what
     keeps one room's rewrite out of another room's file and lets health name which
-    wall is silent. A settings object holding one path apiece is what let a second
-    wall's theme overwrite the first's until 2026-08-12.
+    wall is silent. A settings object holding one path apiece is what would let a second
+    wall's theme overwrite the first's.
     """
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
 

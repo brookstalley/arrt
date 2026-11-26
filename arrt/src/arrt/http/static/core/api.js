@@ -49,8 +49,8 @@ export async function api(path, options) {
  * still walk to the end.
  *
  * **No `limit` is sent**, which is the same rule `fetchAllCandidates` states
- * below and for the same reason. This asked for `limit=100` — a copy of the
- * service's `MAX_LIST_LIMIT` — until 2026-08-05, and that copy was a live break
+ * below and for the same reason. Asking for `limit=100` — a copy of the
+ * service's `MAX_LIST_LIMIT` — would be a live break
  * waiting on an unrelated edit: `list_artworks` *refuses* a limit above its cap,
  * the refusal arrives as a 400, and `api()` throws. So the day anyone lowered
  * the catalogue's cap, the Artworks grid — the default landing view at the

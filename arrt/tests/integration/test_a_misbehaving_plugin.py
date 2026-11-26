@@ -446,7 +446,7 @@ def _late(caplog) -> list[logging.LogRecord]:
 def test_a_fifth_call_while_four_are_still_running_is_not_made_and_every_work_still_resolves(http, plugin, clock):
     """Two Gets, three works then two, because one Get is one pass.
 
-    Since 2026-11-20 a pass stops asking a plugin after three could-not-be-asked
+    A pass stops asking a plugin after three could-not-be-asked
     answers in a row (`one_pass`), so one Get of five hung works makes
     three calls and never reaches the fourth still running. The straggler bound
     is the process's, across passes: the second Get's first call is the fourth

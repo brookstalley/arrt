@@ -50,7 +50,7 @@ export async function viewArtists(artistId, generation) {
     backRow(),
     el("h1", { text: "Artists" }),
     // The count where every list page says it: the line of facts under the
-    // name, above the toolbar (it was under the toolbar until 2026-11-19).
+    // name, above the toolbar.
     listing.artists.length ? el("p", { class: "muted page-facts", text: count }) : null,
     listing.artists.length
       ? toolbar({

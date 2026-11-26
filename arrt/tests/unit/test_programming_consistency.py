@@ -101,8 +101,8 @@ def _between_read_and_write(monkeypatch, store, method: str, act: Callable[[], o
     lock lands: after the write, when the read and the write share one
     transaction, and between them when they do not. Nothing sleeps and nothing
     is timed: the curator waits for `act` each time, and `act` never waits on the
-    lock. (Until 2026-11-20 this started `act` at the read and waited up to a
-    second for it to land, a timing bound.)
+    lock. (It does not start `act` at the read and wait up to a
+    second for it to land, which would be a timing bound.)
 
     Returns a function, called once the curator's act has returned, that says
     whether `act` ran and raises what it raised.

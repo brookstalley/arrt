@@ -573,9 +573,8 @@ class TestHanging:
 
     def test_confirming_hangs_it_and_the_facts_say_where(self, ui, winter, services):
         """The page stays, and its facts say where the theme now hangs, read again
-        from the server; the wall the act changed is a link there. *(Until ruling
-        9 of 2026-10-27 it left for Walls, since hanging was a button per wall
-        and the page did not say where a theme hung.)*
+        from the server; the wall the act changed is a link there. *(By ruling
+        9 of 2026-10-27 it does not leave for Walls: the page says where a theme hangs.)*
         """
         wall = services.display.survey_walls()[0].wall
         ui.open(f"#theme/{winter.id}")

@@ -67,8 +67,7 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     # The queue's line replaces the bare "no picture yet" sentence: the Picture
     # panel holds its heading and that line and nothing else. Keyed on what the
     # panel holds rather than on the sentence's wording, which a rewording would
-    # leave this passing without checking anything (until 2026-11-19 it asserted
-    # one wording's absence).
+    # leave this passing without checking anything.
     panel = ui.page.locator(".work-record > .panel:has(h2:text-is('Picture'))")
     expect(panel).to_have_count(1)
     expect(panel.locator(".acquisition-line")).to_have_count(1)

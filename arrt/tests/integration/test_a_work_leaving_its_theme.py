@@ -1,9 +1,9 @@
 """A wall's history says a work left its theme, whichever way it left.
 
-Until 2026-11-20 only *Not this one again*, answered *from this theme*, wrote
+Only *Not this one again*, answered *from this theme*, could once write
 `work.left_theme`, and only for the wall it was asked on. The MCP break removed
-that answer's `scope`, so an agent now takes a work out of a theme
-with the theme's Remove, which wrote nothing: a wall's history then said a work
+that answer's `scope`, so an agent takes a work out of a theme
+with the theme's Remove, and were that to write nothing a wall's history would say a work
 was hung and never that it left. Every way of taking a work out of a theme now
 writes one line per work for every wall the theme hangs on, from one place
 (`Themes._record_left`). Activity words each as "Took <work> out of <theme> on

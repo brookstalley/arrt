@@ -206,11 +206,11 @@ def _tables_made_by(schema: str) -> set[str]:
 def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
     """Every table `DISCOVERY_SCHEMA` makes is pinned, column for column, and none is pinned that the file lacks.
 
-    **Exact, in the form `test_catalogue_store.py` took on 2026-11-19.** Which tables are the pipeline's is
+    **Exact, in the form `test_catalogue_store.py` takes.** Which tables are the pipeline's is
     asked of SQLite running
     `DISCOVERY_SCHEMA`, never listed here, and the file a store opened is what
-    holds them. It was `_EXPECTED_SCHEMA.keys() <= tables` until 2026-11-20, which
-    passed two tables nobody had listed (`affinities`, `settings`), so a table could
+    holds them. A subset check (`_EXPECTED_SCHEMA.keys() <= tables`) would pass tables
+    nobody had listed, so a table could
     arrive with no one answering the migration question for it. The catalogue's own
     tables are `test_catalogue_store.py`'s.
     """

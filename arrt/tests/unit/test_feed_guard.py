@@ -45,7 +45,7 @@ def test_a_feed_the_publisher_spells_that_breaks_the_contract_fails_the_test(dis
     """Through `conftest.py`'s guard as wired, not a wrapper of this test's own: a hang whose feed lacks `media` is stopped.
 
     Red when the guard wraps the builder in a namespace the publisher does not
-    call it from (`display.py`, where it lived until 2026-11-19): the hang then
+    call it from (`display.py`, not `feeds.py`): the hang then
     publishes the broken feed and nothing raises.
     """
     theme = display.add_theme(name="Late night")

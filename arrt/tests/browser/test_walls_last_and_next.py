@@ -279,7 +279,7 @@ def test_a_wall_no_screen_shows_leads_with_that_and_not_with_what_it_showed(ui, 
     services.clients.unassign_wall(the_wall.id)
     open_walls(ui)
 
-    # Hidden since 2026-10-27: the badge says No Player and the line under it has
+    # Hidden (ruling of 2026-10-27): the badge says No Player and the line under it has
     # the way to fix it, so the lead adds nothing (a state is worded once).
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for(state="attached")

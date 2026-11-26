@@ -86,8 +86,7 @@ def test_every_release_old_catalogue_names_has_a_row_and_a_shared_one_names_an_e
     """`releases.json` holds every release in `RELEASES`, in order, so the chain opens the catalogue each one left.
 
     A release whose schema is the one before it's shares that release's dump
-    (`old_catalogue.rows`); before 2026-11-19 it had no row at all, and the
-    chain held six of twelve releases. The change log's releases are held to
+    (`old_catalogue.rows`), so the chain holds every release. The change log's releases are held to
     `RELEASES` by `tests/preferences/test_catalogue_release_dumps.py`.
     """
     import old_catalogue

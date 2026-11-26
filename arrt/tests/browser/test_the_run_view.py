@@ -489,7 +489,7 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
     limit, because that is the only thing that distinguishes a loop that stopped
     from one that is between ticks.
 
-    *(This test held a 400 until 2026-10-14. A 400 is the service saying the
+    *(A 400 is the service saying the
     run does not exist, which now ends the watch at its first answer with the
     not-found page — pinned by the test below — so the limit is held
     here by the failure it was always for: one that might pass.)*

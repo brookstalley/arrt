@@ -311,7 +311,7 @@ def test_the_selection_sentence_names_the_scan_s_pixels_and_no_inches(width, hei
     for, after the mat, and beside a picture they read as a fact about the
     picture; the number a curator judging a small scan needs is still in the
     sentence, as the scan's pixels. Every verdict, because each has its own
-    clause and any of them could carry a unit back in. Since 2026-10-08 there
+    clause and any of them could carry a unit back in. There
     are two verdicts, and each clause is asserted absent from the other's
     sentence.
     """

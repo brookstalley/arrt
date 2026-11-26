@@ -82,7 +82,7 @@ _EXPECTED_SCHEMA = {
     # Widened 2026-07-31 with the per-theme rotation settings. This was the first
     # change to a table files already on disk carried, so it is also what the
     # store's column-widening step exists for.
-    # `is_active` was here until 2026-08-12, when hanging became an act against a
+    # `is_active` is gone since 2026-08-12, when hanging became an act against a
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
     # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
@@ -199,7 +199,7 @@ _EXPECTED_SCHEMA = {
         "failed_at",
     },
     # The tables below were in the file before they were listed here; the check
-    # was a subset until 2026-11-19. Each is an addition an
+    # is exact, not a subset. Each is an addition an
     # older release ignores.
     # A work's facets (subject, movement, ...), each with where it came from.
     "work_facets": {"id", "artwork_id", "kind", "value", "value_qid", "derivation", "source_note", "created_at"},
@@ -458,10 +458,9 @@ def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
     migration, the record of the open) is seen; the pipeline's tables, those
     `DISCOVERY_SCHEMA` creates, are pinned by `test_discovery_store.py`, and
     which tables those are is asked of SQLite running that schema, never listed
-    here. Everything else is this list's. It was `_EXPECTED_SCHEMA.keys() <=
-    tables` until 2026-11-19, which passed five tables nobody had listed
-    (`catalogue_opened`, `reported_screens`, `scenes`, `scene_pins`,
-    `work_facets`), so a table could arrive with no one answering the migration
+    here. Everything else is this list's. A subset check
+    (`_EXPECTED_SCHEMA.keys() <= tables`) would pass tables nobody had listed,
+    so a table could arrive with no one answering the migration
     question for it.
 
     **A change that adds a column or a table** adds it here, in the entry for

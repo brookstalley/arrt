@@ -154,13 +154,11 @@ def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(di
 
 # -- nothing is ever hung by anything but a curator -----------------------------
 #
-# This section asserted the opposite until 2026-08-12, and the reversal is a
-# ruling rather than a relaxation. `reconcile` promoted the oldest theme when
-# none was active, and `add_theme` promoted a new one for the same reason: a
-# catalogue with themes and none active left a Player no sync target.
-# With more than one wall that rule hangs the same theme in every room unbidden,
-# and "a wall with nothing on it" is now a designed state rather than a broken
-# one — so the promotion is dropped and these are what is left to hold.
+# The operator ruled on 2026-08-12 that nothing is promoted unbidden, so these
+# hold what is left: `reconcile` does not promote the oldest theme when none is
+# hung, and `add_theme` does not promote a new one. With more than one wall a
+# promotion would hang the same theme in every room unbidden, and "a wall with
+# nothing on it" is a designed state rather than a broken one.
 
 
 def _catalogue_with_unhung_themes(path):

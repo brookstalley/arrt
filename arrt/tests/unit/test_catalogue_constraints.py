@@ -88,9 +88,9 @@ def test_the_store_refuses_a_second_default_written_around_the_service(display, 
 # detect or reconcile. A wall with no assignment hangs nothing, which is an
 # ordinary state and not a violation.
 #
-# This constraint read "exactly one Theme has is_active = true" until 2026-08-12.
-# The tests below are its replacement rather than a relaxation of it: what
-# changed is which entity carries the fact, and the operator ruled on it.
+# These tests replace the constraint "exactly one Theme has is_active = true"
+# rather than relaxing it: what changed is which entity carries the fact, and
+# the operator ruled on it (2026-08-12).
 
 
 def test_a_new_theme_hangs_nowhere_until_it_is_put_somewhere(display):

@@ -488,7 +488,7 @@ def test_a_wanted_work_is_offered_a_re_search(grid):
     expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
     expect(grid.view).to_contain_text("Nothing is looking for a scan", use_inner_text=True)
     # Says what it costs, which is nothing: phase 2 asks open museum and
-    # Commons APIs (`phase2_estimate_usd`). It said "it spends" until 2026-10-02.
+    # Commons APIs (`phase2_estimate_usd`).
     expect(grid.view).to_contain_text("it costs nothing", use_inner_text=True)
 
 
