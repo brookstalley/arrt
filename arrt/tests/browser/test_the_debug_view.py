@@ -94,10 +94,9 @@ def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
     # debug's (#359): beside the curator's "Last heard from", not instead of it.
     raw = ui.page.locator(".wall-reading .raw-sentence")
     expect(raw).to_have_count(1)
-    # The server's sentence itself, word for word. Until 2026-11-19 this looked
-    # for "display plane" in it, the server's wording then; the server now says
-    # "This wall's Player last reported …" (`HeartbeatReading.describe`), and the
-    # payload the suite serves says what the server would.
+    # The server's sentence itself, word for word: it says "This wall's Player
+    # last reported …" (`HeartbeatReading.describe`), and the payload the suite
+    # serves says what the server would.
     expect(raw).to_have_text(reading["walls"][0]["heartbeat"]["description"], use_inner_text=True)
     expect(ui.page.locator(".wall-reading .reading-sentence")).to_have_text(
         re.compile("^" + re.escape("Last heard from ")), use_inner_text=True

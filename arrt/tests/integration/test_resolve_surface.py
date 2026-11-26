@@ -50,7 +50,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ) -> Services:
-    """The whole plane, wired the way a deployment with ARTIC_USER_AGENT set is."""
+    """The whole server, wired the way a deployment with ARTIC_USER_AGENT set is."""
     engine.result = WorkList(works=(a_work("The Elephants"),))
     return Services.bind(
         catalogue=store,

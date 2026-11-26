@@ -487,7 +487,7 @@ class TestHealth:
     def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall, shown_by_a_reporting_player):
         """The reason the heartbeat became one file per wall.
 
-        A one-room installation could be told "the display plane has not
+        A one-room installation could be told "the Player has not
         reported" and act on it; a two-room one cannot, and one shared heartbeat
         had no way to say which room was dark — the second display would have
         overwritten the first's report every minute. Both walls are on a Player:
@@ -1009,11 +1009,11 @@ class TestHealth:
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps(
                 {
-                    # The keys the display plane's writer actually emits. They were
+                    # The keys a Player's writer actually emits. They were
                     # invented here — `tv_connected` — while no writer existed, and
                     # a fixture naming a field nothing produces is how a surface
-                    # gets built against a document that never arrives. The two
-                    # planes cannot import each other, so what holds them together
+                    # gets built against a document that never arrives. The server
+                    # and the Player cannot import each other, so what holds them together
                     # is each holding its key to the contract's `instant_key`.
                     "reported_at": _now().isoformat(),
                     "television_reachable": False,
@@ -1039,7 +1039,7 @@ class TestHealth:
         """ "345600 seconds ago" is a conversion the reader has to do themselves.
 
         On the one surface built so they would not have to, and for the failure it
-        exists to catch — a plane that has been down since Tuesday.
+        exists to catch — a Player that has been down since Tuesday.
         """
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": (_now() - timedelta(days=4)).isoformat()}),

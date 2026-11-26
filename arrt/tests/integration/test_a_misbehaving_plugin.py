@@ -187,7 +187,7 @@ def a_registry_work(qid: str) -> RegistryWork:
     )
 
 
-# -- the plane, over the installed plugin ---------------------------------------------
+# -- the server, over the installed plugin ---------------------------------------------
 
 
 @pytest.fixture

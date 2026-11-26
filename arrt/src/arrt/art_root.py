@@ -4,11 +4,11 @@
 called `art_root.mkdir(parents=True, exist_ok=True)` and then opened the
 catalogue, which runs `CREATE TABLE IF NOT EXISTS`. So a mistyped `ART_ROOT`
 created a fresh directory, created a fresh empty catalogue, and started cleanly:
-the operator got a working plane with an empty collection instead of an error,
+the operator got a working server with an empty collection instead of an error,
 and every screen agreed that nothing had ever been accepted.
 
 That lands exactly on this product's recorded "failure is silent by construction"
-characteristic — the thing it exists to correct — so a plane that self-heals into
+characteristic — the thing it exists to correct — so a server that self-heals into
 an empty install is the defect closest to home.
 
 **The fix is a marker, and the point of a marker is that a typo cannot have one.**

@@ -35,7 +35,7 @@
  * target is a sentence that silently becomes wrong.
  *
  * **Nothing on the wall has four named reasons, and they are four branches.** No
- * theme hung, an empty theme, a display plane that has never spoken, and a plane
+ * theme hung, an empty theme, a Player that has never spoken, and a Player
  * this screen could not reach at all. Each states its own sentence and offers the
  * fix for that reason specifically, because the four lead to four different next
  * moves — one is "choose a theme", one is "put works in the theme you chose", one
@@ -45,7 +45,7 @@
  * The fourth is reached differently from the other three, and that shows in the
  * shape below: the first three are read off responses that *arrived*, and the
  * fourth is a request that did not. That is why it is the one whose sentence
- * names which of the two planes answered.
+ * names whether the server or the Player answered.
  *
  * **A report past `STALE_AFTER_SECONDS` says nothing about now** (`core/outputs.js`),
  * and the server calls that wall `silent` past the same threshold. The work a wall
@@ -412,7 +412,7 @@ async function built(wall) {
  *
  * **Ordered by what the curator would do about it**, which is the whole point of
  * naming them apart. A wall with no theme is told to hang one whatever the
- * display plane is doing; a theme holding no works is told to fill it. Only once
+ * Player is doing; a theme holding no works is told to fill it. Only once
  * a populated theme is published does whether anything is actually on the wall
  * become a question about the appliance.
  *
@@ -1174,7 +1174,7 @@ function silence(wall, playerName) {
   return `${player} has not reported for ${wall.name} yet, so nothing here can say what is on it. Once ${playerName || "it"} is running with its token, it reports within a minute or so.`;
 }
 
-/* Reason four: a plane could not be reached, and the sentence says which one did
+/* Reason four: a Player could not be reached, and the sentence says which one did
  * answer.
  *
  * The only fix that can be offered is to ask again, and it is offered rather than

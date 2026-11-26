@@ -257,7 +257,7 @@ def test_an_exclusion_names_the_work_a_curator_would_look_for(display, ready_wor
 
 
 def test_the_manifest_carries_the_label_text_but_no_label_geometry(service, display, ready_work, theme_of, wall_id):
-    """Label text crosses to the display plane; how it is set does not."""
+    """Label text crosses to the Player; how it is set does not."""
     hopper = service.add_artist(
         name="Edward Hopper", nationality="American", born=1882, died=1967, family_name="Hopper", given_name="Edward"
     )
@@ -282,9 +282,9 @@ def test_the_manifest_carries_the_label_text_but_no_label_geometry(service, disp
 
 def test_the_manifest_carries_the_short_nationality_when_a_curator_has_set_one(service, display, ready_work, theme_of, wall_id):
     """**The resolution happens here, not at the panel.** The manifest is what the
-    display plane parses rather than a catalogue export, so it carries the string
+    Player parses rather than a catalogue export, so it carries the string
     the label should set; choosing between two recorded strings is a question
-    about content, and content is this plane's. A display told to choose would be
+    about content, and content is the Library's. A Player told to choose would be
     re-deciding curation policy from the far side of the seam.
     """
     kandinsky = service.add_artist(
@@ -423,7 +423,7 @@ def test_one_walls_pace_is_not_another_walls(display, ready_work, theme_of, wall
 
 
 def test_no_reader_ever_observes_a_partial_manifest(tmp_path, monkeypatch):
-    """Atomicity is the whole concurrency-control story between the planes.
+    """Atomicity is the whole concurrency-control story between the server and a Player.
 
     Observed *during* the write rather than between writes, which is the only
     version of this that can fail: reading before and after would pass just as
@@ -431,7 +431,7 @@ def test_no_reader_ever_observes_a_partial_manifest(tmp_path, monkeypatch):
     the new document is being serialised, and at that moment the destination must
     still hold the previous one whole — a reader polling this path can never be
     handed a truncated file, which would parse as invalid JSON rather than as
-    absent and leave the display plane with no good answer.
+    absent and leave the Player with no good answer.
     """
     path = tmp_path / "theme-manifest.json"
     write_atomically(path, {"entries": [{"work_id": "first"}]})
@@ -454,7 +454,7 @@ def test_no_reader_ever_observes_a_partial_manifest(tmp_path, monkeypatch):
 
 
 def test_writing_leaves_no_temporary_files_behind(tmp_path):
-    """A temp file per sync in ART_ROOT would accumulate where the display plane polls."""
+    """A temp file per sync in ART_ROOT would accumulate where a Player polls."""
     path = tmp_path / "theme-manifest.json"
 
     for _ in range(5):

@@ -1,11 +1,11 @@
-"""The curation plane's ASGI application: the UI and the MCP server, one process.
+"""The server's ASGI application: the UI and the MCP server, one process.
 
 Both surfaces bind the same in-memory service layer, which is what makes the
 thin-binding norm structurally easy rather than a rule someone has to remember.
 A separate MCP process would need its own path to the catalogue and would
 reintroduce exactly the divergence that norm exists to prevent. The cost
 accepted is that the MCP surface goes down when the UI process does — tolerable
-because both live on the curation plane, whose downtime is invisible to the
+because both live on the server, whose downtime is invisible to the
 household.
 
 **The lifespan wiring below is load-bearing and its failure mode is total.**
@@ -55,7 +55,7 @@ MCP_PATH: Final[str] = "/mcp"
 #:
 #: Without a value here sessions never expire, and each one holds an instance and
 #: a live task for the life of the process. That is a growing collection with no
-#: lifecycle on an always-on plane whose systemd unit sets `MemoryMax`, so the
+#: lifecycle on an always-on server whose systemd unit sets `MemoryMax`, so the
 #: failure is an OOM-killed unit rather than a gradual slowdown — and the unit
 #: restarting is exactly the event startup reconciliation exists to clean up
 #: after. Half an hour is generous for a human-paced review session (the longest

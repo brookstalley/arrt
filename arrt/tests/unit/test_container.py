@@ -95,7 +95,7 @@ def test_the_mcp_surface_reaps_sessions_it_stops_hearing_from(services):
     """Sessions with no expiry are a growing collection with no lifecycle.
 
     Each holds an instance and a live task for the life of the process, on an
-    always-on plane whose unit sets `MemoryMax` — so the failure mode is an
+    always-on server whose unit sets `MemoryMax` — so the failure mode is an
     OOM-killed unit, not a slow leak. Asserted through `create_app` because the
     value only does anything if the application actually passes it.
     """

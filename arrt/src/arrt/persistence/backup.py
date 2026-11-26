@@ -18,9 +18,9 @@ panel says *no backup has ever been recorded*, which is a true and useful
 observation on a deployment that has never run one: the panel states
 observations with ages and never verdicts.
 
-The parse is `observations.observe`'s, shared with the display heartbeat. Both
+The parse is `observations.observe`'s, shared with the Player's heartbeat. Both
 ends of this one are ours, so the key cannot drift the way the heartbeat's could
-across planes — but the reader and the writer still belong in one module, and
+between the server and a Player — but the reader and the writer still belong in one module, and
 this is where the writer lands.
 """
 

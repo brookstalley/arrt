@@ -419,7 +419,7 @@ def _feed_spellers(trees: list[ast.Module]) -> set[str]:
 
 
 def _source_trees() -> list[ast.Module]:
-    """Every module of the plane's source: a second writer need not live in `programming/`."""
+    """Every module of the server's source: a second writer need not live in `programming/`."""
     package = Path(feeds_module.__file__).parents[1]
     return [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package.rglob("*.py"))]
 

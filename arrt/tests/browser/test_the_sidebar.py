@@ -536,9 +536,9 @@ def test_the_indicator_names_which_wall_went_quiet(ui, a_health_reading, a_wall_
 def test_the_indicator_says_well_when_every_observation_is_well(ui, a_health_reading):
     """The paired negative: an indicator that always warns is one nobody reads.
 
-    Stubbed rather than seeded, because "the backup ran and the display plane is
+    Stubbed rather than seeded, because "the backup ran and a Player is
     reporting" is a state a test deployment cannot be asked for — there is no
-    display plane, by design.
+    Player, by design.
     """
     ui.serve("**/api/health", a_health_reading())
     ui.open("#collection")
@@ -552,8 +552,8 @@ def test_the_indicator_takes_its_state_from_the_readings_and_not_from_the_summar
 
     It applies no threshold and reaches no verdict, deliberately: whether four
     minutes is late depends on whether that television was switched off on
-    purpose, which the curation plane does not know. A client that read the words
-    would be inventing the judgement the plane declined to make — so a cheerful
+    purpose, which the server does not know. A client that read the words
+    would be inventing the judgement the server declined to make — so a cheerful
     sentence over a silent wall must not turn the indicator green.
     """
     ui.serve(

@@ -1,6 +1,6 @@
 """Which works an Artworks filter selects, composed across the seam, and what each option would count.
 
-**Neither plane reaches the other; this composes them.** The Library answers
+**Neither side of the seam reaches the other; this composes them.** The Library answers
 what its own narrowings select (`matching_ids`) and each work's size band
 (`fit_bands`). Programming answers a theme's members, which works a wall plays
 now (`work_ids_on_walls`) and when each work was last shown

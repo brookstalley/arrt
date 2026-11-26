@@ -3,7 +3,7 @@
 `tests/unit/test_sightings.py` holds the rules: what is a sighting, and which
 works are counted. This holds the two surfaces that answer, against a real
 server, and a Get on the threaded path recording what it found, through the
-runner the plane itself wires. A sighting's URL came from a registry anyone can
+runner the server itself wires. A sighting's URL came from a registry anyone can
 edit, so neither surface may carry it, as a link or as anything else
 (`security-model.md` § Direction): the host is reported as a name.
 """
@@ -49,7 +49,7 @@ def registry() -> FakeRegistry:
 
 @pytest.fixture
 def services(store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, shared_clock, shared_ids):
-    """The plane with a museum holding only near-matches, and the Wikidata finder over the registry."""
+    """The server with a museum holding only near-matches, and the Wikidata finder over the registry."""
     return Services.bind(
         catalogue=store,
         discovery=discovery_store,

@@ -77,7 +77,7 @@ def _pairs(art_root: Path, corpus_path: Path) -> tuple[list[Pair], list[str]]:
     **The SQL is written out here rather than taken from the repository, and that
     is a decision.** `CatalogueRepository` owns these tables, so this duplicates
     names it could import — but the repository opens the catalogue through the
-    plane's configuration, and this tool has to run against an `ART_ROOT` named on
+    the server's configuration, and this tool has to run against an `ART_ROOT` named on
     the command line, including one that is not the configured deployment. The cost
     is real and is stated so nobody has to guess it was considered: a column rename
     passes both suites and breaks this tool, because nothing imports or exercises

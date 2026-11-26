@@ -524,7 +524,7 @@ def test_a_hang_that_is_refused_before_writing_changes_nothing(display, wall_id)
 
 
 def test_a_feed_whose_slots_are_malformed_is_left_for_the_next_sync(display, ready_work, hung, wall_id, wall_settings):
-    """Reconciliation runs before the plane serves, so a bad slot must not stop it starting."""
+    """Reconciliation runs before the server serves, so a bad slot must not stop it starting."""
     hung(wall_id, ready_work())
     document = _published(wall_settings, wall_id)
     document["schedule"]["slots"].append("not a slot")

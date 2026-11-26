@@ -179,7 +179,7 @@ class TestWhatTheReportSays:
 
 
 class TestPuttingThemOnTheWall:
-    """Seeding is proven by a manifest, which is the only channel to the display plane."""
+    """Seeding is proven by a manifest, which is the only channel to a Player."""
 
     @pytest.fixture
     def built(self, records, service, display, art_root, wall_id, decodable_jpeg):

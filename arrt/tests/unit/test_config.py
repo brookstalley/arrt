@@ -193,7 +193,7 @@ def test_an_explicit_host_and_port_override_the_defaults(monkeypatch, tmp_path):
 
 
 def test_the_manifest_and_heartbeat_are_anchored_under_art_root_and_named_per_wall(monkeypatch, tmp_path):
-    """Both planes have to agree where these are, so neither is configurable.
+    """The server and a Player have to agree where these are, so neither is configurable.
 
     And both are **per wall**: the file set is indexed by wall id, which is what
     keeps one room's rewrite out of another room's file and lets health name which
@@ -211,7 +211,7 @@ def test_the_manifest_and_heartbeat_are_anchored_under_art_root_and_named_per_wa
 
 
 def test_the_shipped_rotation_defaults_are_what_the_wall_runs_today(monkeypatch, tmp_path):
-    """Carried forward from the 2024 plane; the cutover must not change the pace."""
+    """Carried forward from the 2024 server; the cutover must not change the pace."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
 
     settings = Settings.from_env()
@@ -305,7 +305,7 @@ def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp
 def test_the_players_screen_settings_are_neither_read_nor_retired(monkeypatch, tmp_path, name):
     """The screen and the mat's width are the Player's (`feeds-and-players.md` ruling 7).
 
-    One `.env` serves both planes on a development checkout, so the server
+    One `.env` serves the server and a Player on a development checkout, so the server
     must neither refuse them nor tell an operator to remove a key the Player
     still reads. A value the server would refuse, if it read it, is what shows
     that it does not.

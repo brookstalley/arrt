@@ -23,8 +23,8 @@
  * and a curator's bookmark keep working.
  *
  * **Its words are the household's** (§ Vocabulary): a Player reports for a
- * wall. The server's own sentences, which name the file they read, "the display
- * plane" and the heartbeat, are debug's (ruling 1 of 2026-10-11).
+ * wall. The server's own sentences, which name the file they read and the
+ * heartbeat, are debug's (ruling 1 of 2026-10-11).
  *
  * **One report panel per wall.** The reading became one per wall because a
  * single observation for an installation with two rooms cannot name the room
@@ -60,12 +60,12 @@ function details(...children) {
   return el("details", { class: "raw-details" }, [el("summary", { text: "Details" }), ...inside]);
 }
 
-/* The display plane's own report, whatever it chose to put in it.
+/* A Player's own report, whatever it chose to put in it.
  *
  * Rendered generically rather than as named rows, and that is the design rather
  * than laziness: `reported_at` is the only key the observability strategy makes
  * contract, and everything else is explicitly the writer's to shape. Naming TV
- * connectivity and panel state here would invent a second contract that plane
+ * connectivity and panel state here would invent a second contract a Player
  * never agreed to — and a writer that spelled one differently would drop off the
  * panel in silence, which is the failure the one named key exists to prevent.
  *
@@ -195,8 +195,8 @@ function heartbeatPanel(wall, titles) {
   // selector that means *a wall's panel* rather than *any panel on this screen* —
   // the backup, the sources and the picture store are panels too.
   return el("div", { class: "panel wall-reading" }, [
-    // The wall's own name is the heading. "The display plane" was right while
-    // there was one of it, and is a sentence that silently becomes wrong.
+    // The wall's own name is the heading. "The Player" would be a sentence that
+    // silently becomes wrong once there is more than one wall.
     el("h2", {}, [name]),
     // The server's state for the wall, the same one Walls draws its badge from.
     wallStateLine(shown, waiting),
@@ -664,7 +664,7 @@ export async function viewHealth(generation) {
     el("h1", { text: "Status" }),
     // The server's own summary of the readings below it. Shown as prose and
     // used for nothing else: it applies no threshold and reaches no verdict, so
-    // deriving a state from it here would be inventing a judgement the plane
+    // deriving a state from it here would be inventing a judgement the server
     // deliberately declined to make.
     // Only over more than one wall: over one it is the wall's own panel said a
     // second time, a line above it.

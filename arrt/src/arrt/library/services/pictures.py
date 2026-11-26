@@ -160,7 +160,7 @@ def _normalise(url: str) -> str:
     **Total: a URL that will not parse is its own spelling.** `urlsplit` raises
     `ValueError` for an authority with an unbalanced `[` or `]` (`dedup.py` keeps
     the same guard), and a key that raised would end a run over one instance's
-    address, or stop the plane booting over one stored row. The stripped string is
+    address, or stop the server booting over one stored row. The stripped string is
     stable, so it still keys one picture.
     """
     try:
@@ -574,7 +574,7 @@ def import_previews(store: PictureStore, discovery: DiscoveryService, *, legacy:
     imported (a row still naming a file there could only count as missing), so the
     walk over every run's rows is skipped and one line says so.
 
-    **One row never stops the plane booting.** Any failure on a row is counted in
+    **One row never stops the server booting.** Any failure on a row is counted in
     `failed` and logged with its type, and the walk goes on to the next.
     """
     if not legacy.is_dir():
@@ -632,7 +632,7 @@ def _import_row(store: PictureStore, discovery: DiscoveryService, image: Candida
         discovery.repoint_preview(image.id, store.relative(kept))
     except PictureRefused:
         return "refused"
-    except Exception as exc:  # prawduct:allow prawduct/broad-except -- one row must not stop the plane booting
+    except Exception as exc:  # prawduct:allow prawduct/broad-except -- one row must not stop the server booting
         # The ordinary failures are a disk (`OSError`) and the row write
         # (`ServiceError`); anything else is a defect, logged with its
         # traceback, and still costs one row rather than every start until

@@ -367,7 +367,7 @@ def guard_writes(context: BrowserContext, refused: list[dict], *, placeholder: b
 
 
 def _placeholder_jpeg() -> bytes:
-    from PIL import Image  # the plane's own dependency; imported here so `--help` needs nothing
+    from PIL import Image  # the server's own dependency; imported here so `--help` needs nothing
 
     buffer = io.BytesIO()
     Image.new("RGB", (400, 300), (150, 140, 128)).save(buffer, format="JPEG")

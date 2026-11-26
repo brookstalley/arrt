@@ -638,7 +638,7 @@ class DiscoveryService:
     # -- repair ---------------------------------------------------------------
 
     def reconcile(self) -> None:
-        """Move runs whose process died to `interrupted`. Run once, as the plane starts.
+        """Move runs whose process died to `interrupted`. Run once, as the server starts.
 
         Without this the state machine has no edge for process death: every one
         of its other terminal states is written by the run's own process, which a

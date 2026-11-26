@@ -487,7 +487,7 @@ class TestTheCollectionIsNotAskedTheSameQuestionSixTimes:
 
     **Asserted as statements issued rather than as elapsed time, deliberately.**
     A latency bar in the default suite is a flake the moment the workers contend
-    for cores — which they do, `-n auto` being in this plane's `addopts` — and one
+    for cores — which they do, `-n auto` being in the server's `addopts` — and one
     loose enough not to flake would not catch a fivefold regression. The count of
     statements is exact, deterministic, and is the thing that actually changed.
     """

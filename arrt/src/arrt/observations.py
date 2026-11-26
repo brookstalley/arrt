@@ -1,6 +1,6 @@
 """Reading a document a job wrote to say it ran, and reporting it as an observation.
 
-Two jobs in this product write one: the display plane writes a heartbeat, and the
+Two jobs in this product write one: the Player writes a heartbeat, and the
 backup writes a receipt. Neither is a health check — nothing here decides whether
 anything is *well*. A file that is absent, a file that will not parse, and a file
 written eight days ago are three observations, and the reader states which one it
@@ -145,7 +145,7 @@ def in_words(seconds: float) -> str:
     days ago", and this is what produces it.
 
     **A negative age is reported as itself rather than folded into zero.** The
-    planes can run on different machines, and two clocks disagreeing is precisely
+    the server and a Player can run on different machines, and two clocks disagreeing is precisely
     the quiet fault this surface exists to state out loud — "0 seconds ago" for a
     document stamped tomorrow would state the opposite.
     """

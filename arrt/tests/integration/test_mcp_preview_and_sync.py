@@ -213,7 +213,7 @@ def _every_sentence(record) -> Iterator[tuple[str, str]]:
 
 
 #: What `audit-5-ia.md` F10 found stale, as the words that said it. Each was true
-#: of an earlier plane or an earlier name and false of the bindings now: a Frame
+#: of an earlier design or an earlier name and false of the bindings now: a Frame
 #: Player uploads what it has not got, a wall's television is recorded, the Player
 #: (not "a display") writes the heartbeat, and the Walls card calls it Remove.
 RETIRED_PHRASES = (

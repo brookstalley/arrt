@@ -1,4 +1,4 @@
-"""Run the curation plane: `uv run python -m arrt`."""
+"""Run the server: `uv run python -m arrt`."""
 
 import argparse
 import logging
@@ -268,7 +268,7 @@ def main(argv: Sequence[str] = ()) -> None:
 
     # Whether tiled acquisition can run at all, and where the master images go.
     # Logged for the same reason the key's presence and the image provider are: the
-    # binary is the one dependency this plane does not install, it is resolved off
+    # binary is the one dependency the server does not install, it is resolved off
     # PATH at call time, and a deployment missing it fails every tiled fetch at
     # once — a state worth reading at startup rather than discovering per work.
     tile_binary = shutil.which(settings.tile_binary)
@@ -366,7 +366,7 @@ def main(argv: Sequence[str] = ()) -> None:
         # config attaches plain-text handlers to `uvicorn` and `uvicorn.access`
         # with `propagate: False`, which would put the startup banner, every
         # access line and every unhandled ASGI traceback into the journal as
-        # multi-line text — beside this plane's JSON. One non-JSON line aborts
+        # multi-line text — beside the server's JSON. One non-JSON line aborts
         # `journalctl | jq 'select(.run_id == …)'`, which is the whole reason the
         # log shape exists, so the failure would be the documented way of
         # reconstructing a run quietly not working. With no config of its own,

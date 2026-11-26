@@ -1,6 +1,6 @@
 """Reading the 2024 index — the file the wall running today was curated from.
 
-The index is an **input** to this plane and never a schema it adopts. Records are
+The index is an **input** to the server and never a schema it adopts. Records are
 parsed into the shapes below and then minted through the catalogue's own service
 layer, so nothing here writes and nothing here decides what a valid work is.
 

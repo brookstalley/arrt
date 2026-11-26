@@ -117,7 +117,7 @@ def _stub_settings(monkeypatch, art_root, **overrides) -> None:
     The art root is marked, which is what an operator's one-time
     `python -m arrt --init` does. Without it startup now refuses — a
     directory that is neither marked nor holding a catalogue is a mistyped
-    `ART_ROOT`, and the plane will not turn one into a second empty collection.
+    `ART_ROOT`, and the server will not turn one into a second empty collection.
     Every test below is about what startup *logs* and *wires*, so each one wants
     a root that already exists rather than the refusal, which
     `tests/unit/test_art_root.py` covers on its own terms.
@@ -203,7 +203,7 @@ def _a_moment():
 def test_startup_logs_the_resolved_root_and_no_screens_geometry(tmp_path, monkeypatch, caplog):
     """A misconfiguration should be one journal line away rather than a mystery.
 
-    The operational spec requires each plane to log its resolved `ART_ROOT` at
+    The operational spec requires the server to log its resolved `ART_ROOT` at
     startup. Asserted through `main()` because a log line nothing emits reads
     exactly like one nobody looked for. No screen's geometry is logged: each
     Player knows its own and draws its own mat.
@@ -232,7 +232,7 @@ def test_startup_logs_the_resolved_root_and_no_screens_geometry(tmp_path, monkey
         discovery_model="probe/model-under-test",
         discovery_max_output_tokens=1234,
         discovery_search_results=6,
-        # A key shaped like a real one. The plane is about to log its
+        # A key shaped like a real one. The server is about to log its
         # configuration, and this is the value that must not appear.
         openrouter_api_key=SECRET,
     )
@@ -252,14 +252,14 @@ def test_startup_logs_the_resolved_root_and_no_screens_geometry(tmp_path, monkey
     # No screen's geometry: the television's and the mat's are the Player's now.
     for gone in ("tv_panel=", "artwork_box=", "px per inch", "ready="):
         assert gone not in logged, gone
-    # The e-paper panel belongs to the display plane too, and this one must hold
+    # The e-paper panel belongs to a Player too, and the server must hold
     # no fact about it.
     #
     # **Matched on digit boundaries, because a bare substring search matches the
     # test's own scratch directory.** `caplog.text` carries `art_root=<tmp_path>`,
     # and pytest names that directory after its own PID — so `pytest-10729`
     # contains "1072" and this assertion failed for a reason that had nothing to
-    # do with either plane, on whichever runs the PID happened to spell one of
+    # do with the panel, on whichever runs the PID happened to spell one of
     # these numbers. Intermittent, and it reads exactly like the leak it is
     # written to catch. `\b` also makes the claim the sharper one: the panel's
     # dimension as a number, rather than its digits inside a longer one.
@@ -318,7 +318,7 @@ def test_the_secret_list_is_not_empty():
 
 @pytest.mark.parametrize("field", sorted(_SECRET_FIELDS))
 def test_startup_never_writes_the_api_key_to_the_journal(field, tmp_path, monkeypatch, caplog):
-    """The plane holds secrets, and the journal is where secrets leak.
+    """The server holds secrets, and the journal is where secrets leak.
 
     One case per name in `_SECRET_FIELDS`, the set the redaction itself reads, so
     a secret added to the settings is checked the day it is declared rather than
@@ -403,7 +403,7 @@ def test_the_configured_model_reaches_the_engine(tmp_path):
 
 
 def test_uvicorn_is_given_no_logging_config_of_its_own(tmp_path, monkeypatch):
-    """Otherwise the journal carries plain text beside this plane's JSON.
+    """Otherwise the journal carries plain text beside the server's JSON.
 
     uvicorn's default config attaches text handlers to `uvicorn` and
     `uvicorn.access` with `propagate: False`, so the startup banner, every access
@@ -483,7 +483,7 @@ def test_uvicorns_own_default_is_what_makes_that_argument_necessary():
 
     The argument above is only worth passing while uvicorn's default actually
     installs text handlers that do **not** propagate — non-propagating is the
-    load-bearing half, because a propagating logger would reach this plane's JSON
+    load-bearing half, because a propagating logger would reach the server's JSON
     handler and no argument would be needed. If upstream ever changes this, the
     justification evaporates and this fails, which is the point: a workaround
     whose cause has gone is a line nobody can later explain.
@@ -513,7 +513,7 @@ def _unmarked_settings(monkeypatch, art_root) -> None:
 
     The distinction is the whole point of the two tests below. `_stub_settings`
     marks the root, because every test using it is about what startup logs and
-    wires and each one wants the plane to get past the guard. That made the guard
+    wires and each one wants the server to get past the guard. That made the guard
     a no-op wherever it was exercised: `prepare` returned at its first branch in
     all seven, so deleting the call from `main` broke nothing any suite could see.
     """

@@ -1,6 +1,6 @@
 """The real HTTP transport for `direct_http` sources.
 
-Separate from `direct.py` for the reason every foreign dependency in this plane is
+Separate from `direct.py` for the reason every foreign dependency in the server is
 separated: the fetch logic — ceilings, staging, the zero-byte guard — is the part
 worth testing exhaustively, and it cannot be if reaching it requires a network.
 This module is the thin part that is exercised live instead.

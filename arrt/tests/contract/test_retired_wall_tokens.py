@@ -31,7 +31,7 @@ _MOMENT = datetime(2026, 9, 30, 12, 0, tzinfo=UTC).isoformat()
 
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
-    """The wall-token catalogue, opened (and so upgraded) the way the plane opens it."""
+    """The wall-token catalogue, opened (and so upgraded) the way the server opens it."""
     path = tmp_path / "catalogue.sqlite"
     connection = sqlite3.connect(path)
     try:

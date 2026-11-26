@@ -1,11 +1,11 @@
-"""Deployment configuration for the curation plane.
+"""Deployment configuration for the server.
 
 Every value here differs between the dev Mac and the Pi, so none of them may
 be a literal in source. A fresh checkout runs by copying `.env.example` to
 `.env` and filling it in — never by editing a module.
 
 Resolution is a function rather than module-level constants, unlike the 2024
-plane's `config.py`, and the difference is deliberate: importing this module
+server's `config.py`, and the difference is deliberate: importing this module
 must not require an environment, or the test suite and every tool that merely
 wants to read a docstring would need one. Fail-fast is preserved by resolving
 at process start, which is where a missing value should stop things.
@@ -33,7 +33,7 @@ from arrt.library.discovery_settings import DiscoverySettings
 from arrt.library.services.quality import QualityProfile
 from arrt.library.setting_declarations import Limits, SettingRefused, from_environment
 
-#: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
+#: The catalogue's filename under `ART_ROOT`. Not configurable: the server, a Player
 #: and the backup path need to agree on where the catalogue is, and a setting
 #: is just a way for them to stop agreeing.
 CATALOGUE_FILENAME: Final[str] = "catalogue.sqlite"
@@ -126,7 +126,7 @@ DEFAULT_MAX_IMAGE_BYTES: Final[int] = 512 * 1024 * 1024
 #: with ordinary headroom.
 DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 
-#: Loopback unless a deployment says otherwise. On the Pi the plane was reached
+#: Loopback unless a deployment says otherwise. On the Pi the server was reached
 #: over the operator's network rather than published on it; in the NAS container
 #: the image sets `CURATION_HOST=0.0.0.0` and the house's LAN-only reverse proxy
 #: is the boundary (the owner's ruling of 2026-10-02, `security-model.md`
@@ -140,7 +140,7 @@ DEFAULT_PORT: Final[int] = 8770
 _HOSTNAME: Final[re.Pattern[str]] = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*")
 
 #: What a wall that has chosen no pace of its own plays at. Carried
-#: forward from the 2024 plane, which ran the wall at three minutes on shuffle —
+#: forward from the 2024 server, which ran the wall at three minutes on shuffle —
 #: this is the behaviour on the wall today, and changing it silently at cutover
 #: would be a regression nobody asked for.
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
@@ -357,7 +357,7 @@ class ConfigError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class Settings:
-    """The resolved deployment values the curation plane runs on."""
+    """The resolved deployment values the server runs on."""
 
     art_root: Path
     catalogue_path: Path
@@ -602,7 +602,7 @@ class Settings:
             quality_minimum_px=_positive_int("QUALITY_MINIMUM_PX", DEFAULT_QUALITY_MINIMUM_PX),
             acquisition_user_agent=os.environ.get("ACQUISITION_USER_AGENT") or DEFAULT_ACQUISITION_USER_AGENT,
             # Resolved off `PATH` by name, and configurable because it is the one
-            # dependency this plane does not install: a deployment that built it
+            # dependency the server does not install: a deployment that built it
             # from source or keeps it outside `PATH` sets the path here rather
             # than editing a module.
             tile_binary=os.environ.get("DEZOOMIFY_PATH") or DEFAULT_TILE_BINARY,

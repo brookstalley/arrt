@@ -398,7 +398,7 @@ class HealthReading:
     #: document, and the panel showing it is what gives those rows a reader.
     #:
     #: **A list rather than one reading**, because with a display per wall the
-    #: interesting question stopped being "has the display plane reported" and
+    #: interesting question stopped being "has the Player reported" and
     #: became "which wall has not". One shared reading could not have answered it.
     walls: Sequence[WallHeartbeat]
     #: When the catalogue was last safely copied, or that nothing has copied it.

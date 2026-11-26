@@ -498,7 +498,7 @@ def test_no_table_stores_the_resolution_verdict(tmp_path):
     """Constraint 12, checked against the file rather than against the code.
 
     The verdict depends on panel geometry and mat configuration, both deployment
-    values this plane does not own. A column would be a stored judgement about
+    values the server does not own. A column would be a stored judgement about
     one specific television, and it would go silently wrong the day the
     television changed — which is precisely how it went wrong the first time.
     """
@@ -801,7 +801,7 @@ def test_a_file_predating_a_column_opens_when_the_schema_indexes_that_column(tmp
     schema, not just a column.
 
     Found against the wall's own catalogue, where `spend_records` gained
-    `conversation_turn_id` together with an index over it, and the curation plane
+    `conversation_turn_id` together with an index over it, and the server
     then refused to start on a deployment that had been running for months.
     """
     path = tmp_path / "catalogue.sqlite"

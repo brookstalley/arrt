@@ -426,7 +426,7 @@ def test_a_url_that_will_not_parse_keeps_the_word_rather_than_raising(written):
     raises `ValueError` on an unbalanced one, which a model is as free to emit as
     anything else. Raising would be expensive in both callers: at the engine seam
     it fails a run already paid for, and inside `reconcile` it fails *startup*,
-    every start, for as long as the row is stored — a plane that will not boot
+    every start, for as long as the row is stored — a server that will not boot
     because of one bad title. Unparseable means the host cannot be proved, and
     unproved means the word stays.
     """

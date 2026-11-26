@@ -104,7 +104,7 @@ def services(
     shared_clock,
     shared_ids,
 ):
-    """The plane with Commons and the Art Institute wired, and a registry."""
+    """The server with Commons and the Art Institute wired, and a registry."""
     return Services.bind(
         catalogue=store,
         discovery=discovery_store,

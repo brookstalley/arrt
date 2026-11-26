@@ -235,13 +235,13 @@ def _master_refusal(inputs: WorkInputs) -> Unplayable | None:
 def playable_from(inputs: WorkInputs, *, units: Units) -> PlayableWork:
     """Turn a ready work into what the wall is told about it.
 
-    Label *text* crosses to the display plane; label *rendering* does not. The
-    e-paper panel's geometry belongs to the plane that owns that panel, so what
+    Label *text* crosses to the Player; label *rendering* does not. The
+    e-paper panel's geometry belongs to the Player that owns that panel, so what
     goes here is the words and nothing about how they are set.
 
     **The artist's name crosses three times over, and that is not redundancy.**
     `artist` is what the source called them, `artist_family_name` and
-    `artist_given_name` are which part is which. A display plane setting the
+    `artist_given_name` are which part is which. A Player setting the
     family name apart needs the parts; one drawing a plain line needs
     the whole; and a work whose artist has no recorded parts has only the whole.
     Sending the parts alone would make the third case unlabelable, and sending
@@ -291,7 +291,7 @@ def label_of(artwork: Artwork, artist: Artist | None, *, units: Units) -> Mappin
             "artist_family_name": None if artist is None else artist.family_name,
             "artist_given_name": None if artist is None else artist.given_name,
             # **The short form wins, and the fallback resolves here rather than at
-            # the panel.** The manifest is what the display plane parses, not a
+            # the panel.** The manifest is what the Player parses, not a
             # catalogue export, so it carries the string the label should set;
             # which of two recorded strings that is, is a question about content,
             # and content is the Library's. A display told to choose would be

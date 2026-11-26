@@ -2,7 +2,7 @@
 
 `player-contract.md` § Transport is the specification, and `contract/routes.json`
 holds these routes' spelling, so the server and a Player in another repository
-agree on them the way both planes already agree on the heartbeat's filename. They
+agree on them the way the server and a Player already agree on the heartbeat's filename. They
 sit at the root, beside `/api` rather than under it: `/api` is the curator's
 surface, and this one is the Player's.
 

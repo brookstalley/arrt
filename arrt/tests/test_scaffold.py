@@ -1,4 +1,4 @@
-"""The curation plane's scaffold holds together.
+"""The server's scaffold holds together.
 
 Thin by design: this asserts the toolchain and the pinned surfaces, not product
 behaviour. It exists so `uv run pytest` is meaningful from the day the project

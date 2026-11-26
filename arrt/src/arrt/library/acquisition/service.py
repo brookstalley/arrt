@@ -222,7 +222,7 @@ class AcquisitionResult:
 class AcquisitionSettings:
     """Where acquisition writes, what it may spend, and what it refuses.
 
-    Passed in for the reason every settings object in this plane is: a service
+    Passed in for the reason every settings object in the server is: a service
     that resolved its own configuration could not be handed a second deployment
     in a test, and would make every caller share one.
     """

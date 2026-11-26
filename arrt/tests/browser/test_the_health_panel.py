@@ -97,7 +97,7 @@ def _on_a_player(services, *walls, now: datetime | None = None) -> None:
 def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, services, two_walls):
     """The sentence a reader takes away, with the room in it.
 
-    Before the split this could only ever have said that *a* display plane had
+    Before the split this could only ever have said that *a* Player had
     not reported, which on a two-room installation is a fact nobody can act on.
     Both walls are on a Player: one with none is a step of setting up, and is
     never named as quiet (below).
@@ -168,7 +168,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     expect(ui.view).to_contain_text("4 days ago", use_inner_text=True)
     # Never a green dot. The panel states what was found and how long ago; whether
     # four days is alarming depends on whether that television was switched off on
-    # purpose, which this plane does not know.
+    # purpose, which the server does not know.
     # As words: a whitespace-separated word that is one of them, which is what splitting the page found.
     expect(ui.view).not_to_contain_text(re.compile(r"(?<!\S)(?:healthy|degraded|OK)(?!\S)"), use_inner_text=True)
 

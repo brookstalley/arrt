@@ -2,8 +2,8 @@
 
 **Written here rather than taken from a library, deliberately.** The 2024
 implementation reached this through OpenCV, NumPy and scikit-image; those three
-land on a memory-capped Pi co-located with the display plane, to do arithmetic
-that is thirty lines and fully specified. The dependency list this plane keeps is
+land on a memory-capped Pi co-located with the Player, to do arithmetic
+that is thirty lines and fully specified. The dependency list the server keeps is
 argued package by package, and none of them could be argued for this.
 
 **Everything is D65 / sRGB.** That is what a JPEG from a museum is, what a

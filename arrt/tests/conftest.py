@@ -336,7 +336,7 @@ def wall_id(store: SqliteCatalogue) -> str:
     catalogue with no wall has nowhere to hang anything and every operation that
     changes a wall names one. Read back rather than remembered: the id is a UUID
     minted at open, and a test that invented one would be asserting against a
-    wall the plane does not have.
+    wall the server does not have.
     """
     walls = store.list_walls()
     assert len(walls) == 1, f"a freshly opened catalogue should have exactly one wall, found {len(walls)}"
@@ -789,7 +789,7 @@ def propose(discovery: DiscoveryService, run: DiscoveryRun):
             proposed_title=title,
             rationale="The intent asked for Surrealism and this is its best-known example.",
             # The key every writer derives from the title and artist it stores,
-            # so a test that restarts the plane does not watch its rows re-keyed.
+            # so a test that restarts the server does not watch its rows re-keyed.
             work_dedup_key=dedup_key or work_dedup_key(title=title, artist=fields.get("proposed_artist")),
             **fields,
         )

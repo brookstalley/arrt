@@ -93,7 +93,7 @@ def _columns(path, table):
 
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
-    """The clients-era catalogue, opened (and so upgraded) the way the plane opens it; every service reads it."""
+    """The clients-era catalogue, opened (and so upgraded) the way the server opens it; every service reads it."""
     opened = open_catalogue(_clients_era_catalogue(tmp_path / "catalogue.sqlite"))
     yield opened
     opened.close()

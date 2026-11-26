@@ -193,9 +193,9 @@ if _missing := set(FetchOutcome) - set(_COARSE_STATUS):
 class RenditionKind(StrEnum):
     """What a derived image is for.
 
-    There is no `label` kind. A label is rendered on the display plane from the
+    There is no `label` kind. A label is rendered by the Player from the
     text fields the theme manifest carries, because its geometry is the e-paper
-    panel's — a device this plane does not own and must not hold facts about.
+    panel's — a device the server does not own and must not hold facts about.
     Every kind here is device-independent: a `THUMBNAIL` is the work itself,
     small, for a library tile; and a `WALL_PREVIEW` is the work at a size a
     browser column shows sharply, for the Work page. Both are drawn from the

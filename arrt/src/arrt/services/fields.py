@@ -69,7 +69,7 @@ def relative_path(value: str, *, field: str) -> str:
 
     Every path in a record is relative to `ART_ROOT`. That is what lets the
     catalogue be copied to a backup, restored on another machine, and read by
-    both planes without any of them agreeing on where the art tree sits — and it
+    the server and a Player without any of them agreeing on where the art tree sits — and it
     is the fix for a home directory having been baked into the 2024 config. A
     path that climbs out with `..` breaks the same promise as one that starts at
     the root, so both are refused here.

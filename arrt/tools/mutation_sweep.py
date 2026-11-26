@@ -81,7 +81,7 @@ import sys
 from dataclasses import dataclass
 
 #: The project this sweep runs in: the one holding the files a mutation names and
-#: the one `uv run pytest` is invoked from. Defaults to the curation plane, which
+#: the one `uv run pytest` is invoked from. Defaults to the server's project, `arrt/`, which
 #: this file lives directly beneath, and moves with `--project` — the contract
 #: package is a sibling uv project with its own interpreter, lockfile and `addopts`,
 #: so running its tests from here would apply the wrong ones (including this
@@ -135,7 +135,7 @@ def serial_flags() -> tuple[str, ...]:
     that plugin rejects it as an unrecognised argument — pytest exit **4**, a
     usage error, which this tool correctly refuses to interpret and which reads as
     "your suite is broken" rather than "that flag does not exist here". The
-    curation plane has xdist because its suite is slow enough to want it; the
+    server's project has xdist because its suite is slow enough to want it; the
     contract package does not, its suite running in about a second serial.
 
     Asked once per process, of the project being swept rather than of this file's

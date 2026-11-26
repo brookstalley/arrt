@@ -1,7 +1,7 @@
 """The Walls — the product's home, in a real browser against a real server.
 
 **The four empty reasons are what this file exists for.** No theme hung, an empty
-theme, a display plane that has never spoken, and a plane this screen could not
+theme, a Player that has never spoken, and a Player this screen could not
 reach: four states, four sentences, four fixes. The failure worth guarding
 against is not that one of them renders wrongly — it is that they collapse into
 one branch with four strings, which reads as coverage and is not. So every test
@@ -12,7 +12,7 @@ other one.
 The fourth is reached differently from the other three and that is deliberate:
 three are read off responses that arrived, and the fourth is a request that did
 not. It is stubbed for that reason — a server cannot be asked to fail on purpose
-— while the other three are seeded for real, including the silent plane, which is
+— while the other three are seeded for real, including the silent Player, which is
 the state every deployment with no display attached is actually in.
 """
 
@@ -146,7 +146,7 @@ def a_hung_wall(services, a_full_theme, the_wall):
     """A populated theme published to the one wall this deployment has.
 
     Nothing has written a heartbeat, which is not a gap in the fixture: no
-    display plane is attached to a test deployment, so this is the silent state
+    Player is attached to a test deployment, so this is the silent state
     reached honestly rather than stubbed.
     """
     services.display.activate_theme(a_full_theme.id, wall_id=the_wall.id)
@@ -1251,7 +1251,7 @@ def test_an_unassigned_wall_says_no_player_shows_it_and_opens_where_one_is_chose
 def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
     """The listing is where a client's name is; without it the wall still knows its output.
 
-    Stubbed, for the reason the unreachable-plane tests are: a server cannot be
+    Stubbed, for the reason the unreachable-Player tests are: a server cannot be
     asked to fail on purpose. Nothing else on the screen may go with it.
     """
     hall = services.clients.add_client(name="Hall Pi")
