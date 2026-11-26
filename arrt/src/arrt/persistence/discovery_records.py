@@ -764,6 +764,15 @@ class SearchTally:
     Counted over the newest search of each work, which is the only one kept, and
     over the `SEARCHES_COUNTED` works it was asked about most recently: `searched`
     is how many those are, and the rest divide them by what it said.
+
+    **Status's three columns are read from it**: *Searches* is `searched`; *Hit
+    rate* is `with_images` over `answered`; *Median latency* is
+    `median_latency_seconds`. Both of the last two are over the works it
+    answered, any of the three answers, so a source that says "cannot look this
+    up" about most works has a low hit rate: it seldom hands over a picture.
+    Each work's newest search only, never its history, so they say how the
+    source does now; an answer that arrived after the run stopped waiting
+    counts its true latency.
     """
 
     provider: str
@@ -779,6 +788,12 @@ class SearchTally:
     last_answered_at: datetime | None = None
     #: When it was last asked, or None when it has not been.
     last_asked_at: datetime | None = None
+    #: Of those it answered, the ones it answered with at least one image (`SourceSearch.images` above 0).
+    with_images: int = 0
+    #: The median, in seconds, of `answered_at` less `asked_at` over those it
+    #: answered (the mean of the middle two for an even count); None when it
+    #: answered none.
+    median_latency_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
