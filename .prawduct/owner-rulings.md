@@ -4,6 +4,25 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-25: Arrt contributes to Hearsay's knowledge graph
+
+Asked what Arrt should contribute to Hearsay (the owner's attributed claim store),
+the owner: "Yes museum records, as well as any learnings from the agentic discovery
+path". As ruled:
+
+1. **Museum records.** The museum documents Arrt fetches become a source Hearsay
+   keeps, read into world claims by a mapping per museum that the owner approves.
+2. **What discovery learns.** Phase 1's proposed works, phase 2's judgement that a
+   museum record is or is not the requested work, and what each provider's search
+   returned, told to Hearsay as Arrt's own attributed statements.
+
+**Timing, the same day.** Hearsay's session proposed taking Arrt after its music
+demo's current part ships. The owner declined: "we need to start contributing soon,
+but the full stack may not accept or process our data until post-demo". So Arrt
+starts telling Hearsay what it fetches and judges soon, and Hearsay may only keep it
+(no mapping, no art vocabulary) until after the demo. The intake shape is still
+Hearsay's to name, and anything leaving the machine still takes the owner's approval.
+
 ## 2026-11-20: six answers while part 2b was finishing
 
 Six questions stood, each with the advisor's recommendation, at the end of every report
