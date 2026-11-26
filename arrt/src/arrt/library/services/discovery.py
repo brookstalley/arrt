@@ -1537,6 +1537,10 @@ class DiscoveryService:
         since, until = utc_month(year, month)
         return SpendTotal.of(self._store.list_spend_records(since=since, until=until))
 
+    def now(self) -> datetime:
+        """The instant by the clock this service stamps the ledger with: what "this month" is for its spend."""
+        return self._now()
+
     def spend_ledger(self) -> Sequence[SpendRecord]:
         """Every spend row, newest first: what `spend_history.read` groups by month.
 

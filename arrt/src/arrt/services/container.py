@@ -61,7 +61,7 @@ from arrt.library.events import WorkChange
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
-from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.catalogue import CatalogueService, machine_now, new_id
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
@@ -172,12 +172,6 @@ class _RunnerOptions(TypedDict, total=False):
     """`DiscoveryRunner`'s arguments that `bind` passes only when asked, so the runner's own default stands otherwise."""
 
     check_page: Callable[[str], str]
-
-
-class _LookOptions(TypedDict, total=False):
-    """`LookService`'s, as `_RunnerOptions` is the runner's."""
-
-    now: Callable[[], datetime]
 
 
 class _AcquisitionOptions(TypedDict, total=False):
@@ -340,8 +334,8 @@ class Services:
         #: would search while the panel said no plugin is installed. `None` is a
         #: process with no plugins, which is what most tests are.
         sources: SourceRoster | None = None,
-        #: The clock a look's kept answers age by. Defaults to the system's; a
-        #: suite moves it to expire a look without waiting six hours.
+        #: The clock a look's kept answers age by. Defaults to `now`; a suite
+        #: moves it to expire a look without waiting six hours.
         look_now: Callable[[], datetime] | None = None,
         #: How the provider's key is asked what is left of the month, or None
         #: with no key: the budget then says nothing spends. Never a default
@@ -349,6 +343,12 @@ class Services:
         key_status: Callable[[], KeyStatus] | None = None,
         #: The month's budget on a key with no limit (`MONTHLY_BUDGET_USD`).
         monthly_budget_usd: Decimal | None = None,
+        #: The one clock every service built here reads, and the one source of
+        #: every identity they mint. A deployment passes neither and gets the
+        #: machine's; a suite passes its own, so what one service stamps and
+        #: mints the others stamp and mint from the same clock and source.
+        now: Callable[[], datetime] = machine_now,
+        mint_id: Callable[[], str] = new_id,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -362,14 +362,19 @@ class Services:
         deployment — and the one every test that has no business reaching a
         museum uses.
         """
-        catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
+        catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root, now=now, mint_id=mint_id)
         kept = kept or KeptAnswers.in_memory()
         # The quality profile reaches discovery for one reason: automatic
         # selection must withhold an instance below its minimum.
         sources = SourceRoster.empty() if sources is None else sources
-        pool = ImageSourcePool(sources.finders, searches=discovery) if sources.finds_images else None
+        pool = ImageSourcePool(sources.finders, searches=discovery, now=now) if sources.finds_images else None
         discovery_service = DiscoveryService(
-            discovery, catalogue_service, quality_profile, precedence=None if pool is None else pool.precedence
+            discovery,
+            catalogue_service,
+            quality_profile,
+            precedence=None if pool is None else pool.precedence,
+            now=now,
+            mint_id=mint_id,
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
@@ -378,7 +383,7 @@ class Services:
         )
         library = LibraryFacade(catalogue_service, discovery_service, label_units=lambda: settings.value(LABEL_UNITS))
         # A key is what `key_status` exists for: None is the keyless deployment.
-        unattended = UnattendedAllowance(settings, discovery, has_key=key_status is not None)
+        unattended = UnattendedAllowance(settings, discovery, has_key=key_status is not None, now=now)
         # Late-bound through the lambda: the runner is built below, and a Watch's
         # run is in flight only while the runner has it in hand.
         watches = WatchService(
@@ -386,10 +391,11 @@ class Services:
             settings,
             unattended,
             working_on=lambda run_id: runner_service.is_working_on(run_id),  # noqa: PLW0108 -- runner_service is assigned below
+            now=now,
         )
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
-        display_service = DisplayService(catalogue, library, display_settings)
+        display_service = DisplayService(catalogue, library, display_settings, now=now, mint_id=mint_id)
         # Programming hears the Library's changes here, where both are composed,
         # rather than subscribing itself: the subscription is wiring, and a
         # service that wired itself could not be built for a test without it.
@@ -409,7 +415,15 @@ class Services:
         # value, every catalogue path is relative to it, and it is already
         # required and validated there. A third copy would be a third chance for
         # the copies to disagree. `ReviewService` reaches it through the store.
-        pictures = PictureStore(thumbnails.art_root / PICTURES_DIRNAME, art_root=thumbnails.art_root, sources=pool)
+        pictures = PictureStore(
+            thumbnails.art_root / PICTURES_DIRNAME,
+            art_root=thumbnails.art_root,
+            sources=pool,
+            now=now,
+            # A temporary file's name, from the one id source: the machine's
+            # gives what the store's own default gives, a uuid4's hex.
+            staging_token=lambda: mint_id().replace("-", ""),
+        )
         acquisition_options: _AcquisitionOptions = {} if resolve is None else {"resolve": resolve}
         acquisition_service = AcquisitionService(
             catalogue_service,
@@ -445,7 +459,7 @@ class Services:
             return health.museum_of(plugin)
 
         acquisition_queue = AcquisitionQueue(
-            catalogue, catalogue_service, acquisition_service, preparation_service, museum_of=museum_of
+            catalogue, catalogue_service, acquisition_service, preparation_service, museum_of=museum_of, clock=now
         )
         # Acceptance, and a restore, wake the queue, as they wake the topic
         # sweep: the work is fetched now rather than at the next pass. A lost
@@ -464,7 +478,7 @@ class Services:
         # One judge for a run and a look, so the two cannot judge a find apart.
         judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
         # One taste service, whose brief both Ask's prompt and phase 1's read.
-        taste_service = TasteService(discovery)
+        taste_service = TasteService(discovery, now=now, mint_id=mint_id)
         runner_options: _RunnerOptions = {} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}
         runner_service = DiscoveryRunner(
             discovery_service,
@@ -483,9 +497,8 @@ class Services:
             # answers, or the system's.
             **runner_options,
         )
-        look_options: _LookOptions = {} if look_now is None else {"now": look_now}
         registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, profile=quality_profile)
-        clients = ClientService(catalogue, display_settings, library)
+        clients = ClientService(catalogue, display_settings, library, now=now, mint_id=mint_id)
         # Built before the services are gathered, because the queue's failure
         # causes name their museum by it (`museum_of` above). The receipt is
         # located off the thumbnail settings' `art_root`, as the picture store
@@ -505,13 +518,14 @@ class Services:
             # the walls' reading carries, the two halves of the one health
             # model the top bar counts.
             queue=acquisition_queue.failed_states,
+            now=now,
         )
         return cls(
             catalogue=catalogue_service,
             library=library,
             # The access service asks the client service's placements who shows a
             # wall, so admission and `GET /client` cannot disagree.
-            access=PlayerAccess(catalogue, clients.placements),
+            access=PlayerAccess(catalogue, clients.placements, now=now),
             clients=clients,
             discovery=discovery_service,
             display=display_service,
@@ -538,7 +552,7 @@ class Services:
                 pool=pool,
                 judge=judge,
                 pictures=pictures,
-                **look_options,
+                now=now if look_now is None else look_now,
             ),
             topics=topic_service,
             topic_sweep=topic_sweep,

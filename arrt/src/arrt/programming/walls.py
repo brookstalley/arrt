@@ -161,7 +161,7 @@ class Walls:
         #: The clock a wall is stamped by and its upcoming slots are counted from (read once an answer), and its ids' source.
         self._now = now
         self._mint_id = mint_id
-        self._placements = Placements(store, settings.art_root)
+        self._placements = Placements(store, settings.art_root, now=now)
         #: The facade's one set of lookups (`lookups.py`).
         self._lookups = lookups
         self._feeds = feeds
@@ -207,23 +207,25 @@ class Walls:
         with self._store.reading():
             if wall_id is not None:
                 self._lookups.get_wall(wall_id)
-            reading = self.read_wall_reports(None if wall_id is None else frozenset({wall_id}))
+            # One instant for the reports' ages and the slots still to come.
+            now = self._now()
+            reading = self.read_wall_reports(None if wall_id is None else frozenset({wall_id}), at=now)
             themes = {theme.id: theme for theme in self._store.list_themes()}
             hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
-            now = self._now()
             return WallsSeen(views=[self._view(wall, themes, hanging, reading, now) for wall in reading.walls], reading=reading)
 
-    def read_wall_reports(self, wall_ids: frozenset[str] | None = None) -> WallsReading:
+    def read_wall_reports(self, wall_ids: frozenset[str] | None = None, at: datetime | None = None) -> WallsReading:
         """Every wall's report, or those named, and who shows each: one survey and one read of each file, in one store scope.
 
         **The one way into the walls reading** (`Placements.read_walls`): the
         walls answers, the health answer and a scene's walls all take theirs
         here, so how the reading is taken is decided once. The scope excludes
         this process's writers while the rows and the report files are read,
-        and joins a scope its caller already holds.
+        and joins a scope its caller already holds. The reports are aged at
+        `at`, the instant the caller read, or now by this clock.
         """
         with self._store.reading():
-            return self._placements.read_walls(wall_ids)
+            return self._placements.read_walls(wall_ids, at)
 
     def _upcoming(self, wall_id: str, now: datetime) -> Sequence[Slot]:
         """The published schedule's next slots, starting after now: the one on the wall now is not among them."""

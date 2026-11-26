@@ -335,21 +335,28 @@ class Placements:
     which Walls calls a report stale — so a host switched off stops claiming its
     display, and a Frame moved from it to another host is not held in fault by a
     report nobody will ever replace.
+
+    Every report it reads is aged by `now`, read once a reading, so the reports
+    one answer carries are aged from one instant, and by the clock the client
+    service stamps its records with.
     """
 
-    def __init__(self, store: ProgrammingStore, art_root: Path) -> None:
+    def __init__(self, store: ProgrammingStore, art_root: Path, *, now: Clock = machine_now) -> None:
         self._store = store
         self._art_root = art_root
+        self._now = now
         self._refused = refused_reports_of(store)
 
-    def survey(self) -> PlacementSurvey:
+    def survey(self, at: datetime | None = None) -> PlacementSurvey:
+        """Every Player and its report, read now, or at `at` when the caller has read the clock for its whole answer."""
+        at = self._now() if at is None else at
         with self._store.reading():
             clients = {client.id: client for client in self._store.list_clients()}
             displays = {display.id: display for display in self._store.list_displays()}
             walls = list(self._store.list_walls())
             label_outputs = list(self._store.list_label_outputs())
         readings = {
-            client_id: client_heartbeat.read(client_heartbeat.client_heartbeat_path_in(self._art_root, client_id))
+            client_id: client_heartbeat.read(client_heartbeat.client_heartbeat_path_in(self._art_root, client_id), now=at)
             for client_id in clients
         }
         # After the files: a report accepted meanwhile is written before its
@@ -369,7 +376,7 @@ class Placements:
     def placement_of(self, wall: Wall) -> WallPlacement:
         return self.survey().placement_of(wall)
 
-    def read_walls(self, wall_ids: frozenset[str] | None = None) -> WallsReading:
+    def read_walls(self, wall_ids: frozenset[str] | None = None, at: datetime | None = None) -> WallsReading:
         """Every wall, or those named, with one survey and one read of each wall's report (`WallsReading`).
 
         **An answer about some walls reads their reports and every Player's, and
@@ -378,18 +385,22 @@ class Placements:
         shown by neither, and no record says so but those reports. The Player
         that shows the wall is judged from the same read. A wall named that the
         survey does not hold is read as no wall: the caller has already looked
-        it up, or answers for none.
+        it up, or answers for none. Every report is aged at `at`, the instant
+        the caller read for its whole answer, or now.
         """
-        survey = self.survey()
+        at = self._now() if at is None else at
+        survey = self.survey(at)
         walls = [wall for wall in survey.walls if wall_ids is None or wall.id in wall_ids]
         return WallsReading(
-            survey=survey, reports={wall.id: heartbeat.read(heartbeat_path_in(self._art_root, wall.id)) for wall in walls}
+            survey=survey,
+            reports={wall.id: heartbeat.read(heartbeat_path_in(self._art_root, wall.id), now=at) for wall in walls},
         )
 
     def wall_state(self, wall: Wall) -> WallState:
         """The wall's display state, the one answer Walls, the MCP walls read and every label give."""
-        reading = heartbeat.read(heartbeat_path_in(self._art_root, wall.id))
-        return WallState(state=self.survey().wall_state(wall, reading), reading=reading)
+        at = self._now()
+        reading = heartbeat.read(heartbeat_path_in(self._art_root, wall.id), now=at)
+        return WallState(state=self.survey(at).wall_state(wall, reading), reading=reading)
 
 
 def is_current(reading: ClientHeartbeatReading) -> bool:
@@ -514,7 +525,7 @@ class ClientService:
         #: The clock a Player, a display or a refusal is recorded by (read once an act), and the source of their ids.
         self._now = now
         self._mint_id = mint_id
-        self.placements = Placements(store, settings.art_root)
+        self.placements = Placements(store, settings.art_root, now=now)
         self._refused = refused_reports_of(store)
         #: Identities whose fault has been said in the journal this episode, so
         #: a fault is said once rather than at every heartbeat that meets it.
@@ -626,15 +637,19 @@ class ClientService:
         }
         return json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
-    def read_heartbeat(self, client_id: str) -> ClientHeartbeatReading:
-        return client_heartbeat.read(self._heartbeat_path(client_id))
+    def read_heartbeat(self, client_id: str, at: datetime | None = None) -> ClientHeartbeatReading:
+        """A client's report, aged by this service's clock: read now, or at `at`, the instant the act already read."""
+        return client_heartbeat.read(self._heartbeat_path(client_id), now=self._now() if at is None else at)
 
     # -- writes: clients ------------------------------------------------------
 
     def add_client(self, *, name: str) -> Client:
         """Record a client. It has no token until one is issued, and drives no wall."""
-        client = Client(id=self._mint_id(), name=require_text(name, field="name"), created_at=self._now())
-        store_write(self._store.add_client, client)
+        name = require_text(name, field="name")
+        # Stamped once the act holds the store, as a report's first display is.
+        with self._store.transaction():
+            client = Client(id=self._mint_id(), name=name, created_at=self._now())
+            store_write(self._store.add_client, client)
         log.info("Recorded client %r.", client.name)
         return client
 
@@ -694,24 +709,27 @@ class ClientService:
         # Read where it is written, as every whole-row write of a wall is: a
         # setting changed meanwhile would otherwise be put back by this one.
         with self._store.transaction():
+            # The act's one instant: a display it records and the reports it reads.
+            now = self._now()
             wall = self._require_wall(wall_id)
             client = self.get_client(client_id)
-            output = self._require_output(client, wall, output)
-            display = self._display_on(client.id, output) or self._record_place(client, output, seen_at=self._now())
+            output = self._require_output(client, wall, output, at=now)
+            display = self._display_on(client.id, output) or self._record_place(client, output, seen_at=now)
             placed = self._place(wall, display, client)
         log.info("Wall %r is now shown by client %r on output %r.", wall.name, client.name, output)
-        return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client))
+        return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client, at=now))
 
     def assign_display(self, wall_id: str, *, display_id: str) -> WallAssignment:
         """Show this wall on a display, by the display's id. Refused when it already shows another wall."""
         # Read where it is written, for the reason `assign_wall` gives.
         with self._store.transaction():
+            now = self._now()
             wall = self._require_wall(wall_id)
             display = self.get_display(display_id)
             client = None if display.client_id is None else self._store.get_client(display.client_id)
             placed = self._place(wall, display, client)
         log.info("Wall %r is now on display %r.", wall.name, display.identity)
-        return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client))
+        return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client, at=now))
 
     def unassign_wall(self, wall_id: str) -> Wall:
         """Take a wall off its display. Unassigning an unassigned wall is not an error."""
@@ -793,8 +811,10 @@ class ClientService:
         report = cast("dict[str, Any]", document)
         write_atomically(self._heartbeat_path(client_id), report)
         self._refused.clear(client.id)
-        seen_at = self._now()
         with self._store.transaction():
+            # Read once the act holds the store, so a report that waited for
+            # another act is stamped after what that act wrote, never before.
+            seen_at = self._now()
             for output in report["outputs"]:
                 self._reconcile_display(client, output["name"], output["kind"], output.get("identity"), seen_at)
             for label in report.get("label_outputs", []):
@@ -854,7 +874,7 @@ class ClientService:
             if known.kind != kind:
                 store_write(self._store.update_display, replace(known, kind=kind))
             return
-        if known.client_id not in (None, client.id) and self._still_reports(known.client_id, identity):
+        if known.client_id not in (None, client.id) and self._still_reports(known.client_id, identity, at=seen_at):
             self._say_fault(client, known)
             return
         self._faults_said.discard(identity)
@@ -950,8 +970,8 @@ class ClientService:
         store_write(self._store.update_display, replace(display, client_id=None))
         log.info("The display %s is no longer on output %r; no client shows its wall.", display.identity, display.output)
 
-    def _still_reports(self, client_id: str, identity: str) -> bool:
-        reading = self.read_heartbeat(client_id)
+    def _still_reports(self, client_id: str, identity: str, *, at: datetime) -> bool:
+        reading = self.read_heartbeat(client_id, at)
         return is_current(reading) and any(output.identity == identity for output in reading.outputs)
 
     def _say_fault(self, client: Client, display: Display) -> None:
@@ -975,7 +995,7 @@ class ClientService:
         """
         identity = place_identity(client.id, output)
         if kind is None:
-            reported = {entry.name: entry for entry in self.read_heartbeat(client.id).outputs}.get(output)
+            reported = {entry.name: entry for entry in self.read_heartbeat(client.id, seen_at).outputs}.get(output)
             kind = None if reported is None else reported.kind
         orphan = next((display for display in self._store.list_displays() if display.identity == identity), None)
         if orphan is not None:
@@ -1006,19 +1026,19 @@ class ClientService:
         store_write(self._store.update_wall, placed)
         return placed
 
-    def _notice(self, display: Display, client: Client | None) -> str | None:
+    def _notice(self, display: Display, client: Client | None, *, at: datetime) -> str | None:
         if client is None:
             return (
                 f"No Player reports the display {display.identity} now, so nothing shows this wall until one does. "
                 "The assignment is kept either way."
             )
-        fault = self.placements.survey().faults.get(display.identity)
+        fault = self.placements.survey(at).faults.get(display.identity)
         if fault is not None:
             return fault.describe()
-        return self._unconfirmed(client, display.output)
+        return self._unconfirmed(client, display.output, at=at)
 
-    def _unconfirmed(self, client: Client, output: str) -> str | None:
-        names = self.read_heartbeat(client.id).output_names()
+    def _unconfirmed(self, client: Client, output: str, *, at: datetime) -> str | None:
+        names = self.read_heartbeat(client.id, at).output_names()
         if names is None:
             return (
                 f"{client.name} has not reported its outputs yet, so whether it has one called {output!r} "
@@ -1059,7 +1079,7 @@ class ClientService:
             None,
         )
 
-    def _require_output(self, client: Client, wall: Wall, output: str) -> str:
+    def _require_output(self, client: Client, wall: Wall, output: str, *, at: datetime) -> str:
         """The output's name, or a refusal that says what to do when none was chosen.
 
         An empty name is what Walls sends for a Player that has reported no
@@ -1068,7 +1088,7 @@ class ClientService:
         """
         if output.strip():
             return output.strip()
-        names = self.read_heartbeat(client.id).output_names()
+        names = self.read_heartbeat(client.id, at).output_names()
         if names is None:
             raise ServiceError(
                 f"{client.name} has not reported its screens yet, so there is no screen to show {wall.name} on. "

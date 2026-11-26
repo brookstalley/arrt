@@ -40,7 +40,6 @@ import threading
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from time import monotonic
@@ -589,7 +588,7 @@ class DiscoveryRunner:
             )
         if (year is None) != (month is None):
             raise ServiceError("A month needs both year and month, or neither — omitting both reports the current month.")
-        now = datetime.now(UTC)
+        now = self._discovery.now()
         # The **UTC** month, matching the boundary the provider's own credit
         # limit resets on. A report on the operator's local month would disagree
         # with the only figure that can actually stop spending.

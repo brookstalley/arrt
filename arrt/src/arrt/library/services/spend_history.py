@@ -29,7 +29,7 @@ different answers by reading the ledger two ways.
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Final
 
 from arrt.library.months import utc_month_of
@@ -108,7 +108,7 @@ def read(discovery: DiscoveryService, *, now: datetime | None = None, limit: int
     The current month is always listed, spent in or not, so a page opened before
     anything is spent says so ("$0.00") rather than listing nothing.
     """
-    moment = now if now is not None else datetime.now(UTC)
+    moment = now if now is not None else discovery.now()
     this_month = _key(moment)
     ledger = discovery.spend_ledger()
     by_month: dict[tuple[int, int], list[SpendRecord]] = defaultdict(list)
