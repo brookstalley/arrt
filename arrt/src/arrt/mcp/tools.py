@@ -188,8 +188,8 @@ ART_CATALOGUE: Final = ToolRecord(
     name="art_catalogue",
     title="Art Library",
     summary=(
-        "Read and manage the works already accepted into the Library. Two actions reach outside the machine: "
-        "retry_acquisition queues a fetch from a museum, and set_mat_color asks a vision model when given no colour."
+        "Read and manage the Library's works. Two actions reach outside the machine: "
+        "retry_acquisition fetches from a museum, and set_mat_color asks a vision model when given no colour."
     ),
     read_only=False,
     destructive=False,
@@ -274,7 +274,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="get",
-            description="Return one work in full, with its artist resolved and where it stands in the acquisition queue.",
+            description="Return one work in full, with its artist and its place in the fetch queue.",
             example="art_catalogue(action='get', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID,),
             tips=(
@@ -299,7 +299,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="archive",
-            description="Take a work out of circulation, keeping its record, its sources and its mat history.",
+            description="Take a work out of circulation, keeping its record, sources and mats.",
             example="art_catalogue(action='archive', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID,),
             tips=(
@@ -319,7 +319,7 @@ ART_CATALOGUE: Final = ToolRecord(
             # Changed 2026-10-02 from fetching in the call to queueing: a breaking
             # description change by `api-contract.md` § Versioning, announced
             # with the plan that made it (`build-plan-after-review.md` Chunk 02).
-            description="Queue the work's picture to be fetched again, first in line, and return at once.",
+            description="Fetch a work's picture again, first in line. Returns at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
@@ -340,7 +340,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="queue",
-            description="Return the fetch queue's pause, if any, and the works still in line, in the order tried.",
+            description="Return the fetch queue's pause, if any, and the works in line, in order.",
             example="art_catalogue(action='queue')",
             params=(_LIMIT, _OFFSET),
             tips=(
@@ -352,7 +352,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="failures",
-            description="List why the queue's fetches failed, one row per cause with how many, or one cause's works.",
+            description="List why fetches failed, one row per cause with how many, or one cause's works.",
             example="art_catalogue(action='failures')",
             params=(_CAUSE_TO_LIST, _LIMIT, _OFFSET),
             tips=(
@@ -368,7 +368,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="retry_failures",
-            description="Queue every work that failed for one cause to be fetched again, and return at once.",
+            description="Fetch again every work that failed for one cause. Returns at once.",
             example="art_catalogue(action='retry_failures', cause='<a cause from action=failures>')",
             params=(_CAUSE_TO_RETRY,),
             tips=(
@@ -381,7 +381,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="set_mat_color",
-            description="Set the mat colour a work is shown against, or ask the vision model to choose one again.",
+            description="Set a work's mat colour, or ask the vision model to choose one.",
             example="art_catalogue(action='set_mat_color', artwork_id='<an artwork_id from action=list>', hex_rgb='#27285b')",
             params=(_ARTWORK_ID, _HEX_RGB, _MAT_PRESET),
             tips=(
@@ -443,10 +443,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="regenerate",
-            description=(
-                "Make a work's presentation master (its copy for the walls) from the picture it holds, "
-                "and give it a mat colour if it has none."
-            ),
+            description="Make a work's copy for the walls from its picture, and a mat colour if it has none.",
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
@@ -473,7 +470,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="topics",
-            description="List every topic the Library's works in circulation are in, by kind, with how many works.",
+            description="List every topic the Library's works are in, by kind, with how many works.",
             example="art_catalogue(action='topics')",
             params=(),
             tips=(
@@ -543,6 +540,55 @@ ART_CATALOGUE: Final = ToolRecord(
                 ),
             ),
         ),
+        Action(
+            name="artists",
+            description="List the Library's artists by surname, with how many works each holds.",
+            example="art_catalogue(action='artists', q='monet')",
+            params=(
+                Param(
+                    name="q",
+                    type="string",
+                    description="Only artists whose name contains this, ignoring case and accents. Omit for every one.",
+                ),
+            ),
+            tips=(
+                (
+                    "Only artists with a work in circulation; held counts those works. An artist's artist_id is what "
+                    "action='artist' and action='list' take."
+                ),
+                (
+                    "pictured_artwork_id is the work the browser's Artists index pictures them by, their first "
+                    "accepted work with a picture; null when no work of theirs has one."
+                ),
+            ),
+        ),
+        Action(
+            name="artist",
+            description="Return one Library artist, with how many works they hold.",
+            example="art_catalogue(action='artist', artist_id='<an artist_id from action=artists>')",
+            params=(
+                Param(
+                    name="artist_id",
+                    type="string",
+                    description="The artist's id in the Library, as a work's artist carries it.",
+                    required=True,
+                ),
+            ),
+            tips=("Read from the Library alone; art_discovery(action='artist') is what Wikidata knows of them.",),
+        ),
+        Action(
+            name="mat",
+            description="Return a work's mat, the presets, and what deriving one would give.",
+            example="art_catalogue(action='mat', artwork_id='<an artwork_id from action=list>')",
+            params=(_ARTWORK_ID,),
+            tips=(
+                (
+                    "Records nothing and spends nothing. derived_hex_rgb is what set_mat_color with preset='derived' "
+                    "would record; null when the work has no readable picture to derive it from."
+                ),
+                "current is null while the work has no mat; its method says who chose it.",
+            ),
+        ),
     ),
 )
 
@@ -601,7 +647,7 @@ ART_DISCOVERY: Final = ToolRecord(
     actions=(
         Action(
             name="estimate",
-            description="Price a discovery run before starting it, or price resolving one that has already found works.",
+            description="Price a run before starting it, or price resolving one that has found works.",
             example="art_discovery(action='estimate')",
             params=(_OPTIONAL_RUN_ID,),
             tips=(
@@ -625,7 +671,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="start",
-            description="Begin a discovery run from an intent. Returns a handle at once; the work happens behind it.",
+            description="Begin a discovery run from an intent. Returns a handle at once.",
             example="art_discovery(action='start', intent='Surrealist paintings with strong blues')",
             params=(
                 Param(
@@ -652,7 +698,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description="Report where a run has got to, holding until that changes if it is still being worked on.",
+            description="Report where a run is, holding until that changes while it is worked on.",
             example="art_discovery(action='status', run_id='<a run_id from action=start>')",
             params=(_RUN_ID,),
             tips=(
@@ -669,7 +715,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="approve",
-            description="Accept a run's work list and its price, letting it proceed to finding images.",
+            description="Accept a run's work list and its price, letting it find images.",
             example="art_discovery(action='approve', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
             tips=(
@@ -693,7 +739,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="cancel",
-            description="Stop a run wherever it has got to. Money already spent stays recorded.",
+            description="Stop a run wherever it is. Money spent stays recorded.",
             example="art_discovery(action='cancel', run_id='<a run_id from action=list_runs>')",
             params=(_RUN_ID,),
             tips=(
@@ -708,7 +754,7 @@ ART_DISCOVERY: Final = ToolRecord(
             name="resolve_images",
             # Changed 2026-10-02: wanted works include works with no scan at all,
             # which `art_review(action='want')` sends here (`api-contract.md`).
-            description="Look again for images of wanted works, with or without a scan. Returns a handle at once.",
+            description="Look again for images of wanted works. Returns a handle at once.",
             example="art_discovery(action='resolve_images', work_ids=['<a work_id from art_review action=list_wanted>'])",
             params=(
                 Param(
@@ -744,7 +790,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="get",
-            description="Get works chosen by their Wikidata items, as one run that looks for their images. Returns at once.",
+            description="Get works by their Wikidata items, as one run that finds their images. Returns at once.",
             example="art_discovery(action='get', qids=['Q45585'])",
             params=(
                 Param(
@@ -783,7 +829,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="look",
-            description="Show what every image source holds of a work, by its Wikidata item, before any Get.",
+            description="Show what every image source holds of a work, by its Wikidata item.",
             example="art_discovery(action='look', qid='Q20267229')",
             params=(_ITEM,),
             tips=(
@@ -904,7 +950,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="list_runs",
-            description="List discovery runs, newest first, optionally narrowed to one state or kind.",
+            description="List runs, newest first, optionally narrowed to one state or kind.",
             example="art_discovery(action='list_runs', status='resolving_images')",
             params=(
                 Param(
@@ -929,7 +975,7 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="spend",
-            description="Report what one run cost, or what a whole calendar month cost.",
+            description="Report what one run cost, or what a calendar month cost.",
             example="art_discovery(action='spend', run_id='<a run_id>')",
             params=(
                 _OPTIONAL_RUN_ID,
@@ -964,7 +1010,7 @@ ART_DISCOVERY: Final = ToolRecord(
             # provenance, and one action name meaning two things across tools
             # would be read as one.
             name="source_plugins",
-            description="List every installed image source plugin, most preferred first, and whether it loaded.",
+            description="List the installed source plugins, most preferred first, and whether each loaded.",
             example="art_discovery(action='source_plugins')",
             tips=(
                 "Each plugin names the package and version it came from, and what it provides.",
@@ -981,6 +1027,32 @@ ART_DISCOVERY: Final = ToolRecord(
                     "interface_version is the plugin interface this Arrt provides; a plugin whose api_major "
                     "differs is refused by name."
                 ),
+            ),
+        ),
+        Action(
+            name="source_yields",
+            description="Count what each source plugin has given the Library.",
+            example="art_discovery(action='source_yields')",
+            tips=(
+                (
+                    "offered: distinct images it offered, one turned down included; chosen: held works whose primary "
+                    "source it is; only_here: of those, works no other source offered; median_long_edge in pixels."
+                ),
+                "Counted again from the records on every call, so it survives a restart and is never a ranking.",
+            ),
+        ),
+        Action(
+            name="budget",
+            description="Return what is left of this month's budget, from the provider's key.",
+            example="art_discovery(action='budget')",
+            tips=(
+                (
+                    "state: known (the key's own limit), configured (no limit on the key; the household's budget "
+                    "less what the provider counts as spent), uncapped, not_configured (no key: nothing spends) or "
+                    "unavailable. Amounts are decimal strings; note says why a figure is missing."
+                ),
+                "Up to a minute old and for display only: the provider's refusal at its limit is what stops spending.",
+                "tiers are where an estimate's tier changes: under cents_below_usd is $, under dimes_below_usd $$.",
             ),
         ),
     ),
@@ -1530,6 +1602,19 @@ ART_THEME: Final = ToolRecord(
                 _POSITION,
             ),
             retired=_WORK_ID_IS_ARTWORK_ID,
+        ),
+        Action(
+            name="placements",
+            description="Return every theme holding a work, the walls hanging each, and whether it is kept off walls.",
+            example="art_theme(action='placements', artwork_id='<an artwork_id>')",
+            params=(Param(name="artwork_id", type="string", description="The work to place.", required=True),),
+            tips=(
+                (
+                    "Selections are included (theme.hidden): a selection is how one work hangs on a wall by itself. "
+                    "excluded_at is when the work was kept off every wall, null when it may go on walls."
+                ),
+                "Refused for a work the Library does not hold.",
+            ),
         ),
     ),
     moved=MOVED_FROM_THEME,

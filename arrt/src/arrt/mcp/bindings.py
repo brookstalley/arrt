@@ -19,10 +19,11 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
+from arrt.library.acquisition.preparation import ASK_THE_MODEL, MatRequest, MatWay, PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
 from arrt.library.services import spend_history
+from arrt.library.services.artists import HeldArtist
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import DiscoveryService, SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
@@ -38,6 +39,7 @@ from arrt.library.services.review import (
 )
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.settings import SettingState
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
@@ -58,7 +60,19 @@ from arrt.persistence.discovery_records import (
     Verdict,
     Watch,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import (
+    Artist,
+    Artwork,
+    Client,
+    Display,
+    MatColor,
+    Scene,
+    Showing,
+    Source,
+    Theme,
+    VocabularyKind,
+    Wall,
+)
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import (
@@ -70,6 +84,7 @@ from arrt.programming.display import (
     SceneWall,
     SizeJudgement,
     ThemePlacement,
+    ThemesSeen,
     WallView,
     feed_notice,
 )
@@ -434,19 +449,18 @@ def _set_mat_color(services: Services, arguments: Mapping[str, Any]) -> dict[str
     `choose_mat_color` would make a caller pick between them before knowing that
     only one of them costs anything. The tip says which does.
     """
-    artwork_id = arguments["artwork_id"]
-    hex_rgb = arguments.get("hex_rgb")
+    # `preset='derived'` is how this surface spells the derived mat, beside
+    # the presets the Work page offers; naming nothing asks the model.
     preset = arguments.get("preset")
-    if hex_rgb and preset:
-        raise ServiceError("Give hex_rgb or preset, not both: each sets the mat on its own.")
-    if preset == "derived":
-        result = services.preparation.derive_mat(artwork_id)
-    elif preset:
-        result = services.preparation.set_mat_preset(artwork_id, str(preset))
-    elif hex_rgb:
-        result = services.preparation.set_mat(artwork_id, str(hex_rgb))
-    else:
-        result = services.preparation.choose_mat(artwork_id)
+    result = services.preparation.set_work_mat(
+        arguments["artwork_id"],
+        MatRequest.named(
+            hex_rgb=arguments.get("hex_rgb"),
+            preset=None if preset == MatWay.DERIVED else preset,
+            derived=preset == MatWay.DERIVED,
+            otherwise=ASK_THE_MODEL,
+        ),
+    )
     return ok(
         artwork_id=result.artwork_id,
         hex_rgb=result.mat_hex,
@@ -552,9 +566,8 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # is what this listing is read to answer — and a caller that had to ask per
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
-    placements = services.display.survey_themes()
-    survey = services.clients.placements.survey()
-    return ok(themes=[_placement_fields(services, placement, survey) for placement in placements], count=len(placements))
+    seen = services.display.read_themes()
+    return ok(themes=[_placement_fields(services, placement, seen) for placement in seen.themes], count=len(seen.themes))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -2093,6 +2106,97 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_republished_fields(arguments["wall_id"], services.display.step_display(arguments["wall_id"])))
 
 
+# -- the reads the browser makes, in its routes' field names ----------------------------------
+
+
+def _list_artists(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/artists`: every artist with a work in circulation, by surname."""
+    return ok(artists=[_held_artist_fields(entry) for entry in services.artists.index(arguments.get("q"))])
+
+
+def _get_artist(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/artists/{artist_id}`: one artist, from the Library alone."""
+    return ok(**_held_artist_fields(services.artists.get(arguments["artist_id"])))
+
+
+def _held_artist_fields(entry: HeldArtist) -> dict[str, Any]:
+    """One artist the Library holds, as `HeldArtistOut` carries it."""
+    return {"artist": _artist_fields(entry.artist), "held": entry.held, "pictured_artwork_id": entry.pictured}
+
+
+def _work_mat(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/works/{artwork_id}/mat`: the mat, the presets and what deriving would give, recording nothing."""
+    offer = services.preparation.mat_offer(arguments["artwork_id"])
+    return ok(
+        current=None if offer.current is None else _mat_color_fields(offer.current),
+        presets=[{"key": preset.key, "label": preset.label, "hex_rgb": preset.hex_rgb} for preset in offer.presets],
+        derived_hex_rgb=offer.derived_hex_rgb,
+    )
+
+
+def _mat_color_fields(mat: MatColor) -> dict[str, Any]:
+    """One mat colour, as `MatColorOut` carries it."""
+    return {
+        "hex_rgb": mat.hex_rgb,
+        "method": str(mat.method),
+        "is_current": mat.is_current,
+        "reason": mat.reason,
+        "chosen_at": mat.chosen_at.isoformat(),
+    }
+
+
+def _work_placements(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/works/{artwork_id}/placements`: the themes holding a held work, the walls hanging each, its exclusion.
+
+    Two calls composed: the Library says whether the work is held, and
+    Programming where it is.
+    """
+    artwork_id = arguments["artwork_id"]
+    services.catalogue.get_artwork(artwork_id)
+    placements = services.display.placements_of(artwork_id)
+    return ok(
+        artwork_id=artwork_id,
+        themes=[
+            {
+                "theme": _theme_fields(placement.theme),
+                "hanging_on": [{"wall_id": wall.id, "name": wall.name} for wall in placement.walls],
+            }
+            for placement in placements.themes
+        ],
+        excluded_at=None if placements.exclusion is None else placements.exclusion.excluded_at.isoformat(),
+    )
+
+
+def _source_yields(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/sources/yields`: what each installed source plugin has given the Library."""
+    return ok(
+        sources=[
+            {
+                "name": each.provider,
+                "offered": each.offered,
+                "chosen": each.chosen,
+                "only_here": each.only_here,
+                "median_long_edge": each.median_long_edge,
+            }
+            for each in services.health.observe_yields()
+        ]
+    )
+
+
+def _budget(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/budget`: what is left of this month's budget, read from the provider's key."""
+    view = services.budget.view()
+    return ok(
+        state=str(view.state),
+        # Decimal strings, as every amount of money on this surface is.
+        remaining_usd=None if view.remaining_usd is None else str(view.remaining_usd),
+        budget_usd=None if view.budget_usd is None else str(view.budget_usd),
+        spent_usd=None if view.spent_usd is None else str(view.spent_usd),
+        note=view.note,
+        tiers={"cents_below_usd": str(CENTS_BELOW), "dimes_below_usd": str(DIMES_BELOW)},
+    )
+
+
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -2108,6 +2212,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,
+    ("art_discovery", "source_yields"): _source_yields,
+    ("art_discovery", "budget"): _budget,
     ("art_discovery", "search"): _registry_search,
     ("art_discovery", "find_topics"): _registry_topics,
     ("art_discovery", "artist"): _registry_artist,
@@ -2141,6 +2247,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "topics"): _list_topics,
     ("art_catalogue", "topic"): _get_topic,
     ("art_catalogue", "history"): _history,
+    ("art_catalogue", "artists"): _list_artists,
+    ("art_catalogue", "artist"): _get_artist,
+    ("art_catalogue", "mat"): _work_mat,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
@@ -2150,6 +2259,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
+    ("art_theme", "placements"): _work_placements,
     ("art_display", "activate"): _activate_theme,
     ("art_display", "hang_selection"): _hang_selection,
     ("art_display", "not_again"): _not_again,
@@ -2357,11 +2467,15 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None = None) -> dict[str, Any]:
+def _wall_fields(
+    services: Services, wall: Wall, survey: PlacementSurvey | None = None, sizes: SizeJudgement | None = None
+) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, the display it is on and its labels.
 
     Field names match `WallOut` on the browser surface. `survey` is who shows
-    what, read once for an answer naming several walls and taken here for one.
+    what, read once for an answer naming several walls and taken here for one;
+    `sizes` is the wall's size judgement from the same reading, judged here
+    when none is given.
     """
     survey = services.clients.placements.survey() if survey is None else survey
     placement = survey.placement_of(wall)
@@ -2385,7 +2499,7 @@ def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None 
         "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
         "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
         "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
-        **_size_fields(services.display.judge_sizes_of(wall)),
+        **_size_fields(services.display.judge_sizes_of(wall) if sizes is None else sizes),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {
@@ -2499,11 +2613,11 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     }
 
 
-def _placement_fields(services: Services, placement: ThemePlacement, survey: PlacementSurvey) -> dict[str, Any]:
-    """One theme and every wall showing it, who shows each read once for the listing (`survey`)."""
+def _placement_fields(services: Services, placement: ThemePlacement, seen: ThemesSeen) -> dict[str, Any]:
+    """One theme and every wall showing it, each wall said from the listing's one reading (`seen`)."""
     return {
         **_theme_fields(placement.theme),
-        "hanging_on": [_wall_fields(services, wall, survey) for wall in placement.walls],
+        "hanging_on": [_wall_fields(services, wall, seen.survey, seen.sizes[wall.id]) for wall in placement.walls],
     }
 
 

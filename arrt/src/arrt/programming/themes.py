@@ -194,11 +194,16 @@ class Themes:
 
         One pass over the assignments rather than one lookup per theme: the
         question "where is each of these hanging" is asked about the whole list
-        every time it is asked at all.
+        every time it is asked at all. The walls, the hangs and the themes are
+        read in one store scope, so a theme made and hung between two of the
+        reads is never a hang naming a theme the listing does not hold.
         """
-        walls = {wall.id: wall for wall in self._store.list_walls()}
+        with self._store.reading():
+            walls = {wall.id: wall for wall in self._store.list_walls()}
+            assignments = self._store.list_assignments()
+            themes = self._store.list_themes()
         hung: dict[str, list[str]] = {}
-        for assignment in self._store.list_assignments():
+        for assignment in assignments:
             hung.setdefault(assignment.theme_id, []).append(assignment.wall_id)
         return [
             ThemePlacement(
@@ -209,7 +214,7 @@ class Themes:
             )
             # A selection is not a theme the curator made, so the Themes index
             # leaves it out; the wall it hangs on is where it is seen.
-            for theme in self._store.list_themes()
+            for theme in themes
             if not theme.hidden
         ]
 

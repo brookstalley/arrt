@@ -29,6 +29,7 @@ candidate-work summary are not that: they are one shape written twice.
 """
 
 import json
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -1176,6 +1177,12 @@ READ_ROUTE_TWINS: dict[str, tuple[str, str]] = {
     "/api/watches": ("art_watches", "list"),
     "/api/watches/{watch_id}": ("art_watches", "get"),
     "/api/spend": ("art_spend", "history"),
+    "/api/artists": ("art_catalogue", "artists"),
+    "/api/artists/{artist_id}": ("art_catalogue", "artist"),
+    "/api/works/{artwork_id}/mat": ("art_catalogue", "mat"),
+    "/api/works/{artwork_id}/placements": ("art_theme", "placements"),
+    "/api/sources/yields": ("art_discovery", "source_yields"),
+    "/api/budget": ("art_discovery", "budget"),
 }
 
 #: Read routes no agent makes, by design, each with why.
@@ -1195,15 +1202,8 @@ READS_NOT_FOR_AN_AGENT: dict[str, str] = {
 
 #: Read routes an agent would ask and the surface does not answer yet: owed,
 #: each with what it is, as follow-up work; none is a field or route the tables
-#: above twin.
-READS_OWED_TO_MCP: dict[str, str] = {
-    "/api/artists": "the Library's artists, with what each holds; art_catalogue lists works, filterable by artist_id",
-    "/api/artists/{artist_id}": "one Library artist, with what they hold and the work they are pictured by",
-    "/api/works/{artwork_id}/mat": "a work's mat colours, newest first; set_mat_color writes one and answers it",
-    "/api/works/{artwork_id}/placements": "which themes hold a work and where each hangs; art_theme(action='get') is per theme",
-    "/api/sources/yields": "what each source plugin has given the Library; source_plugins is how each is doing",
-    "/api/budget": "what is left of the month's budget, read from the provider's key",
-}
+#: above twin. Empty since the six it held were twinned.
+READS_OWED_TO_MCP: dict[str, str] = {}
 
 
 def check_routes_paired(
@@ -1212,17 +1212,18 @@ def check_routes_paired(
     not_for_an_agent: dict[str, str],
     owed: dict[str, str],
     actions: set[tuple[str, str]],
+    kind: str = "read",
 ) -> None:
-    """Raise unless every read route is in exactly one table, each entry names a route there is, and each twin an action."""
+    """Raise unless every route of `kind` is in exactly one table, each entry names a route there is, and each twin an action."""
     tables = (("twinned", set(twins)), ("not for an agent", set(not_for_an_agent)), ("owed", set(owed)))
     unplaced = sorted(routes - set().union(*(names for _, names in tables)))
     assert not unplaced, (
-        f"the read routes {unplaced} have no MCP twin and no reason they have none. Pair each with the action "
+        f"the {kind} routes {unplaced} have no MCP twin and no reason they have none. Pair each with the action "
         "that answers it, or name it as not for an agent or as owed, with why."
     )
     for name, names in tables:
         stale = sorted(names - routes)
-        assert not stale, f"{stale} is listed as {name}, and no such read route is served: delete it"
+        assert not stale, f"{stale} is listed as {name}, and no such {kind} route is served: delete it"
     for (first, a), (second, b) in [(x, y) for i, x in enumerate(tables) for y in tables[i + 1 :]]:
         assert not a & b, f"{sorted(a & b)} is listed both as {first} and as {second}"
     missing = sorted(
@@ -1232,19 +1233,20 @@ def check_routes_paired(
     assert all(reason.strip() for reason in (*not_for_an_agent.values(), *owed.values()))
 
 
-def _read_routes(app) -> set[str]:
-    """Every GET the application answers that is not a page's or a Player's, from the application itself.
+def _routes(app) -> set[tuple[str, str]]:
+    """Every (method, path) the application answers that is not a page's or a Player's, from the application itself.
 
     An included router is walked into (FastAPI 0.140 keeps it whole, as an
     entry holding `original_router`, where earlier releases copied its routes
     flat), and the pages' and the Player's routers are left out by identity.
-    A mount (`/mcp`, `/static`) is not a route and is not read.
+    A mount (`/mcp`, `/static`) is not a route and is not read. `HEAD` is the
+    framework's own beside each `GET`, and is not a route anyone wrote.
     """
     from starlette.routing import Route
 
     from arrt.http import pages, player
 
-    found: set[str] = set()
+    found: set[tuple[str, str]] = set()
     pending = list(app.routes)
     while pending:
         route = pending.pop()
@@ -1252,9 +1254,19 @@ def _read_routes(app) -> set[str]:
         if included is not None:
             if included not in (pages.router, player.router):
                 pending.extend(included.routes)
-        elif isinstance(route, Route) and "GET" in (route.methods or ()):
-            found.add(route.path)
+        elif isinstance(route, Route):
+            found.update((method, route.path) for method in (route.methods or ()) if method != "HEAD")
     return found
+
+
+def _read_routes(app) -> set[str]:
+    """Every GET the application answers that is not a page's or a Player's."""
+    return {path for method, path in _routes(app) if method == "GET"}
+
+
+def _write_routes(app) -> set[str]:
+    """Every other method's route, as `METHOD path`: what changes something."""
+    return {f"{method} {path}" for method, path in _routes(app) if method != "GET"}
 
 
 def test_every_read_route_has_an_mcp_twin_or_a_reason_it_has_none(services):
@@ -1291,3 +1303,278 @@ def test_a_route_in_two_tables_is_refused():
         check_routes_paired(
             {"/api/walls"}, {"/api/walls": ("art_display", "walls")}, {}, {"/api/walls": "x"}, {("art_display", "walls")}
         )
+
+
+# -- every write route has a twin, or a reason it has none -------------------------------
+#
+# The same three tables for the routes that change something, read against the
+# application's own routes by method, so a new write route fails by name until
+# it is paired or given a reason. Each is keyed `METHOD path`.
+
+#: Each write route and the MCP action that does the same act.
+WRITE_ROUTE_TWINS: dict[str, tuple[str, str]] = {
+    "POST /api/works/{artwork_id}/acquisition/retry": ("art_catalogue", "retry_acquisition"),
+    "POST /api/acquisitions/causes/retry": ("art_catalogue", "retry_failures"),
+    "POST /api/works/{artwork_id}/wikidata": ("art_catalogue", "set_work_qid"),
+    "POST /api/artists/{artist_id}/wikidata": ("art_catalogue", "set_artist_qid"),
+    "POST /api/works/{artwork_id}/archive": ("art_catalogue", "archive"),
+    "POST /api/works/{artwork_id}/restore": ("art_catalogue", "restore"),
+    "POST /api/works/{artwork_id}/mat": ("art_catalogue", "set_mat_color"),
+    "POST /api/themes": ("art_theme", "create"),
+    "POST /api/themes/{theme_id}": ("art_theme", "update"),
+    "DELETE /api/themes/{theme_id}": ("art_theme", "delete"),
+    "POST /api/themes/{theme_id}/default": ("art_theme", "make_default"),
+    "POST /api/themes/{theme_id}/works": ("art_theme", "add"),
+    "DELETE /api/themes/{theme_id}/works/{artwork_id}": ("art_theme", "remove"),
+    "POST /api/themes/{theme_id}/works/{artwork_id}/position": ("art_theme", "reorder"),
+    "POST /api/themes/{theme_id}/activate": ("art_display", "activate"),
+    "POST /api/walls": ("art_display", "add_wall"),
+    "POST /api/walls/{wall_id}": ("art_display", "rename_wall"),
+    "DELETE /api/walls/{wall_id}": ("art_display", "delete_wall"),
+    "PUT /api/walls/{wall_id}/mat": ("art_display", "set_mat_mode"),
+    "PUT /api/walls/{wall_id}/playback": ("art_display", "set_playback"),
+    "DELETE /api/walls/{wall_id}/theme": ("art_display", "unhang"),
+    "POST /api/walls/{wall_id}/selection": ("art_display", "hang_selection"),
+    "POST /api/walls/{wall_id}/not-again": ("art_display", "not_again"),
+    "DELETE /api/exclusions/{artwork_id}": ("art_display", "allow_again"),
+    "POST /api/walls/{wall_id}/next": ("art_display", "next"),
+    "POST /api/scenes": ("art_display", "draft_scene"),
+    "PUT /api/scenes/{scene_id}/pins/{wall_id}": ("art_display", "pin_scene"),
+    "DELETE /api/scenes/{scene_id}/pins/{wall_id}": ("art_display", "unpin_scene"),
+    "POST /api/scenes/{scene_id}/apply": ("art_display", "apply_scene"),
+    "POST /api/scenes/{scene_id}/release": ("art_display", "release_scene"),
+    "DELETE /api/scenes/{scene_id}": ("art_display", "discard_scene"),
+    "POST /api/walls/{wall_id}/client": ("art_players", "assign_wall"),
+    "POST /api/walls/{wall_id}/display": ("art_players", "assign_display"),
+    "DELETE /api/walls/{wall_id}/client": ("art_players", "unassign_wall"),
+    "POST /api/walls/{wall_id}/labels": ("art_players", "add_label"),
+    "DELETE /api/walls/{wall_id}/labels/{label_id}": ("art_players", "remove_label"),
+    "POST /api/clients": ("art_players", "add_client"),
+    "POST /api/clients/{client_id}": ("art_players", "rename_client"),
+    "DELETE /api/clients/{client_id}": ("art_players", "remove_client"),
+    "POST /api/clients/{client_id}/token": ("art_players", "issue_client_token"),
+    "POST /api/runs": ("art_discovery", "start"),
+    "POST /api/gets": ("art_discovery", "get"),
+    "POST /api/runs/{run_id}/approve": ("art_discovery", "approve"),
+    "POST /api/runs/{run_id}/decline": ("art_discovery", "decline"),
+    "POST /api/runs/{run_id}/cancel": ("art_discovery", "cancel"),
+    "POST /api/runs/resolve": ("art_discovery", "resolve_images"),
+    "POST /api/candidates/{work_id}/verdict": ("art_review", "set_verdict"),
+    "POST /api/candidates/{work_id}/want": ("art_review", "want"),
+    "PUT /api/candidates/{work_id}/wikidata-item": ("art_review", "set_wikidata_item"),
+    "POST /api/candidate-images/{image_id}/select": ("art_review", "set_canonical"),
+    "POST /api/candidate-images/{image_id}/reject": ("art_review", "reject_image"),
+    "POST /api/affinities": ("art_taste", "set"),
+    "DELETE /api/affinities/{affinity_id}": ("art_taste", "delete"),
+    "POST /api/settings/{key}": ("art_settings", "set"),
+    "POST /api/watches": ("art_watches", "create"),
+    "POST /api/watches/{watch_id}": ("art_watches", "update"),
+    "DELETE /api/watches/{watch_id}": ("art_watches", "delete"),
+}
+
+#: Write routes no agent makes, by design, each with why.
+WRITES_NOT_FOR_AN_AGENT: dict[str, str] = {
+    "POST /api/ask/threads": "Ask is the browser's agent over this same surface; an agent asking it would ask itself",
+    "POST /api/ask/threads/{thread_id}/replies": "a reply in an Ask thread, the browser's conversation with that agent",
+}
+
+#: Write routes an agent would make and the surface does not take yet: owed, each
+#: with why it was not built with the inventory. A twin was built here only where
+#: it is one binding over an existing service method on a tool with room.
+WRITES_OWED_TO_MCP: dict[str, str] = {
+    "POST /api/works/archive": (
+        "archives a selection by ids or by every work a Library filter matches (Artworks' Select all); the handler "
+        "resolves the filter (http/api.py _selected_ids), not a service method, and art_catalogue has no room; "
+        "art_catalogue(action='archive') archives one work"
+    ),
+    "POST /api/themes/{theme_id}/works/bulk": (
+        "adds a selection by ids or by a Library filter; the handler resolves the filter, not a service method; "
+        "art_theme(action='add') adds one work"
+    ),
+    "POST /api/themes/{theme_id}/works/remove": (
+        "takes a selection out by ids or by a Library filter; the handler resolves the filter, not a service method; "
+        "art_theme(action='remove') takes out one work"
+    ),
+}
+
+
+def test_every_write_route_has_an_mcp_twin_or_a_reason_it_has_none(services):
+    from arrt.app import create_app
+
+    routes = _write_routes(create_app(services))
+    # Anchors, so a walk that read nothing cannot pass: one write of each method and of the Ask router, no Player's.
+    assert {"POST /api/walls", "PUT /api/walls/{wall_id}/mat", "DELETE /api/walls/{wall_id}", "POST /api/ask/threads"} <= routes
+    assert not {route for route in routes if route.endswith(("/client/heartbeat", "/heartbeat"))}, "a Player's route was read"
+    check_routes_paired(
+        routes, WRITE_ROUTE_TWINS, WRITES_NOT_FOR_AN_AGENT, WRITES_OWED_TO_MCP, set(bindings.BINDINGS), kind="write"
+    )
+
+
+def test_a_write_route_with_neither_twin_nor_reason_is_refused_by_name():
+    with pytest.raises(AssertionError, match=r"the write routes \['POST /api/new'\] have no MCP twin"):
+        check_routes_paired(
+            {"POST /api/new", "POST /api/walls"},
+            {"POST /api/walls": ("art_display", "add_wall")},
+            {},
+            {},
+            {("art_display", "add_wall")},
+            kind="write",
+        )
+
+
+@pytest.mark.parametrize("route", sorted(WRITE_ROUTE_TWINS), ids=lambda route: ".".join(WRITE_ROUTE_TWINS[route]))
+def test_a_paired_write_routes_action_renamed_is_refused_by_name(route):
+    """Each twin, its action taken away as a rename would: the inventory names the route and the action it lost."""
+    tool, action = WRITE_ROUTE_TWINS[route]
+    renamed = set(bindings.BINDINGS) - {(tool, action)} | {(tool, f"{action}_renamed")}
+    with pytest.raises(AssertionError, match=re.escape(f"{route} -> {tool}(action={action!r})")):
+        check_routes_paired(
+            set(WRITE_ROUTE_TWINS) | set(WRITES_NOT_FOR_AN_AGENT) | set(WRITES_OWED_TO_MCP),
+            WRITE_ROUTE_TWINS,
+            WRITES_NOT_FOR_AN_AGENT,
+            WRITES_OWED_TO_MCP,
+            renamed,
+            kind="write",
+        )
+
+
+# -- the six reads the browser made that an agent could not, answered alike ---------------
+#
+# Each new twin against its route, whole, on one seeded Library: what the
+# route answers is what the action answers, `success` aside. A field dropped
+# from either side, or a value written differently, fails here by route.
+
+
+@pytest.fixture
+def placed(services, seeded_service, settings, wall_id, decodable_jpeg):
+    """A held work with a picture, a mat, a source and a theme hung on the wall, kept off walls; and its artist."""
+    from arrt.persistence.records import AcquisitionMethod, FetchStatus, MatMethod, RightsStatus, SourceClass
+
+    catalogue = seeded_service
+    artist = catalogue.add_artist(name="Edward Hopper", nationality="American", born=1882, died=1967)
+    work = catalogue.add_artwork(title="Automat", artist_id=artist.id, date_created="1927")
+    source = catalogue.add_source(
+        artwork_id=work.id,
+        url=f"https://museum.example/{work.id}",
+        provider="artic",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    relative = f"raw/{work.id}.jpg"
+    decodable_jpeg(settings.art_root / relative, width=1200, height=1600, color=(120, 90, 60))
+    catalogue.record_original(
+        artwork_id=work.id,
+        source_id=source.id,
+        path=relative,
+        width=1200,
+        height=1600,
+        byte_size=(settings.art_root / relative).stat().st_size,
+        content_hash=f"hash-{work.id}",
+        fetch_status=FetchStatus.OK,
+    )
+    catalogue.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL, reason="Chosen.")
+    theme = services.display.add_theme(name="Diners")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=wall_id)
+    services.display.exclude_work(work.id)
+    return work, artist
+
+
+_TWINS_ANSWERED = {
+    "artists": lambda work, artist: ("/api/artists", ("art_catalogue", {"action": "artists"})),
+    "artists-by-name": lambda work, artist: ("/api/artists?q=hop", ("art_catalogue", {"action": "artists", "q": "hop"})),
+    "artist": lambda work, artist: (
+        f"/api/artists/{artist.id}",
+        ("art_catalogue", {"action": "artist", "artist_id": artist.id}),
+    ),
+    "mat": lambda work, artist: (
+        f"/api/works/{work.id}/mat",
+        ("art_catalogue", {"action": "mat", "artwork_id": work.id}),
+    ),
+    "placements": lambda work, artist: (
+        f"/api/works/{work.id}/placements",
+        ("art_theme", {"action": "placements", "artwork_id": work.id}),
+    ),
+    "source-yields": lambda work, artist: ("/api/sources/yields", ("art_discovery", {"action": "source_yields"})),
+    "budget": lambda work, artist: ("/api/budget", ("art_discovery", {"action": "budget"})),
+}
+
+
+def _known_budget():
+    from decimal import Decimal
+
+    from arrt.library.discovery.openrouter import KeyStatus
+
+    return KeyStatus(
+        limit_usd=Decimal(20),
+        usage_usd=Decimal("1.5"),
+        remaining_usd=Decimal("18.5"),
+        resets="monthly",
+        usage_monthly_usd=Decimal("1.5"),
+    )
+
+
+@pytest.mark.parametrize("key_status", [_known_budget], ids=["a key with a limit"])
+@pytest.mark.parametrize("asked", _TWINS_ANSWERED)
+def test_each_new_read_twin_answers_as_its_route_whole(server_url, services, placed, key_status, asked):
+    import httpx
+
+    from arrt.mcp.server import dispatch
+
+    path, (tool, arguments) = _TWINS_ANSWERED[asked](*placed)
+    route = httpx.get(server_url + path, timeout=30.0)
+    assert route.status_code == 200, route.text
+    payload = dispatch(services, tool, arguments)
+
+    assert payload.pop("success") is True, payload
+    assert payload == route.json()
+
+
+def test_the_new_read_twins_answer_what_the_seeded_library_holds(server_url, services, placed):
+    """The comparison above is between two answers; this says they are about something, so two empty answers cannot agree."""
+    from arrt.mcp.server import dispatch
+
+    work, artist = placed
+    artists = dispatch(services, "art_catalogue", {"action": "artists", "q": "hop"})["artists"]
+    assert [(entry["artist"]["artist_id"], entry["held"], entry["pictured_artwork_id"]) for entry in artists] == [
+        (artist.id, 1, work.id)
+    ]
+    mat = dispatch(services, "art_catalogue", {"action": "mat", "artwork_id": work.id})
+    assert (mat["current"]["hex_rgb"], mat["current"]["method"]) == ("#27285b", "vision_model")
+    assert mat["derived_hex_rgb"] is not None
+    assert mat["presets"]
+    placements = dispatch(services, "art_theme", {"action": "placements", "artwork_id": work.id})
+    assert [entry["theme"]["name"] for entry in placements["themes"]] == ["Diners"]
+    assert [wall["wall_id"] for wall in placements["themes"][0]["hanging_on"]] != []
+    assert placements["excluded_at"] is not None
+    [artic] = dispatch(services, "art_discovery", {"action": "source_yields"})["sources"]
+    assert (artic["name"], artic["chosen"], artic["only_here"]) == ("artic", 1, 1)
+
+
+@pytest.mark.parametrize("key_status", [_known_budget], ids=["a key with a limit"])
+def test_the_budget_twin_reads_the_providers_figures(services, key_status):
+    from arrt.mcp.server import dispatch
+
+    budget = dispatch(services, "art_discovery", {"action": "budget"})
+
+    assert (budget["state"], budget["remaining_usd"], budget["budget_usd"], budget["spent_usd"]) == ("known", "18.5", "20", "1.5")
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("art_catalogue", {"action": "artist", "artist_id": "no-such-artist"}),
+        ("art_catalogue", {"action": "mat", "artwork_id": "no-such-work"}),
+        ("art_theme", {"action": "placements", "artwork_id": "no-such-work"}),
+    ],
+    ids=["artist", "mat", "placements"],
+)
+def test_a_new_read_twin_refuses_an_id_the_library_does_not_hold_by_name(services, tool, arguments):
+    from arrt.mcp.server import dispatch
+
+    payload = dispatch(services, tool, arguments)
+
+    assert payload["success"] is False
+    assert "no-such-" in payload["error"]
