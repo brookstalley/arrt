@@ -65,7 +65,15 @@ it. The heartbeat gains it in wave 2, and a heartbeat without one is 1.0.
   already has**. For the Player that means the last good manifest, so the wall
   goes on showing yesterday's theme rather than a misreading of today's.
 - **A new minor is additive** and free. A reader ignores a minor it does not know,
-  and ignores keys it does not recognise.
+  and ignores keys it does not recognise. **Two bounded exceptions, both in 1.3.0,
+  ratified by the owner on 2026-11-25** (`.prawduct/owner-rulings.md`), each a
+  narrowing kept to the one case named: **a report names at most 32 outputs and at
+  most 32 label outputs** (`MAX_OUTPUTS_PER_REPORT`), where 1.2.0's schema bounded
+  neither; and **a manifest that lists the same `staging` entry twice is one a Player
+  refuses** (`manifest.v2/invalid/staging-repeated.json`, `player_must_refuse` true),
+  where 1.2.0 obliged a writer to avoid it and a reader to nothing. What each costs a
+  Player pinned to 1.2.0 is under § Releases. A third narrowing is not covered: it
+  waits for a major, or is put to the owner again.
 - **The schemas allow unknown keys** for that reason, and `unknown-minor-and-key`
   is a valid fixture.
 - **A reader may be more tolerant than a schema.** The schema says what a writer
@@ -172,14 +180,15 @@ field asks for it as a change to the package.
   - This file: § Transport points at the table, says what a `404` on a master
     and the client document's tag mean, and no longer promises what a
     Library/Programming split would require (§ Transport, media).
-- **1.3.0** (audit wave 2b, 2026-11-20): **not cut yet**. `contract/pyproject.toml`
-  says 1.3.0 and no `contract-v1.3.0` tag exists; the tag is cut on the merge
-  commit after the 2b plan merges, and its frozen copy is written then with
-  `contract/tools/freeze_release.py`. Additive but for two answers, each a bounded
-  exception recorded in `build-plan-audit-wave-2b.md` § Decisions made mid-build: one
-  corrected (the wall heartbeat's `not_an_object`, below) and one narrowed (the cap of
-  32 outputs and 32 label outputs, below); a third, `staging-repeated`, waits for the
-  owner (below).
+- **1.3.0** (audit wave 2b, 2026-11-20; tagged `contract-v1.3.0`, annotated, on
+  2026-11-25): its frozen copy is `contract/released/1.3.0/`, written from the tag
+  with `contract/tools/freeze_release.py`. Additive but for three answers. **Two are
+  narrowings, bounded exceptions ratified by the owner on 2026-11-25**
+  (`.prawduct/owner-rulings.md`, "five answers while wave 3 was being integrated";
+  § Versioning): the cap of 32 outputs and 32 label outputs, and `staging-repeated`
+  as a row a Player refuses, each below with its cost. **One is a corrected answer**,
+  recorded in `build-plan-audit-wave-2b.md` § Decisions made mid-build: the wall
+  heartbeat's `not_an_object`, below.
   - `contract/vocabulary.json`, `vocabulary()`: `player_states`, a Player's five
     states as the server reads them, each with its `word`, `setup` and `means`:
     `no_token` "No token yet" and `awaiting_report` "Waiting for its first report"
@@ -213,12 +222,16 @@ field asks for it as a change to the package.
     `contract/tests/test_schemas_and_fixtures.py` holds every must-refuse row to a
     field a rule of this file reads. A Player that comes to act on `generated_at`
     needs a reader rule in a later minor, which would be a narrowing to record.
-  - **`staging-repeated` stays must-refuse, and is put to the owner** beside the
-    cap. 1.2.0 did not oblige a reader to refuse it: its schema's `uniqueItems` on
+  - **`staging-repeated` is must-refuse: the second bounded exception, ratified.**
+    1.2.0 did not oblige a reader to refuse it: its schema's `uniqueItems` on
     `staging` was a writer's obligation, its index had no such fixture, and neither
     § Staging nor § Rules a schema cannot state says a repeated item is refused. So
-    marking it is a third narrowing of a reader, to be ratified, or marked false
-    and left to a Player as its own choice. Arrt Player's reader accepts it today.
+    marking it narrows what a reader accepts, and its cost is that a Player which
+    accepted a manifest listing one staging entry twice is, at 1.3.0, one the index
+    calls non-conforming on that row. The server's writer never sends one
+    (`arrt/tests/contract/test_feed_writer_obligations.py`), so no manifest a wall
+    receives changes. Arrt Player's reader accepted it when it was measured; moving
+    its pin is where its suite comes to give the row a reason, or to refuse it.
   - `contract/transport.json`: the client heartbeat's two `400` rows say what a
     changed report is: everything in it but `reported_at`, which every report
     carries anew (§ Transport). The answer a Player meets does not change.
@@ -226,7 +239,7 @@ field asks for it as a change to the package.
     schema=…)` (the default schema is unchanged): no two outputs share a name, nor
     two label outputs; and a report carries at most `MAX_OUTPUTS_PER_REPORT` (32)
     of each (§ Transport). Four fixtures break them; each passes the schema.
-    **The cap is the narrowed answer**: 1.2.0's schema bounds no list of outputs,
+    **The cap is the first bounded exception, ratified**: 1.2.0's schema bounds no list of outputs,
     and a report of 33 outputs and 33 label outputs (5,533 bytes, inside the
     routes' 256 KiB body) was valid under it; the server has refused one since
     2026-11-19. A Player pinned to 1.2.0 that sent more would be refused whole by
@@ -264,9 +277,10 @@ refuses ("carries no media with a sha256 and a url"). A Player moving its pin to
 
 ### What a Player does at 1.3.0
 
-**Nothing a Player reads, writes or requests must change**, but for one row the
-owner has yet to rule on (`staging-repeated`, under § Releases), and 1.3.0 is not cut
-yet: a Player moves its pin when `contract-v1.3.0` exists. What its suite must do
+**Nothing a Player reads, writes or requests must change**, but for the two
+narrowings the owner ratified on 2026-11-25 (the cap of 32, and `staging-repeated`
+as a row a Player refuses, both under § Releases): a Player moves its pin to
+`contract-v1.3.0`, which is cut. What its suite must do
 then, if it holds every must-refuse fixture to a stated reason as Arrt Player's
 does: **give a reason to each new invalid fixture its table reads** (the 170 above;
 of the 68 of `manifest.v2`, the 25 with `player_must_refuse` true are the ones a
@@ -674,7 +688,9 @@ from wave 2, retired with major 1, and its check with it.)*
 composes them ahead, so applying the scene is only a switch. On a Frame, that is
 selecting an image already uploaded. Nothing is shown because a work is staged,
 and a Player may evict staged work that no slot or scene names once staging
-drops it.
+drops it. **A manifest that lists one item twice is refused** (since 1.3.0, the
+second bounded exception of § Versioning; the schema's `uniqueItems`,
+`manifest.v2/invalid/staging-repeated.json`).
 
 ### What happens to `show_now` and `next`
 

@@ -58,8 +58,8 @@ def _document(release: Path, row: dict) -> dict:
 def _errors_at_head(release: Path, row: dict) -> list[str]:
     document = _document(release, row)
     errors = [error.message for error in validator(row["schema"]).iter_errors(document)]
-    if not errors and row["schema"] == "schemas/manifest.v2.schema.json":
-        errors = semantic_errors(document)
+    if not errors:
+        errors = semantic_errors(document, schema=row["schema"])
     return errors
 
 
@@ -116,6 +116,59 @@ def test_every_release_the_specification_lists_below_the_packages_version_has_a_
     assert {"1.0.0", "1.1.0", "1.2.0"} <= set(_listed_releases(text)), "§ Releases was not read: the check would pass on nothing"
     unfrozen = _listed_below_and_not_frozen(text, HEAD_VERSION, set(RELEASES))
     assert unfrozen == [], f"§ Releases lists {unfrozen}, below {HEAD_VERSION}, with no copy in contract/released/"
+
+
+def _listed_as_tagged(specification_text: str) -> list[str]:
+    """The versions whose § Releases bullet opening says it is tagged (`contract-v<version>`), before any nested bullet.
+
+    The pool and CI have no tags, so the specification is what says a release is
+    cut: a bullet that says so is held to its copy even when the version is the
+    package's own, which the check above leaves out until the next minor.
+    """
+    lines = specification_text.splitlines()
+    if "### Releases" not in lines:
+        raise ValueError("no '### Releases' heading: reading none would pass every release as frozen")
+    openings: dict[str, list[str]] = {}
+    current = ""
+    in_opening = False
+    for line in lines[lines.index("### Releases") + 1 :]:
+        if line.startswith("#"):
+            break
+        found = _RELEASE_LINE.match(line)
+        if found:
+            current, in_opening = found.group(1), True
+            openings[current] = [line]
+        elif line.startswith("  -"):
+            in_opening = False
+        elif in_opening and line.strip():
+            openings[current].append(line.strip())
+        elif not line.strip():
+            in_opening = False
+    return [v for v, text in openings.items() if f"tagged `contract-v{v}`" in " ".join(text)]
+
+
+def test_a_release_the_specification_says_is_tagged_has_a_frozen_copy_even_at_the_packages_own_version():
+    text = specification().read_text(encoding="utf-8")
+
+    tagged = _listed_as_tagged(text)
+    assert HEAD_VERSION in tagged, f"§ Releases does not say {HEAD_VERSION} is tagged: the check would pass on nothing"
+    uncopied = [v for v in tagged if v not in RELEASES]
+    assert uncopied == [], f"§ Releases says {uncopied} is tagged and contract/released/ holds only {sorted(RELEASES)}"
+
+
+@pytest.mark.parametrize(
+    ("excerpt", "tagged"),
+    [
+        ("- **1.3.0** (wave 2b; tagged `contract-v1.3.0`, annotated, on\n  2026-11-25): a copy.\n  - nested\n", ["1.3.0"]),
+        ("- **1.3.0** (wave 2b; tagged\n  `contract-v1.3.0`): wrapped.\n", ["1.3.0"]),
+        ("- **1.3.0** (wave 2b): **not cut yet**.\n", []),
+        ("- **1.3.0** (wave 2b): opening.\n  - a nested bullet says tagged `contract-v1.3.0`\n", []),
+        ("- **1.3.0** (tagged `contract-v1.2.0`)\n", []),
+        ("- **1.2.0** (tagged `contract-v1.2.0`)\n- **1.3.0** (tagged `contract-v1.3.0`)\n", ["1.2.0", "1.3.0"]),
+    ],
+)
+def test_the_parser_of_tagged_releases_reads_the_bullets_opening_and_nothing_else(excerpt, tagged):
+    assert _listed_as_tagged(f"### Releases\n\n{excerpt}") == tagged
 
 
 # Lines copied from `contract/player-contract.md` as it is at contract-v1.2.0, in its order:

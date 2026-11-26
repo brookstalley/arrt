@@ -1,0 +1,35 @@
+{
+  "reported_at": "2026-11-11T14:00:05+00:00",
+  "manifest_schema": "2.0",
+  "theme_id": "th-surrealism",
+  "current_work_id": "w-dali-1",
+  "announced_content_id": null,
+  "television_reachable": null,
+  "television_showing_art": null,
+  "has_label_surface": false,
+  "label_surface_working": null,
+  "last_error": null,
+  "schema": {
+    "major": 1,
+    "minor": 5
+  },
+  "capabilities": {
+    "screen": {
+      "width_px": 3840,
+      "height_px": 2160
+    },
+    "backend": "framebuffer",
+    "label_modes": [
+      "none",
+      "caption",
+      "overlay"
+    ],
+    "manifest_majors": [
+      2
+    ],
+    "media": {
+      "kinds": []
+    }
+  },
+  "scene_id": null
+}
