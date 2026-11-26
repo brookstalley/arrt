@@ -24,6 +24,7 @@ asked; the index catches the case where some path forgets to, and its message
 names only the table.
 """
 
+import statistics
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, Final
@@ -385,8 +386,13 @@ CREATE TABLE IF NOT EXISTS source_searches (
 -- Status counts each source's newest searches on every page: an index in the
 -- order it reads them, holding every column it counts, so it reads that many
 -- entries of the index and never the rows, however many works were searched.
-CREATE INDEX IF NOT EXISTS source_searches_by_provider
-    ON source_searches(provider, asked_at, outcome, answered_at);
+-- It holds `images` for the hit rate, which the index before it,
+-- `source_searches_by_provider`, did not: that one is dropped, as an index
+-- holds nothing the table does not, and a release that still declares it
+-- builds it again on its own open.
+DROP INDEX IF EXISTS source_searches_by_provider;
+CREATE INDEX IF NOT EXISTS source_searches_counted
+    ON source_searches(provider, asked_at, outcome, answered_at, images);
 """
 
 #: The join's own key. A work appears at most once per resolve run.
@@ -401,32 +407,19 @@ _CITATION_KEY: Final[tuple[str, ...]] = ("discovery_run_id", "url")
 #: One row per work per source: the newest search replaces the one before it.
 _SEARCH_KEY: Final[tuple[str, ...]] = ("candidate_work_id", "provider")
 
-#: One source's newest `SEARCHES_COUNTED` searches, counted by what it said
-#: (`search_tallies`). An answer is any of the three that are neither "could not
-#: be asked" nor "owed". Bound by the source and a LIMIT, so it reads that many
-#: entries of `source_searches_by_provider` and no more.
+#: One source's newest `SEARCHES_COUNTED` searches, what it said to each and
+#: when, for `search_tallies` to count. Bound by the source and a LIMIT, so it
+#: reads that many entries of `source_searches_counted` and no more. Rows rather
+#: than sums because a median is not a sum: one statement still, so the counts
+#: and the latencies are of one reading.
 _SEARCH_TALLIES: Final[str] = """
-SELECT COUNT(*) AS searched,
-       COALESCE(SUM(CASE WHEN outcome IN (?, ?, ?) THEN 1 ELSE 0 END), 0) AS answered,
-       COALESCE(SUM(CASE WHEN outcome = ? THEN 1 ELSE 0 END), 0) AS unasked,
-       COALESCE(SUM(CASE WHEN outcome = ? THEN 1 ELSE 0 END), 0) AS owed,
-       MAX(CASE WHEN outcome IN (?, ?, ?) THEN answered_at END) AS last_answered_at,
-       MAX(asked_at) AS last_asked_at
-  FROM (SELECT outcome, answered_at, asked_at FROM source_searches
-         WHERE provider = ? ORDER BY asked_at DESC LIMIT ?)
+SELECT outcome, asked_at, answered_at, images FROM source_searches
+ WHERE provider = ? ORDER BY asked_at DESC LIMIT ?
 """
 
-#: The outcomes `_SEARCH_TALLIES` counts as answers, and every value it binds, in its order.
-_ANSWERS: Final[tuple[str, ...]] = (
-    str(SearchOutcome.ANSWERED),
-    str(SearchOutcome.DECLINED),
-    str(SearchOutcome.LINK_GONE),
-)
-_TALLY_VALUES: Final[tuple[str, ...]] = (
-    *_ANSWERS,
-    str(SearchOutcome.UNREACHABLE),
-    str(SearchOutcome.OWED),
-    *_ANSWERS,
+#: The outcomes counted as answers: any of the three that are neither "could not be asked" nor "owed".
+_ANSWERS: Final[frozenset[str]] = frozenset(
+    str(outcome) for outcome in (SearchOutcome.ANSWERED, SearchOutcome.DECLINED, SearchOutcome.LINK_GONE)
 )
 
 #: Newest first: a run list is a history, and the run someone is asking about is
@@ -732,17 +725,9 @@ class SqliteDiscovery(TableAdapter):
         # One statement per source, each its own: the sources' counts need not
         # agree with one another, so no read scope holds the store between them.
         for provider in dict.fromkeys(providers):
-            (row,) = self._store.select_rows(_SEARCH_TALLIES, (*_TALLY_VALUES, provider, SEARCHES_COUNTED))
-            if row["searched"]:
-                found[provider] = SearchTally(
-                    provider=provider,
-                    searched=row["searched"],
-                    answered=row["answered"],
-                    unasked=row["unasked"],
-                    owed=row["owed"],
-                    last_answered_at=from_iso(row["last_answered_at"]),
-                    last_asked_at=from_iso(row["last_asked_at"]),
-                )
+            rows = self._store.select_rows(_SEARCH_TALLIES, (provider, SEARCHES_COUNTED))
+            if rows:
+                found[provider] = _tally(provider, rows)
         return found
 
     # -- citations --------------------------------------------------------------
@@ -1029,6 +1014,34 @@ def _search_row(search: SourceSearch) -> dict[str, Any]:
         "images": search.images,
         "late": int(search.late),
     }
+
+
+def _tally(provider: str, rows: Sequence[Mapping[str, Any]]) -> SearchTally:
+    """What one source's newest searches came to, from the rows `_SEARCH_TALLIES` reads.
+
+    An answer the record holds no arrival time for is counted as answered and
+    left out of the latency, as `MAX` left it out of the last answer: the
+    record's own type allows one, and Status must not refuse to read over it.
+    """
+    answers = [row for row in rows if row["outcome"] in _ANSWERS]
+    latencies = []
+    arrivals = []
+    for row in answers:
+        arrived = from_iso(row["answered_at"])
+        if arrived is not None:
+            arrivals.append(arrived)
+            latencies.append((arrived - require_datetime(row["asked_at"], "asked_at")).total_seconds())
+    return SearchTally(
+        provider=provider,
+        searched=len(rows),
+        answered=len(answers),
+        unasked=sum(row["outcome"] == SearchOutcome.UNREACHABLE for row in rows),
+        owed=sum(row["outcome"] == SearchOutcome.OWED for row in rows),
+        last_answered_at=max(arrivals, default=None),
+        last_asked_at=max(require_datetime(row["asked_at"], "asked_at") for row in rows),
+        with_images=sum(row["images"] > 0 for row in answers),
+        median_latency_seconds=statistics.median(latencies) if latencies else None,
+    )
 
 
 def _search(row: Mapping[str, Any]) -> SourceSearch:

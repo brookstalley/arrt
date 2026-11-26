@@ -7,6 +7,7 @@ are the installed metadata's and not a fixture's.
 
 import importlib.metadata
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from async_http import request
@@ -16,6 +17,18 @@ from mcp.client.streamable_http import streamable_http_client
 
 from arrt.library.sources import API_VERSION, SourceContext
 from arrt.library.sources.loading import SourceRoster, load_sources
+from arrt.persistence.discovery_records import (
+    CandidateWork,
+    DiscoveryRun,
+    InitiatedBy,
+    RunKind,
+    RunStatus,
+    SearchOutcome,
+    SourceSearch,
+)
+from arrt.persistence.sqlite_discovery import SqliteDiscovery
+
+ASKED = datetime(2026, 11, 20, 3, 0, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -68,6 +81,8 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
         "searches_unasked": 0,
         "searches_owed": 0,
         "last_search_answered_at": None,
+        "searches_with_images": 0,
+        "searches_median_latency_seconds": None,
         "description": None,
         "distribution": "arrt",
         "version": importlib.metadata.version("arrt"),
@@ -91,3 +106,52 @@ async def test_the_tool_answers_what_the_route_answers(server_url):
     # included: the tool carries them.
     assert model["sources"] == browser["sources"]
     assert model["count"] == len(browser["sources"])
+
+
+def _searched(discovery_store: SqliteDiscovery, provider: str) -> None:
+    """Five works searched at one source: three answered with images, one with none, one still owed.
+
+    The answers took 2, 4 and 10 seconds, and the one with no image 4, so the
+    median of what it answered is 4 s whichever middle is taken.
+    """
+    discovery_store.add_run(
+        DiscoveryRun(
+            id="r1",
+            kind=RunKind.GET,
+            initiated_by=InitiatedBy.WEB_UI,
+            status=RunStatus.COMPLETED,
+            approval_required=False,
+            started_at=ASKED,
+        )
+    )
+    answers = [(2, 3), (4, 1), (10, 2), (4, 0), (None, 0)]
+    for n, (seconds, images) in enumerate(answers):
+        discovery_store.add_candidate_work(
+            CandidateWork(
+                id=f"c{n}", discovery_run_id="r1", proposed_title=f"Study No. {n}", rationale="Chosen.", work_dedup_key=f"k{n}"
+            )
+        )
+        asked = ASKED + timedelta(minutes=n)
+        discovery_store.record_search(
+            SourceSearch(
+                candidate_work_id=f"c{n}",
+                provider=provider,
+                asked_at=asked,
+                outcome=SearchOutcome.OWED if seconds is None else SearchOutcome.ANSWERED,
+                answered_at=None if seconds is None else asked + timedelta(seconds=seconds),
+                images=images,
+            )
+        )
+
+
+async def test_the_route_and_the_tool_carry_status_s_three_columns(server_url, discovery_store):
+    """Searches 5, a hit rate of 3 of the 4 it answered, and a median latency of 4 s, on both surfaces alike."""
+    _searched(discovery_store, "met")
+
+    browser = (await request("GET", f"{server_url}/api/sources")).json()
+    met = next(source for source in browser["sources"] if source["name"] == "met")
+
+    assert (met["searched"], met["searches_answered"], met["searches_with_images"], met["searches_owed"]) == (5, 4, 3, 1)
+    assert met["searches_median_latency_seconds"] == 4.0
+    model = await tool(server_url)
+    assert next(source for source in model["sources"] if source["name"] == "met") == met

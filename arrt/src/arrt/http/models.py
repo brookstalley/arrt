@@ -1469,6 +1469,12 @@ class SourcePluginOut(BaseModel):
     searches_unasked: int
     searches_owed: int
     last_search_answered_at: str | None
+    #: Status's Hit rate and Median latency, from the same searches: of those
+    #: it answered, how many it answered with at least one image, and the
+    #: median seconds from being asked to answering. Zero and null for a
+    #: plugin that answered none (`SearchTally`).
+    searches_with_images: int
+    searches_median_latency_seconds: float | None
     description: str
     #: The installed distribution that registers the plugin, and its version;
     #: null for a plugin registered by hand, or one two distributions both claim.

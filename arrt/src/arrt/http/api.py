@@ -3014,6 +3014,8 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
         last_search_answered_at=(
             None if searches is None or searches.last_answered_at is None else searches.last_answered_at.isoformat()
         ),
+        searches_with_images=0 if searches is None else searches.with_images,
+        searches_median_latency_seconds=None if searches is None else searches.median_latency_seconds,
         description=health.describe(),
         distribution=reading.identity.distribution,
         version=reading.identity.version,

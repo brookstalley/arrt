@@ -37,7 +37,7 @@
 import { number } from "../core/counting.js";
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
-import { ago, dated } from "../core/dates.js";
+import { ago, dated, inWords } from "../core/dates.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { outputCell, screenName } from "../core/outputs.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
@@ -421,18 +421,24 @@ function failedFetchesPanel(health) {
  * `.source-table`: Source, State, Offered and Chosen never leave. Median long
  * edge goes first because the owner did not name it; Faults since startup goes
  * last, and when it does the count moves into the State cell, so a fault is on
- * screen at every width (owner, 2026-10-08). The class is what the stylesheet
- * and the width test both key on. `num` marks a column of figures, set
- * right-aligned (`app.css`, `.num`). */
+ * screen at every width (owner, 2026-10-08). Of the three read from the search
+ * record, Searches goes soonest, being only how many the other two are over,
+ * and Hit rate latest, being what says most of a museum's worth: it outlasts
+ * every column but Faults. The class is what the stylesheet and the width test
+ * both key on. `num` marks a column of figures, set right-aligned (`app.css`,
+ * `.num`). */
 const SOURCE_COLUMNS = [
   { name: "source", heading: "Source" },
   { name: "state", heading: "State" },
   { name: "offered", heading: "Offered", num: true },
   { name: "chosen", heading: "Chosen", num: true },
-  { name: "only-here", heading: "Only here", drops: 3, num: true },
+  { name: "only-here", heading: "Only here", drops: 5, num: true },
+  { name: "searches", heading: "Searches", drops: 2, num: true },
+  { name: "hit-rate", heading: "Hit rate", drops: 6, num: true },
+  { name: "latency", heading: "Median latency", drops: 4, num: true },
   { name: "median", heading: "Median long edge", drops: 1, num: true },
-  { name: "faults", heading: "Faults since startup", drops: 4, num: true },
-  { name: "last-fault", heading: "Last fault", drops: 2 },
+  { name: "faults", heading: "Faults since startup", drops: 7, num: true },
+  { name: "last-fault", heading: "Last fault", drops: 3 },
 ];
 
 /* A loaded plugin's faults in words; one that did not load has none to speak
@@ -444,6 +450,29 @@ function faultWords(source) {
 
 function count(value) {
   return typeof value === "number" ? number(value) : "—";
+}
+
+const PERCENT = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 0 });
+const SECONDS = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+
+/* Of the searches it answered, the share it answered with an image: "75%".
+ * A source that answered none has no rate and reads "—", never "0%", which
+ * would say it answered and never had an image. */
+function hitRate(source) {
+  const answered = source.searches_answered;
+  if (typeof answered !== "number" || answered === 0 || typeof source.searches_with_images !== "number") return "—";
+  return PERCENT.format(source.searches_with_images / answered);
+}
+
+/* How long its answers took, at their median: "0.8 s", "4 s", "35 s", and in
+ * the ages' words from a minute and a half on ("2 minutes"), where an answer
+ * that came after the run stopped waiting for it lands. "—" when it answered
+ * none. */
+function latency(source) {
+  const seconds = source.searches_median_latency_seconds;
+  if (typeof seconds !== "number") return "—";
+  if (seconds >= 90) return inWords(seconds);
+  return `${SECONDS.format(seconds < 10 ? seconds : Math.round(seconds))} s`;
 }
 
 function sourceRow(source, yielded) {
@@ -464,6 +493,11 @@ function sourceRow(source, yielded) {
     offered: count(yielded && yielded.offered),
     chosen: count(yielded && yielded.chosen),
     "only-here": count(yielded && yielded.only_here),
+    // From the search record, which the health reading carries for every
+    // source: zero searches for one never searched.
+    searches: count(source.searched),
+    "hit-rate": hitRate(source),
+    latency: latency(source),
     median: yielded && typeof yielded.median_long_edge === "number" ? `${number(yielded.median_long_edge)} px` : "—",
     faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
     "last-fault":
@@ -503,7 +537,7 @@ function sourcesPanel(health, yields) {
             el("div", { class: "table-scroll" }, [
               el("table", {}, [
                 el("caption", {
-                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for.",
+                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for. Searches: the works it was most recently searched for. Hit rate: of those it answered, the share it answered with an image. Median latency: how long it took to answer them.",
                 }),
                 el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => el("th", { scope: "col", class: `col-${name}${num ? " num" : ""}`, text: heading })))]),
                 el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),

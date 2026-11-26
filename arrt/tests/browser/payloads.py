@@ -11,8 +11,10 @@ threading half a dozen builder fixtures through every signature would say
 nothing the import does not.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
+from arrt.http import api as http_api
 from arrt.http.models import (
     AffinityListOut,
     AffinityOut,
@@ -49,6 +51,7 @@ from arrt.http.models import (
 from arrt.library.services.discovery import SpendTotal
 from arrt.library.services.quality import Fit
 from arrt.library.services.spending import cost_tier
+from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
@@ -57,10 +60,12 @@ from arrt.persistence.discovery_records import (
     ResolutionStatus,
     RunKind,
     RunStatus,
+    SearchTally,
     Verdict,
     WorkProvenance,
 )
 from arrt.persistence.records import ArtworkStatus, VocabularyKind
+from arrt.services.health import SourceHealth
 
 
 def a_catalogue_work(**overrides) -> WorkOut:
@@ -564,3 +569,44 @@ def a_spend_month(year=2026, month=11, *, categories=(), gets=(), unknown_calls=
 def a_spend_history(*months, older_months=0) -> dict:
     """`GET /api/spend`: the months newest first; with none given, the current month with nothing spent in it."""
     return SpendHistoryOut(months=list(months) or [a_spend_month()], older_months=older_months).model_dump(mode="json")
+
+
+def a_searched_source(
+    name="artic",
+    *,
+    searched,
+    answered,
+    with_images,
+    median_latency_seconds,
+    faults=0,
+    unasked=0,
+    owed=0,
+) -> dict:
+    """One loaded source as `GET /api/health`'s `sources` carries it, with what the search record says of it.
+
+    Through the route's own projection (`_source_plugin`) over a `SearchTally`,
+    so every search field, and the sentence they change, is the server's.
+    """
+    reading = PluginReading(
+        name=name,
+        state=PluginState.LOADED,
+        reason=None,
+        faults=faults,
+        last_fault_at=datetime(2026, 10, 3, 12, 0, tzinfo=UTC) if faults else None,
+        last_fault="KeyError: 'x'" if faults else None,
+        identity=PluginIdentity(
+            distribution="arrt", version="0.3.0", api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
+        ),
+    )
+    tally = SearchTally(
+        provider=name,
+        searched=searched,
+        answered=answered,
+        unasked=unasked,
+        owed=owed,
+        last_answered_at=datetime(2026, 10, 3, 11, 0, tzinfo=UTC) if answered else None,
+        with_images=with_images,
+        median_latency_seconds=median_latency_seconds,
+    )
+    health = SourceHealth(reading=reading, last_fault_age_seconds=12.0 if faults else None, searches=tally)
+    return http_api._source_plugin(health).model_dump()

@@ -316,7 +316,8 @@ class DiscoveryStore(Protocol):
 
         Over its `SEARCHES_COUNTED` most recent searches, read from the search
         record alone, so the cost is bounded by the sources named and not by the
-        works ever searched: Status reads it on every page.
+        works ever searched: Status reads it on every page. Its searches, hit
+        rate and median latency are counted here (`SearchTally`).
         """
         ...
 

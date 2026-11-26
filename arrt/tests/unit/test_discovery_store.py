@@ -37,7 +37,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
-from arrt.persistence.sqlite_discovery import _SEARCH_TALLIES, _TALLY_VALUES, DISCOVERY_SCHEMA, SqliteDiscovery
+from arrt.persistence.sqlite_discovery import _SEARCH_TALLIES, DISCOVERY_SCHEMA, SqliteDiscovery
 
 _EXPECTED_SCHEMA = {
     "discovery_runs": {
@@ -321,6 +321,9 @@ def test_each_sources_searches_are_counted_by_what_it_said_and_survive_the_proce
                 owed=1,
                 last_answered_at=_STARTED + timedelta(minutes=2),
                 last_asked_at=_STARTED + timedelta(minutes=5),
+                # Each answered the moment it was asked, with no image.
+                with_images=0,
+                median_latency_seconds=0.0,
             ),
             "tate": SearchTally(
                 provider="tate", searched=1, answered=0, unasked=1, owed=0, last_answered_at=None, last_asked_at=_STARTED
@@ -335,11 +338,129 @@ def test_the_count_status_reads_reads_the_index_and_never_the_rows(quiet_catalog
 
     A search by the source, read in the index's order: no table scan, and no sort.
     """
-    plan = quiet_catalogue_file.select_rows("EXPLAIN QUERY PLAN " + _SEARCH_TALLIES, (*_TALLY_VALUES, "moma", SEARCHES_COUNTED))
+    plan = quiet_catalogue_file.select_rows("EXPLAIN QUERY PLAN " + _SEARCH_TALLIES, ("moma", SEARCHES_COUNTED))
     details = " ".join(row["detail"] for row in plan)
 
-    assert "SEARCH source_searches USING COVERING INDEX source_searches_by_provider (provider=?)" in details, plan
+    assert "SEARCH source_searches USING COVERING INDEX source_searches_counted (provider=?)" in details, plan
     assert "TEMP B-TREE" not in details, plan
+
+
+def test_a_file_written_with_the_index_before_images_is_read_through_the_index_that_holds_them(tmp_path):
+    """A catalogue from before the hit rate carries `source_searches_by_provider`, which lacks `images`.
+
+    Opened by this release, the older index is gone and the one that covers the
+    hit rate is there, so Status still reads index entries and never the rows.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path).close()
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP INDEX source_searches_counted")
+        connection.execute(
+            "CREATE INDEX source_searches_by_provider ON source_searches(provider, asked_at, outcome, answered_at)"
+        )
+
+    reopened = open_catalogue_file(path)
+    try:
+        listed = "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'source_searches'"
+        indexes = {row["name"] for row in reopened.select_rows(listed)}
+        plan = reopened.select_rows("EXPLAIN QUERY PLAN " + _SEARCH_TALLIES, ("moma", SEARCHES_COUNTED))
+    finally:
+        reopened.close()
+
+    assert "source_searches_counted" in indexes, indexes
+    assert "source_searches_by_provider" not in indexes, indexes
+    assert "USING COVERING INDEX source_searches_counted" in " ".join(row["detail"] for row in plan), plan
+
+
+def _seed_the_three_columns_case(store: SqliteDiscovery) -> None:
+    """Three works answered with images, one answered with none, one still owed; the answers took 2, 4, 10 and 30 s.
+
+    The answer with no image is the slowest, so a median taken over the works
+    with images alone (2, 4 and 10: 4 s) and one over every answer (2, 4, 10
+    and 30: 7 s) differ, as do a hit rate over the searches (3 of 5) and over
+    the answers (3 of 4).
+    """
+    store.add_run(_run())
+    said = [(2, 3), (10, 1), (4, 6), (30, 0)]
+    for n, (seconds, images) in enumerate(said):
+        store.add_candidate_work(_work(id=f"c{n}", work_dedup_key=f"k{n}"))
+        asked = _STARTED + timedelta(minutes=n)
+        store.record_search(
+            _search(
+                candidate_work_id=f"c{n}",
+                asked_at=asked,
+                outcome=SearchOutcome.ANSWERED,
+                answered_at=asked + timedelta(seconds=seconds),
+                images=images,
+            )
+        )
+    store.add_candidate_work(_work(id="c9", work_dedup_key="k9"))
+    store.record_search(_search(candidate_work_id="c9", asked_at=_STARTED + timedelta(minutes=9), outcome=SearchOutcome.OWED))
+
+
+def test_a_sources_hit_rate_is_over_what_it_answered_and_its_latency_is_the_median_of_its_answers(discovery_store):
+    """Status's three columns: Searches 5, Hit rate 3 of 4, Median latency 7 s (2, 4, 10, 30: the middle two's mean)."""
+    _seed_the_three_columns_case(discovery_store)
+
+    (tally,) = discovery_store.search_tallies(["moma"]).values()
+
+    assert (tally.searched, tally.answered, tally.with_images, tally.owed) == (5, 4, 3, 1)
+    assert tally.median_latency_seconds == 7.0
+
+
+def test_the_three_columns_survive_the_process_that_wrote_them(tmp_path):
+    """#313's "survive a restart": the figures are read from the record, so a reopened file gives the same."""
+    path = tmp_path / "catalogue.sqlite"
+    writer = SqliteDiscovery(open_catalogue_file(path))
+    _seed_the_three_columns_case(writer)
+    before = writer.search_tallies(["moma"])
+    writer.close()
+
+    reader = SqliteDiscovery(open_catalogue_file(path))
+    try:
+        after = reader.search_tallies(["moma"])
+    finally:
+        reader.close()
+
+    assert after == before
+    assert (after["moma"].searched, after["moma"].with_images, after["moma"].median_latency_seconds) == (5, 3, 7.0)
+
+
+@pytest.mark.parametrize(
+    ("latencies", "median"),
+    [((5,), 5.0), ((1, 9), 5.0), ((1, 2, 60), 2.0), ((0.25, 0.5, 0.75, 120), 0.625)],
+    ids=["one", "two", "three", "four"],
+)
+def test_the_median_latency_is_the_middle_answer_or_the_mean_of_the_middle_two(discovery_store, latencies, median):
+    discovery_store.add_run(_run())
+    for n, seconds in enumerate(latencies):
+        discovery_store.add_candidate_work(_work(id=f"c{n}", work_dedup_key=f"k{n}"))
+        asked = _STARTED + timedelta(minutes=n)
+        discovery_store.record_search(
+            _search(candidate_work_id=f"c{n}", asked_at=asked, answered_at=asked + timedelta(seconds=seconds), images=1)
+        )
+
+    (tally,) = discovery_store.search_tallies(["moma"]).values()
+
+    assert tally.median_latency_seconds == median
+
+
+def test_a_source_that_answered_nothing_has_no_latency_and_no_hit(discovery_store):
+    """Only could-not-be-asked and owed: nothing answered, so Status reads "—" in both columns."""
+    discovery_store.add_run(_run())
+    for n, outcome in enumerate((SearchOutcome.UNREACHABLE, SearchOutcome.OWED)):
+        discovery_store.add_candidate_work(_work(id=f"c{n}", work_dedup_key=f"k{n}"))
+        asked = _STARTED + timedelta(minutes=n)
+        # A could-not-be-asked answer is stamped when it came, as the pool writes
+        # it: its time is not an answer's latency.
+        answered = asked + timedelta(seconds=3) if outcome is SearchOutcome.UNREACHABLE else None
+        discovery_store.record_search(
+            _search(candidate_work_id=f"c{n}", asked_at=asked, outcome=outcome, answered_at=answered, images=0)
+        )
+
+    (tally,) = discovery_store.search_tallies(["moma"]).values()
+
+    assert (tally.searched, tally.answered, tally.with_images, tally.median_latency_seconds) == (2, 0, 0, None)
 
 
 def test_status_counts_a_sources_newest_searches_and_no_more(discovery_store):
