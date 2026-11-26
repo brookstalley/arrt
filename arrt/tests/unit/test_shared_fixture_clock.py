@@ -23,8 +23,8 @@ from pathlib import Path
 from types import CodeType, FunctionType
 
 import pytest
-from conftest import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
 from fakes import CLOCK_STARTS_AT, CLOCK_STEP, OPENED_AT, Ticking, counted_ids
+from report_guard import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
 
 import arrt
 from arrt.library.services import spend_history

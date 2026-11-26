@@ -7,7 +7,6 @@ the mounted MCP server work. A test that skipped it would pass against an
 application that fails every request in production.
 """
 
-import functools
 import logging
 import random
 import struct
@@ -17,7 +16,7 @@ from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import player_e2e_header
 import pytest
@@ -26,6 +25,7 @@ from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
+from report_guard import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
 from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
@@ -1296,54 +1296,8 @@ def _museum_names_reset():
 
 # -- reports only for walls a Player shows ------------------------------------------------
 
-#: The marker a test carries when it keeps a wall's report for a wall no Player
-#: shows on purpose (a test of that impossible state), with its reason.
-NO_PLAYER_REPORTS_MARKER: Final = "reports_for_a_wall_no_player_shows"
-
 #: The writers of a wall's report: a heartbeat kept, and a report kept as a showing.
 _REPORT_WRITERS: Final = ("record_heartbeat", "keep_showing")
-
-
-def _a_player_shows(reports: Reports, wall_id: str) -> bool:
-    """Whether a Player with a token is placed on this wall, read from the store alone (no clock, no file)."""
-    store: Any = reports._store
-    with store.reading():
-        wall = store.get_wall(wall_id)
-        display = None if wall is None or wall.display_id is None else store.get_display(wall.display_id)
-        client = None if display is None or display.client_id is None else store.get_client(display.client_id)
-    return client is not None and client.token_verifier is not None
-
-
-class ReportsForNoPlayer:
-    """Every report a test kept for a wall no Player showed, by writer and wall, while attached."""
-
-    def __init__(self) -> None:
-        self.kept: list[tuple[str, str]] = []
-        self._lock = threading.Lock()
-
-    def watching(self, writer: str, real: Callable[..., Any]) -> Callable[..., Any]:
-        # Wrapped, so whatever asks the writer its signature gets the real one.
-        @functools.wraps(real)
-        def kept(reports: Reports, wall_id: str, *args: Any, **kwargs: Any) -> Any:
-            shown = _a_player_shows(reports, wall_id)
-            answer = real(reports, wall_id, *args, **kwargs)
-            # After the call, so a report refused (and so never written) is not one.
-            if not shown:
-                with self._lock:
-                    self.kept.append((writer, wall_id))
-            return answer
-
-        return kept
-
-    def complaint(self) -> str | None:
-        if not self.kept:
-            return None
-        named = ", ".join(sorted({f"{writer} for wall {wall_id}" for writer, wall_id in self.kept}))
-        return (
-            f"The test kept a wall's report while no Player showed the wall ({named}). A report is what the wall's "
-            "Player sends, and only a Player with a token reports, so ask for `a_player_shows_the_wall` (or place one) "
-            f"first; a test of that impossible state says so with @pytest.mark.{NO_PLAYER_REPORTS_MARKER}(why)."
-        )
 
 
 @pytest.fixture(autouse=True)
