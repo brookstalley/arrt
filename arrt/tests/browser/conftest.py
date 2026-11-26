@@ -53,6 +53,7 @@ import pathlib
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fixed_instant import fixed_instant
 from page_ui import Ui
 
 from arrt.http import api as http_api
@@ -222,7 +223,7 @@ def want_item(discovery, propose):
 
 
 @pytest.fixture
-def a_player_shows(services):
+def a_player_shows(services, shared_clock):
     """Put a wall on a Player that has its token and has reported: `a_player_shows(wall_id)`, the Player returned.
 
     A Player chosen with no token, or with no report yet, is still being set up
@@ -238,7 +239,7 @@ def a_player_shows(services):
             player = services.clients.add_client(name=name)
             services.access.issue(player.id)
             outputs = [{"name": f"hdmi-a-{n}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for n in (1, 2)]
-            services.clients.record_heartbeat(player.id, {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs})
+            services.clients.record_heartbeat(player.id, {"reported_at": shared_clock().isoformat(), "outputs": outputs})
         services.clients.assign_wall(wall_id, client_id=player.id, output=output)
         return player
 
@@ -567,7 +568,7 @@ def a_backup_reading():
 
 
 @pytest.fixture
-def ui(page, server_url):
+def ui(page, server_url, request):
     """The page, kept off every origin but the suite's own server.
 
     The client asks Commons for the pictures a reply or a search names, and an
@@ -577,7 +578,14 @@ def ui(page, server_url):
     the same way on every run, and a test that needs a picture to load says so
     with `pictures_load` or a route of its own, which Playwright tries first
     because it was registered later.
+
+    A test marked `at_a_fixed_instant` has the page's `Date` fixed at that instant
+    (`fixed_instant.py`), the instant the services' clock starts at: the page's ages
+    and the server's are then read from one moment.
     """
+    instant = fixed_instant(request)
+    if instant is not None:
+        page.clock.set_fixed_time(instant)
     # With its slash, so a port that merely begins with this one's digits is outside.
     page.route(lambda url: not url.startswith(f"{server_url}/"), lambda route: route.abort())
     return Ui(page, server_url)

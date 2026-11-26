@@ -20,6 +20,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fixed_instant import A_FIXED_NOON
 
 pytest.importorskip(
     "playwright.sync_api",
@@ -72,20 +73,20 @@ def winter(services, the_wall, two_works):
     return theme
 
 
-def report(services, wall, work_id, *, ago=timedelta(seconds=5)):
-    """What the wall's Player says it is showing, as of `ago` before now."""
+def report(services, wall, work_id, *, ago=timedelta(seconds=5), now=None):
+    """What the wall's Player says it is showing, as of `ago` before `now` (the machine's)."""
     services.display.record_heartbeat(
         wall.id,
-        {"reported_at": (datetime.now(UTC) - ago).isoformat(timespec="seconds"), "current_work_id": work_id},
+        {"reported_at": ((now or datetime.now(UTC)) - ago).isoformat(timespec="seconds"), "current_work_id": work_id},
     )
 
 
-def report_state(services, wall, state, work_id=None, *, since="2026-10-08T19:30:00+00:00", ago=timedelta(seconds=5)):
-    """What a minor 3 Player says its wall's screen is doing."""
+def report_state(services, wall, state, work_id=None, *, since="2026-10-08T19:30:00+00:00", ago=timedelta(seconds=5), now=None):
+    """What a minor 3 Player says its wall's screen is doing, as of `ago` before `now` (the machine's)."""
     services.display.record_heartbeat(
         wall.id,
         {
-            "reported_at": (datetime.now(UTC) - ago).isoformat(timespec="seconds"),
+            "reported_at": ((now or datetime.now(UTC)) - ago).isoformat(timespec="seconds"),
             "current_work_id": "not-what-the-card-reads",
             "schema": {"major": 1, "minor": 3},
             "display_state": {"state": state, "work_id": work_id, "since": since},
@@ -151,14 +152,17 @@ def test_the_work_the_heartbeat_names_leads_the_card(ui, services, the_wall, win
     expect(card(ui, the_wall)).not_to_contain_text("until changed", use_inner_text=True)
 
 
-def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard_from(ui, services, the_wall, winter, two_works):
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
+def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard_from(
+    ui, services, the_wall, winter, two_works, shared_clock
+):
     """The last report is the best answer to what is on the wall, but not a claim about now.
 
     Reworded from "Last reported 5 hours ago, so it may have changed since" when
     the server began calling such a wall `silent`: the card now says when the wall
     was last heard from, with the date (`core/dates.js`) and the age.
     """
-    report(services, the_wall, two_works[0].id, ago=timedelta(hours=5))
+    report(services, the_wall, two_works[0].id, ago=timedelta(hours=5), now=shared_clock())
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
@@ -424,8 +428,9 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
     expect(card(ui, the_wall).get_by_role("button", name=f"Choose the Player for {the_wall.name}…")).to_have_count(1)
 
 
-def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, services, the_wall, winter):
-    report_state(services, the_wall, "dark", ago=timedelta(hours=2))
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
+def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, services, the_wall, winter, shared_clock):
+    report_state(services, the_wall, "dark", ago=timedelta(hours=2), now=shared_clock())
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")

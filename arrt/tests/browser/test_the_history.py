@@ -11,6 +11,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fixed_instant import A_FIXED_NOON, A_FIXED_NOON_WORDS
 
 pytest.importorskip(
     "playwright.sync_api",
@@ -76,25 +77,27 @@ def test_each_act_reads_as_a_sentence_newest_first(ui, services, work_with_an_im
     )
 
 
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
 def test_a_date_is_said_as_a_readable_date_and_how_long_ago(ui, services, work_with_an_image):
-    """One date formatter everywhere (#283): the readable date and the age, both read."""
+    """One date formatter everywhere (#283): the readable date and the age, both read.
+
+    The server stamps the event at the fixed noon and the page's clock stands thirty seconds
+    later, so what is read is that day and that age: no calendar boundary or slow run moves them.
+    """
     work = work_with_an_image(title="Nighthawks")
     services.catalogue.archive_artwork(work.id)
+    ui.page.clock.set_fixed_time(A_FIXED_NOON + timedelta(seconds=30))
 
     open_history(ui)
     stamp = ui.page.locator("ol.history-events li time").first
     stamp.wait_for()
 
-    expect(stamp).to_contain_text(str(datetime.now(UTC).year), use_inner_text=True)
-    # Seconds ago, and recent: the event was written a moment before the page
-    # opened. Not "at most 3 seconds", which a loaded parallel run exceeded; the
-    # contract is the readable age, and a minute bounds "a moment" without timing:
-    # an age of one digit, or of two that begin 1 to 5, in seconds.
-    expect(stamp, "no age in seconds under a minute is said").to_have_text(
-        re.compile(r"\((?:\d|[1-5]\d) seconds? ago\)$"), use_inner_text=True
+    expect(stamp).to_contain_text(re.compile(A_FIXED_NOON_WORDS), use_inner_text=True)
+    expect(stamp, "the age is the page's clock less the stamp, in seconds").to_have_text(
+        re.compile(r"\(30 seconds ago\)$"), use_inner_text=True
     )
     # The machine instant is in the attribute, never in what is read.
-    expect(stamp).to_have_attribute("datetime", re.compile("^" + re.escape(str(datetime.now(UTC).year))))
+    expect(stamp).to_have_attribute("datetime", re.compile("^2026-11-20T12:00:"))
     expect(stamp).not_to_contain_text("T", use_inner_text=True)
 
 
@@ -208,14 +211,19 @@ def test_a_selection_hung_reads_as_a_selection_not_its_made_up_name(ui, services
     expect(ui.view).not_to_contain_text("Selection for", use_inner_text=True)
 
 
+@pytest.mark.at_a_fixed_instant(A_FIXED_NOON)
 def test_a_get_of_chosen_works_says_how_many(ui, services):
-    """A Get has no intent of its own: the curator chose its works, so it is named by how many."""
+    """A Get has no intent of its own: the curator chose its works, so it is named by how many.
+
+    And the event carries the instant the server's clock gave it: the fixed noon, to within the
+    thousandths its clock moves between readings.
+    """
     services.catalogue.record_event(EventKind.GET_STARTED, run_id="run-1", detail={"run_kind": "get", "works": 2})
     ui.open("#history")
     stamp = ui.page.locator("ol.history-events li time").first
     stamp.wait_for()
     occurred = datetime.fromisoformat(stamp.get_attribute("datetime"))  # one-shot: the instant to compare with the clock
-    assert datetime.now(UTC) - occurred < timedelta(minutes=1)
+    assert timedelta(0) <= occurred - A_FIXED_NOON < timedelta(seconds=1)
     expect(ui.view).to_contain_text("Started a Get for 2 works", use_inner_text=True)
 
 
@@ -253,7 +261,7 @@ def test_a_scene_reads_as_applied_and_ended_on_its_wall(ui, services, ready_work
 def test_a_preview_that_ran_out_says_when_it_ended(ui, services, ready_work, the_wall, store):
     """When it ended, from the line, not when the server noticed: those differ by a restart."""
     from dataclasses import replace
-    from datetime import UTC, datetime, timedelta
+    from datetime import datetime, timedelta
 
     display = services.display
     theme = display.add_theme(name="Winter")

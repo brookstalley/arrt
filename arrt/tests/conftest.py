@@ -23,6 +23,7 @@ import pytest
 from fakes import FakeEngine, FakeReader, Ticking, counted_ids, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
+from fixed_instant import AT_A_FIXED_INSTANT_MARKER, fixed_instant
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
 from report_guard import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
@@ -112,6 +113,11 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     bound_the_suites_requests()
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
+    config.addinivalue_line(
+        "markers",
+        f"{AT_A_FIXED_INSTANT_MARKER}(instant): a browser test whose assertion reads a date or an age: the services' clock "
+        "starts at the instant and the page's Date is fixed at it (`fixed_instant.py`)",
+    )
     config.addinivalue_line(
         "markers",
         f"{NO_PLAYER_REPORTS_MARKER}(why): the test keeps a wall's report while no Player shows the wall, on purpose "
@@ -229,12 +235,16 @@ def shared_clock(request: pytest.FixtureRequest) -> Callable[[], datetime]:
     happened) takes this fixture and reads it, never `datetime.now()`; one that
     needs time to pass calls `advance` on it.
 
-    **The browser suite keeps the machine's clock.** Its page reads the browser's
-    own (`Date.now`) against the server's instants, so a fixed day would put every
-    age a screen shows months out; its seeds move with the clock or not at all.
+    **The browser suite keeps the machine's clock** unless the test says otherwise.
+    Its page reads the browser's own (`Date.now`) against the server's instants, so
+    a clock fixed on the server alone would put every age a screen shows months
+    out. A test whose assertion reads a date or an age carries
+    `@pytest.mark.at_a_fixed_instant(instant)`: this is then a `Ticking` from that
+    instant, and the `ui` fixture fixes the page's `Date` at it (`fixed_instant.py`).
     """
     if request.path.is_relative_to(_BROWSER_TESTS):
-        return machine_now
+        instant = fixed_instant(request)
+        return machine_now if instant is None else Ticking(start=instant)
     return Ticking()
 
 
