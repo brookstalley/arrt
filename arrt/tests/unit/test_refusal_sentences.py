@@ -615,7 +615,7 @@ def test_a_planted_refusal_calling_a_get_a_run_is_named(planted, tmp_path):
         'raise ServiceError("Last run finished; what it found is in To review.")',
         'raise ServiceError(f"Get {run_id!r} is {status}, so it cannot cancel; that needs a Get in {expected}.")',
         'raise ServiceError("How often it runs: hourly, daily or weekly.")',
-        'raise ServiceError("As returned by action=\'list_runs\', with its run_id.")',
+        "raise ServiceError(\"As returned by action='list_runs', with its run_id.\")",
         'raise ServiceError(f"{name} runs hourly.")',
     ],
 )

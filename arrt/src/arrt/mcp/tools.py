@@ -599,9 +599,7 @@ ART_CATALOGUE: Final = ToolRecord(
 #: it governed both — telling a model that omitting `run_id` prices a new question
 #: on the four actions where omitting it is simply an error. What each action does
 #: with it belongs in that action's own description and tips, which `help` shows.
-_RUN_ID_DESCRIPTION = (
-    "A Get's id, as returned by action='start', action='get', action='resolve_images' or action='list_runs'."
-)
+_RUN_ID_DESCRIPTION = "A Get's id, as returned by action='start', action='get', action='resolve_images' or action='list_runs'."
 
 #: One description for every art_discovery action taking an item, because the
 #: wire schema publishes only the first declaration of a name.
