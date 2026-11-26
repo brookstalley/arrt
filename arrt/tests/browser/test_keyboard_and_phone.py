@@ -1,12 +1,11 @@
 """Keyboard and phone: where the focus is, what it is called, and a page a phone can hold.
 
-The accessibility lens of the first UX walkthrough (`ux-review-2026-10.md`
-findings 14, 15 and 30) found a focus ring clipped on card pictures, a facet
+The accessibility faults pinned here: a focus ring clipped on card pictures, a facet
 click that threw the keyboard to the top, same-titled works with the same name,
 a live region that re-announced itself on every page, and at 390 px a To review
 whose only action sat past the screen's edge. Each is pinned here where it was
 found. The phone checks run at 390 × 844, an iPhone 14's CSS viewport, which is
-the width the walkthrough photographed.
+the width the screens are checked at.
 """
 
 import sys
@@ -374,7 +373,7 @@ FACETS = [("movement", "Precisionism"), ("era", "Modern"), ("subject", "City"), 
 def test_artworks_first_title_is_on_the_first_screen_of_a_phone(ui, services, seeded_service, view):
     """At 390 × 844 the first work's title is whole on the screen on load, with no scrolling.
 
-    The audit measured about 450 px of chrome above the first tile on a phone,
+    About 450 px of chrome stood above the first tile on a phone,
     so a curator opening Artworks met controls and no art. The title is what is
     asked for rather than the picture's top, because a tile is read as a work
     by its label. Both picture views are measured: Overview is what a household

@@ -1,4 +1,4 @@
-"""The curation plane's log shape, and the run id every line inside a run carries.
+"""The server's log shape, and the run id every line inside a run carries.
 
 **Failure here is silent by construction**: the only feedback channel the
 household has is a picture on a wall, and a stalled loader is indistinguishable
@@ -250,7 +250,7 @@ _INSTALLED: Final[str] = "_curation_log_handler"
 
 
 def configure(level: int = logging.INFO) -> None:
-    """Install the plane's log shape on the root logger.
+    """Install the server's log shape on the root logger.
 
     Called once, from the entry point. Calling it twice replaces the handler
     from the first call rather than adding a second, so lines cannot start

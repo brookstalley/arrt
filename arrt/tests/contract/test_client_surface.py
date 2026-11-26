@@ -220,7 +220,7 @@ RELEASED_HEARTBEATS = [
 
 @pytest.mark.parametrize("case", RELEASED_HEARTBEATS, ids=lambda case: f"{case[0]}:{case[1]['path']}")
 def test_every_valid_client_heartbeat_of_a_released_contract_is_accepted(heartbeat_url, token, case):
-    """What a Player pinned to an older tag writes, this server still takes (audit-7 M6)."""
+    """What a Player pinned to an older tag writes, this server still takes."""
     version, row = case
     document = json.loads((released()[version] / row["path"]).read_text(encoding="utf-8"))
 

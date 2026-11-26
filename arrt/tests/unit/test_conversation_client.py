@@ -11,7 +11,7 @@ binary float. A fixture handing over an already-converted `Decimal` would skip
 the conversion being relied on.
 
 The request half is asserted through a recording transport, because three of the
-claims this chunk stands on are properties of what is *sent* and are invisible in
+claims this client stands on are properties of what is *sent* and are invisible in
 any response: the whole history travels, an image never rides an assistant turn,
 and a failed turn is resent as `""` and never as `null`. Each of those is a real
 400 if it is got wrong, and each of those 400s is in the captures too.
@@ -190,7 +190,7 @@ def test_a_turn_whose_whole_budget_went_on_reasoning_reads_as_empty_and_billed()
 
 
 def test_a_provider_refusal_says_what_was_actually_wrong():
-    """The three lines this chunk made necessary.
+    """The three lines the client needs to say what was wrong.
 
     OpenRouter wraps a routed provider's 400 as `error.message = "Provider
     returned error"` and puts the cause in `error.metadata.raw`. Three distinct

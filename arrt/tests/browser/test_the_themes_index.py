@@ -189,8 +189,8 @@ def test_an_empty_theme_does_not_claim_its_pictures_are_missing(ui, services):
 
 # -- ordering on the theme page ------------------------------------------------
 #
-# A drag handle per row since ruling 9 of 2026-10-27 (a Position field per row
-# from #352 until then, and four buttons before that). The handle is a button,
+# A drag handle per row since ruling 9 of 2026-10-27 (not a Position field per row,
+# nor four buttons). The handle is a button,
 # so the keyboard moves a work too: the arrows one place, Home and End to the
 # ends.
 
@@ -308,7 +308,7 @@ def test_the_order_copy_says_only_that_the_theme_is_in_order(ui, services, winte
     expect(ui.page.locator("main").first).not_to_contain_text("shuffle", use_inner_text=True, ignore_case=True)
 
 
-# -- the title follows a rename (#302) -----------------------------------------
+# -- the title follows a rename -----------------------------------------
 
 
 def test_renaming_a_theme_renames_the_tab(ui, winter):

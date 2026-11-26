@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 #: at all), and `ValueError` from `convert` for at least one mode (`La`). A tuple
 #: rather than an `except (A, B)` at each site, because the formatter's 3.14 style
 #: unparenthesises a bare multi-type `except`, which the root suite's older
-#: interpreter cannot parse (#166).
+#: interpreter cannot parse.
 UNDECODABLE: Final[tuple[type[Exception], ...]] = (OSError, ValueError)
 
 #: `UNDECODABLE`, and Pillow's guard against a file engineered to exhaust memory,

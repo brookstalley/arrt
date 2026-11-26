@@ -1,6 +1,6 @@
 """Arrt's side of the Player contract: what it writes, and what it reads.
 
-The schemas under `contract/` describe the feed this plane writes and the
+The schemas under `contract/` describe the feed the server writes and the
 heartbeat it reads. They were derived from this code, which is exactly why they
 need testing against it: a schema read off a builder is one mis-read away from
 describing a document the builder never writes, and nothing else would notice
@@ -9,8 +9,8 @@ until a Player in another repository refused a real manifest.
 So the feed is built here by the real service from real records and written by
 the real `sync`, and the document on disk is what is validated, against the
 schema and the contract's semantic rules (`feed_guard.problems`). The heartbeat
-runs the other way: each fixture the contract calls valid must be one this
-plane's reader accepts, and the one the contract names for a misspelled instant
+runs the other way: each fixture the contract calls valid must be one the
+server's reader accepts, and the one the contract names for a misspelled instant
 must be one it refuses.
 """
 

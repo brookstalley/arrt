@@ -134,7 +134,7 @@ def services(
     shared_clock,
     shared_ids,
 ):
-    """The plane with three image sources wired, a registry, and the look's clock in the test's hand."""
+    """The server with three image sources wired, a registry, and the look's clock in the test's hand."""
     return Services.bind(
         catalogue=store,
         discovery=discovery_store,

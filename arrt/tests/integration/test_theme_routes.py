@@ -1,6 +1,6 @@
 """Renaming and deleting a theme over real HTTP, and the refusal that guards the delete.
 
-Two routes that had no HTTP surface at all until this chunk: an agent could
+Two routes the HTTP surface needs for parity: an agent could
 rename a theme through `art_theme(action='update')` and delete one through
 `art_theme(action='delete')`, and a curator with a browser could do neither.
 `product-brief.md` item 8 makes parity the requirement, so the gap was the wrong

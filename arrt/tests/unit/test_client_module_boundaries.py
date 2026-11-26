@@ -62,11 +62,11 @@ def test_the_tree_the_rule_is_about_actually_exists():
 
 
 def test_no_screen_imports_another_screen():
-    """The acceptance criterion, and the property a later wave's agents depend on.
+    """The acceptance criterion, and the property that lets several people work on screens at once.
 
-    Four agents can build four screens at once only while each owns one file. A
-    screen that reaches into another makes the second agent a reader of the
-    first's uncommitted work, which is the queue this split converted into waves.
+    Screens can be built side by side only while each owns one file. A
+    screen that reaches into another makes its author a reader of the
+    other's uncommitted work.
     """
     for module in sorted(SCREENS.glob("*.js")):
         sideways = [specifier for specifier in _imports(_read(module)) if _reaches_a_screen(specifier, from_screens=True)]
@@ -88,7 +88,7 @@ def test_no_core_module_imports_a_screen():
 def test_every_screen_module_is_reachable_from_the_route_table():
     """A screen nobody routes to is dead code that still has to be maintained.
 
-    Read off `app.js` because that is where the plan puts the table, and it is
+    Read off `app.js` because that is where the route table lives, and it is
     the one place a screen becomes reachable at all.
     """
     boot = _read(STATIC_DIR / "app.js")

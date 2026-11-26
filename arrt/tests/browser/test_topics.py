@@ -1,6 +1,6 @@
 """Library › Topics and the Topic page, in a real browser against a real server.
 
-`build-plan-topics-and-destinations.md` Chunk 05. The index lists the topics the
+The index lists the topics the
 library's works are in, by kind, with counts; a Topic page draws the topic and
 *In your library* at once and fills *Representative works* and *Artists* after,
 each saying when Wikidata did not answer, as the Artist page's *Their work* does.
@@ -73,7 +73,7 @@ def topic(qid: str, label: str, *kinds: TopicKind, **fields) -> RegistryTopic:
 
 @pytest.fixture
 def ask_model():
-    """A server with a key: the dropdown offers Ask only where Ask can answer (audit-6 finding 9)."""
+    """A server with a key: the dropdown offers Ask only where Ask can answer."""
     return ScriptedModel(replies=[])
 
 
@@ -270,7 +270,7 @@ class TestTheIndex:
         )
 
     def test_a_kind_of_thirty_takes_a_third_of_the_height_it_would_in_one_column(self, ui):
-        """The owner's ruling on #175: columns, by name, so a long kind uses the width."""
+        """The owner's ruling: columns, by name, so a long kind uses the width."""
         self.thirty_subjects(ui)
         ui.page.set_viewport_size({"width": 1280, "height": 900})
         ui.open("#topics")
@@ -437,7 +437,7 @@ class TestTheTopicPage:
         ui.page.wait_for_selector("#view h1:has-text('Pieter Bruegel the Elder')")
 
     def test_held_wanted_and_not_held_each_draw_their_picture_in_their_own_style(self, ui, held, want_item, pictures_load):
-        """The owner's ruling on #172: held and image found were told apart by a picture only one of them had.
+        """The owner's ruling: held and image found were told apart by a picture only one of them had.
 
         Held draws the library's own thumbnail; not held draws Wikidata's, plain
         and marked by its badge; wanted (here with no picture known) says so in
@@ -574,7 +574,7 @@ class TestTheTopicPage:
 
         expect(escaped).to_have_count(1)
         assert ui.page.evaluate("() => window.pwned") is None
-        # Worded, with the item as the link's target (#359: no bare item on the page).
+        # Worded, with the item as the link's target (no bare item on the page).
         link = ui.page.locator("#view a:text-is('On Wikidata')")
         expect(link).to_have_attribute("href", f"https://www.wikidata.org/wiki/{SIXTEENTH}")
 
@@ -612,8 +612,7 @@ class TestTheTopicPage:
 def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, held, all_works):
     """The default reads as the topic's name, with no field to fill, and Get makes the theme.
 
-    The owner's review of the screens (`build-plan-topics-and-destinations.md`
-    Chunk 06), on the *winter* page with no theme named *winter*."""
+    The owner's review of the screens, on the *winter* page with no theme named *winter*."""
     bodies = record_gets(ui)
     open_topic(ui)
     works_answered(ui)
@@ -793,7 +792,7 @@ class TestWithNoRegistryConfigured:
 
         # The head is the first panel, and says it in its own words, not a section's.
         head = ui.page.locator("#view .panel").first
-        # No name to give it, so the route's own word, never the bare item (#359).
+        # No name to give it, so the route's own word, never the bare item.
         expect(head.locator("h1")).to_have_text("Topic", use_inner_text=True)
         expect(head.locator("p.note")).to_contain_text("not set up", use_inner_text=True)
         expect(head.locator("p.note")).not_to_contain_text("WIKIDATA_USER_AGENT", use_inner_text=True)

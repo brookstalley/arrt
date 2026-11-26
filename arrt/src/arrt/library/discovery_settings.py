@@ -65,8 +65,8 @@ class DiscoverySettings:
         model call and no paid web search. Bandwidth is the only cost and nobody
         bills for it.
 
-        This figure priced `phase2_searches_per_work` paid web searches until the
-        providers were chosen. That allowance still bounds a run's fan-out and is
+        This figure does not price `phase2_searches_per_work` as paid web searches,
+        because the providers are free. That allowance still bounds a run's fan-out and is
         still reported beside a run's usage, but nothing it bounds is billed
         today, and pricing it would show a curator a charge that will not appear.
         **A paid provider added later reinstates the arithmetic here**, which is

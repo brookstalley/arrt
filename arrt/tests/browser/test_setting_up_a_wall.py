@@ -1,16 +1,16 @@
 """Setting up a wall and its Player, in the order the screens give it.
 
-Audit 2026-11-19, finding 2: Settings › Players › *Add Player…*, copy the token,
-then Walls › *Edit…* › *Where it shows* › *Show it there* answered "output
-cannot be empty", because the Player had not reported a screen yet and nothing
-said so. This file walks that sequence and the states it passes through, each
+Settings › Players › *Add Player…*, copy the token,
+then Walls › *Edit…* › *Where it shows* › *Show it there* must not answer "output
+cannot be empty", because the Player has not reported a screen yet and nothing
+says so. This file walks that sequence and the states it passes through, each
 reached for real: a Player added through the page, its token copied off the
 page, its report written where a running Player leaves one.
 
 **What each step must say is what it is waiting for.** An act that cannot work
 yet is disabled with its reason in words beside it; the Players row and its
 lead line say they wait for a report; the wall's card says which Player has not
-reported. And the vocabulary half (F5, finding 8): no screen of the four says
+reported. And the vocabulary half: no screen of the four says
 *plane*, *heartbeat* or *display* for the Player, in any state seeded here.
 """
 
@@ -100,7 +100,7 @@ def test_a_wall_is_set_up_in_the_order_the_screens_give_it(ui, services, setting
     expect(field).to_have_value(re.compile(r"\S"))
     token = field.input_value()  # one-shot: the token the copy button must put on the clipboard
 
-    # Behind the dialog, already: the list holds the Player, waiting (finding 15).
+    # Behind the dialog, already: the list holds the Player, waiting.
     expect(ui.page.locator("#view .page-facts")).to_have_text("1 Player · waiting for it to report")
     [hall] = [view.client for view in services.clients.list_clients()]
     expect(ui.page.locator(f"#view tr[data-player='{hall.id}'] td[data-label='Status']")).to_contain_text(
@@ -250,8 +250,7 @@ def test_a_browser_that_will_not_copy_says_so_and_leaves_the_token_selected(ui, 
 # -- the words ------------------------------------------------------------------
 
 #: The words a person never reads on Walls, Players, Status or the top bar
-#: (`information-architecture.md` § Vocabulary; audit 2026-11-19, F5 and
-#: finding 8): the retired architecture, the wire's word for a report, and a
+#: (`information-architecture.md` § Vocabulary): the retired architecture, the wire's word for a report, and a
 #: Player called a display. Bare "display" is not refused, since a work is
 #: displayable; "a display", "its display" and the like are what called the
 #: Player one.
@@ -386,7 +385,7 @@ def test_no_retired_word_is_read_on_these_screens(
 
 
 def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading, a_backup_reading):
-    """Finding 8: Status printed the backup record's path, a file under a temporary directory, to a household.
+    """Status must not print the backup record's path, a file under a temporary directory, to a household.
 
     With no backup, and with a record that cannot be read, the server's sentence
     names the file; it is debug's then, and the page says it in words. The
@@ -415,7 +414,7 @@ def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading, 
 
 
 def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
-    """Finding 20: "counted 226 seconds ago" and "Counted 4 minutes ago" on one panel."""
+    """Not "counted 226 seconds ago" and "Counted 4 minutes ago" on one panel."""
     # The reading's pictures are the server's own, projected as `_some_pictures` does, never a sentence written here.
     pictures = http_api._pictures(
         PicturesReading(pictures_bytes=48_000, pictures_files=2, age_seconds=226.0, unreadable=0)
@@ -440,7 +439,7 @@ def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
 def test_hanging_a_work_promises_the_house_sees_it_only_where_a_player_shows_the_wall(
     ui, services, a_player_shows, work_with_an_image, the_wall, shown
 ):
-    """Finding 19 of audit 2026-11-19, the client half, through the Work page's *Hang…* (`core/selection.js`).
+    """The client half of what the Hang question promises, through the Work page's *Hang…* (`core/selection.js`).
 
     "Everyone in the house sees {wall} change" is true of a wall a Player shows,
     and of nothing else: with no Player, the question says nothing shows it yet;

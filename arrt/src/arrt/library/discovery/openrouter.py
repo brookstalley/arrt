@@ -535,7 +535,7 @@ def budget_spent(provider_said: str) -> str:
 
     One sentence for every caller OpenRouter refuses this way (a halted run, an
     Ask reply), in the words the sidebar uses for the budget (the owner's ruling
-    3 of 2026-10-07, #290).
+    3 of 2026-10-07).
     """
     return (
         "This month's budget is spent: OpenRouter refused the call because the key's credit limit is used up. "

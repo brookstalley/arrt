@@ -3,11 +3,11 @@
 Startup called `mkdir(exist_ok=True)` and then opened the catalogue, which runs
 `CREATE TABLE IF NOT EXISTS`. Both steps are individually reasonable. Composed,
 `ART_ROOT=/srv/atr` against a real `/srv/art` created a fresh directory, created
-a fresh empty catalogue, and started cleanly — the operator got a working plane
+a fresh empty catalogue, and started cleanly — the operator got a working server
 with an empty collection and every screen agreed nothing had ever been accepted.
 
 That is the product's own recorded "failure is silent by construction"
-characteristic, in the plane written to correct it, which is why the refusal is
+characteristic, in the server written to correct it, which is why the refusal is
 worth a module and a suite rather than a conditional.
 
 The three states a directory can be in are each a test below, and so is the one

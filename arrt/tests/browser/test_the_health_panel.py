@@ -97,7 +97,7 @@ def _on_a_player(services, *walls, now: datetime | None = None) -> None:
 def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, services, two_walls):
     """The sentence a reader takes away, with the room in it.
 
-    Before the split this could only ever have said that *a* display plane had
+    Before the split this could only ever have said that *a* Player had
     not reported, which on a two-room installation is a fact nobody can act on.
     Both walls are on a Player: one with none is a step of setting up, and is
     never named as quiet (below).
@@ -154,7 +154,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     # waiting on the other would let the assertions run before its panel painted.
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
-    # In the household's words (audit 2026-11-19, F5): a Player reports for a
+    # In the household's words: a Player reports for a
     # wall; "heartbeat" and "display" for the Player are retired. "No Player
     # has ever reported for this wall." is not said of a wall no Player shows:
     # it is said of a wall a Player shows that has never reported
@@ -168,7 +168,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     expect(ui.view).to_contain_text("4 days ago", use_inner_text=True)
     # Never a green dot. The panel states what was found and how long ago; whether
     # four days is alarming depends on whether that television was switched off on
-    # purpose, which this plane does not know.
+    # purpose, which the server does not know.
     # As words: a whitespace-separated word that is one of them, which is what splitting the page found.
     expect(ui.view).not_to_contain_text(re.compile(r"(?<!\S)(?:healthy|degraded|OK)(?!\S)"), use_inner_text=True)
 
@@ -233,7 +233,7 @@ def test_a_player_being_set_up_that_shows_two_walls_reads_as_one_step_everywhere
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
     """Declined, failed and loaded each as its own row, the state a word and never only a colour.
 
-    A row rather than a sentence since the owner's ruling of 2026-10-08 (#265):
+    A row rather than a sentence since the owner's ruling of 2026-10-08:
     a box per source was too long. What the sentence carried is still on the
     row: the state in words, the reason a plugin is not working here, and the
     fault count (`test_the_status_sources_table.py` holds it at every width).

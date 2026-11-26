@@ -336,7 +336,7 @@ def wall_id(store: SqliteCatalogue) -> str:
     catalogue with no wall has nowhere to hang anything and every operation that
     changes a wall names one. Read back rather than remembered: the id is a UUID
     minted at open, and a test that invented one would be asserting against a
-    wall the plane does not have.
+    wall the server does not have.
     """
     walls = store.list_walls()
     assert len(walls) == 1, f"a freshly opened catalogue should have exactly one wall, found {len(walls)}"
@@ -525,7 +525,7 @@ def services(
         # about wiring, and one with hostile DNS could pass them for the wrong reason.
         #
         # Passed through the container rather than assigned onto the built service.
-        # It was `bound.acquisition._resolve = …` until 2026-08-04, and a private
+        # Not `bound.acquisition._resolve = …`: a private
         # attribute written from outside is a guard that disarms in silence: rename
         # it and every acquisition test starts resolving real hostnames again with
         # nothing failing to say so.
@@ -789,7 +789,7 @@ def propose(discovery: DiscoveryService, run: DiscoveryRun):
             proposed_title=title,
             rationale="The intent asked for Surrealism and this is its best-known example.",
             # The key every writer derives from the title and artist it stores,
-            # so a test that restarts the plane does not watch its rows re-keyed.
+            # so a test that restarts the server does not watch its rows re-keyed.
             work_dedup_key=dedup_key or work_dedup_key(title=title, artist=fields.get("proposed_artist")),
             **fields,
         )
@@ -1255,17 +1255,16 @@ def every_feed_keeps_the_contract() -> Iterator[None]:
 
     **Patched where the publisher looks the builder up**, `feeds.py`'s namespace.
     A patch on a name the publisher no longer calls applies cleanly and checks
-    nothing, and every test stays green; until 2026-11-19 this patched
-    `display.py`, where the builder lived. So the guard also refuses to be
+    nothing, and every test stays green. So the guard also refuses to be
     vacuous: a test in which a feed was renamed into place (the last step of
     every publish, `atomic.promote`, which is looked up on the module and so
     reaches every caller) while the guard checked no feed fails at teardown,
     naming the feeds it never saw.
 
-    **Its patches are its own, not the test's `monkeypatch`.** Until 2026-11-20
-    they were made through the test's `monkeypatch`, so a test calling
-    `monkeypatch.undo()` to lift its own patch mid-test lifted the guard's too, and
-    every feed it published afterwards went unchecked. A test that replaces
+    **Its patches are its own, not the test's `monkeypatch`.** Made through the
+    test's `monkeypatch`, a test calling
+    `monkeypatch.undo()` to lift its own patch mid-test would lift the guard's too, and
+    every feed it published afterwards would go unchecked. A test that replaces
     either guarded name itself fails at teardown by name, rather than leaving a
     patch the guard's own undo cannot order against.
 

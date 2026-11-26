@@ -14,8 +14,8 @@ already exists.
 something the curator said, and it had to cite the stored turn it was read out
 of. Conversations are no longer stored (Ask's threads live in memory), so there
 is nothing to cite. The `inferred` rows already in the catalogue stay, with their
-`rationale` as the evidence they have left. The wave that saves Ask's threads
-decides how a judgment cites one.
+`rationale` as the evidence they have left. If Ask's threads are ever saved again,
+how a judgment cites one is decided then.
 
 **`rationale` is required for `inferred` and `observed`**, because neither cites
 anything stored, and a judgment with no account is one the product can neither

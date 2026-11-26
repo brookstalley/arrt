@@ -48,7 +48,7 @@ SETTLED = (
 
 # -- the paging loop --------------------------------------------------------
 #
-# Since `build-plan-lists-settings-and-scale.md` Chunk 07 (#131) Artworks loads
+# Artworks loads
 # one page and then more as the curator scrolls, with *Show more* for the
 # keyboard, instead of walking to `PAGE_CEILING` before it paints. The tests
 # below reach the end through *Show more*, the way a keyboard does, and their
@@ -158,7 +158,7 @@ def test_show_more_takes_the_keyboard_to_the_first_work_it_brought(ui, a_catalog
     its row into view, the scroll fetches a page of its own, and those works
     land above a button the keyboard is already on. A client counting from the
     press sends focus a page further on, past works the keyboard never reached
-    (#344, where this test failed intermittently because it raced that page
+    (where this test failed intermittently because it raced that page
     instead of waiting for it).
     """
     ui.open("#collection")
@@ -272,7 +272,7 @@ def test_the_grid_stops_when_a_page_comes_back_empty(ui):
 
 
 def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
-    """Every work is reachable, however many pages that takes (#131).
+    """Every work is reachable, however many pages that takes.
 
     Replaces "the grid reports what the runaway guard left out": Artworks used
     to stop at `PAGE_CEILING` pages and say how many it had left out. It now
@@ -302,7 +302,7 @@ def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
 
 
 def test_a_shortfall_of_exactly_one_reads_in_the_singular(ui):
-    """A sixth surface of #113, on a note four screens share.
+    """A sixth surface of the count wording, on a note four screens share.
 
     Every other test of this sentence withholds hundreds, where the plural is
     right — the same shape that let "1 works" ship on five surfaces and survive

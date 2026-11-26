@@ -3,8 +3,8 @@
 `design-direction.md` § Component Patterns, "How a page reads" (ruling 1 of
 2026-10-27): acts on the left; View, Sort, Filters and Select on the right; the
 count in the page's line of facts; a detail page's way back a breadcrumb link
-above the name, never a button. Audit 6 (2026-11-19) found no two list pages
-agreeing (finding 12) and every back link drawn as a button (finding 13).
+above the name, never a button. Two list pages that disagree, and a back link drawn
+as a button, are what they prevent.
 
 **Read from the pages, not from a list copied here.** Each control is named by
 the words on its face ("View: Posters" is View), which is what a reader goes
@@ -163,7 +163,7 @@ def test_each_list_page_says_its_count_once_above_its_toolbar(ui, dali):
     ["work from Artworks", "artist from Artists", "results from Walls"],
 )
 def test_no_way_back_is_drawn_as_a_button(ui, dali, opened):
-    """Audit 6, finding 13: "← Artworks" and its kin were links in the act's
+    """The "← Artworks" way back and its kin must not be links in the act's
     bordered shape. Read from what is drawn as well as from the class, since a
     border is what makes a link look like a button."""
     artist, work = dali

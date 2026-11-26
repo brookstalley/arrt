@@ -169,9 +169,9 @@ CORPUS_MAX_LIGHTNESS: Final[float] = 50.0
 #: vision model rather than to a second multiplier tuned until a statistic looks
 #: better.
 #:
-#: (Issue #115 records +15.2 for the same 40 pairs. It is not a different
+#: (An earlier note records +15.2 for the same 40 pairs. It is not a different
 #: measurement and neither number is wrong: the sample is even, the two middle gaps
-#: are 13.3 and 15.2, and the issue quoted the upper one where
+#: are 13.3 and 15.2, and that note quoted the upper one where
 #: `tools/mat_masters.py` takes the mean the median is defined as. The tool's is the
 #: figure to quote, because it is the one a reader can reproduce.)
 _DERIVED_LIGHTNESS_CEILING: Final[float] = 45.2
@@ -294,7 +294,7 @@ class MatEngine:
 
     def __init__(self, client: OpenRouterClient | None, *, image_max_edge: int) -> None:
         #: `None` is a deployment with no API key, and it is a supported one: the
-        #: plane serves its whole catalogue without paying for anything. Works
+        #: server serves its whole catalogue without paying for anything. Works
         #: acquired there get mechanically-derived mats, recorded as such, rather
         #: than no mat at all — which would leave them unrenderable.
         self._client = client
@@ -587,7 +587,7 @@ def dominant_color(image_path: Path) -> tuple[int, int, int]:
     """The colour that covers most of the image.
 
     Median-cut quantisation through Pillow rather than k-means through OpenCV,
-    NumPy and scikit-image — which is what 2024 used, and what this plane will not
+    NumPy and scikit-image — which is what 2024 used, and what the server will not
     install on a memory-capped Pi to answer a question about five colours.
 
     The two agree on what they are asked for. Both partition the image and return

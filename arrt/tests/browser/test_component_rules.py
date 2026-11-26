@@ -1,10 +1,9 @@
 """The shared component rules: one heading scale, one empty page, a disabled
 act that looks disabled, and a hover that leaves a full-card link whole.
 
-`design-direction.md` § Component Patterns names each rule. The October review
-(`ux-review-2026-10.md` finding 27) found five heading treatments and four
+`design-direction.md` § Component Patterns names each rule. Five heading treatments and four
 empty-page patterns across the screens, and disabled acts drawn as if they
-were ready. These checks run on every page the sidebar reaches, read from the
+were ready, are what they prevent. These checks run on every page the sidebar reaches, read from the
 route table, so a page added later is held to the same rules.
 """
 

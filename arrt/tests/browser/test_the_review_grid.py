@@ -488,7 +488,7 @@ def test_a_wanted_work_is_offered_a_re_search(grid):
     expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
     expect(grid.view).to_contain_text("Nothing is looking for a scan", use_inner_text=True)
     # Says what it costs, which is nothing: phase 2 asks open museum and
-    # Commons APIs (`phase2_estimate_usd`). It said "it spends" until 2026-10-02.
+    # Commons APIs (`phase2_estimate_usd`).
     expect(grid.view).to_contain_text("it costs nothing", use_inner_text=True)
 
 
@@ -902,7 +902,7 @@ def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(u
 
     assert ui.requests_matching("/api/candidate-images/") == []
     expect(ui.view).to_contain_text("No scan was found for this work.", use_inner_text=True)
-    # Chunk 21's point, still standing at the far end of the pipe.
+    # The kind of nothing found, still said at the far end of the pipe.
     expect(ui.view).not_to_contain_text("not_held", use_inner_text=True)
     # In words, and not "not held", which elsewhere says the library lacks a work.
     expect(ui.view).to_contain_text("in no collection", use_inner_text=True)
@@ -1216,7 +1216,7 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —
     # after which deleting the artist's name from the h2 would leave the whole
-    # browser suite green while putting #95's symptom back, hidden behind an
+    # browser suite green while putting the run sentence's denial back, hidden behind an
     # attribute nobody can see.
     # `h2:not(.card-title)` because a card's own title is an h2 too — the group
     # heading and the works it heads are the same rank in the markup, which is

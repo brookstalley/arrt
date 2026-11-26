@@ -189,7 +189,7 @@ def test_a_work_whose_item_records_an_smk_page_is_read_from_that_object_under_th
 
 
 def test_the_fragment_page_identifies_the_work_through_the_identity_check():
-    """The case the plan names: SMK's title is longer than the work's, and the item's link settles it.
+    """The case that matters: SMK's title is longer than the work's, and the item's link settles it.
 
     Driven through phase 2, the caller that reads the link, so a finder that
     reported a page of its own spelling would be refused here on its title.

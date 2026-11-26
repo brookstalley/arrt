@@ -1,6 +1,6 @@
-"""Artworks' *Last shown* facet, and the clean-up filters on the tool surface (#316).
+"""Artworks' *Last shown* facet, and the clean-up filters on the tool surface.
 
-`build-plan-shown-record.md` Chunk 03. *Last shown* narrows to the works no wall
+*Last shown* narrows to the works no wall
 has shown, never or not in a period, each period counting the never-shown
 works too (the owner, 2026-10-15). Which works were shown, and when, is
 Programming's log of showings (`last_shown_by_work`); the Library's narrowings
@@ -158,7 +158,7 @@ async def test_an_unknown_period_is_refused_by_name_on_both_surfaces(http, serve
 
 
 async def test_the_tool_surface_takes_the_size_and_wall_filters_too(http, server_url, shown, services, ready_work, wall_id):
-    """`art_catalogue(action='list')` had neither of #288's filters; both now select as the browser's listing does.
+    """`art_catalogue(action='list')` takes the size and the wall filter, and both select as the browser's listing does.
 
     A work with a master, which `unknown` leaves out, and a work hung, which *Not on any wall* leaves out, so
     a surface ignoring either filter answers differently.

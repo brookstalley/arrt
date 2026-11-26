@@ -2,7 +2,7 @@
 
 **Membership in a wall's feed IS catalogue readiness.** Readiness is the
 Library's judgement, asked through `arrt.library.facade` at build time, and
-the display plane sees only the works it passed.
+the Player sees only the works it passed.
 
 **The cost of that design is paid here, in full.** A work can sit in a theme and
 never reach the wall. Silence is this product's characteristic failure, so this

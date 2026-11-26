@@ -232,7 +232,7 @@ def test_a_recorded_release_this_code_cannot_read_no_longer_stops_a_start(tmp_pa
 # -- a file a build from before shape generations left -------------------------------
 #
 # `tests/fixtures/catalogue_opened/before-generations.sql` is the catalogue the
-# code at 6e4faae5 (the reviewed head of the audit's second wave, the last build
+# code at 6e4faae5 (the last build
 # whose record named a release and no shape) made over `tools/old_catalogue.py`'s
 # seed: `uv run python tools/old_catalogue.py --ref 6e4faae5 --to <that path>`.
 # Its record says 0.11.0, the version string `develop` carried through it.

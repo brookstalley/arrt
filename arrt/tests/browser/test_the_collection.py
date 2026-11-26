@@ -194,7 +194,7 @@ def test_choosing_a_view_writes_it_into_the_address(ui):
 
 
 def test_every_posters_tile_shows_its_title_and_artist_beneath_it_on_a_phone(ui, service):
-    """Audit 6, finding 4: Posters, the default above a few hundred works, showed
+    """Posters, the default above a few hundred works, would show
     a work's words only as an overlay on hover or focus, so on a phone, with no
     hover, every tile was anonymous. The label is beneath the picture, on the
     page's ground, untouched by any pointer (`design-direction.md` § Tiles).
@@ -239,17 +239,17 @@ PROTOTYPE_SCALE = 2000
 
 
 def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, service, seed_the_served_catalogue):
-    """The chunk's acceptance criterion, against a real catalogue rather than a number.
+    """The acceptance criterion, against a real catalogue rather than a number.
 
     The threshold test above stubs `total` behind one work, which is the right
     shape for pinning a branch and cannot answer this: legibility is a claim about
     two thousand tiles actually laid out by a real browser, and a stub renders
     one. `build_large_catalogue` exists precisely so the claim can be measured.
 
-    **And every work is reachable** (#131, `build-plan-lists-settings-and-scale.md`
-    Chunk 07). Until then the grid walked to `PAGE_CEILING` and stopped at 1,250
-    works, and this test pinned that the stop was *audible* — the heading said
-    how many of how many, and the note how many were not shown. Artworks now
+    **And every work is reachable.** The grid once walked to `PAGE_CEILING` and
+    stopped at 1,250 works, and this test pinned that the stop was *audible* —
+    the heading said how many of how many, and the note how many were not
+    shown. Artworks now
     pages from the server as the curator scrolls, so the claim is the stronger
     one the note stood in for: the heading names the whole catalogue, every work
     arrives by *Show more*, and the shortfall note never appears.
@@ -528,7 +528,7 @@ def test_a_facet_value_holding_the_separator_survives_the_address(ui):
 
 # -- the Theme filter, and membership edited in Select mode -------------------
 #
-# The owner ruled on #169 for Radarr's pattern: a theme is one more group in the
+# The owner ruled for Radarr's pattern: a theme is one more group in the
 # *Filter* rail, composing with the facets, and adding and removing appear only
 # in a *Select* mode. Three tests of the old rail are retired with it, each
 # replaced by the contract the new design owes:
@@ -581,16 +581,15 @@ def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_wor
 
 
 def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui, a_theme_holding_one_work):
-    """The confusion #169 was filed for: the theme dropdown read as a filter and was an editor.
+    """The confusion to avoid: a theme dropdown that reads as a filter and is an editor.
 
     Outside *Select* mode, nothing on the screen changes a theme's members:
     no tick on any tile and no theme picker. The rail's theme options are
     toggles (`aria-pressed`), and the picker, once shown, has a visible name.
 
     The *Select* toggle says which mode the page is in by its label — "Select",
-    then "Stop selecting" — since chunk 05 of `build-plan-lists-settings-and-scale.md`
-    gave every list one selection model; it was an `aria-pressed` toggle that
-    read "Select" in both states. The claim is unchanged: the mode is readable
+    then "Stop selecting" — because every list has one selection model, not an
+    `aria-pressed` toggle reading "Select" in both states. The claim is unchanged: the mode is readable
     from the control.
     """
     theme, works = a_theme_holding_one_work
@@ -876,8 +875,7 @@ def test_a_collection_with_no_themes_offers_select_with_something_behind_it(ui, 
 
     This was "with no theme, no *Select* at all", when adding to an existing
     theme was the only act a selection had. Since one selection model gave it
-    *New theme…* and *Archive* (`build-plan-lists-settings-and-scale.md` Chunk
-    05), a selection always has something to do, so *Select* is offered — and
+    *New theme…* and *Archive*, a selection always has something to do, so *Select* is offered — and
     the claim it kept is that what it offers can act: the picker starts on *New
     theme…* rather than on nothing, and Archive is there.
     """

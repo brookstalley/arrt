@@ -1,10 +1,10 @@
 """Wanting a work, and the Wanted section, in a real browser.
 
-The owner's ruling on #168 (2026-10-02): a work its search found no scan for
+The owner's ruling (2026-10-02): a work its search found no scan for
 offers **Want** and **Forget** in place of Accept and Reject; wanted works, with
 or without a scan, wait in **Wanted**, each with *Get again* and *Forget*, and
 *Get all again*; Get again on a work with no Wikidata item first offers
-Wikidata's matches to pick from (`build-plan-after-review.md` Chunks 03-05).
+Wikidata's matches to pick from.
 Wanted is always in the sidebar, counted when something is wanted (ruling 5 of
 2026-10-07), and Forget is held for Undo as a review card's verdict is.
 
@@ -281,8 +281,8 @@ def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_says_wh
 
     empty = ui.page.locator("#view .empty")
     expect(empty).to_contain_text("Nothing is wanted.", use_inner_text=True)
-    # What Wanted holds, not the clicks that fill it (audit-6 finding 21: the
-    # sentence used to give a click path through a review card).
+    # What Wanted holds, not the clicks that fill it (no click path through a
+    # review card).
     expect(empty).to_contain_text("Wanted holds the works you want and have no acceptable scan of", use_inner_text=True)
     expect(empty).to_contain_text("a Get found no scan for", use_inner_text=True)
     expect(empty).not_to_contain_text("press Want", use_inner_text=True)

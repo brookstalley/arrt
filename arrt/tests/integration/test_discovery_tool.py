@@ -424,7 +424,7 @@ async def test_an_unknown_run_state_is_refused_with_the_valid_set(server_url):
 
 
 async def test_a_line_emitted_inside_a_run_carries_that_runs_id(runner, caplog):
-    """The correlation key reaches the journal through the plane's own code path.
+    """The correlation key reaches the journal through the server's own code path.
 
     Driven through the runner rather than by binding the context by hand: what
     is under test is that the *product* binds it, and a test that opened the

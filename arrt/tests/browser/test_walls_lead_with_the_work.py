@@ -115,7 +115,7 @@ def open_walls(ui):
 def _skip(ui, wall):
     """Press Skip and wait for the step's own answer, as `test_walls_last_and_next.py` does.
 
-    So a red says which link broke (#442): no POST at all is the click lost, an
+    So a red says which link broke: no POST at all is the click lost, an
     answer that is not ok is the server refusing, and an ok answer with no
     "Skipped." after it is the card.
     """
@@ -223,7 +223,7 @@ def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reporte
     assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
-    # prints everything the card says, a failure beside Skip included (#442).
+    # prints everything the card says, a failure beside Skip included.
     expect(card(ui, the_wall)).to_contain_text("Skipped.", use_inner_text=True)
     expect(said).to_contain_text("Skipped.", use_inner_text=True)
     assert services.display.published_manifest_v2(the_wall.id) != before
@@ -451,7 +451,7 @@ def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter,
     assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     said = card(ui, the_wall).locator(".wall-said")
     # Asserted rather than waited for, and on the whole card first, so a red
-    # prints everything the card says, a failure beside Skip included (#442).
+    # prints everything the card says, a failure beside Skip included.
     expect(card(ui, the_wall)).to_contain_text("Skipped.", use_inner_text=True)
     expect(said).to_contain_text("Skipped.", use_inner_text=True)
     report_state(services, the_wall, "showing_art", automat.id)
@@ -663,7 +663,7 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
     open_walls(ui)
 
     # The summary's own words: with its Player not yet reporting, the card says
-    # that in the same notice, after it (audit 2026-11-19, finding 6).
+    # that in the same notice, after it.
     warning = card(ui, the_wall).locator(".wall-dark .wall-dark-summary")
     expect(warning).to_have_text(
         re.compile(re.escape("2 are outside this wall's shapes, so the wall is dark.") + "$"), use_inner_text=True
@@ -852,7 +852,7 @@ def test_a_state_with_no_word_is_said_as_not_known_in_the_badge(ui, services, th
     expect(badge).to_have_text(re.compile(r"^\?\s*Not known\s*$"), use_inner_text=True)
 
 
-# -- the keyboard (Done-when 3 of `build-plan-ui-pass-walls.md` Chunk 03) ------------------
+# -- the keyboard ------------------------------------------------------------------------
 
 
 def _tab_to(ui, name, limit=60):

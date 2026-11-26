@@ -17,7 +17,7 @@
  * theme…* (`build-plan-topics-and-destinations.md`, the owner's rulings of
  * 2026-10-02). A caller's name that is no theme yet, such as a Topic page's
  * topic, is offered just before *New theme…*, as "<name> (new theme)", and
- * chosen (the owner's review of the screens, Chunk 06). The default sends no
+ * chosen. The default sends no
  * `theme_id`, so a run's destination is null
  * exactly when its works go to the default. A new theme is created by the
  * client's own `POST /api/themes` before the Get starts, never by the Get: the

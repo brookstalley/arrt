@@ -201,7 +201,7 @@ def a_work_list(count: int = 3, *, searches: int = 1, artist: str | None = "Salv
 #: How long `FakeEngine` waits at a closed gate before failing the run. A
 #: surface that blocked on phase 1 answers no sooner than this, so a test telling
 #: "answered" from "waited" bounds itself by a fraction of it, never by the
-#: wall-clock speed of a round trip, which is the machine's load (#365).
+#: wall-clock speed of a round trip, which is the machine's load.
 GATE_SECONDS = 20.0
 
 

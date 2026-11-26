@@ -50,7 +50,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ) -> Services:
-    """The whole plane, wired the way a deployment with ARTIC_USER_AGENT set is."""
+    """The whole server, wired the way a deployment with ARTIC_USER_AGENT set is."""
     engine.result = WorkList(works=(a_work("The Elephants"),))
     return Services.bind(
         catalogue=store,
@@ -72,7 +72,7 @@ async def a_work_needing_a_better_scan(server_url: str, services: Services):
     **The work id comes off the surface**, not out of the service. Reaching past
     the tool for it would leave every test here passing while a real client had
     no way to obtain the one argument `resolve_images` requires — which is
-    exactly the gap that hid for a whole chunk. Rejecting the image still goes
+    exactly the gap that can hide unseen. Rejecting the image still goes
     through the service, because `art_review` owns `reject_image` and is not
     built yet; that one is a stated dependency rather than a hidden hole.
     """
@@ -255,7 +255,7 @@ async def test_every_reason_resolve_images_can_refuse_for_is_named_in_its_tips(s
     services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")
     covered, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id])
     assert errored is True
-    # "search twice", not "pay twice" (until 2026-10-02): a re-search costs
+    # "search twice", not "pay twice": a re-search costs
     # nothing today, and the refusal says what re-submitting would actually do.
     assert "search twice" in covered["error"]
     assert "search twice" in tips

@@ -662,7 +662,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
     // Accept and Reject: accepting it would mint a work with no image, and
     // rejecting it is "forget it for good", which is said as such. Want is
     // the one way to say "I want this painting; no scan exists yet", and it
-    // waits in Wanted (the owner's ruling on #168, 2026-10-02).
+    // waits in Wanted (the owner's ruling, 2026-10-02).
     ...(noScan ? wantOrForget() : acceptOrReject()),
   ]);
 
@@ -852,8 +852,8 @@ function offeredGroups(cards) {
 /* What one offered group says, once, above its own works.
  *
  * `product-brief.md` requires a curator to be able to tell being offered one work
- * out of four hundred from being offered one out of one, and — as amended for
- * issue #95 — requires it said here rather than restated on every card.
+ * out of four hundred from being offered one out of one, and — as amended —
+ * requires it said here rather than restated on every card.
  *
  * **Every number is counted from something the reader can see, or named as what
  * it is.** `shown` counts the cards actually rendered, so it cannot disagree with

@@ -57,7 +57,7 @@ def http(server_url):
 
 class TestTheIndex:
     def test_held_artists_by_surname_with_works_in_circulation_counted(self, http, held, service):
-        """By surname, the owner's ruling on #173 (it was by first name).
+        """By surname, the owner's ruling (it was by first name).
 
         Replaces "by name": that order put Charles Demuth before Mark Rothko and
         Salvador Dalí after both. A stored family name wins over the last word —
@@ -77,8 +77,7 @@ class TestTheIndex:
     def test_each_artist_is_pictured_by_their_first_accepted_work_in_circulation(self, http, held, service):
         """Among works that hold a master: both here do, so the first is the picture.
 
-        *(Until 2026-10-14 neither work held one and the first was still the
-        picture. A work with no master is no longer one (#358): its thumbnail
+        *(A work with no master is not one: its thumbnail
         answers 400. The order this test is for is held with both mastered.)*
         """
         rothko, kept = held
@@ -246,7 +245,7 @@ class TestWithNoRegistryConfigured:
         view = http.get(f"/api/artists/{rothko.id}/registry").raise_for_status().json()
 
         assert view["state"] == "not_configured"
-        # In the household's words, naming no setting (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        # In the household's words, naming no setting (not WIKIDATA_USER_AGENT).
         assert view["note"] == "Wikidata is not configured on this server."
 
 

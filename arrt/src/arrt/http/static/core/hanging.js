@@ -40,8 +40,7 @@ function names(walls) {
 
 /* Who sees these walls change, said only of what is true: everyone in the
  * house sees a wall a Player shows change, and nobody sees one no Player shows
- * (audit 2026-11-19, finding 19: the question promised it of a wall with no
- * Player at all). Shared with `core/selection.js`, so a selection hung on a
+ * (the question must not promise it of a wall with no Player at all). Shared with `core/selection.js`, so a selection hung on a
  * wall says it in the same words.
  *
  * **A wall waiting for its Player is neither** (`waiting_for`, the server's):

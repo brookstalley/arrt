@@ -3,7 +3,7 @@
 A one-shot read (`loc.inner_text()`, `loc.count()`, `loc.is_visible()`, …)
 returns what the page holds at the instant it is called, and an `assert` on it
 passes or fails on whichever side of a repaint that instant fell. That is the
-mechanism behind most of this suite's flakes (audit 7, S1a; #441, #442, #371),
+mechanism behind most of this suite's flakes,
 and a prose rule in `tests/browser/conftest.py` did not stop new ones being
 written. `expect(loc).to_have_text(…)` asks the same question and keeps asking
 until the page agrees or the timeout passes.
@@ -22,8 +22,8 @@ This guard reads every file in `tests/browser/` and counts two things:
 A file not in `UNCONVERTED` must count zero of both. A file in it must count
 exactly what it is listed with: higher is a new one-shot read, lower is a
 conversion that did not lower the list, and zero is a converted file still on
-it. So the list only shrinks, and it cannot go stale. Chunks 13–19 of
-`build-plan-audit-wave-2.md` each take their files off it. The conversion
+it. So the list only shrinks, and it cannot go stale. Converting a file takes it
+off the list. The conversion
 table that says what each read becomes is `docs/testing.md` § "Assertions read
 the page through `expect`".
 """
@@ -71,8 +71,7 @@ ONE_SHOT_MARK = re.compile(r"#.*\bone-shot:\s*\S")
 SLEEP_MARK = re.compile(r"#.*\bsleep:\s*\S")
 
 #: The files not yet converted, each with its count of (one-shot reads, fixed
-#: sleeps) at the commit that wrote this guard. Sorted; each chunk of 13-19
-#: deletes its own rows as it converts them.
+#: sleeps) when each was last counted. Sorted; converting a file deletes its row.
 UNCONVERTED: dict[str, tuple[int, int]] = {}
 
 

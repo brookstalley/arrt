@@ -310,8 +310,8 @@ function artistRow(row) {
  * does not hold to get.
  *
  * **"Held" is said once, by the group's heading**, never again on each row
- * (audit 6, finding 14: a Held heading, a Works heading, then ● Held on every
- * row). What a held row does say is whether there is a picture of it: "Do I
+ * (a Held heading, a Works heading, then ● Held on every
+ * row would say it three times). What a held row does say is whether there is a picture of it: "Do I
  * have it?" answered yes for a work with nothing to hang, while its own page
  * said *No picture*. So a held row with no master says *No picture* in its
  * picture's place, as a tile does: the library's own by its listing's

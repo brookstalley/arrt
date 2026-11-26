@@ -50,7 +50,7 @@ def test_a_watch_written_here_is_listed_with_its_sentence_and_its_controls(ui, s
 
 
 def test_a_watch_s_words_are_described_as_asked_of_ask_and_never_of_discover(ui):
-    """The page Ask was called Discover until 2026-10-02; its help said so for a month after (audit-6 finding 21)."""
+    """The page Ask was called Discover until 2026-10-02; its help must not say so any more."""
     ui.open("#watches")
     ui.page.wait_for_selector(".new-watch")
 

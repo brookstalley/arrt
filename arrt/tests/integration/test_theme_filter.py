@@ -1,7 +1,7 @@
 """A theme is one more filter on the works listing, composing with the rest.
 
-Artworks' *Filter* rail offers a theme beside the facets (the owner's ruling on
-#169, following Radarr's filters), so the listing has to answer "this theme's
+Artworks' *Filter* rail offers a theme beside the facets (the owner's ruling,
+following Radarr's filters), so the listing has to answer "this theme's
 works, narrowed by these facets and these words" — with facet counts about that
 slice. Until this, a theme's works came only from `GET /api/themes/{id}`, which
 cannot narrow, and the client made a theme and a facet exclusive.

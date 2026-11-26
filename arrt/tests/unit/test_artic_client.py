@@ -209,9 +209,8 @@ def test_the_public_domain_flag_becomes_a_rights_status_that_distinguishes_false
 def test_a_zero_scored_result_is_dropped_because_it_matched_no_term():
     """The behaviour is unchanged; the reason it was worth having is not.
 
-    Named for a garbage query until 2026-08-04, when the live API stopped
-    returning zero scores for one — so this no longer guards that case and the
-    identity comparison is what does. It is kept because the claim still holds
+    Named for a garbage query, which the live API no longer scores zero — so this
+    no longer guards that case and the identity comparison is what does. It is kept because the claim still holds
     on its own terms: a record matching no term cannot be the work.
     """
     found = _client(_serving(ZERO_SCORED, AMERICAN_GOTHIC)).find_images(ImageQuery(title="American Gothic"))

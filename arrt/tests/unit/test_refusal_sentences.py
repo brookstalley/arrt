@@ -424,7 +424,7 @@ def test_documentation_and_a_loggers_arguments_are_not_read_and_a_returned_sente
     assert [sentence.site for sentence in said(found)] == ["planted.py:7"]
 
 
-#: The five sentences at the wording they had when this chunk began, each in the shape it was built in.
+#: The five sentences at the wording they had before they were reworded, each in the shape it was built in.
 FIVE_AS_THEY_WERE = {
     "reports": 'def f():\n    return "No wall is in the catalogue, so there is nothing for a Player to report about."\n',
     "near-miss": (

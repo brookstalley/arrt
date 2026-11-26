@@ -178,7 +178,7 @@ def _object_values(name: str) -> dict[str, str]:
 def test_every_unresolved_reason_has_words_for_a_curator(name):
     """A run that resolved nothing has to say which kind of nothing, in English.
 
-    Chunk-independent statement of the requirement: the reason exists so a
+    The requirement, stated apart from any one change: the reason exists so a
     curator knows whether to re-search, re-word the intent, or accept that the
     work may not exist — and only one of the five points at the last of those.
     A raw `identity_refused` on the page communicates none of that.

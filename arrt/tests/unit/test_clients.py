@@ -295,10 +295,9 @@ def test_an_unreadable_report_is_treated_as_no_report(clients, pi, wall_id, wall
     ],
 )
 def test_a_blank_output_is_refused_saying_what_the_player_has_reported(clients, access, pi, wall_id, report, said):
-    """The UX walk's finding 2: "output cannot be empty" named a validator, not that the Player had not reported.
+    """A blank output is refused saying what the Player reported, not "output cannot be empty", which named a validator.
 
-    Rewritten from a match on that sentence, which the plan replaced: each case
-    is still refused and assigns nothing, and now says which of the three it is.
+    Each case is refused and assigns nothing, and says which of the three it is.
     """
     if report is not None:
         # A Player reports only with a token, and one with none is `no_token` whatever it reports (`player_state.py`).

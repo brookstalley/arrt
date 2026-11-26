@@ -147,7 +147,7 @@ def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     correctly for the private cases, which is why no input can distinguish the two
     — a mutation sweep finds nothing to kill here, and that is a statement about
     the sweep rather than about the branch. Unwrapping first makes the verdict a
-    property of the address instead of a property of whichever CPython the plane
+    property of the address instead of a property of whichever CPython the server
     was last upgraded to, on a check whose failure mode is reaching the operator's
     own network.
     """

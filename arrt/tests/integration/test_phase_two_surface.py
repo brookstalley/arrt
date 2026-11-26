@@ -6,7 +6,7 @@ whether a run actually advances *behind* the handle a client is holding — a
 `start` that returns in milliseconds and a `status` that later reports a
 completed run with images on disk.
 
-The `services` fixture is overridden here so the plane is wired with an image
+The `services` fixture is overridden here so the server is wired with an image
 provider. Everywhere else it is not, which is the shipped default when
 `ARTIC_USER_AGENT` is unset and the configuration most of the suite has no
 business departing from.
@@ -62,7 +62,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ) -> Services:
-    """The whole plane, wired the way a deployment with ARTIC_USER_AGENT set is."""
+    """The whole server, wired the way a deployment with ARTIC_USER_AGENT set is."""
     engine.result = WorkList(
         works=(
             a_work("The Elephants"),
@@ -141,7 +141,7 @@ async def test_the_work_no_collection_holds_is_named_rather_than_dropped(server_
 
 
 async def test_the_status_notice_no_longer_claims_resolution_is_unwired(server_url):
-    """The sentence this chunk owed a deletion to, checked at the surface that carried it."""
+    """The sentence that was deleted stays deleted, checked at the surface that carried it."""
     started, _ = await call(server_url, "art_discovery", action="start", intent="Dalí, elephants")
     payload = await finished(server_url, started["run_id"])
 

@@ -428,8 +428,8 @@ def _to_json(shape: Any, value: Any) -> Any:  # noqa: ANN401, C901, PLR0911, PLR
 
 #: What a member's constructor raises for a value that is not one of it. A named
 #: tuple rather than `except TypeError, ValueError:` because the root suite's
-#: seam guards parse this plane's source on Python 3.12, which cannot read the
-#: unparenthesised form this plane's formatter writes.
+#: seam guards parse the server's source on Python 3.12, which cannot read the
+#: unparenthesised form the server's formatter writes.
 _NOT_ITS_VALUE: Final[tuple[type[Exception], ...]] = (TypeError, ValueError)
 
 

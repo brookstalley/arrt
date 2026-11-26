@@ -324,7 +324,7 @@ def _drop_citation(match: re.Match[str]) -> str:
     else. Raising here would be the expensive kind of failure twice over: at the
     engine seam it fails a run that has already been paid for, and inside
     `reconcile` it fails *startup*, for as long as the row is stored, which is a
-    plane that will not boot because of one bad title. Unparseable means the
+    server that will not boot because of one bad title. Unparseable means the
     hostname cannot be proved, and unproved means the word stays.
     """
     named, url = match.group(1), match.group(2)

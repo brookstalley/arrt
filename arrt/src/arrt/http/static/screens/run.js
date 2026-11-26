@@ -555,8 +555,8 @@ export async function viewRun(runId, generation) {
     el("div", { class: "panel" }, [
       el("h2", { text: "What it cost" }),
       facts([
-        // What this Get cost, in one row (`ux-review-2026-10.md` finding E12:
-        // four rows said "under a cent"). The family total — this Get and the
+        // What this Get cost, in one row (not four rows
+        // saying "under a cent"). The family total — this Get and the
         // Gets that retried it — joins the row only where it says something
         // more: a Get billed little whose retries cost ten times as much is the
         // case it exists for, and an equal one is the same number twice.

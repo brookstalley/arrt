@@ -73,7 +73,7 @@ const FIT_LABELS = {
 
 /* *Not on any wall*, in the address as `?wall=none`: works no wall plays now,
  * through the theme or selection hanging on it (the owner's ruling of
- * 2026-10-08 on #288). What walls have shown is *Last shown*'s, below. */
+ * 2026-10-08). What walls have shown is *Last shown*'s, below. */
 function notOnWall() {
   return state.params.wall === "none";
 }
@@ -218,9 +218,8 @@ function resolveDensity(total) {
 
 /* `inTabOrder` is false on the Overview card, whose title link opens the same
  * page: two Tab stops to one place, one of them a picture that announces the
- * title again, was a third of every card's stops (`ux-review-2026-10.md`
- * finding 30). The picture still opens the work to a pointer. On a Posters
- * tile the picture is the only way in, so it keeps its stop and its name. */
+ * title again, was a third of every card's stops. The picture still opens the work to
+ * a pointer. On a Posters tile the picture is the only way in, so it keeps its stop and its name. */
 function cardImage(work, { inTabOrder = true } = {}) {
   if (!work.image.available) {
     // Still the way in on a Posters tile, whose picture is its only link: a
@@ -288,8 +287,7 @@ function artistName(work) {
 /* The Posters tile: the picture, and its label beneath it on the page's
  * ground — title, then artist — as the Artists index's posters carry theirs
  * (`design-direction.md` § Tiles). **Never behind hover**: a phone has none, and
- * a grid of untitled squares at thousands of works was the home page there
- * (audit 2026-11-19, finding 4). Smaller than an Overview card's label, one
+ * a grid of untitled squares at thousands of works was the home page there. Smaller than an Overview card's label, one
  * line of each, because Posters is the view for many works at once.
  *
  * The picture is the tile's one Tab stop, named with the whole label
@@ -448,7 +446,7 @@ function facetRail(groups, chosen, narrowed) {
 }
 
 /* A group whose every option counts nothing in the whole collection is a
- * heading over dead controls (`ux-review-2026-10.md` finding E7: *Walls* over a
+ * heading over dead controls (*Walls* over a
  * lone "Not on any wall (0)"), so the group is left out.
  *
  * **Only while nothing narrows the counts.** Under a theme, a facet or a search,
@@ -484,7 +482,7 @@ function facetOption(kind, option, chosen, label = option.value) {
   });
 }
 
-/* The clean-up facets (#288), counted by the server like the rest.
+/* The clean-up facets, counted by the server like the rest.
  *
  * *Size* offers the fit bands, several at once meaning either, as
  * a facet's values do. Drawn only once it can narrow — two bands holding works,
@@ -563,7 +561,7 @@ function shownRail(options, total, narrowed) {
  * facets and the search on the server, and each option carries the count it
  * would select given every other filter, disabled at zero — the facet rule,
  * for the reason the facet rule exists. Themes themselves are reached from
- * Library › Themes, not from here (the owner's ruling on #169). */
+ * Library › Themes, not from here (the owner's ruling). */
 function themeRail(themes, narrowed) {
   if (!themes.length || offersNothing(themes, narrowed)) return null;
   return el("div", { class: "rail" }, [
@@ -651,7 +649,7 @@ function pageToolbar(density, selection) {
       onChoose: (value) => goWithParams({ sort: value === "title" ? "" : value }),
     }),
     // Its label says what pressing it does, *Show filters* or *Hide filters*,
-    // rather than a pressed state on a word that reads the same either way (#288).
+    // rather than a pressed state on a word that reads the same either way.
     filters: el("button", {
       class: "action quiet filters-toggle",
       type: "button",
@@ -896,7 +894,7 @@ export async function viewCollection(generation) {
   const staleTheme = themeGone ? staleThemeNote() : null;
   const density = resolveDensity(first.total);
 
-  // **One page, then more as the curator scrolls** (#131): the grid no longer
+  // **One page, then more as the curator scrolls**: the grid no longer
   // walks the whole catalogue before it paints, so every work is reachable at
   // any size and the first screenful arrives in one round trip. Back to this
   // entry is the exception: it reloads as many works as were on screen when it
@@ -1099,8 +1097,7 @@ export async function viewCollection(generation) {
   // counts from when the button took focus, not from the press: focusing it
   // scrolls its row into view, the scroll asks for a page of its own, and the
   // works that page brings land above a button the keyboard already stands on.
-  // Counted from the press, they would be skipped, reachable only backwards
-  // (#344).
+  // Counted from the press, they would be skipped, reachable only backwards.
   let reachedAt = null;
   showMore.addEventListener("focus", () => {
     reachedAt = grid.children.length;

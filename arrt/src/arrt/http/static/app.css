@@ -858,8 +858,8 @@ h1 {
   padding: 0;
   cursor: pointer;
   /* A picture that is a link draws "No picture" in its place as plain words,
-     as one that is not a link does: one placeholder, one treatment (audit 6,
-     finding 23, where Artworks underlined it and an artist's page did not). */
+     as one that is not a link does: one placeholder, one treatment (Artworks once
+     underlined it and an artist's page did not). */
   text-decoration: none;
   /* The image is taken out of flow rather than sized at 100%. A replaced child
      at `height: 100%` of a box whose own height comes from `aspect-ratio` is
@@ -1438,8 +1438,8 @@ p.breadcrumb {
    Scoped to `.collection`, and that is not tidiness: `screens/review.js` builds
    its candidate cards out of the same `.card` class, and giving every card on
    that screen a new containing block would change where any absolutely
-   positioned descendant of one resolves against. This chunk owns the collection
-   grid; it does not own Review's. */
+   positioned descendant of one resolves against. This rule is the collection
+   grid's; it is not Review's. */
 .collection .card,
 .tile {
   position: relative;
@@ -1457,9 +1457,8 @@ p.breadcrumb {
 
 /* The contact sheet (Posters): uniform square pictures, each with its title
    and artist beneath on the page's ground, as an artist's poster has its name
-   (`design-direction.md` § Tiles). The words were an overlay shown on hover
-   and focus until 2026-11-19, which a phone, having no hover, never showed
-   (audit 6, finding 4). */
+   (`design-direction.md` § Tiles). An overlay shown on hover
+   and focus would never show on a phone, which has no hover. */
 
 /* Library › Artists' posters: narrower than a work's card, since a card here
    is a name and a picture rather than a work to judge — two to a row on a
@@ -1627,7 +1626,7 @@ p.breadcrumb {
 }
 
 /* Two columns of pictures on the narrowest shape. Scoped for the same reason as
-   the rule above: `.grid` is Review's grid too, and this chunk is not the place
+   the rule above: `.grid` is Review's grid too, and this rule is not the place
    a decision about the review grid's breakpoints gets made. */
 @media (max-width: 40rem) {
   .collection .grid,
@@ -2454,7 +2453,7 @@ section.scene {
 
 /* The note about taking down, once under several cards: one step clear of
    them and no wider than a card, so it reads as a caption to the cards rather
-   than a banner touching the last one (audit 2026-11-19, finding 6). */
+   than a banner touching the last one. */
 .walls-note {
   margin-top: var(--space-4);
   max-width: 48rem;
@@ -3586,7 +3585,7 @@ section.offered + section.offered {
    2px outside the control, and a picture fills its card edge to edge inside two
    boxes that clip (`.card`, `.tile` and `.card-image` all hide overflow, for
    the rounded corners and the caption), so on one Tab stop in three the ring
-   was clipped on three sides (`ux-review-2026-10.md` finding 15). Painted over
+   was clipped on three sides. Painted over
    the picture by a layer above it, in the focus colour with a band of the
    card's ground inside, so it reads against a dark painting and a light one. */
 .card-image:focus-visible {

@@ -2,7 +2,7 @@
 
 The service is built here over its own finders and a clock the test moves, so the
 cache's ages are stated rather than waited for. Its asks run on its own threads,
-as they do in the plane; a held look (`hold=`) is how a test waits for them.
+as they do in the server; a held look (`hold=`) is how a test waits for them.
 """
 
 import logging
@@ -144,7 +144,7 @@ def clock() -> Clock:
 
 @pytest.fixture
 def build(services, settings, registry, clock):
-    """A look over these finders, the plane's own registry pages, discovery and picture store."""
+    """A look over these finders, the server's own registry pages, discovery and picture store."""
 
     def build(*finders, pool: ImageSourcePool | None = None, preview_fetches: int = PREVIEW_FETCHES_AT_ONCE) -> LookService:
         """A look over `finders`, or over `pool` when the test needs to share it with a run."""
@@ -154,8 +154,8 @@ def build(services, settings, registry, clock):
             discovery=services.discovery,
             pool=pool,
             judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry),
-            # The plane's store directory, fetching from these finders, as the
-            # plane's store fetches from the pool its looks ask.
+            # The server's store directory, fetching from these finders, as the
+            # the server's store fetches from the pool its looks ask.
             pictures=PictureStore(
                 services.pictures.art_root / PICTURES_DIRNAME,
                 art_root=services.pictures.art_root,
@@ -397,7 +397,7 @@ def get_source() -> Source:
 
 @pytest.fixture
 def sources(got_registry, get_source):
-    """The plane's own sources, which a Get's run asks: here, `get_source`."""
+    """The server's own sources, which a Get's run asks: here, `get_source`."""
     return a_roster(get_source)
 
 

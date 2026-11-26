@@ -29,7 +29,7 @@ const FIT_WORDS = {
  * wall depends on which panel the work hangs on, and the one figure this server
  * could give — the long edge on the single panel it is configured for, after
  * the mat — read as a fact about the picture to somebody who did not know that.
- * A per-wall fit comes back with per-wall geometry (re-architecture wave 4).
+ * A per-wall fit comes back with per-wall geometry, from a Player.
  * `null` when either dimension is unknown. */
 
 export function pixelSize(width, height) {
@@ -65,7 +65,7 @@ export function fitBadge(sized, absentWord = "no size known") {
     // server is configured for, after the mat, and read beside a picture it
     // looked like a fact about the picture. Where a size is wanted it is the
     // scan's own pixels, which the review card states; a size on a wall comes
-    // back with per-wall geometry (re-architecture wave 4).
+    // back with per-wall geometry, from a Player.
     el("span", { text: FIT_WORDS[verdict] || verdict }),
   ]);
 }
@@ -98,8 +98,7 @@ export function workName(work) {
 /* A held work with no master image, the same on every screen that pictures one
  * (Artworks, Artists, a topic, the Work page): one sentence in the picture's
  * place. The server's note says why in its own words, an exception's as often
- * as not, and three wordings of it across four screens was the plumbing showing
- * (`ux-review-2026-10.md` finding 37); the why is the Work page's *Picture*
+ * as not, and three wordings of it across four screens was the plumbing showing; the why is the Work page's *Picture*
  * panel's to say. With `?debug` the note is shown beneath, for whoever asked. */
 export function noPicture(note = null) {
   return el("div", { class: "card-image-absent no-picture" }, [
@@ -143,8 +142,7 @@ function breakableAtSlashes(text) {
  *
  * `stacked`: below 40rem each row becomes a card of its own, every cell under
  * its column's heading (`data-label`), for a list a phone reads one row at a
- * time rather than scans across — Activity's (`ux-review-2026-10.md` finding
- * 14). A cell link marked `row-link` then covers its whole card, so the row is
+ * time rather than scans across — Activity's. A cell link marked `row-link` then covers its whole card, so the row is
  * the link (`app.css`). */
 export function table(caption, headers, rows, { stacked = false } = {}) {
   const numeric = headers.map((_, index) => isNumberColumn(rows.map((cells) => cells[index])));
@@ -180,7 +178,7 @@ function isNumberColumn(cells) {
  * catalogue that holds no more. */
 export function shortfallNote(page) {
   if (page.works.length >= page.total) return null;
-  // A sixth surface of #113, on a page the issue never named: a shortfall of
+  // A sixth surface of the same count wording, on a page nobody named: a shortfall of
   // exactly one read "1 more are held". Only the two verbs move — "more" is
   // already count-neutral, so there is no noun here to pluralise and the
   // sentence a curator sees above one is byte-identical to what it was.
@@ -214,7 +212,7 @@ export const REASON_SENTENCES = {
 
 const REASON_WORDS = {
   // Not "not held", which elsewhere means the library does not hold a work
-  // (the owner's ruling on #172). This reason is about the museums.
+  // (the owner's ruling). This reason is about the museums.
   not_held: "in no collection",
   identity_refused: "wrong artist",
   size_unknown: "size unknown",

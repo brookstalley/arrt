@@ -300,7 +300,7 @@ def with_last_run(watches, discovery, clock, status: RunStatus, *, ago: timedelt
     return watches.get(watch.id)
 
 
-#: The endings the plan names as "due again soon": nothing asked for was done.
+#: The endings that mean "due again soon": nothing asked for was done.
 #: Written out rather than read from `_DID_NOT_FINISH`, so dropping one there fails here.
 NOT_FINISHED = (RunStatus.FAILED, RunStatus.INTERRUPTED, RunStatus.HALTED_BY_BUDGET)
 

@@ -132,7 +132,7 @@ async def test_acceptance_promotes_every_scan_into_a_source_with_the_chosen_one_
 
     Read through the service for the sources themselves, because no action on
     the catalogue tool returns them — acquisition is their only consumer so far,
-    and inventing a reader here would be this chunk widening a different tool's
+    and inventing a reader here would widen a different tool's
     contract. What the surface is asked for is the fact it does publish: the
     artwork exists and is the one this candidate became.
     """

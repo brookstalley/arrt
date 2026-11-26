@@ -59,8 +59,7 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     Hanging a theme writes that wall's own manifest, named by the id this route
     returns, and a client is admitted only to the walls assigned to it — so a
     second room needs a client output of its own, and nothing about it disturbs
-    the first. Until 2026-08-12 there was one manifest for the installation and
-    a second wall overwrote it silently.
+    the first: a second wall never overwrites it.
     """
     services = _services(request)
     return _one_wall(services, services.display.add_wall(name=body.name).id)

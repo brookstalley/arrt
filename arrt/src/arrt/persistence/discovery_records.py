@@ -265,7 +265,7 @@ class Verdict(StrEnum):
 
     The one way in is `DiscoveryService.want`; `set_verdict` refuses it.
 
-    Renamed from `awaiting_better_image` (2026-10-02), which was false of a work
+    Stored rows once spelled this `awaiting_better_image`, which was false of a work
     that never had a scan. Stored rows are rewritten by
     `migrations.rename_awaiting_to_wanted`, and no surface accepts the old
     spelling (`api-contract.md` § Versioning).

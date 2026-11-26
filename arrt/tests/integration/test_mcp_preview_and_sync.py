@@ -3,8 +3,7 @@
 `art_theme(action='get')` used to tell an agent to run `art_display(action='sync')`
 to see which works would reach the wall. `sync` published whatever theme it was
 handed, without recording a hang, so the check changed the wall and left every
-other surface saying something else was hanging there
-(`audit-5-ia.md` F1). The browser's `GET /api/manifest` was the read-only twin;
+other surface saying something else was hanging there. The browser's `GET /api/manifest` was the read-only twin;
 `art_display(action='preview')` is its twin on this surface.
 
 Entered through a real MCP client over real HTTP, for the reason the neighbouring
@@ -212,8 +211,8 @@ def _every_sentence(record) -> Iterator[tuple[str, str]]:
             yield f"{record.name}.{action.name}.{param.name}", param.description
 
 
-#: What `audit-5-ia.md` F10 found stale, as the words that said it. Each was true
-#: of an earlier plane or an earlier name and false of the bindings now: a Frame
+#: Words that were stale in the tool descriptions, as they were said. Each was true
+#: of an earlier design or an earlier name and false of the bindings now: a Frame
 #: Player uploads what it has not got, a wall's television is recorded, the Player
 #: (not "a display") writes the heartbeat, and the Walls card calls it Remove.
 RETIRED_PHRASES = (

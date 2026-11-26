@@ -341,7 +341,7 @@ def test_a_second_start_finds_nothing_to_do_and_says_so(store, services, ready_w
 
 
 def test_startup_publishes_the_hung_themes_feed_for_a_wall_that_has_none(services, ready_work, hung, wall_id, wall_settings):
-    """A wall with a theme hung and no feed, as the wave 4g upgrade left one: it shows nothing new until it has one."""
+    """A wall with a theme hung and no feed, as an upgrade can leave one: it shows nothing new until it has one."""
     works = [ready_work(title="Nighthawks"), ready_work(title="Automat")]
     hung(wall_id, *works)
     wall_settings.manifest_v2_path(wall_id).unlink()
@@ -469,7 +469,7 @@ def test_a_step_that_cannot_reach_the_wall_leaves_the_feed_as_it_was(
 
 
 def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_work, hung, wall_id, monkeypatch):
-    """The catalogue must not name a theme the wall is not showing (backlog #35)."""
+    """The catalogue must not name a theme the wall is not showing."""
     first = hung(wall_id, ready_work(title="Nighthawks"))
     second = display.add_theme(name="Daylight")
     display.add_to_theme(theme_id=second.id, artwork_id=ready_work(title="Automat").id)
@@ -524,7 +524,7 @@ def test_a_hang_that_is_refused_before_writing_changes_nothing(display, wall_id)
 
 
 def test_a_feed_whose_slots_are_malformed_is_left_for_the_next_sync(display, ready_work, hung, wall_id, wall_settings):
-    """Reconciliation runs before the plane serves, so a bad slot must not stop it starting."""
+    """Reconciliation runs before the server serves, so a bad slot must not stop it starting."""
     hung(wall_id, ready_work())
     document = _published(wall_settings, wall_id)
     document["schedule"]["slots"].append("not a slot")

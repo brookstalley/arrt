@@ -1,6 +1,6 @@
 """A misbehaving source plugin, installed as a real one is, asked by a real Get, read back as a curator reads it.
 
-Wave 1 tested the plugin host's parts (`tests/unit/test_plugin_deadlines.py`,
+The plugin host's parts have their own tests (`tests/unit/test_plugin_deadlines.py`,
 `tests/unit/test_source_plugins.py`). This is the whole product around them: the
 fixture distribution (`tests/fixtures/plugins/misbehaving/`) is installed into a
 directory of this test's own, as an installer would lay it out, and found by the
@@ -187,7 +187,7 @@ def a_registry_work(qid: str) -> RegistryWork:
     )
 
 
-# -- the plane, over the installed plugin ---------------------------------------------
+# -- the server, over the installed plugin ---------------------------------------------
 
 
 @pytest.fixture
@@ -446,7 +446,7 @@ def _late(caplog) -> list[logging.LogRecord]:
 def test_a_fifth_call_while_four_are_still_running_is_not_made_and_every_work_still_resolves(http, plugin, clock):
     """Two Gets, three works then two, because one Get is one pass.
 
-    Since 2026-11-20 a pass stops asking a plugin after three could-not-be-asked
+    A pass stops asking a plugin after three could-not-be-asked
     answers in a row (`one_pass`), so one Get of five hung works makes
     three calls and never reaches the fourth still running. The straggler bound
     is the process's, across passes: the second Get's first call is the fourth
@@ -555,7 +555,7 @@ def test_a_1_5_plugin_that_says_a_dead_link_the_old_way_is_could_not_be_asked_ex
 
 @pytest.mark.parametrize("plugin_names", [("gone", "steady")])
 def test_a_finder_answering_that_every_page_is_gone_settles_the_work_it_alone_might_hold(http, plugin):
-    """Audit-4 finding 4: a work whose only page at a holder is dead settled nowhere, searched again for ever."""
+    """A work whose only page at a holder is dead settled nowhere, searched again for ever."""
     plugin.CONTROL.gone_for = {TITLES[ONLY_THERE]}
 
     view = finished(http, start_get(http, HELD, ONLY_THERE))

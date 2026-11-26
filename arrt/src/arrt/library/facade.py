@@ -206,9 +206,8 @@ class LibraryFacade:
         """Everything the readiness rule judges one work on, from what the catalogue holds of it.
 
         Everything comes through the catalogue service, because it owns what
-        each of these means. Renditions reached straight past it into the store
-        until 2026-08-05, and the hazard was the one the mat colour was already
-        routed around: a second path to the same fact decides manifest
+        each of these means. Renditions are not read straight from the store, the hazard the
+        mat colour is already routed around: a second path to the same fact decides manifest
         membership while the first decides everything else, and only one of them
         is updated when the rule changes.
         """

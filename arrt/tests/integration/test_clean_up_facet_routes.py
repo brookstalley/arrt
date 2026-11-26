@@ -1,11 +1,11 @@
-"""Artworks' clean-up facets: *Size* and *Not on any wall* (#288).
+"""Artworks' clean-up facets: *Size* and *Not on any wall*.
 
-`build-plan-lists-settings-and-scale.md` Chunk 06. Both are counted by the
+Both are counted by the
 server like the existing facets — each option's count is what choosing it
 would select given every other filter, its own selection dropped — and both
 compose with the search, the theme and the other facets.
 
-**The two cross the seam in opposite directions and neither plane reaches the
+**The two cross the seam in opposite directions and neither side of the seam reaches the
 other.** The fit band is the Library's (`SurveyService.fit_bands`, the verdict a
 card shows); which works a wall plays now is Programming's
 (`DisplayService.work_ids_on_walls`). The bindings meet them as id sets and hand

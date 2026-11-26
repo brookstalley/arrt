@@ -287,7 +287,7 @@ async def test_activating_a_theme_puts_it_on_the_wall_rather_than_arming_a_later
 async def test_activating_publishes_exactly_the_readiness_filtered_theme(
     server_url, wall_settings, service, wall, decodable_jpeg
 ):
-    """The chunk's acceptance criterion, end to end: a switch is a filtered publish.
+    """The acceptance criterion, end to end: a switch is a filtered publish.
 
     One work made displayable and two left short, so the feed and the report
     have to disagree with the membership list in exactly the way the design says.

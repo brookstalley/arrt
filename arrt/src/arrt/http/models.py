@@ -1339,7 +1339,7 @@ class ManifestOut(BaseModel):
 
 
 class HeartbeatOut(BaseModel):
-    """What curation can observe about the display plane, stated as observation.
+    """What the server can observe about a Player, stated as observation.
 
     Never a verdict. `absent` and `problem` are different answers on purpose:
     nothing has ever run is normal on a fresh deployment, and a file that will
@@ -1353,7 +1353,7 @@ class HeartbeatOut(BaseModel):
     problem: str | None
     #: One sentence stating what was observed, never a judgement about it.
     description: str
-    #: The document as the display plane wrote it, handed through untouched.
+    #: The document as the Player wrote it, handed through untouched.
     #:
     #: **This is what gives the failure table a reader.** TV connectivity, e-paper
     #: state and the last error are all mapped onto this document by
@@ -1588,16 +1588,16 @@ class WatchesHealthOut(BaseModel):
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, the source plugins and the picture store.
 
-    **No geometry**, since 2026-10-08 (#266): there is no longer one television
-    to state it for. A wall's own geometry is wave 4's, under Clients.
+    **No geometry**: there is no longer one television to state it for. A wall's
+    own geometry is a Player's to report, under Clients.
 
-    **The heartbeat is a list, one entry per wall**, since 2026-08-12. Each wall's
-    display writes its own file, so "has the display plane reported" stopped being
+    **The heartbeat is a list, one entry per wall.** Each wall's
+    display writes its own file, so "has the Player reported" stopped being
     a question with one answer and became "which wall has not" — and a single
     reading could not have carried the name of the room that went quiet.
 
     **There is no budget balance here**: the month's budget is the sidebar's,
-    `BudgetOut` (#290). It stays off this panel because the provider's
+    `BudgetOut`. It stays off this panel because the provider's
     `limit_remaining` fails by inversion rather than by staleness, so stating
     its age, this panel's remedy for a stale figure, would not warn about the
     case that bites (`services/health.py`).

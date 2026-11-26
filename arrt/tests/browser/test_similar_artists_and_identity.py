@@ -151,7 +151,7 @@ def _work_item(ui):
 
 class TestSettingAnItemByHand:
     def test_at_rest_the_control_is_the_identity_and_one_edit(self, ui, rothko):
-        """The owner's ruling on #174: the item and one quiet *Edit*; the rest only once it is pressed.
+        """The owner's ruling: the item and one quiet *Edit*; the rest only once it is pressed.
 
         On the Artist page. Asserted as a rendered state.
         """

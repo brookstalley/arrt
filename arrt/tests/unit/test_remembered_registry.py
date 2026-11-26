@@ -18,7 +18,7 @@ from arrt.library.registry.wikidata import WikidataRegistry
 
 ITEM = "Q5308687"
 PAGE = "https://www.moma.org/collection/works/80249"
-#: The finders that ask `pages_about` in one Get: 18 plugin modules and phase 2 (audit-4 finding 2).
+#: The finders that ask `pages_about` in one Get: 18 plugin modules and phase 2.
 ASKERS = 19
 SETTLE = 10.0
 

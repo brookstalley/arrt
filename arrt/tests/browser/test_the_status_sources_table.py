@@ -1,6 +1,6 @@
 """Status's image sources as one table, one row per source, in a real browser.
 
-The owner's ruling of 2026-10-08 (#265): a box per source, with its sentence and
+The owner's ruling of 2026-10-08: a box per source, with its sentence and
 its "faults: 0" line, was too long, and there will be more sources. So one row
 each, with what each source has given the library beside its state. As the panel
 narrows the columns leave in a fixed order, and the one fact that may never leave
@@ -191,7 +191,7 @@ def test_counts_that_cannot_be_read_are_said_and_the_states_still_shown(ui, a_he
 
 
 def test_status_says_nothing_of_a_television_or_its_geometry(ui):
-    """The geometry panel was one television's; the server no longer has one (#266)."""
+    """The geometry panel was one television's; the server no longer has one."""
     ui.open("#health")
     ui.page.wait_for_selector("#view h1:text-is('Status')")
     ui.page.wait_for_load_state("networkidle")

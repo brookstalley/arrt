@@ -1,6 +1,6 @@
 """No screen shows a machine timestamp outside a Details disclosure.
 
-`ux-review-2026-10.md` finding 20: To review and History showed
+To review and History once showed
 `2026-10-05T14:46:52.225416+00:00`, wrapping every row. Every moment a screen
 shows is written by `core/dates.js` as a readable date and how long ago; the
 instant itself lives only in a `<time datetime>`, which nobody reads, or inside

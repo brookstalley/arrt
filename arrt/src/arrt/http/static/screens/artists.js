@@ -50,7 +50,7 @@ export async function viewArtists(artistId, generation) {
     backRow(),
     el("h1", { text: "Artists" }),
     // The count where every list page says it: the line of facts under the
-    // name, above the toolbar (it was under the toolbar until 2026-11-19).
+    // name, above the toolbar.
     listing.artists.length ? el("p", { class: "muted page-facts", text: count }) : null,
     listing.artists.length
       ? toolbar({
@@ -73,7 +73,7 @@ export async function viewArtists(artistId, generation) {
 }
 
 /* Library › Artists' two views, Lidarr's names for them: posters by default,
- * the owner's ruling on #173, and the table it had before. The choice is in
+ * the owner's ruling, and the table it had before. The choice is in
  * the address (`?view=table`), as Artworks' View is, so a reload and a link
  * land on it; the default is left out of the address. */
 const POSTERS = "posters";
@@ -194,8 +194,7 @@ async function oneArtist(artistId, generation) {
     ]),
     // The list's count, where every list page says it, then the one toolbar
     // shape (`core/toolbar.js`): the reactions are acts on the artist, so they
-    // stand on the left, and *Select* on the right. They sat stacked above it,
-    // in the head, until 2026-11-19 (audit 6, finding 12).
+    // stand on the left, and *Select* on the right, not stacked above it in the head.
     el("p", { class: "muted page-facts", text: `${counted(works.total, "work")} in your library` }),
     toolbar({ actions: taste.acts, selection }),
     taste.said,

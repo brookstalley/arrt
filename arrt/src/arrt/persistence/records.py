@@ -193,9 +193,9 @@ if _missing := set(FetchOutcome) - set(_COARSE_STATUS):
 class RenditionKind(StrEnum):
     """What a derived image is for.
 
-    There is no `label` kind. A label is rendered on the display plane from the
+    There is no `label` kind. A label is rendered by the Player from the
     text fields the theme manifest carries, because its geometry is the e-paper
-    panel's — a device this plane does not own and must not hold facts about.
+    panel's — a device the server does not own and must not hold facts about.
     Every kind here is device-independent: a `THUMBNAIL` is the work itself,
     small, for a library tile; and a `WALL_PREVIEW` is the work at a size a
     browser column shows sharply, for the Work page. Both are drawn from the
@@ -204,7 +204,7 @@ class RenditionKind(StrEnum):
 
     A `PRESENTATION_MASTER` is the Original, upright and unmatted, capped at
     7,680 px on its long edge: the device-independent image a Player composes
-    its own wall from (re-architecture wave 4). Its target size is the cap,
+    its own wall from. Its target size is the cap,
     not the size it came out at.
     """
 
@@ -614,8 +614,8 @@ class ThemeMembership:
 class Theme:
     """A curator's grouping of works, and the unit a wall rotates through.
 
-    **Global, and hung rather than activated.** This record carried an
-    `is_active` boolean until 2026-08-12, which could only ever mean "active on
+    **Global, and hung rather than activated.** This record carries no
+    `is_active` boolean, which could only ever mean "active on
     the one television" — the single-wall assumption written into the noun. What
     is hanging where is `ThemeAssignment`'s to say, so two walls may hang the
     same theme with nothing duplicated.

@@ -6,8 +6,8 @@
  * stored**: a typo cannot pass as an identity. *There is none* says the item does
  * not exist, which stops the matcher looking, and is confirmed first.
  *
- * **At rest it is the identity and one quiet *Edit*** (the owner's ruling on
- * #174): *Edit* reveals the Q… field, *Look up* and *There is none* together,
+ * **At rest it is the identity and one quiet *Edit*** (the owner's ruling):
+ * *Edit* reveals the Q… field, *Look up* and *There is none* together,
  * since changing the item and saying there is none are both corrections a
  * curator makes rarely.
  *
@@ -38,7 +38,7 @@ export function storeIdentity(kind, id, qid) {
  * serves it; `onChanged` repaints from the route's answer. */
 /* `quietWhenUnmatched`, on a page that says elsewhere that the record has no
  * item (the Artist page's *Their work*): the line then names no state, so the
- * page says it once (`ux-review-2026-10.md` finding E16).
+ * page says it once.
  * `open`, inside a dialog that was opened to correct the item (the Work page's
  * *Match on Wikidata…*): the form shows at once and there is no *Edit*, since
  * opening the dialog was the asking. */

@@ -389,9 +389,8 @@ def _feed_spellers(trees: list[ast.Module]) -> set[str]:
 
     By its own name and by every alias an import binds it to (`feeds.py` imports
     it as `as_v2_document`), called bare or as a module's attribute
-    (`feeds.as_v2_document(...)`, `v2.as_document(...)`). Until 2026-11-20 this
-    matched only a bare call of the alias, so a second writer reaching the speller
-    any other way was invisible to it.
+    (`feeds.as_v2_document(...)`, `v2.as_document(...)`). Matching only a bare call of the alias
+    would leave a second writer reaching the speller any other way invisible.
     """
     module, name = _SPELLER
     names = {name}
@@ -419,7 +418,7 @@ def _feed_spellers(trees: list[ast.Module]) -> set[str]:
 
 
 def _source_trees() -> list[ast.Module]:
-    """Every module of the plane's source: a second writer need not live in `programming/`."""
+    """Every module of the server's source: a second writer need not live in `programming/`."""
     package = Path(feeds_module.__file__).parents[1]
     return [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package.rglob("*.py"))]
 

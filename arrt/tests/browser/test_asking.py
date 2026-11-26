@@ -118,7 +118,7 @@ def away_and_back(ui) -> None:
     Walls is waited for by its own heading. Any `h1` would not do: Ask has one,
     so that wait was met before Walls drew anything, the return began with Ask's
     turn still on screen, and every wait after it could be met by the page that
-    was never left (#402). Once Walls has drawn, Ask's turn is gone, and what
+    was never left. Once Walls has drawn, Ask's turn is gone, and what
     the caller waits for next can only come from the returning page.
     """
     ui.navigate("#walls")
@@ -248,7 +248,7 @@ def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_loa
     """By their own work's thumbnail, and marked as held, without asking Wikidata for their works.
 
     The work holds a master, since only a work that does pictures an artist
-    (2026-10-14, #358): one that does not has no thumbnail to show.
+    (2026-10-14): one that does not has no thumbnail to show.
     """
     ui = pictures_load
     rothko = service.add_artist(name="Mark Rothko", born=1903, died=1970)
@@ -453,7 +453,7 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
 
 
 def test_the_thread_s_pictures_are_not_fetched_from_commons_under_test(ui, ask_model):
-    """The suite's page reaches no origin but its own server (`ui`, #343).
+    """The suite's page reaches no origin but its own server (`ui`).
 
     Through a real reply, whose cards ask Commons for their pictures: the
     requests are made and every one fails here, so no answer from outside
@@ -481,7 +481,7 @@ def _settle(ui) -> None:
     Two things do: a work card's theme picker reads the themes, and each
     picture box is filled when its picture answers — with the picture, or with
     words saying why there is none. Read before a box settled, the text lacks
-    words it later gains, and a comparison of two reads races the picture (#343).
+    words it later gains, and a comparison of two reads races the picture.
     """
     ui.page.wait_for_function("() => !document.querySelector('.ask-turn').innerText.includes('Reading themes')")
     ui.page.wait_for_function(
@@ -670,7 +670,7 @@ def test_a_thread_the_server_forgot_is_an_empty_page_when_it_is_opened_and_the_n
 
 
 class TestWithNoKey:
-    """Ask on a server with no key: disabled with its reason, never accepted and then refused (audit-6 finding 9)."""
+    """Ask on a server with no key: disabled with its reason, never accepted and then refused."""
 
     @pytest.fixture
     def ask_model(self):

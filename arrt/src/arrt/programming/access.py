@@ -149,7 +149,7 @@ class PlayerAccess:
         shown_by = None if wall is None else self._placements.placement_of(wall).shown_by
         if shown_by is not None and shown_by.id == client.id:
             return Admission.ADMITTED
-        # Named by a wall this plane holds, never by the id in the URL: that id
+        # Named by a wall the server holds, never by the id in the URL: that id
         # is the caller's choice, and whatever it typed must not reach the journal.
         asked = f"wall {wall.name!r}" if wall is not None else "a wall this server does not hold"
         self._log_refusal(f"client {client.name!r}", f"it asked for {asked}, which is not assigned to it")
@@ -163,7 +163,7 @@ class PlayerAccess:
         label = self._store.get_label_output(label_id)
         if label is not None and label.client_id == client.id:
             return Admission.ADMITTED
-        # Named by what this plane holds, never by the id in the URL, for the
+        # Named by what the server holds, never by the id in the URL, for the
         # reason `admit` gives.
         asked = (
             f"label output {label.output!r} of another client"

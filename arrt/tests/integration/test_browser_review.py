@@ -68,7 +68,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ) -> Services:
-    """The whole plane, wired the way a deployment with an image provider is."""
+    """The whole server, wired the way a deployment with an image provider is."""
     engine.result = WorkList(works=(a_work("The Elephants"), a_work("Swans Reflecting Elephants")))
     return Services.bind(
         catalogue=store,
@@ -227,7 +227,7 @@ class TestTheGrid:
         assert http.get(f"/api/candidate-images/{image_id}/preview", params={"size": "huge"}).status_code == 422
 
     def test_a_card_says_which_kind_of_nothing_when_no_image_was_found(self, http, museum):
-        """Chunk 21's whole point has to survive the trip to a card.
+        """What kind of nothing was found has to survive the trip to a card.
 
         A bare `unresolved` cannot tell a title nobody holds from a scan too small
         for the wall, and the two lead to opposite actions.
@@ -595,7 +595,7 @@ class TestWanting:
 
         Until that norm a sweep deleted a decided work's preview and its card
         stopped promising a picture. Now nothing deletes one: accepted, and the
-        plane's startup repairs run again, the card still shows it and the route
+        the server's startup repairs run again, the card still shows it and the route
         still serves it.
         """
         run_id = a_finished_run(http)
@@ -615,11 +615,11 @@ class TestWanting:
 
 class TestTheWholeLoop:
     def test_the_whole_loop_closes_onto_the_wall(self, http, hold_master):
-        """Chunk 19B's acceptance criterion, start to finish.
+        """The whole loop, start to finish.
 
         Intent, estimate, review with images, accept, theme, wall — every id
         threaded out of the previous response, and nothing touched but HTTP. The
-        one thing standing in for work this chunk does not own is the master
+        one thing standing in for work this test does not own is the master
         image acquisition would fetch after acceptance; everything else is the
         surface answering for itself.
 
@@ -657,10 +657,10 @@ class TestTheWholeLoop:
 def hold_master(service, settings, decodable_jpeg, services):
     """Give an accepted work the master, render and mat the wall requires.
 
-    Acquisition and preparation are Chunk 18's, and a loop test that stopped at
+    Acquisition and preparation have their own tests, and a loop test that stopped at
     acceptance would leave the last two steps — theme and wall — asserting
-    against a work the manifest correctly excludes. This is the seam where the
-    two chunks meet, standing in for a fetch this test has no business making.
+    against a work the manifest correctly excludes. This is the seam where
+    acquisition and the manifest meet, standing in for a fetch this test has no business making.
     """
     from arrt.persistence.records import (
         AcquisitionMethod,
@@ -710,8 +710,8 @@ def hold_master(service, settings, decodable_jpeg, services):
 def test_the_receipt_contract_the_backup_job_will_meet_is_written_down(settings):
     """The panel reads one key, and a job spelling it differently reports for ever.
 
-    Both ends are ours, unlike the heartbeat's, so this cannot drift across
-    planes — but it can drift across chunks, and the reader shipped first.
+    Both ends are ours, unlike the heartbeat's, so this cannot drift between
+    the server and a Player — but reader and writer can drift if one ships first.
     """
     from arrt.persistence import backup
 

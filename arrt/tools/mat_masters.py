@@ -77,7 +77,7 @@ def _pairs(art_root: Path, corpus_path: Path) -> tuple[list[Pair], list[str]]:
     **The SQL is written out here rather than taken from the repository, and that
     is a decision.** `CatalogueRepository` owns these tables, so this duplicates
     names it could import — but the repository opens the catalogue through the
-    plane's configuration, and this tool has to run against an `ART_ROOT` named on
+    the server's configuration, and this tool has to run against an `ART_ROOT` named on
     the command line, including one that is not the configured deployment. The cost
     is real and is stated so nobody has to guess it was considered: a column rename
     passes both suites and breaks this tool, because nothing imports or exercises
@@ -153,7 +153,7 @@ def _lightness_report(paired: list[Pair], engine: MatEngine) -> None:
 
 
 def _stability_report(paired: list[Pair], scratch: Path) -> None:
-    """Whether a benign re-encode moves the answer, which is the other half of #115.
+    """Whether a benign re-encode moves the answer, which is the other half of what the mat bar measures.
 
     The re-encode is deliberately gentle — **the same picture at the same
     dimensions, saved again at a different quality** — because the claim under test

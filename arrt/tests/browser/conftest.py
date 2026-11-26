@@ -250,13 +250,9 @@ def a_player_shows(services, shared_clock):
 def a_health_reading():
     """`GET /api/health` as the API's own models define it: one heartbeat per wall.
 
-    **Built from `HealthOut` and dumped, per `payloads.py`'s rule.** It was
-    hand-written for exactly as long as it had to be: the aggregate shape was
-    owned by the chunk making the manifest per-wall, `HealthOut` still carried
-    one top-level heartbeat, and a builder composed from it would have pinned the
-    old contract with the authority of the new one. That chunk has landed and
-    `HealthOut.walls` exists, which is the condition the departure was written
-    to end on.
+    **Built from `HealthOut` and dumped, per `payloads.py`'s rule.** A
+    model that changes shape then breaks the fixture rather than leaving it
+    pinned to an old contract, and `HealthOut.walls` holds one heartbeat per wall.
 
     Every field is overridable, because what these tests vary is exactly which
     observation is wrong.
@@ -574,7 +570,7 @@ def ui(page, server_url, request):
     The client asks Commons for the pictures a reply or a search names, and an
     unguarded page fetched them from the live site: a test then read a picture
     box that filled with "Picture unavailable" whenever the internet answered,
-    which is when it failed (#343). Aborted here, every outside request fails
+    which is when it failed. Aborted here, every outside request fails
     the same way on every run, and a test that needs a picture to load says so
     with `pictures_load` or a route of its own, which Playwright tries first
     because it was registered later.

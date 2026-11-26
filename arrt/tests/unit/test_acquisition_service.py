@@ -343,10 +343,10 @@ class TestTheDeploymentFaultsReachTheJournal:
     person who can fix it is the operator, not whoever is holding the result.
 
     **Driven through `acquire()` with no binding anywhere in the picture**,
-    because that is the whole point of where the line lives. It was emitted by
-    the MCP binding until 2026-08-05, so the signal followed the route in rather
+    because that is the whole point of where the line lives. Emitted by
+    the MCP binding, the signal would follow the route in rather
     than the condition, and a test at that layer could not fail for any other
-    caller. The first browser acquisition route would have inherited the refusal
+    caller. A browser acquisition route would inherit the refusal
     and not the line, leaving an operator debugging "nothing acquires" on a full
     disk against silence.
     """

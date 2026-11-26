@@ -383,7 +383,7 @@ def _round_robin(groups: Sequence[OfferedGroup]) -> Iterator[tuple[FoundImage, O
 #: **The facet and its match count are stored as fields now, not written into
 #: here.** They describe the *query*, not this work, and the surface says them
 #: once where that query's works are — `product-brief.md`'s offered-works bullet,
-#: as amended for issue #95. Composing them per work is what produced the defect:
+#: as amended. Composing them per work is what produced the defect:
 #: a 19-work run printed the same thirty-word sentence twelve times, and because
 #: the sentence was built before the per-run bound was applied, it advertised a
 #: holdings total that no view on the page could reconcile with the cards shown.
@@ -613,8 +613,7 @@ class DiscoveryRunner:
         surfaces. Filtering narrows *which* runs; only the cap bounds how many.
 
         The cap is applied here rather than in either binding so the two surfaces
-        cannot come to disagree about how much history there is. `http/api.py`'s
-        own note said as much before this existed: fixing one alone is how they
+        cannot come to disagree about how much history there is: fixing one alone is how they
         drift apart.
         """
         waiting = self._discovery.awaiting_verdict()
@@ -1422,8 +1421,8 @@ class DiscoveryRunner:
                 "run.failed",
                 # Three agreements over one count, and a one-work run against an
                 # unreachable provider is the ordinary way here — the seventh
-                # site of #113, in a module the fix had already edited and had
-                # already imported `counted` into. Nothing announces a sentence
+                # site of the count's agreement, in a module that already imports
+                # `counted`. Nothing announces a sentence
                 # that only a failure path prints.
                 f"Phase 2 could not reach an image provider for any of this Get's {counted(works, 'work')}. "
                 f"{_not_asked(unasked, museum)}"

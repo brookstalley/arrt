@@ -534,7 +534,7 @@ class SqliteDurableStore:
         transaction: it excludes this process's own writers, which is what the
         one-connection design makes sufficient, and it says nothing about a
         second process. There is no second process by design — `catalogue.sqlite`
-        has one writer and it is this plane.
+        has one writer and it is the server.
         """
         with self._lock:
             yield

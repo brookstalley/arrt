@@ -2,8 +2,7 @@
  *
  * A box that scrolls is only reachable by a pointer unless it can take focus:
  * a keyboard user on a phone met a table whose last columns, the Review link
- * among them, were past its edge with no way to bring them in (`ux-review-2026-10.md`
- * finding 30, `accessibility-spec.md`). So a scroll box that actually overflows
+ * among them, were past its edge with no way to bring them in (`accessibility-spec.md`). So a scroll box that actually overflows
  * becomes a Tab stop, named by its table's caption, and arrow keys scroll it.
  *
  * **Only while it overflows.** A Tab stop on every table that fits would be a

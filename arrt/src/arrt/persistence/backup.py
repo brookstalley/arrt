@@ -2,7 +2,7 @@
 
 The catalogue is the irreplaceable asset, and the only thing this backs up: the
 image tree is the storage's own snapshots' to keep (a restore carries both,
-`operational-spec.md` § Backup and Restore; #180). So "a backup that
+`operational-spec.md` § Backup and Restore). So "a backup that
 silently stopped succeeding a month ago" is the failure this reading exists to
 make visible, and `operational-spec.md` names surfacing its age on the health
 panel as part of the backup's design rather than as a nicety.
@@ -12,15 +12,15 @@ the panel says it means. A job that stamped every attempt would report a fresh
 age for a backup that has been failing since Tuesday, and the panel would be
 confidently wrong about the one asset nothing else protects.
 
-**The writer is `CatalogueBackup`, below** (`build-plan-nas.md` Chunk 02), and
+**The writer is `CatalogueBackup`, in this module**, and
 it runs on the server's own schedule when `BACKUP_DIR` is set. Without it the
 panel says *no backup has ever been recorded*, which is a true and useful
 observation on a deployment that has never run one: the panel states
 observations with ages and never verdicts.
 
-The parse is `observations.observe`'s, shared with the display heartbeat. Both
+The parse is `observations.observe`'s, shared with the Player's heartbeat. Both
 ends of this one are ours, so the key cannot drift the way the heartbeat's could
-across planes — but the reader and the writer still belong in one module, and
+between the server and a Player — but the reader and the writer still belong in one module, and
 this is where the writer lands.
 """
 
@@ -123,7 +123,7 @@ class CatalogueBackup:
     """Copy the catalogue to the backup directory, keep the newest generations, and record success.
 
     `operational-spec.md` § Backup and Restore is the design: the catalogue
-    alone (the image tree is the storage's snapshots' to keep, #180;
+    alone (the image tree is the storage's snapshots' to keep;
     `kept-answers.sqlite` is disposable),
     with `VACUUM INTO` rather than a file copy, which could capture a torn
     database from under a live writer; several generations, because a

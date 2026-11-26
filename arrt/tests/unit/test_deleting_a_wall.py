@@ -3,7 +3,7 @@
 The owner's rulings of 2026-10-30: the delete is permanent and the wall's history
 stays; a wall in the live scene leaves it and the scene goes on; a theme hanging
 on it does not stop the delete; the last wall may go. Each test below holds one
-row of the plan's table, with a second wall that keeps its own of the same thing,
+row of the rulings' table, with a second wall that keeps its own of the same thing,
 so a delete that took both walls' rows would fail.
 """
 

@@ -2,7 +2,7 @@
 
 Clients prints the server's sentence about a report ("It last reported 4
 minutes ago."), and Walls composes its own line about the same report with
-`core/dates.js`. #295's acceptance is that the two pages agree for one report, so
+`core/dates.js`. The two pages must agree for one report, so
 the client's words are run here against `observations.ago` over the ages where
 they could part: every unit boundary, the halves Python rounds to even and
 `Math.round` would not, and a report stamped in the future.

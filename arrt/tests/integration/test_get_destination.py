@@ -63,7 +63,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, museum, shared_clock, shared_ids
 ):
-    """The plane with an image source and a registry, so a Get can find and accept works."""
+    """The server with an image source and a registry, so a Get can find and accept works."""
     bound = Services.bind(
         catalogue=store,
         discovery=discovery_store,

@@ -151,7 +151,7 @@ class TestUnderAMonthlyBudget:
         )
 
     async def test_an_allowance_stored_above_it_is_set_aside_on_the_route_and_the_tool_alike(self, server_url, discovery_store):
-        """An allowance chosen under a higher budget, read after `MONTHLY_BUDGET_USD` was lowered to 20 (#417)."""
+        """An allowance chosen under a higher budget, read after `MONTHLY_BUDGET_USD` was lowered to 20."""
         from datetime import UTC, datetime
 
         from arrt.persistence.discovery_records import InitiatedBy, StoredSetting

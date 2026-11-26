@@ -2,9 +2,8 @@
 the place it left where Back returns, and a name for every page.
 
 `information-architecture.md` § Direction rules that navigation is a link and an
-act is a button. The walkthrough that led to the rule (`ux-review-2026-10.md`
-findings 4, 5 and 21) found three costs of the buttons it replaced, and each is
-pinned here at the screen where it was found: a work opened from low on
+act is a button. The rule's reason is three costs of the buttons it replaced, and each is
+pinned here at the screen where it showed: a work opened from low on
 Artworks opened part-way down its own page, Back to Artworks returned to the top
 of the grid rather than to the card, and every page in the browser's tabs and
 history read "Arrt".
@@ -33,7 +32,7 @@ from scripted_model import ScriptedModel
 ROUTES = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
 
 #: The card a curator opens from well below the fold. Twenty, because that is
-#: the card the walkthrough measured Back losing (68 Tabs from the top).
+#: the card Back was measured to lose (68 Tabs from the top).
 CARD = 20
 
 
@@ -123,7 +122,7 @@ def test_back_returns_to_card_20_with_focus_on_it(ui, a_long_artworks):
     assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 20 has focus but is off screen"
 
 
-#: The card Back has to find well past the first page (#131): Artworks pages as
+#: The card Back has to find well past the first page: Artworks pages as
 #: the curator scrolls, so card 900 exists only because 36 pages were loaded.
 FAR_CARD = 900
 
@@ -270,7 +269,7 @@ def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artwork
     """Ctrl-click or Cmd-click is a new tab, so this page stays where it is.
 
     **The tab is seen by the document it starts, not by Playwright's `page`
-    event (#441).** Under load the event sometimes never comes: on the pool,
+    event.** Under load the event sometimes never comes: on the pool,
     9 runs in 300 with the click on the link, Ctrl held and not prevented,
     and Chromium's own list of tabs showing the new one at `#work/<id>`
     within a second, Playwright reported no page in 30 seconds. Playwright
@@ -399,10 +398,9 @@ def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_s
     script's focus as one to show (`:focus-visible`), as Safari did. The member
     that keeps the fix honest: the control the next Tab reaches still draws one.
 
-    On a server with a key, as the owner's is: since 2026-11-19 a server with
-    none disables Ask's box and its act, with the reason (chunk 08 of
-    `build-plan-audit-wave-1.md`, audit 6 finding 9), so its page holds nothing
-    a Tab can land on, and this ran on such a server until then.
+    On a server with a key, as the owner's is: a server with none disables Ask's
+    box and its act, with the reason, so its page holds nothing a Tab can land
+    on.
     """
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")

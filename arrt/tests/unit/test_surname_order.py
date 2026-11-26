@@ -1,4 +1,4 @@
-"""Where an artist sorts on the Artists index: by surname, the owner's ruling on #173."""
+"""Where an artist sorts on the Artists index: by surname, the owner's ruling."""
 
 import pytest
 

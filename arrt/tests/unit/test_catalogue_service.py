@@ -142,7 +142,7 @@ def test_the_first_theme_hangs_nowhere(display):
 
     It read `is_active is False` when `Theme.is_active` was a column with no
     enforcement behind it, then `is True` once "exactly one theme is active" was
-    implemented — a catalogue with themes and none active gave the display plane
+    implemented — a catalogue with themes and none active gave a Player
     nothing to sync. The operator ruled on 2026-08-12 that themes are global and
     hanging is a separate act against a named wall, which removes the column and
     the question with it: creating a theme puts it on no wall, and a wall with

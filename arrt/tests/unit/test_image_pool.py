@@ -269,7 +269,7 @@ def test_one_source_asked_alone_answers_link_gone_as_itself():
 
 
 def test_a_work_only_a_gone_source_might_hold_is_settled_as_held_by_nobody():
-    """Audit-4 finding 4: such a work waited for ever, as if the source were down."""
+    """Such a work once waited for ever, as if the source were down."""
     resolution = resolve(GoneSource("first"), Source("second"))
 
     assert resolution.instances == []

@@ -57,7 +57,7 @@ def measured(ui, *, at_least):
 
 
 def test_the_run_page_s_costs_break_between_words(ui):
-    """*(Since 2026-10-14, #359: a Get still running, since the estimate and the
+    """*(A Get still running, since the estimate and the
     lookups are shown only while one runs; a finished Get says only its cost.)*"""
     work = a_candidate(provenance=WorkProvenance.CHOSEN.value, wikidata_qid="Q3226397")
     run = a_run(

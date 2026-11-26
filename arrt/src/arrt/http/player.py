@@ -2,7 +2,7 @@
 
 `player-contract.md` § Transport is the specification, and `contract/routes.json`
 holds these routes' spelling, so the server and a Player in another repository
-agree on them the way both planes already agree on the heartbeat's filename. They
+agree on them the way the server and a Player already agree on the heartbeat's filename. They
 sit at the root, beside `/api` rather than under it: `/api` is the curator's
 surface, and this one is the Player's.
 
@@ -17,7 +17,7 @@ application turns into the `401` or `403` (`app.py`), so no handler branches on
 the answer. A handler then makes its service call and turns the answer into a
 response. The token check is the access service's, and the refusal log with it.
 
-**Synchronous `def`**, for the reason `api.py` gives: the work is real file and
+**Synchronous `def`**, for the reason `http/api.py` gives: the work is real file and
 database I/O, and Starlette runs a sync handler in a worker thread. The client
 heartbeat and the wall heartbeat are the two `async def`s, because each reads
 the raw body so that a body that is not a JSON object is refused with the same

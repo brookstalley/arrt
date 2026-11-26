@@ -108,7 +108,7 @@ const FOUND_WIDTH = 250;
  *   ○ *Not held* (or `noImage`'s words): no picture.
  *
  * **The image styles are one block in `app.css`** (`.work-pic-held`,
- * `.work-pic-wanted`, `.work-pic-not-held`): the owner's ruling on #172 is to
+ * `.work-pic-wanted`, `.work-pic-not-held`): the owner's ruling is to
  * style the three states as images and iterate on what reads clearest, so
  * they sit side by side to be tuned together. The glyph and the word carry
  * the state whatever the picture does — one that fails to load, or none,
@@ -164,7 +164,7 @@ function heldRowPicture(work) {
 /* A listed work's picture on its own, in the image style of its state, for a
  * row that leads with it rather than carrying it inside the state's badge (the
  * search typeahead and results, where a picture in the badge was 48 px and read
- * as part of the mark: `ux-review-2026-10.md` finding 38). `workState(…, {
+ * as part of the mark). `workState(…, {
  * picture: false })` is the badge that goes with it. Null where the state has
  * no picture, a held work with no master included: the search names the held
  * work that holds one (`pictured_artwork_id`), so no request goes out for a

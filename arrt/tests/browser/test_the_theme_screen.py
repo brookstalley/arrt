@@ -9,7 +9,7 @@ facts and a toolbar: *Hang…* (a dialog of walls), *Edit…* (name, description
 default, delete) and *Add works*; the order is a drag handle per row, which the
 keyboard moves too; and every changed assertion below says so.
 
-**Two of these are debts this screen carried into the chunk that owns it.** Its
+**Two of these are debts this screen once carried.** Its
 membership control read "Remove", which promises a *work* is gone when it is
 still catalogued and in every other theme; and its hang button changed a room
 with no question asked, while flow 6 makes activation the one act that gets one.
@@ -248,8 +248,8 @@ class TestReordering:
         """A move to where a work already is sends nothing.
 
         *(Until 2026-10-14 the order was four buttons a row, and this test held
-        that the first work's ↑ and the last's ↓ were disabled. #352 made the
-        order one Position field a row, and ruling 9 of 2026-10-27 a drag handle
+        that the first work's ↑ and the last's ↓ were disabled. The order then became
+        one Position field a row, and ruling 9 of 2026-10-27 a drag handle
         a row; the same rule is held on the handle's keys: Up and Home on the
         first work, Down and End on the last, send nothing.)*
         """
@@ -497,10 +497,9 @@ class TestHanging:
         a question that reads correctly today only because there is one possible
         target is the last place a mistake could have been caught.
 
-        The wall is given a Player: since 2026-11-19 the question promises
-        "Everyone in the house sees" only of a wall a Player shows (chunk 06 of
-        `build-plan-audit-wave-1.md`, audit 6 finding 19), and the wall with no
-        Player is `test_setting_up_a_wall.py`'s case. The Player has its token
+        The wall is given a Player: the question promises
+        "Everyone in the house sees" only of a wall a Player shows, and the wall
+        with no Player is `test_setting_up_a_wall.py`'s case. The Player has its token
         and has reported: one with no token shows nothing yet, the next test.
         """
         wall = services.display.survey_walls()[0].wall
@@ -574,9 +573,8 @@ class TestHanging:
 
     def test_confirming_hangs_it_and_the_facts_say_where(self, ui, winter, services):
         """The page stays, and its facts say where the theme now hangs, read again
-        from the server; the wall the act changed is a link there. *(Until ruling
-        9 of 2026-10-27 it left for Walls, since hanging was a button per wall
-        and the page did not say where a theme hung.)*
+        from the server; the wall the act changed is a link there. *(By ruling
+        9 of 2026-10-27 it does not leave for Walls: the page says where a theme hangs.)*
         """
         wall = services.display.survey_walls()[0].wall
         ui.open(f"#theme/{winter.id}")
@@ -698,7 +696,7 @@ class TestDeleting:
 
 
 class TestOneThemeHasItsOwnAddress:
-    """`#theme/<id>` — the address a theme had no way to be given (#133).
+    """`#theme/<id>` — the address a theme had no way to be given.
 
     `information-architecture.md` § Navigation Structure requires that every
     screen and every consequential state be addressable, and one theme is one:

@@ -1,6 +1,6 @@
 """The synthetic walk's server is a throwaway: it inherits nothing from the operator (`tools/ux_walk.py`).
 
-The first audit of the walk (2026-11-19) found the "throwaway" server started with
+The "throwaway" server was once started with
 the whole of the operator's environment and, through `load_dotenv()`, their `.env`:
 the paid OpenRouter key, the museums' user agents, and the real month's balance
 shown in the sidebar of every capture. **Each case plants a sentinel where a key

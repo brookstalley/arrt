@@ -444,7 +444,7 @@ class TestWithNoRegistryConfigured:
 
         assert (work["state"], work["held_artwork_ids"]) == ("not_configured", [kept.id])
         assert (artist["state"], artist["artist_id"]) == ("held", rothko.id)
-        # In the household's words, naming no setting (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        # In the household's words, naming no setting (not WIKIDATA_USER_AGENT).
         assert work["note"] == "Wikidata is not configured on this server."
 
 
@@ -558,7 +558,7 @@ class TestAfterARestart:
 
 
 class TestAWantedWorkIsMarkedWhereverRegistryWorksAreListed:
-    """The owner's ruling on #172: held, wanted and not held read apart wherever registry works are listed.
+    """The owner's ruling: held, wanted and not held read apart wherever registry works are listed.
 
     A work wanted through Review names its Wikidata item once matched, and every
     answer that says which works the library holds also says which are wanted.

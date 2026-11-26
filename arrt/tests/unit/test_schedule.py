@@ -739,7 +739,7 @@ def test_a_slower_neighbour_that_cannot_be_rebuilt_is_stepped_aside_from_by_the_
     of the study's. The hall's slot now is left out, as its picture is the
     act's to choose. Slower only: a neighbour at the hall's own pace is built
     after it, against its whole schedule, so its refusal leaves the hall built
-    as if it would step aside (#436's kind of limit, not this one).
+    as if it would step aside (the kind of limit the pass has, not this one).
     """
     walls = {"hall": (hall, base), "study": (study, base * times)}
     published = _fresh(walls, {"hall": HOUR // 7, "study": study_offset})
@@ -971,7 +971,7 @@ def test_a_kept_slot_already_clashing_is_run_on_into_step():
 @pytest.mark.parametrize(
     ("works", "movable"),
     [
-        # #350's own case: each holds both, so each can show the other.
+        # Each holds both, so each can show the other.
         ({"here": {"x", "y"}, "n": {"x", "y"}}, {"n"}),
         # One work: nothing to step aside to.
         ({"here": {"x", "y"}, "n": {"x"}}, set()),

@@ -117,14 +117,13 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     rows = ui.page.locator("#view .results-list li:has(.row-title:text-is('The Hunters in the Snow'))")
     expect(rows, "the library's row and Wikidata's are one work").to_have_count(1)
     # Under *Held*, the group's heading is the only "Held", and this work, held
-    # with no master yet, says so in its picture's place (audit 6, finding 14;
-    # until 2026-11-19 the row ended "● Held" and said nothing of its picture).
+    # with no master yet, says so in its picture's place (the row does not end at "● Held"
+    # and say nothing of its picture).
     expect(rows).to_have_text(_begins("No picture The Hunters in the Snow"), use_inner_text=True)
     expect(rows).not_to_contain_text("Held", use_inner_text=True)
-    # A held work is never offered a Get. Its tick, since #317, is the held
+    # A held work is never offered a Get. Its tick is the held
     # half's, to add to a theme or archive: ticked, it lights those and leaves
-    # Get dark. (This line asserted no tick at all until then, which was the
-    # gap #317 closed, not the contract.)
+    # Get dark.
     expect(rows.locator("input[type='checkbox']")).to_have_count(1)
     ui.page.click("#view button.select-toggle")
     rows.locator("input[type='checkbox']").check()

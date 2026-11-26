@@ -1,7 +1,7 @@
 """The Walls — the product's home, in a real browser against a real server.
 
 **The four empty reasons are what this file exists for.** No theme hung, an empty
-theme, a display plane that has never spoken, and a plane this screen could not
+theme, a Player that has never spoken, and a Player this screen could not
 reach: four states, four sentences, four fixes. The failure worth guarding
 against is not that one of them renders wrongly — it is that they collapse into
 one branch with four strings, which reads as coverage and is not. So every test
@@ -12,7 +12,7 @@ other one.
 The fourth is reached differently from the other three and that is deliberate:
 three are read off responses that arrived, and the fourth is a request that did
 not. It is stubbed for that reason — a server cannot be asked to fail on purpose
-— while the other three are seeded for real, including the silent plane, which is
+— while the other three are seeded for real, including the silent Player, which is
 the state every deployment with no display attached is actually in.
 """
 
@@ -39,7 +39,7 @@ from arrt.programming.client_heartbeat import client_heartbeat_path_in
 #: because "nothing has reported" and "something reported and cannot be read"
 #: send a person to different places on the Player while being one reason: its
 #: Player is not speaking, and the wall is dark either way. In the household's
-#: words since audit 2026-11-19 (F5): no plane, no heartbeat, no display for a
+#: words: no plane, no heartbeat, no display for a
 #: Player. Every phrase is the walls answer's or the manifest's: the cards ask
 #: the status reading for nothing, so none is said of it.
 REASONS = {
@@ -146,7 +146,7 @@ def a_hung_wall(services, a_full_theme, the_wall):
     """A populated theme published to the one wall this deployment has.
 
     Nothing has written a heartbeat, which is not a gap in the fixture: no
-    display plane is attached to a test deployment, so this is the silent state
+    Player is attached to a test deployment, so this is the silent state
     reached honestly rather than stubbed.
     """
     services.display.activate_theme(a_full_theme.id, wall_id=the_wall.id)
@@ -158,8 +158,7 @@ def a_shown_wall(services, a_hung_wall):
     """The hung wall on a Player's screen, the Player holding its token and never having reported.
 
     Reason three is about a wall whose Player is silent, so the wall has one:
-    a wall no Player shows says *No Player* instead, once (audit 2026-11-19,
-    finding 6), and is `test_a_wall_no_player_shows_says_so_once_and_not_twice`.
+    a wall no Player shows says *No Player* instead, once, and is `test_a_wall_no_player_shows_says_so_once_and_not_twice`.
     """
     hall = services.clients.add_client(name="Hall Pi")
     services.access.issue(hall.id)
@@ -247,7 +246,7 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
 
 
 def test_the_take_down_note_for_one_empty_wall_sits_inside_its_card(ui, a_theme, the_wall):
-    """Audit 2026-11-19, finding 6: outside the card it sat wider than it and touching it.
+    """Outside the card the note would sit wider than the card and touch it.
 
     One wall hanging nothing: the note is about that wall, so it is in that
     wall's card. Several: it is said once, under the cards
@@ -346,7 +345,7 @@ def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui,
     The feed is written and correct; nothing has ever picked it up. A screen
     that showed the pictures and said nothing would be reporting the server's
     intention as the television's state. The way to its reading is a link named
-    for the page it opens, Status (audit 2026-11-19, finding 6: it was "Open the
+    for the page it opens, Status (not "Open the
     reading for …"). On a Player that reports (`a_quiet_wall`):
     one that has not reported at all makes its wall wait, which is a step
     (`test_a_wall_waiting_for_its_players_first_report_is_a_step_and_no_notice`).
@@ -449,7 +448,7 @@ def test_a_wall_answered_without_its_state_is_never_read_as_well(ui, services, a
 
 
 def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
-    """No Player and not reported were two notices saying one thing (audit 2026-11-19, finding 6).
+    """No Player and not reported were two notices saying one thing.
 
     A wall no Player shows has nothing that could report for it, so its *No
     Player* line is the whole of what is wrong: no second notice that it has not
@@ -496,7 +495,7 @@ def test_a_wall_waiting_on_several_players_names_them_a_b_and_c(ui, services, a_
 def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, an_all_excluded_theme, the_wall):
     """The theme puts nothing on the wall, and its Player has not reported: one notice, both facts.
 
-    The pair the audit saw stacked (finding 6): "… so the wall is dark." over
+    The pair that must not stack: "… so the wall is dark." over
     "… has not reported …". Each stays said, in one notice, the dark one first.
     The Player reports and nothing is written for the wall: one that has not
     reported at all makes the wall wait, a step and no notice.
@@ -647,8 +646,7 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_play
     Even with one wall, and that is the point: a sentence that reads correctly
     today only because there is one possible target silently becomes wrong.
     The wall is on a Player's screen, since the question promises the house
-    sees a change only where a Player shows the wall (audit 2026-11-19, finding
-    19; the other branches are the two tests after this one). The Player has
+    sees a change only where a Player shows the wall (the other branches are the two tests after this one). The Player has
     its token and has reported: one with no token shows nothing yet.
     """
     a_player_shows(the_wall.id)
@@ -671,7 +669,7 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_play
 
 
 def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_theme, the_wall):
-    """Finding 19 of audit 2026-11-19: the question said everyone would see a wall change that nothing shows."""
+    """The question must not say everyone would see a wall change that nothing shows."""
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
@@ -759,7 +757,7 @@ def _skip(ui, wall_name):
 def _press_skip(ui, wall):
     """Press Skip and wait for the step's own answer, as `test_walls_lead_with_the_work.py` does.
 
-    So a red says which link broke (#442): no POST at all is the click lost, an
+    So a red says which link broke: no POST at all is the click lost, an
     answer that is not ok is the server refusing, and an ok answer with no
     "Skipped." after it is the card.
     """
@@ -790,7 +788,7 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_reporting
     assert step.ok, f"the step was answered {step.status}: {step.text()}"  # one-shot: the response's body, not the page
     card = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}']")
     # Asserted rather than waited for, and on the whole card first, so a red
-    # prints everything the card says, a failure beside Skip included (#442).
+    # prints everything the card says, a failure beside Skip included.
     expect(card).to_contain_text("Skipped.", use_inner_text=True)
     expect(card.locator(".wall-said")).to_contain_text(f"Skipped. {a_hung_wall.name} shows its next work", use_inner_text=True)
 
@@ -921,7 +919,7 @@ def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, 
 def test_a_card_holds_one_notice_chosen_by_state_and_one_filled_act(
     ui, services, an_all_excluded_theme, the_wall, a_player_shows
 ):
-    """Audit-6 6: a card was a column of notices at one weight. Two faults here, one notice.
+    """A card must not be a column of notices at one weight. Two faults here, one notice.
 
     The wall's Player cannot read the feed, and none of its theme reaches it,
     which would be two notices stacked. The card
@@ -1251,7 +1249,7 @@ def test_an_unassigned_wall_says_no_player_shows_it_and_opens_where_one_is_chose
 def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
     """The listing is where a client's name is; without it the wall still knows its output.
 
-    Stubbed, for the reason the unreachable-plane tests are: a server cannot be
+    Stubbed, for the reason the unreachable-Player tests are: a server cannot be
     asked to fail on purpose. Nothing else on the screen may go with it.
     """
     hall = services.clients.add_client(name="Hall Pi")

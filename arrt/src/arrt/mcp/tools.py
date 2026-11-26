@@ -316,9 +316,9 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="retry_acquisition",
-            # Changed 2026-10-02 from fetching in the call to queueing: a breaking
-            # description change by `api-contract.md` § Versioning, announced
-            # with the plan that made it (`build-plan-after-review.md` Chunk 02).
+            # The call queues the fetch rather than doing it: that is what "Returns at
+            # once" says, and a description change like it is breaking by
+            # `api-contract.md` § Versioning.
             description="Fetch a work's picture again, first in line. Returns at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),

@@ -26,7 +26,7 @@ or no report yet) is never a trouble, because it is a step not yet taken.
 
 **There is no budget balance here; the month's budget is the sidebar's**
 (`library/services/spending.py`, `GET /api/budget`, the owner's ruling of
-2026-10-07, #290). It stays off this panel because this panel's remedy for a
+2026-10-07). It stays off this panel because this panel's remedy for a
 stale figure is to state its age, and the provider's `limit_remaining` fails by
 inversion rather than by staleness: it was observed reporting credit while live
 calls were already being refused, so an age beside it would not warn anyone
@@ -398,7 +398,7 @@ class HealthReading:
     #: document, and the panel showing it is what gives those rows a reader.
     #:
     #: **A list rather than one reading**, because with a display per wall the
-    #: interesting question stopped being "has the display plane reported" and
+    #: interesting question stopped being "has the Player reported" and
     #: became "which wall has not". One shared reading could not have answered it.
     walls: Sequence[WallHeartbeat]
     #: When the catalogue was last safely copied, or that nothing has copied it.

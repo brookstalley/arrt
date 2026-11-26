@@ -154,13 +154,11 @@ def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(di
 
 # -- nothing is ever hung by anything but a curator -----------------------------
 #
-# This section asserted the opposite until 2026-08-12, and the reversal is a
-# ruling rather than a relaxation. `reconcile` promoted the oldest theme when
-# none was active, and `add_theme` promoted a new one for the same reason: a
-# catalogue with themes and none active left the display plane no sync target.
-# With more than one wall that rule hangs the same theme in every room unbidden,
-# and "a wall with nothing on it" is now a designed state rather than a broken
-# one — so the promotion is dropped and these are what is left to hold.
+# The operator ruled on 2026-08-12 that nothing is promoted unbidden, so these
+# hold what is left: `reconcile` does not promote the oldest theme when none is
+# hung, and `add_theme` does not promote a new one. With more than one wall a
+# promotion would hang the same theme in every room unbidden, and "a wall with
+# nothing on it" is a designed state rather than a broken one.
 
 
 def _catalogue_with_unhung_themes(path):
@@ -199,7 +197,7 @@ def test_a_catalogue_of_unhung_themes_stays_that_way_across_a_restart(tmp_path, 
         display = _display(catalogue, tmp_path)
         assert display.hanging_on(catalogue.list_walls()[0].id) is None
         assert [theme.id for theme in display.list_themes()] == ["t-early", "t-late"]
-        # Scoped to this plane's own loggers rather than to everything the
+        # Scoped to the server's own loggers rather than to everything the
         # process said: the claim is that *curation* reported no repair, and a
         # bare emptiness check makes any library's warning fail this test for a
         # reason that has nothing to do with hanging.

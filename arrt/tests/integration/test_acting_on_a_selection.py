@@ -1,8 +1,7 @@
 """Acting on a selection: by its ids, or on every work a filter matches.
 
 *Select all* on a list means every work its filter matches, including the ones
-the screen has not loaded (`build-plan-lists-settings-and-scale.md` Chunk 05,
-#285). So the routes that act on a selection take the filter itself, and the
+the screen has not loaded. So the routes that act on a selection take the filter itself, and the
 server resolves it exactly as `GET /api/works` would: a test here that a filter
 reaches past one page uses more works than the listing's default page holds.
 

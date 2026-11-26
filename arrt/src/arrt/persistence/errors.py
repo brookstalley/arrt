@@ -7,12 +7,9 @@ de-domained once two adapters sat over it. Its import line then went on reading
 the generic tier reached *through* the module declaring `CatalogueStore` to get
 its error type.
 
-*(Corrected 2026-08-06, the same day this module was written: the sentence above
-ended "and the discovery adapter did the same", which was not true.
-`sqlite_discovery.py` imported neither error type, then or now. The four
-importers were `durable.py`, `adapter.py`, `sqlite.py` and `services/store.py` —
-the generic tier and the catalogue side. Overstating the problem a new module
-solves is a poor argument for it, and this file exists to fix an over-claim.)*
+The four importers are `durable.py`, `adapter.py`, `sqlite.py` and
+`services/store.py` — the generic tier and the catalogue side; `sqlite_discovery.py`
+imports neither error type.
 
 Nothing was broken and nothing was mis-ordered at import — it was a layering
 statement the code contradicted in one line. This is that line's other end.

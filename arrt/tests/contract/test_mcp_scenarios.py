@@ -357,10 +357,10 @@ async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_ur
 
 
 async def test_the_wall_admits_that_nothing_has_reported(server_url):
-    """No display plane runs in a test, and `status` says exactly that.
+    """No Player runs in a test, and `status` says exactly that.
 
     The dangerous answer here is a cheerful one. `status` reads a heartbeat file
-    the display plane writes, one per wall; with no plane running there is
+    a Player writes, one per wall; with no Player running there is
     nothing to read, and a status that omitted the distinction would let a
     curator believe the wall is showing a theme that in fact reached no hardware
     at all.

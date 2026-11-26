@@ -269,12 +269,11 @@ class FeedPublisher:
         - **A feed is decided in the body and written at its end**, after every
           other statement of the act has run. A later step that raises (a
           selection that cannot be retired, after a hang published the wall)
-          rolls the act back with no feed written. Until 2026-11-19 each feed
-          was written as it was built, and that step left the walls showing a
-          hang the catalogue did not record.
+          rolls the act back with no feed written, rather than leaving the walls
+          showing a hang the catalogue did not record.
         - **A feed that cannot be written rolls the act back**, as before: the
           write is still inside the transaction, and the catalogue never names
-          a theme the wall is not showing (backlog #35).
+          a theme the wall is not showing.
         - **The feeds of one act change together or not at all**, as far as a
           filesystem allows (`_write_staged`).
         - **Each wall's feed is written once per act**, however many steps

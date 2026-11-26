@@ -181,7 +181,7 @@ THEME_CARD_PICTURES = 4
 def _theme_list(services: Services) -> ThemeListOut:
     """Every theme the index lists, each with what its card shows.
 
-    Two planes composed, as `_theme_detail` composes them: Programming names
+    Two sides of the seam composed, as `_theme_detail` composes them: Programming names
     each theme's works in order, and the Library says which of them has a
     picture. The pictures are looked for in curated order and the search stops
     at the fourth. What bounds the cost is the membership read, one per theme,

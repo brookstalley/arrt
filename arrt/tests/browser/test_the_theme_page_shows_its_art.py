@@ -1,7 +1,6 @@
 """The Theme page shows its art and links it, at a few boxes a row.
 
-The second UX walk (`ux-review-2026-10.md` finding 31, #352) found the Theme
-page was a wall of buttons with no art and no links:
+The Theme page was once a wall of buttons with no art and no links:
 - 61 rows of five acts made a 7,256 px page of 305 boxes.
 - Titles, artists and the wall badge were plain text, and the Size column was
   empty.
@@ -79,7 +78,7 @@ def test_a_row_costs_two_boxes_not_five(ui, evening):
 
 def test_works_are_added_from_artworks_and_the_page_has_no_picker(ui, evening):
     """*Add a work* offered every work in the library and *Add*; on *All works*,
-    which holds them, it offered only works already in it (finding 31). The
+    which holds them, it offered only works already in it. The
     owner ruled on 2026-10-29 (`ia-proposal.md` § Rulings (2026-10-27)) that a
     theme's page has no picker: *Add works* goes to Artworks, where *Add to
     theme…* acts on a selection. The two tests that held what the picker offered

@@ -320,8 +320,8 @@ def test_a_stale_render_is_refused_in_the_words_the_tip_uses(service, display, l
 
 # -- the wall a refusal turns on must be in the text that documents it ----------
 #
-# `delete_theme` refused before this chunk and refuses after it, and the *reason*
-# changed underneath: "the active theme, while another exists" became "a theme
+# `delete_theme` refuses, and the *reason* it gives changed underneath:
+# "the active theme, while another exists" became "a theme
 # hanging on any wall". A refusal that changes without its tip changing is the
 # drift the guards above exist for, and it has now happened twice on this file's
 # watch, so the delete tip gets the same treatment `show_now`'s did.

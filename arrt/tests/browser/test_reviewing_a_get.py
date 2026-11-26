@@ -133,7 +133,7 @@ def test_a_discovery_run_s_page_is_unchanged(ui):
 
     expect(ui.page.locator("a:text-is('Review these works')")).to_have_count(1)
     expect(ui.page.locator("li.card")).to_have_count(0)
-    # Its cards are read since 2026-10-08, but only for each row's picture and
+    # Its cards are read, but only for each row's picture and
     # the museum that offered it: the page still draws a table, never cards.
     expect(ui.page.locator("#view section.asked-for table")).to_have_count(1)
 

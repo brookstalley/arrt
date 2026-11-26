@@ -109,7 +109,7 @@ def museum() -> FakeFinder:
 def services(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ) -> Services:
-    """The whole plane, wired the way a deployment with an image provider is."""
+    """The whole server, wired the way a deployment with an image provider is."""
     engine.result = WorkList(works=(a_work("The Elephants"), a_work("Swans Reflecting Elephants")))
     return Services.bind(
         catalogue=store,
@@ -475,7 +475,7 @@ async def test_a_result_with_no_pictures_at_all_says_so_rather_than_going_quiet(
 async def test_the_alternates_arrive_in_full_each_with_its_own_picture(server_url, services, propose, add_image, preview_file):
     """`list_images` executed end to end — the action that shows what else was found.
 
-    The chunk's own criterion is that every result a curator could judge from
+    The criterion is that every result a curator could judge from
     carries the image block, and this is the result they judge *alternates* from.
     It also carries the fields a listing row deliberately drops, which is the
     whole reason the two shapes differ; asserting them here is what stops the

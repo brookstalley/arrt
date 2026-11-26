@@ -487,7 +487,7 @@ class TestTheCollectionIsNotAskedTheSameQuestionSixTimes:
 
     **Asserted as statements issued rather than as elapsed time, deliberately.**
     A latency bar in the default suite is a flake the moment the workers contend
-    for cores — which they do, `-n auto` being in this plane's `addopts` — and one
+    for cores — which they do, `-n auto` being in the server's `addopts` — and one
     loose enough not to flake would not catch a fivefold regression. The count of
     statements is exact, deterministic, and is the thing that actually changed.
     """
@@ -552,7 +552,7 @@ class TestTheFileCarriesFacetsWithoutAWrittenMigration:
     does not, and `migrations.py` exists for everything that cannot be inferred
     from comparing two schemas. A new table is neither: `CREATE TABLE IF NOT
     EXISTS` and `CREATE UNIQUE INDEX IF NOT EXISTS` both reach an existing file
-    unchanged. That is the claim under which this chunk wrote no migration, so it
+    unchanged. That is the claim under which the facets' tables need no migration, so it
     is checked rather than assumed.
     """
 

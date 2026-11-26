@@ -1,7 +1,7 @@
 """Where an accepted work's image stands, in a real browser.
 
 The acquisition queue fetches and prepares every accepted work that holds no
-image, one at a time (`build-plan-after-review.md` Chunks 01-02). Three screens
+image, one at a time. Three screens
 say where a work stands in it, in the same words (`core/acquiring.js`): the Work
 page, a Review card for an accepted work, and Activity › Queue. Each state is
 said as glyph and word; a work the queue owes nothing says none of them.
@@ -67,8 +67,7 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     # The queue's line replaces the bare "no picture yet" sentence: the Picture
     # panel holds its heading and that line and nothing else. Keyed on what the
     # panel holds rather than on the sentence's wording, which a rewording would
-    # leave this passing without checking anything (until 2026-11-19 it asserted
-    # one wording's absence).
+    # leave this passing without checking anything.
     panel = ui.page.locator(".work-record > .panel:has(h2:text-is('Picture'))")
     expect(panel).to_have_count(1)
     expect(panel.locator(".acquisition-line")).to_have_count(1)
@@ -222,13 +221,13 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_no_retry
         "href", re.compile("^" + re.escape(f"#work/{failed.id}"))
     )
     # One Retry for the group; a row has none (design direction: never one button
-    # per row, audit-6 finding 11). A single work is retried on its own page.
+    # per row). A single work is retried on its own page.
     expect(ui.page.locator(".failure-cause-works button")).to_have_count(0)
     expect(ui.page, "opening a group is an address").to_have_url(re.compile(re.escape("cause=refused.")))
 
 
 def test_two_thousand_failures_of_one_cause_are_one_row_and_its_works_page(ui, seed_the_served_catalogue, catalogue_file, store):
-    """`ux-review-2026-10.md` finding 18: Queue at 2,000 failures was one 209,000-px table naming each work by id."""
+    """Queue at 2,000 failures was once one 209,000-px table naming each work by id."""
     works = seed_the_served_catalogue(size=2000)
     with catalogue_file.transaction():
         for work in works:

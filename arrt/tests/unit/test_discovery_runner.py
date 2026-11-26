@@ -53,7 +53,7 @@ def start(runner: DiscoveryRunner, intent: str = "Surrealist paintings with stro
 
 @pytest.mark.parametrize("found", [3, 25, 26, 200])
 def test_a_run_goes_straight_on_however_many_works_it_proposed(services, runner, engine, found):
-    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290).
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07).
 
     200 is the run "you asked for Dalí and I found 200 works" was written for,
     and 26 the one the retired gate stopped at 25.
@@ -468,7 +468,7 @@ def _timing_out_engine(model: str = "deepseek/deepseek-v4-flash"):
 
 
 def test_a_phase_one_call_that_times_out_after_it_was_sent_records_a_row_whose_cost_is_unknown(services, settings):
-    """Audit-2 S5, through the runner: the run fails, and the ledger holds the call, its model and its run, at $0."""
+    """A timeout after the call was sent, through the runner: the run fails and the ledger holds the call at $0."""
     runner = DiscoveryRunner(
         services.discovery, _timing_out_engine("lab/the-model-asked"), settings.discovery_settings, spawn=lambda work: work()
     )

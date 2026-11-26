@@ -1,6 +1,6 @@
 """Programming's consistency: a row read where it is written, a feed written only with what decided it, one act one rebuild.
 
-The 2026-11-19 audit (audit-2 S2, S3, S4). Each is a fault of interleaving or of
+Each of the three is a fault of interleaving or of
 rollback, so each test forces the interleaving or the failure rather than hoping
 for it:
 
@@ -101,8 +101,8 @@ def _between_read_and_write(monkeypatch, store, method: str, act: Callable[[], o
     lock lands: after the write, when the read and the write share one
     transaction, and between them when they do not. Nothing sleeps and nothing
     is timed: the curator waits for `act` each time, and `act` never waits on the
-    lock. (Until 2026-11-20 this started `act` at the read and waited up to a
-    second for it to land, a timing bound.)
+    lock. (It does not start `act` at the read and wait up to a
+    second for it to land, which would be a timing bound.)
 
     Returns a function, called once the curator's act has returned, that says
     whether `act` ran and raises what it raised.
@@ -200,7 +200,7 @@ def test_a_heartbeat_between_a_curators_read_and_write_keeps_its_display(
 
 
 def test_a_merge_names_both_players_at_warning(services, wall_id, moved_frame, caplog):
-    """Audit-8 F10, as the plan's DECISION rules it: the move stays automatic, and is said at WARNING naming both."""
+    """The move stays automatic, and is said at WARNING naming both."""
     heartbeat, _ = moved_frame
     with caplog.at_level(logging.WARNING, logger="arrt.programming.clients"):
         heartbeat()

@@ -64,7 +64,7 @@ def test_the_singular_is_only_ever_reachable_in_seconds():
 
 
 def test_a_document_stamped_ahead_of_this_clock_says_so():
-    """Two planes whose clocks disagree is the quiet fault this surface states.
+    """A server and a Player whose clocks disagree is the quiet fault this surface states.
 
     Folded into zero it reads as "just now" — the most reassuring possible
     rendering of a machine that does not agree with this one about what time it
@@ -98,7 +98,7 @@ class TestWhatObserveFinds:
         """Nothing has ever run is normal; a file that will not parse is a fault.
 
         Collapsing them hides the second behind the first, which on this surface
-        means an operator reads a corrupt heartbeat as a plane that has not
+        means an operator reads a corrupt heartbeat as a Player that has not
         started yet.
         """
         path = tmp_path / "broken.json"
@@ -178,7 +178,7 @@ class TestWhatObserveFinds:
     def test_a_naive_timestamp_is_read_as_utc(self, tmp_path):
         """The alternative makes the reported age wrong by the machine's offset.
 
-        Wrong quietly: a plane that last reported an hour ago reads as current on
+        Wrong quietly: a Player that last reported an hour ago reads as current on
         a machine seven zones over, which is the panel confidently saying the one
         thing it exists to disprove.
         """
@@ -203,8 +203,8 @@ class TestTheTwoReadings:
         """A receipt spelling the other one's key is a reading that never ages.
 
         Both ends of the backup's contract are ours, unlike the heartbeat's, so
-        this cannot drift across planes — but it can drift across chunks, and the
-        reader shipped a chunk before the writer.
+        this cannot drift between the server and a Player — but reader and writer can
+        drift apart if one ships without the other.
         """
         stamped = json.dumps({"reported_at": NOW.isoformat()})
         path = tmp_path / backup.BACKUP_RECEIPT_FILENAME

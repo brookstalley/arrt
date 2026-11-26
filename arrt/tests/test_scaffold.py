@@ -1,4 +1,4 @@
-"""The curation plane's scaffold holds together.
+"""The server's scaffold holds together.
 
 Thin by design: this asserts the toolchain and the pinned surfaces, not product
 behaviour. It exists so `uv run pytest` is meaningful from the day the project
@@ -34,7 +34,7 @@ def test_the_package_layout_imports():
 
     assert arrt.__all__ == []
     # The module boundaries the architecture makes load-bearing exist as real
-    # packages from the start, so nothing later has to invent them mid-chunk.
+    # packages from the start, so nothing later has to invent them mid-change.
     for module in (
         services,
         persistence,

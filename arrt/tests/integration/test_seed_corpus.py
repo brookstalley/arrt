@@ -1,7 +1,7 @@
 """Seeding the real 2024 index, and putting what it produced on a wall.
 
 This runs against the tracked index itself rather than a fixture of it, because
-the acceptance this chunk owes is about that corpus: the counts below were
+the acceptance is about that corpus: the counts below were
 measured from it, and a fixture would only prove the seeder survives a corpus
 nobody has.
 
@@ -179,7 +179,7 @@ class TestWhatTheReportSays:
 
 
 class TestPuttingThemOnTheWall:
-    """Seeding is proven by a manifest, which is the only channel to the display plane."""
+    """Seeding is proven by a manifest, which is the only channel to a Player."""
 
     @pytest.fixture
     def built(self, records, service, display, art_root, wall_id, decodable_jpeg):

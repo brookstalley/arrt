@@ -284,7 +284,7 @@ def retire_wall_tokens(connection: sqlite3.Connection) -> None:
     nothing. Dropping the verifiers rather than leaving them unread makes that
     true of the file as well as of the code: there is no stored verifier left for
     a later change to start honouring again by mistake. No transition is kept,
-    by the plan's ruling: there is one Player, and it moves to a client token in
+    by ruling: there is one Player, and it moves to a client token in
     the same change.
 
     Guarded by the file: a column already gone is skipped, so a second open, or

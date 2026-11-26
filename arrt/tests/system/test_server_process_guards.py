@@ -38,7 +38,7 @@ def hung(services, ready_work, wall_id) -> str:
 
 
 def test_a_feed_corrupted_on_disk_before_a_server_test_ends_fails_it_naming_the_wall(settings, hung, tmp_path_factory):
-    """Red while nothing read a server process's feeds (until 2026-11-20): the block below ended green."""
+    """Red while nothing reads a server process's feeds: the block below would end green."""
     feed = manifest_v2_path_in(settings.art_root, hung)
 
     def serve_and_corrupt() -> None:

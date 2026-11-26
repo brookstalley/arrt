@@ -27,7 +27,7 @@ from arrt.seed.legacy import LegacyIndexError, read_index
 def main(argv: list[str] | None = None) -> int:
     """Read the index, seed the catalogue, print what happened."""
     # The same shape the serving entry point installs. Two entry points into one
-    # plane emitting two log formats is a journal that has to be read two ways,
+    # server emitting two log formats is a journal that has to be read two ways,
     # and the one that ingests the whole 2024 corpus is not the one to leave out.
     logs.configure(level=logging.INFO)
     parser = argparse.ArgumentParser(prog="python -m arrt.seed", description=__doc__.splitlines()[0])

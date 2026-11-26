@@ -176,8 +176,8 @@ HTTP_ONLY_ON_CANDIDATE_WORK = frozenset({"rationale", "decided"})
 def test_the_candidate_work_projections_agree_but_for_the_named_fields():
     """The keys the MCP surface writes once, against the HTTP model's, which adds only the named fields.
 
-    Until 2026-08-06 those seven were written out at four sites with identical
-    expressions — three in `bindings.py` and one in `api.py`. Adding `provenance`
+    Those seven were once written out at four sites with identical
+    expressions — three in `bindings.py` and one in the HTTP routes. Adding `provenance`
     took four coordinated edits, and the next field added to `CandidateWork` would
     have reached some of them and not others.
 
@@ -214,7 +214,7 @@ HTTP_ONLY_ON_RUN = frozenset({"is_terminal"})
 def test_the_run_projections_agree_but_for_one_named_field(discovery):
     """Pinned while both surfaces were being changed at once, which is when it matters.
 
-    `http/api.py`'s run listing carried a note saying the cap had to reach both
+    The HTTP run listing carried a note saying the cap had to reach both
     surfaces together, "because fixing one alone is how the two come to
     disagree". The same is true of the row's field names, and nothing was
     checking them.
@@ -376,7 +376,7 @@ def _view(work: CandidateWork):
 def test_the_two_verdict_notices_say_exactly_the_same_thing():
     """Two copies of one sentence, held identical by a test rather than by memory.
 
-    `http/api.py`'s copy carried a docstring explaining why it did *not* share
+    The HTTP copy carried a docstring explaining why it did *not* share
     with the MCP one — "that one is written for a model and names tool calls in
     backticks; this one is read by a person". That is true of the run-view
     sentence and false of this: the text names artists, and the two functions

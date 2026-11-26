@@ -1,6 +1,6 @@
 """The artists the library holds, and what a registry knows about each.
 
-The Artist page's two halves (`build-plan-ia-foundations.md` Chunk 04): what the
+The Artist page's two halves: what the
 library holds, which is always answerable, and what Wikidata knows, which may
 not be. They are separate calls so that a registry that is slow, absent or down
 leaves the first half working and says which of those it was.
@@ -148,7 +148,7 @@ class WantedItems(Protocol):
 
     A work wanted through Review names a Wikidata item once it is matched, and
     every list of registry works marks it *Wanted* beside *Held* — the owner's
-    ruling on #172 that the three states read apart. Taken as this one method,
+    ruling that the three states read apart. Taken as this one method,
     so these services do not depend on the whole discovery service.
     """
 
@@ -184,7 +184,7 @@ class ArtistService:
     def index(self, q: str | None = None) -> Sequence[HeldArtist]:
         """Every artist with a work in circulation, by surname; narrowed to names containing `q`, ignoring accents.
 
-        By surname, as a library shelves them (the owner's ruling on #173):
+        By surname, as a library shelves them (the owner's ruling):
         `surname_key` says how a surname is found.
         """
         held = sorted(

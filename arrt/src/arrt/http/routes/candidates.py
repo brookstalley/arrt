@@ -259,12 +259,11 @@ def _verdict_notice(outcome: VerdictOutcome) -> str | None:
     moment it happens, where a field on a payload nobody re-reads would not
     reach them.
 
-    **This is a byte-for-byte copy of `mcp/bindings.py`'s, and that is now
-    stated rather than explained away.** The paragraph here used to claim the
-    divergence the run-view sentence really has — "that one is written for a
-    model and names tool calls in backticks; this one is read by a person" —
-    which is true of `runSentence` and simply false of this: the text names
-    artists, not tool calls, and the two functions are identical.
+    **This is a byte-for-byte copy of `mcp/bindings.py`'s, and that is stated
+    rather than explained away.** The run-view sentence really does diverge —
+    that one is written for a model and names tool calls in backticks; this one
+    is read by a person — which is true of `runSentence` and false of this: the
+    text names artists, not tool calls, and the two functions are identical.
 
     They stay two, because the day one of them does need a reader-specific
     word is the day sharing them would be in the way, and because merging a

@@ -487,7 +487,7 @@ class TestHealth:
     def test_the_panel_names_the_wall_that_has_not_reported(self, http, wall, shown_by_a_reporting_player):
         """The reason the heartbeat became one file per wall.
 
-        A one-room installation could be told "the display plane has not
+        A one-room installation could be told "the Player has not
         reported" and act on it; a two-room one cannot, and one shared heartbeat
         had no way to say which room was dark — the second display would have
         overwritten the first's report every minute. Both walls are on a Player:
@@ -1009,11 +1009,11 @@ class TestHealth:
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps(
                 {
-                    # The keys the display plane's writer actually emits. They were
+                    # The keys a Player's writer actually emits. They were
                     # invented here — `tv_connected` — while no writer existed, and
                     # a fixture naming a field nothing produces is how a surface
-                    # gets built against a document that never arrives. The two
-                    # planes cannot import each other, so what holds them together
+                    # gets built against a document that never arrives. The server
+                    # and the Player cannot import each other, so what holds them together
                     # is each holding its key to the contract's `instant_key`.
                     "reported_at": _now().isoformat(),
                     "television_reachable": False,
@@ -1039,7 +1039,7 @@ class TestHealth:
         """ "345600 seconds ago" is a conversion the reader has to do themselves.
 
         On the one surface built so they would not have to, and for the failure it
-        exists to catch — a plane that has been down since Tuesday.
+        exists to catch — a Player that has been down since Tuesday.
         """
         settings.heartbeat_path(wall["wall_id"]).write_text(
             json.dumps({"reported_at": (_now() - timedelta(days=4)).isoformat()}),
@@ -1064,7 +1064,7 @@ class TestHealth:
     def test_a_recorded_backup_is_reported_with_its_age(self, http, settings, shared_clock):
         """The moment a writer lands, this reports real ages with nothing to wire.
 
-        Written against the contract Chunk 20's job will meet — the receipt's
+        Written against the contract the backup job meets — the receipt's
         filename and its `completed_at` key — so a job that spelled either
         differently fails here rather than reporting a fresh backup for ever.
         """
@@ -1087,7 +1087,7 @@ class TestHealth:
     def test_no_budget_balance_appears_anywhere_on_the_panel(self, http):
         """The month's budget is the sidebar's, from `/api/budget`, and never this panel's.
 
-        Shown since the owner's ruling of 2026-10-07 (#290), which reversed the
+        Shown since the owner's ruling of 2026-10-07, which reversed the
         2026-08-04 decision to show it nowhere. It stays off this panel: the
         panel states observations with their ages, and `limit_remaining` fails
         by inversion rather than by staleness (it reads non-zero while calls are
@@ -1105,11 +1105,11 @@ class TestHealth:
         # the word check above. `pictures` is the picture store's files and bytes,
         # added 2026-10-06 by the owner's ruling that the store has no ceiling and
         # is watched here instead. There is no `artwork_box`: the geometry was one
-        # television's, and the owner removed it on 2026-10-08 (#266). `watches` is
+        # television's, and the owner removed it on 2026-10-08. `watches` is
         # the overdue Watches and whether a spent allowance holds one, added
-        # 2026-11-09 because a Watch runs with nobody watching (`build-plan-watches.md`).
-        # `players`, `failed_fetches` and `troubles` are the one health model
-        # (audit 2026-11-19): each Player's state, the queue's failed works, and
+        # 2026-11-09 because a Watch runs with nobody watching.
+        # `players`, `failed_fetches` and `troubles` are the one health model:
+        # each Player's state, the queue's failed works, and
         # the faults among every reading here, which the top bar counts.
         # `setup_steps` is what remains to be set up, which it states and never
         # counts: a step, never a verdict.
@@ -1148,7 +1148,7 @@ class TestHealth:
 
 class TestTheWholeLoop:
     def test_the_whole_curatorial_loop_runs_over_http(self, http, hold, wall):
-        """Chunk 10B's acceptance criterion, start to finish.
+        """The whole curatorial loop, start to finish.
 
         See the works, build a theme, put it on the wall, and read exactly why a
         work that is in the theme is not on the wall.

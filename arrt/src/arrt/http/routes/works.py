@@ -181,7 +181,7 @@ def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]
     if selection.artwork_ids is not None:
         named = selection.artwork_ids
     else:
-        assert selection.filter is not None  # noqa: S101 -- the check above refused ids and filter both unset
+        assert selection.filter is not None  # noqa: S101 -- the check at the top refused ids and filter both unset
         named = _filtered_ids(services, selection.filter)
     leaving = set(selection.except_ids)
     return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
@@ -251,7 +251,7 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
 def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """Return an archived work to circulation.
 
-    The undo of the route above, and its existence is what makes archiving an
+    The undo of `archive_work`, and its existence is what makes archiving an
     ordinary act rather than a destructive one. Every wall hanging a theme that
     holds the work takes it back as the restore lands, if it can be shown.
     """
@@ -365,9 +365,9 @@ def _matches(header: str | None, etag: str) -> bool:
     * **The weak marker.** `W/"abc"` and `"abc"` are the same tag for a weak
       comparison, which is what a conditional GET performs.
 
-    Stated as three cases because the previous version described the `*` one in
-    its docstring and did not implement it — which is exactly the defect the
-    conditional check above exists to fix, one function later.
+    Stated as three cases because a docstring that describes the `*` one without
+    implementing it is exactly the defect `_revalidated_file`'s conditional
+    check exists to prevent.
     """
     if not header:
         return False
