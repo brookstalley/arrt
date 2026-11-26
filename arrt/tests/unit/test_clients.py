@@ -295,7 +295,7 @@ def test_an_unreadable_report_is_treated_as_no_report(clients, pi, wall_id, wall
     ],
 )
 def test_a_blank_output_is_refused_saying_what_the_player_has_reported(clients, access, pi, wall_id, report, said):
-    """"output cannot be empty" named a validator, not that the Player had not reported.
+    """A blank output is refused saying what the Player reported, not "output cannot be empty", which named a validator.
 
     Each case is refused and assigns nothing, and says which of the three it is.
     """

@@ -619,7 +619,7 @@ class TestWhatItSpendsIsRecorded:
     def test_a_mat_call_that_times_out_after_it_was_sent_records_a_row_whose_cost_is_unknown(
         self, service, discovery, discovery_store, settings, prep_settings
     ):
-        """A timeout after the call was sent, through preparation with the real engine: the call is a row at 0, its cost unknown, its model."""
+        """A timeout after the call was sent, through preparation: the call is a row at 0, its cost unknown."""
         work, _ = _work_with_original(service, settings)
         prep = PreparationService(service, _engine_over(httpx.ReadTimeout("timed out")), prep_settings, spend=discovery)
 

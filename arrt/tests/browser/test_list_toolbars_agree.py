@@ -163,7 +163,7 @@ def test_each_list_page_says_its_count_once_above_its_toolbar(ui, dali):
     ["work from Artworks", "artist from Artists", "results from Walls"],
 )
 def test_no_way_back_is_drawn_as_a_button(ui, dali, opened):
-    """"← Artworks" and its kin must not be links in the act's
+    """The "← Artworks" way back and its kin must not be links in the act's
     bordered shape. Read from what is drawn as well as from the class, since a
     border is what makes a link look like a button."""
     artist, work = dali

@@ -1256,7 +1256,7 @@ function skipButton(card) {
 
 /* *Remove…* (it was *Not this one again*: ruling 2 of 2026-10-27), and the one
  * question it asks: from this theme, or from every wall. Two different changes
- * (S8 says "nothing else changed"), so the curator says which; neither is
+ * (`ia-proposal.md`, scenario S8: "nothing else changed"), so the curator says which; neither is
  * Archive, which would take the work out of the library. The question is a
  * dialog whose two answers are the act, so there is nothing further to confirm. */
 function removeButton(card) {
