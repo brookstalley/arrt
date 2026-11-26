@@ -731,3 +731,100 @@ def test_an_unknown_mode_fails(tmp_path, capsys):
 
     assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
     assert "none of pool, fallback and none" in capsys.readouterr().out
+
+
+# -- an errored test, and a suite whose collection failed ----------------------------------
+#
+# The pool's guard once printed "collected 4170, ran 4170, skipped 0, failed 0, errored 1"
+# and exited 0 while the whole curation suite was missing: testament reports a suite that
+# could not be collected as that suite with one errored case, so the suite seemed to have
+# run one test. Each shape below is copied from an observed report (2026-11-25), with the
+# host, the instant and the runner's paths left out: COLLECT_FAILED from `testament run
+# --junit-xml` over a curation selection under a conftest that could not be imported;
+# SETUP_ERROR from the same over test_counting.py beside a test whose fixture raised;
+# PYTEST_COLLECTION from pytest's own `--junitxml -o junit_suite_name=curation` (the
+# fallback's command) over a module that could not be imported.
+
+COLLECT_FAILED = (
+    '<testsuite name="curation" errors="1" failures="0" skipped="0" tests="1" time="4.998">'
+    '<testcase classname="curation" name="collection" time="0.000">'
+    "<error message=\"E   ModuleNotFoundError: No module named 'a_module_no_one_has_written'\">"
+    "collection ended without a summary (pytest crashed or the plugin did not load) (pytest exit 4)\n"
+    "ImportError while loading conftest 'arrt/tests/unit/conftest.py'."
+    "</error></testcase></testsuite>"
+)
+SETUP_ERROR = (
+    '<testsuite name="curation" errors="1" failures="0" skipped="0" tests="2" time="7.105">'
+    '<testcase classname="arrt.tests.unit.test_counting.TestTheHelper" name="test_the_noun_agrees[0-works]" time="0.001" />'
+    '<testcase classname="arrt.tests.unit.test_zz_guard_probe" name="test_errors_in_setup" time="0.001">'
+    '<error message="arrt/tests/unit/test_zz_guard_probe.py:6: RuntimeError">[setup] @pytest.fixture\n'
+    "E       RuntimeError: a fixture that cannot be set up</error></testcase></testsuite>"
+)
+PYTEST_COLLECTION = (
+    '<testsuite name="curation" errors="1" failures="0" skipped="0" tests="1" time="0.103">'
+    '<testcase classname="" name="test_broken" time="0.000">'
+    "<error message=\"collection failure\">ImportError while importing test module 'test_broken.py'.\n"
+    "E   ModuleNotFoundError: No module named 'a_module_no_one_has_written'</error></testcase></testsuite>"
+)
+
+
+def _with(*suites: str) -> str:
+    return "<testsuites>" + "".join(suites) + "</testsuites>"
+
+
+def _ran(name: str, tests: int = 2) -> str:
+    return _suites((name, tests, 0))[len("<testsuites>") : -len("</testsuites>")]
+
+
+def test_a_suite_whose_collection_failed_is_refused_by_name_beside_suites_that_ran(tmp_path, capsys):
+    """The pool's shape: the other suites' thousands must not carry a suite that ran nothing."""
+    guard = _load()
+    report = _report(tmp_path, _with(_ran("governance", 4169), COLLECT_FAILED))
+
+    assert guard.main(report, required_suites=["governance", "curation"]) == 1
+    printed = capsys.readouterr().out
+    assert "errored 1" in printed
+    assert "these suites ran no test: curation" in printed
+    assert "::error::errored in CI: curation::collection — E   ModuleNotFoundError" in printed
+
+
+def test_an_errored_test_in_a_suite_that_otherwise_ran_is_refused_by_name(tmp_path, capsys):
+    guard = _load()
+    report = _report(tmp_path, _with(SETUP_ERROR))
+
+    assert guard.main(report, required_suites=["curation"]) == 1
+    printed = capsys.readouterr().out
+    assert "::error::errored in CI: arrt.tests.unit.test_zz_guard_probe::test_errors_in_setup" in printed
+    assert "these suites ran no test" not in printed
+
+
+def test_an_errored_test_is_refused_with_no_suites_named(tmp_path, capsys):
+    """The live probes' call names no suite; an error there is refused all the same."""
+    guard = _load()
+    report = _report(tmp_path, _with(SETUP_ERROR))
+
+    assert guard.main(report) == 1
+    assert "errored in CI" in capsys.readouterr().out
+
+
+def test_a_pool_run_whose_curation_suite_failed_to_collect_fails(tmp_path, capsys):
+    """Through the pool record CI hands the guard, with the repository's own manifest."""
+    guard = _load()
+    report = _report(tmp_path, _with(_ran("governance"), COLLECT_FAILED, _ran("browser"), _ran("player", 1), _ran("contract")))
+    decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], verdict="passed")
+
+    assert guard.main_with_decision(report, MANIFEST, decision) == 1
+    assert "these suites ran no test: curation" in capsys.readouterr().out
+
+
+def test_a_fallback_whose_suite_failed_to_collect_fails(tmp_path, capsys):
+    """The fallback's own pytest report of a module that could not be imported."""
+    guard = _load()
+    _fallback_reports(tmp_path, ("governance", "contract"))
+    (tmp_path / "fallback" / "curation.xml").write_text(_with(PYTEST_COLLECTION), encoding="utf-8")
+    decision = _decision(tmp_path, "fallback", _EARNED, _FALLBACK_REPORTS, _EXCUSED)
+
+    assert guard.main_with_decision(tmp_path / "all.xml", MANIFEST, decision) == 1
+    printed = capsys.readouterr().out
+    assert "errored in CI: test_broken — collection failure" in printed
+    assert "these suites ran no test: curation" in printed

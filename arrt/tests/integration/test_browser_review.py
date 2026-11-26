@@ -65,7 +65,9 @@ def museum() -> FakeFinder:
 
 
 @pytest.fixture
-def services(store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum) -> Services:
+def services(
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
+) -> Services:
     """The whole plane, wired the way a deployment with an image provider is."""
     engine.result = WorkList(works=(a_work("The Elephants"), a_work("Swans Reflecting Elephants")))
     return Services.bind(
@@ -77,6 +79,8 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
 

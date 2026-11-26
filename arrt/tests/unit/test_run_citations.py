@@ -245,7 +245,7 @@ def test_a_citation_that_is_not_a_url_is_refused_and_the_run_s_works_are_still_s
 
 
 def test_the_container_s_runner_hands_on_only_what_the_real_fetch_policy_passes(
-    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ):
     """The shipped check, not a stand-in, through the runner the container builds.
 
@@ -264,6 +264,8 @@ def test_the_container_s_runner_hands_on_only_what_the_real_fetch_policy_passes(
         discovery_settings=settings.discovery_settings,
         resolve=lambda _host: ["93.184.216.34"],
         sources=SourceRoster.of(finders=[museum]),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     gallery = "https://gallery.invalid/artists/1-someone/works"
     engine.result = WorkList(

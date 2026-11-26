@@ -268,7 +268,7 @@ def test_a_long_work_list_is_capped_and_says_how_much_it_left_out(discovery):
     assert works["total"] == MAX_WORKS_LISTED + 12
     assert len(works["each"]) == works["listed"] == MAX_WORKS_LISTED
     assert works["truncated"] is True
-    assert f"first {MAX_WORKS_LISTED} of this run's {MAX_WORKS_LISTED + 12} works" in payload["notice"]
+    assert f"first {MAX_WORKS_LISTED} of this Get's {MAX_WORKS_LISTED + 12} works" in payload["notice"]
     # The state guidance survives alongside it rather than being replaced.
     assert "Call status again" in payload["notice"]
 
@@ -477,7 +477,7 @@ def test_the_run_listing_is_capped_and_says_how_much_history_it_left_out():
     notice = _runs_truncation_notice(listing)
 
     assert notice is not None
-    assert f"{MAX_RUNS_LISTED} most recent of {MAX_RUNS_LISTED + 12} runs" in notice
+    assert f"{MAX_RUNS_LISTED} most recent of {MAX_RUNS_LISTED + 12} Gets" in notice
 
 
 def test_a_complete_run_listing_says_nothing_about_truncation():

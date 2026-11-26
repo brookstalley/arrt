@@ -249,7 +249,7 @@ def test_an_instance_that_clears_the_floor_is_preferred_over_one_that_does_not(s
 
 
 def test_the_minimum_is_the_deployment_s_setting_rather_than_a_constant(
-    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
 ):
     """The same image meets one deployment's minimum and not another's.
 
@@ -273,6 +273,8 @@ def test_the_minimum_is_the_deployment_s_setting_rather_than_a_constant(
             engine=engine,
             discovery_settings=geometry.discovery_settings,
             sources=a_roster(museum),
+            now=shared_clock,
+            mint_id=shared_ids,
         )
         runner = DiscoveryRunner(
             plane.discovery,
@@ -387,7 +389,7 @@ def test_the_completed_notice_stays_a_single_sentence_when_everything_resolved(s
 
     notice = _run_notice(runner.run_status(run_id, wait=False))
 
-    assert notice == "This run finished: 1 of 1 proposed work has an image."
+    assert notice == "This Get finished: 1 of 1 proposed work has an image."
 
 
 def test_a_run_that_could_not_reach_the_provider_for_anything_fails(services, engine, runner, museum):
@@ -458,7 +460,7 @@ class Late:
 
 
 def test_a_late_answer_leaves_its_search_in_the_record_through_the_servers_own_wiring(
-    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum, monkeypatch
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum, monkeypatch, shared_clock, shared_ids
 ):
     """`Services.bind` hands the pool the store: a source answering after the run's window is recorded by its worker.
 
@@ -490,6 +492,8 @@ def test_a_late_answer_leaves_its_search_in_the_record_through_the_servers_own_w
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(late, museum),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     plane.runner._spawn = lambda work: work()
     engine.result = a_list("The Elephants")
@@ -736,7 +740,7 @@ def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_fr
 
 
 def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
-    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, museum, shared_clock, shared_ids
 ):
     """The stored selection breaks a tie as phase 2 did, not on a random id.
 
@@ -770,6 +774,8 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(second, museum),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     plane.runner._spawn = lambda work: work()
     engine.result = a_list(*titles)
@@ -782,7 +788,7 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
 
 
 def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld(
-    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, caplog
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, caplog, shared_clock, shared_ids
 ):
     """Commons cannot look a title up, so a proposal waits rather than being recorded `not_held`."""
     import httpx
@@ -807,6 +813,8 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     plane.runner._spawn = lambda work: work()
     engine.result = a_list("The Elephants")
@@ -856,7 +864,7 @@ def test_a_row_from_a_source_no_longer_wired_ranks_after_the_wired_ones(services
 
 
 def test_a_holders_other_title_resolves_through_the_deployments_registry(
-    store, discovery_store, wall_settings, thumbnail_settings, engine, settings
+    store, discovery_store, wall_settings, thumbnail_settings, engine, settings, shared_clock, shared_ids
 ):
     """The registry the deployment configures is the one phase 2 asks.
 
@@ -884,6 +892,8 @@ def test_a_holders_other_title_resolves_through_the_deployments_registry(
         discovery_settings=settings.discovery_settings,
         registry=registry,
         sources=a_roster(museum),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     plane.runner._spawn = lambda work: work()
 

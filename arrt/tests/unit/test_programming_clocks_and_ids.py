@@ -20,6 +20,7 @@ two defaults and nowhere else in Programming.
 import ast
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -43,14 +44,22 @@ _DAY = datetime(2026, 1, 1, tzinfo=UTC)
 
 @dataclass
 class Ticks:
-    """A clock that answers a later second of its own hour on every reading, and remembers each."""
+    """A clock that answers a later second of its own hour on every reading, and remembers each.
+
+    Given a `probe`, it also remembers what the probe said at each reading: whether the
+    store's lock was held when the act read its instant.
+    """
 
     hour: int
     read: list[datetime] = field(default_factory=list)
+    probe: Callable[[], bool] | None = None
+    held: list[bool] = field(default_factory=list)
 
     def __call__(self) -> datetime:
         instant = _DAY + timedelta(hours=self.hour, seconds=len(self.read) + 1)
         self.read.append(instant)
+        if self.probe is not None:
+            self.held.append(self.probe())
         return instant
 
 
@@ -390,6 +399,50 @@ def test_a_token_is_issued_at_the_access_clock(stack, store):
     issued = stack.access.issue(client.id)
 
     assert issued.issued_at == store.get_client(client.id).token_issued_at == _once(stack.clocks["access"])
+
+
+# -- an act reads its instant under the store's lock --------------------------------------
+#
+# Read before the lock, an act that waited on another writer is stamped earlier than the
+# one it waited for, so records ordered by time disagree with the order they were written
+# in. Each act below reads its clock once, and the store's lock is held when it does.
+
+
+def _token(stack, store, ready_work, wall_id):
+    client = stack.clients.add_client(name="Pi")
+    return "access", lambda: stack.access.issue(client.id)
+
+
+def _wall(stack, store, ready_work, wall_id):
+    return "walls", lambda: stack.walls.add_wall(name="Study")
+
+
+def _theme(stack, store, ready_work, wall_id):
+    return "themes", lambda: stack.themes.add_theme(name="Quiet")
+
+
+def _selection(stack, store, ready_work, wall_id):
+    work = ready_work("Nighthawks")
+    return "themes", lambda: stack.themes.hang_selection([work.id], wall_id=wall_id)
+
+
+def _many_join(stack, store, ready_work, wall_id):
+    theme = stack.themes.add_theme(name="Quiet")
+    works = [ready_work(title).id for title in ("One", "Two")]
+    return "themes", lambda: stack.themes.add_works_to_theme(theme_id=theme.id, artwork_ids=works)
+
+
+@pytest.mark.parametrize("act", [_token, _wall, _theme, _selection, _many_join], ids=lambda act: act.__name__.strip("_"))
+def test_an_act_reads_its_instant_with_the_stores_lock_held(stack, store, ready_work, wall_id, act):
+    name, do = act(stack, store, ready_work, wall_id)
+    clock = stack.clocks[name]
+    _fresh(clock)
+    clock.probe = store.in_transaction
+
+    do()
+
+    _once(clock)
+    assert clock.held == [True], f"the {name} clock was read with the store's lock not held"
 
 
 # -- the facade hands every collaborator the same two -------------------------------------

@@ -103,22 +103,23 @@ def test_each_source_is_one_row_with_its_state_in_words_and_what_it_has_given(ui
     assert [row["median"] for row in rows] == ["4,096 px", "3,001 px", "—"]
     # The search record's three: a rate over what it answered, a median in the
     # unit a person reads, and "—" for a source that answered nothing.
-    assert [(row["searches"], row["hit-rate"], row["latency"]) for row in rows] == [
+    assert [(row["searches"], row["hit-rate"].split("\n")[0], row["latency"]) for row in rows] == [
         ("100", "75%", "2.4 s"),
         ("4", "67%", "2 minutes"),
         ("0", "—", "—"),
     ]
-    # "75%" beside "Searches 100" is not 75 of 100: the column is headed as a rate of what was
-    # answered, and the figure says which numbers it is of (60 of the 80 answered, 20 not).
-    expect(ui.page.locator(".source-table thead th.col-hit-rate")).to_have_text("Hit rate of answered")
-    titles = ui.page.evaluate(
-        "() => [...document.querySelectorAll('.source-table tbody td.col-hit-rate span')].map((span) => span.title)"
-    )
-    assert titles == [
-        "60 of the 80 searches it answered had an image; 20 of the 100 searches were not answered.",
-        "2 of the 3 searches it answered had an image; 1 of the 4 searches were not answered.",
-        "",
+    # "75%" beside "Searches 100" is not 75 of 100: the column is headed by what the rate is of,
+    # and the cell says, on screen rather than in a tooltip a touch screen never shows, which
+    # numbers it is of (60 of the 80 answers).
+    expect(ui.page.locator(".source-table thead th.col-hit-rate")).to_have_text("Answers with an image")
+    assert [row["hit-rate"].split("\n") for row in rows] == [
+        ["75%", "60 of 80 answers"],
+        ["67%", "2 of 3 answers"],
+        ["—"],
     ]
+    expect(ui.page.locator(".source-table td.col-hit-rate [title]")).to_have_count(0)
+    # Wide enough for the column, so its sentence is not said a second time under the name.
+    assert all("answer" not in row["source"] for row in rows)
     assert [row["faults"] for row in rows] == ["2", "0", "—"]
     assert rows[0]["last-fault"] == "12 seconds ago: KeyError: 'x'"
     assert rows[1]["last-fault"] == "—"
@@ -231,7 +232,53 @@ def test_the_three_search_columns_read_what_the_record_says(ui, a_health_reading
     ui.page.wait_for_selector(".source-table tbody tr")
 
     (row,) = _rows(ui)
-    assert (row["searches"], row["hit-rate"], row["latency"]) == said
+    assert (row["searches"], row["hit-rate"].split("\n")[0], row["latency"]) == said
     # Each under its own heading, in words.
-    for name, heading in (("searches", "Searches"), ("hit-rate", "Hit rate of answered"), ("latency", "Median latency")):
+    for name, heading in (("searches", "Searches"), ("hit-rate", "Answers with an image"), ("latency", "Median latency")):
         expect(ui.page.locator(f".source-table thead th.col-{name}")).to_have_text(heading)
+
+
+@pytest.mark.parametrize("width", [390, 1600], ids=["phone", "desktop"])
+def test_what_the_hit_rate_is_of_is_on_screen_at_every_width(ui, three_sources, width):
+    """A person on a phone or a touch screen reads what the rate counts, not only a hover's title.
+
+    Where the column shows, its cell says the figures under the rate; where the
+    table has narrowed past it (a phone stacks each source into a card of the four
+    kept columns), the sentence moves under the source's name, as a fault's count
+    moves into State. Never both, never neither.
+    """
+    ui.page.set_viewport_size({"width": width, "height": 900})
+    ui.open("#health")
+    ui.page.wait_for_selector(".source-table tbody tr")
+
+    rows = _rows(ui)
+    said = [row.get("hit-rate", "") + "\n" + row["source"] for row in rows]
+    if width == 390:
+        assert all("hit-rate" not in row for row in rows)
+        assert "60 of its 80 answers had an image (75%); 20 of its 100 searches were not answered." in said[0]
+        # Agreement on the one, not the four: "1 of its 4 searches was", never "were".
+        assert "2 of its 3 answers had an image (67%); 1 of its 4 searches was not answered." in said[1]
+    else:
+        assert "60 of 80 answers" in said[0]
+        assert "2 of 3 answers" in said[1]
+        assert all("had an image" not in text for text in said)
+    # The declined source was never searched: nothing to say of a rate it has not got.
+    assert "answer" not in said[2]
+
+
+def test_a_source_that_answered_nothing_says_so_at_every_width(ui, a_health_reading):
+    """No rate, and the reason there is none, in the cell or, on a phone, under the name."""
+    source = a_searched_source("artic", searched=2, answered=0, with_images=0, median_latency_seconds=None, owed=2)
+    ui.serve("**/api/health", a_health_reading(sources=[source]))
+    ui.serve("**/api/sources/yields", _yields(("artic", 10, 1, 0, 4096)))
+    ui.page.set_viewport_size({"width": 1600, "height": 900})
+    ui.open("#health")
+    ui.page.wait_for_selector(".source-table tbody tr")
+    (row,) = _rows(ui)
+    assert row["hit-rate"].split("\n") == ["—", "no answers"]
+    assert "answer" not in row["source"]
+
+    ui.page.set_viewport_size({"width": 390, "height": 900})
+    (row,) = _rows(ui)
+    assert "hit-rate" not in row
+    assert row["source"].split("\n")[1:] == ["No answers to its 2 searches."]

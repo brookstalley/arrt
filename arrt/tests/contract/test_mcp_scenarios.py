@@ -401,7 +401,9 @@ class TestReviewingWhatDiscoveryFound:
         return a_museum_holding("The Elephants", "Swans Reflecting Elephants")
 
     @pytest.fixture
-    def services(self, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum):
+    def services(
+        self, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
+    ):
         engine.result = WorkList(works=(a_work("The Elephants"), a_work("Swans Reflecting Elephants")))
         return Services.bind(
             catalogue=store,
@@ -412,6 +414,8 @@ class TestReviewingWhatDiscoveryFound:
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum),
+            now=shared_clock,
+            mint_id=shared_ids,
         )
 
     async def test_a_curator_reaches_the_pictures_from_an_intent_alone(self, server_url):

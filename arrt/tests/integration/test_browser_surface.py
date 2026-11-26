@@ -17,7 +17,7 @@ import io
 import json
 import pathlib
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import ClassVar
 
 import httpx
@@ -1061,7 +1061,7 @@ class TestHealth:
         assert "nothing has written one yet" in backup["description"]
         assert set(backup) == self.OBSERVATION_FIELDS | {"completed_at"}
 
-    def test_a_recorded_backup_is_reported_with_its_age(self, http, settings):
+    def test_a_recorded_backup_is_reported_with_its_age(self, http, settings, shared_clock):
         """The moment a writer lands, this reports real ages with nothing to wire.
 
         Written against the contract Chunk 20's job will meet — the receipt's
@@ -1072,7 +1072,8 @@ class TestHealth:
         receipt.write_text(
             json.dumps(
                 {
-                    "completed_at": (datetime.now(UTC) - timedelta(days=6)).isoformat(),
+                    # On the services' clock, which the reading counts the age to.
+                    "completed_at": (shared_clock() - timedelta(days=6)).isoformat(),
                     "destination": "nas.lan:/volume1/backups/catalogue-2026-08-05.sqlite",
                 }
             ),

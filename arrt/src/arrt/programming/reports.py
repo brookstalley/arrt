@@ -269,7 +269,12 @@ class Reports:
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this server can read: {problem}")
         # The act's one instant: the screen it records and the previews it
-        # settles are decided for the same moment.
+        # settles are decided for the same moment. Read before any lock, unlike
+        # a write's stamp, because the act is a file write and two transactions
+        # with a bulkhead between them, and no one lock spans them. Behind a
+        # writer it waited on, the instant is early by the wait, which costs
+        # nothing: a size seen later is still fresh, and a preview not settled at
+        # this beat is settled at the next.
         now = self._now()
         write_atomically(self._settings.heartbeat_path(wall_id), document)
         self._record_showing(wall_id, document)

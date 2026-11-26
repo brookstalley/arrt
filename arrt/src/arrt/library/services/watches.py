@@ -154,9 +154,11 @@ class WatchService:
         *,
         working_on: Callable[[str], bool],
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        mint_id: Callable[[], str] = lambda: str(uuid.uuid4()),
     ) -> None:
         self._store = store
         self._settings = settings
+        self._mint_id = mint_id
         self._unattended = unattended
         #: Whether this process is working on a run (`DiscoveryRunner.is_working_on`).
         #: What "in flight" means for a Watch, because a run's status can name a
@@ -283,7 +285,7 @@ class WatchService:
         by = require_member(surface, enum=InitiatedBy, field="surface")
         now = self._now()
         watch = Watch(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             intent_text=_intent(intent_text),
             enabled=bool(enabled),
             created_at=now,

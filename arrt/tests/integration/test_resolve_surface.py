@@ -47,7 +47,9 @@ def museum() -> FakeFinder:
 
 
 @pytest.fixture
-def services(store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum) -> Services:
+def services(
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, shared_clock, shared_ids
+) -> Services:
     """The whole plane, wired the way a deployment with ARTIC_USER_AGENT set is."""
     engine.result = WorkList(works=(a_work("The Elephants"),))
     return Services.bind(
@@ -59,6 +61,8 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
 
@@ -246,7 +250,7 @@ async def test_every_reason_resolve_images_can_refuse_for_is_named_in_its_tips(s
     mixed, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id, elsewhere.id])
     assert errored is True
     assert "one Get" in mixed["error"]
-    assert "one discovery run" in tips
+    assert "one Get" in tips
 
     services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")
     covered, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id])

@@ -91,7 +91,19 @@ def museum() -> FakeFinder:
 
 
 @pytest.fixture
-def services(store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, commons, museum):
+def services(
+    store,
+    discovery_store,
+    wall_settings,
+    thumbnail_settings,
+    settings,
+    engine,
+    registry,
+    commons,
+    museum,
+    shared_clock,
+    shared_ids,
+):
     """The plane with Commons and the Art Institute wired, and a registry."""
     return Services.bind(
         catalogue=store,
@@ -103,6 +115,8 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons, museum, collection=a_collection_holding(**{"Salvador Dalí": ["Sleep"]})),
         registry=registry,
+        now=shared_clock,
+        mint_id=shared_ids,
         # A collection holding the chosen works' artist, so a Get that left a work
         # unresolved would reach the supplement if nothing stopped it there.
     )
@@ -308,7 +322,7 @@ def test_a_get_selects_the_better_image_whichever_source_found_it(services, muse
 
 
 def test_a_get_with_no_registry_is_refused_and_starts_nothing(
-    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, commons
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, commons, shared_clock, shared_ids
 ):
     bound = Services.bind(
         catalogue=store,
@@ -319,6 +333,8 @@ def test_a_get_with_no_registry_is_refused_and_starts_nothing(
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons),
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
     with pytest.raises(ServiceError, match="Wikidata is not configured on this server") as refused:
@@ -330,7 +346,7 @@ def test_a_get_with_no_registry_is_refused_and_starts_nothing(
 
 
 def test_a_get_with_no_image_source_is_refused_and_starts_nothing(
-    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, shared_clock, shared_ids
 ):
     bound = Services.bind(
         catalogue=store,
@@ -341,6 +357,8 @@ def test_a_get_with_no_image_source_is_refused_and_starts_nothing(
         engine=engine,
         discovery_settings=settings.discovery_settings,
         registry=registry,
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
     with pytest.raises(ServiceError, match="no image source"):

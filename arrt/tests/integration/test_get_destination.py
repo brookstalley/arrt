@@ -60,7 +60,9 @@ def museum() -> FakeFinder:
 
 
 @pytest.fixture
-def services(store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, museum):
+def services(
+    store, discovery_store, wall_settings, thumbnail_settings, settings, engine, registry, museum, shared_clock, shared_ids
+):
     """The plane with an image source and a registry, so a Get can find and accept works."""
     bound = Services.bind(
         catalogue=store,
@@ -72,6 +74,8 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
         registry=registry,
+        now=shared_clock,
+        mint_id=shared_ids,
     )
     # Phase 2 on the request's own thread, so a Get has found its image by the
     # time the response arrives and each test reads as the curator's steps.
