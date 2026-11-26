@@ -35,6 +35,11 @@ one `xfail`, and the job went red naming a "dependency not provisioned" that was
 a documented order-sensitivity in artist identity. Nothing was broken; the guard
 was reading the wrong number.
 
+**An errored test is refused, by name, and ran nothing.** A collection that failed or
+a fixture that could not be set up reaches no verdict; testament reports a suite it
+could not collect as that suite holding one errored case, so an errored case is never
+counted as a test the suite ran.
+
 **A run on the pool, or a fallback without the browser suite.** `tests.yml` passes
 `--decision`, the record `pool_or_fallback.py` wrote of where the suites ran. On the
 pool, the report the run wrote must hold every suite the manifest declares, as
@@ -105,9 +110,14 @@ def main(path: Path, required_suites: list[str] | None = None) -> int:
     # else is read as a real skip, because the safe direction for an unknown is
     # to fail the job rather than pass it.
     blocking = []
+    errored = []
     expected_failures = 0
     for suite in suites:
         for case in suite.iter("testcase"):
+            error = case.find("error")
+            if error is not None:
+                name = f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")
+                errored.append((name, error.get("message", "no message given")))
             skip = case.find("skipped")
             if skip is None:
                 continue
@@ -149,18 +159,28 @@ def main(path: Path, required_suites: list[str] | None = None) -> int:
         return 1
 
     # A report merged across suites can carry hundreds of tests from one while another
-    # collected nothing, so each suite the run was meant to cover is checked by name.
+    # collected nothing, so each suite the run was meant to cover is checked by name. An
+    # errored case ran nothing: a suite that could not be collected is reported as that
+    # suite with one errored case, and counting it as a test let a run whose whole curation
+    # suite was missing pass ("collected 4170, ran 4170, skipped 0, failed 0, errored 1").
     empty = []
     for name in required_suites or []:
         found = [s for s in suites if s.get("name") == name]
-        ran_here = sum(int(s.get("tests", 0)) - int(s.get("skipped", 0)) for s in found)
+        ran_here = sum(int(s.get("tests", 0)) - int(s.get("skipped", 0)) - int(s.get("errors", 0)) for s in found)
         if ran_here <= 0:
             empty.append(name if found else f"{name} (not in the report)")
     if empty:
         print(f"::error::these suites ran no test: {', '.join(empty)}. Each suite .testament.toml declares must run something.")
-        return 1
 
-    return 0
+    # An errored test did not run to a verdict: a collection that failed, a fixture that
+    # could not be set up. The step that ran the suites goes red on it too, but this guard's
+    # job is to refuse a report that verified less than it claims, so each is named here.
+    for name, message in errored:
+        print(f"::error::errored in CI: {name} — {message}")
+    if errored:
+        print(f"::error::{len(errored)} test(s) errored: each reached no verdict, so this run verified less than it appears to.")
+
+    return 1 if empty or errored else 0
 
 
 def _decider():
