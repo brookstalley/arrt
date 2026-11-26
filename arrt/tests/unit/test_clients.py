@@ -540,7 +540,7 @@ def test_a_player_whose_first_report_is_refused_reads_unreadable_with_the_server
 
 
 def test_status_names_a_refused_players_problem_in_the_players_words_and_how_long_it_has_been_refused(
-    services, store, clients, pi, access, monkeypatch
+    services, store, clients, pi, access
 ):
     """The trouble says what Players says, and for how long: from the first refusal since a report was accepted."""
     access.issue(pi.id)
@@ -549,9 +549,8 @@ def test_status_names_a_refused_players_problem_in_the_players_words_and_how_lon
     assert first is not None, "the Player's reading says nothing of when its reports began to be refused"
     _refuse(clients, pi.id, {**_REFUSED, "reported_at": "2026-10-02T14:00:59+00:00"})
     view = clients.get_client_view(pi.id)
-    monkeypatch.setattr(services.health, "_now", lambda: first + timedelta(minutes=3))
 
-    [trouble] = [t for t in services.health.observe().troubles() if t.about == "player"]
+    [trouble] = [t for t in services.health.observe().troubles(now=first + timedelta(minutes=3)) if t.about == "player"]
 
     assert view.player.since == first
     assert refused_reports_of(store).now()[pi.id].at > first
