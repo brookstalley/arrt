@@ -20,7 +20,7 @@ import threading
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -48,6 +48,16 @@ from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClas
 #: test adds later is still the newer one.
 OPENED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
+#: Where the shared fixtures' clock starts (`Ticking`): after `OPENED_AT`, so
+#: a record a service writes is newer than any row the file was opened with.
+CLOCK_STARTS_AT = datetime(2026, 1, 1, 12, tzinfo=UTC)
+
+#: How far the shared clock moves on each reading: small enough that a test's
+#: few thousand readings pass in seconds of its time (a report stays current
+#: for minutes), and a whole millisecond, so instants written at millisecond
+#: precision still differ.
+CLOCK_STEP = timedelta(milliseconds=1)
+
 
 def _counter() -> Callable[[], int]:
     """1, 2, 3, … one number per call, safe to call from several threads at once.
@@ -67,9 +77,52 @@ def _counter() -> Callable[[], int]:
 
 
 def counted_ids() -> Callable[[], str]:
-    """Ids shaped as UUIDs, counted from one rather than drawn, never repeating within one counter."""
+    """Ids shaped as UUIDs, counted from one rather than drawn, never repeating within one counter.
+
+    The count leads as well as ends the id, so two ids differ in their first
+    eight characters too: a selection's name carries its theme id's head, and
+    names are unique.
+    """
     count = _counter()
-    return lambda: str(uuid.UUID(int=count()))
+
+    def mint() -> str:
+        number = count()
+        return str(uuid.UUID(f"{number:08x}-0000-4000-8000-{number:012x}"))
+
+    return mint
+
+
+class Ticking:
+    """A clock that starts at a fixed instant and moves a fixed step forward on every reading.
+
+    What the machine's clock gave a test and this must still give: an instant
+    later than every one read before it, whichever thread reads it, so records
+    ordered by time keep the order they were written in. What it gives that the
+    machine's does not: the same instants on every run, so a test that reads no
+    other clock can be reused from the test runner's cache. A test that needs
+    time to pass (a report growing stale, a look expiring) moves it with
+    `advance`.
+    """
+
+    def __init__(self, start: datetime = CLOCK_STARTS_AT, step: timedelta = CLOCK_STEP) -> None:
+        if step <= timedelta(0):
+            raise ValueError("a clock that does not move forward cannot order what it stamps")
+        self._next = start
+        self._step = step
+        self._lock = threading.Lock()
+
+    def __call__(self) -> datetime:
+        with self._lock:
+            instant = self._next
+            self._next += self._step
+            return instant
+
+    def advance(self, by: timedelta) -> None:
+        """Let `by` pass before the next reading."""
+        if by < timedelta(0):
+            raise ValueError("the clock does not go back")
+        with self._lock:
+            self._next += by
 
 
 def counted_tokens() -> Callable[[], str]:

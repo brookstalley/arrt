@@ -9,7 +9,7 @@ through `ClientService`, which HTTP and MCP both bind, and reads back through
 import json
 import logging
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -25,8 +25,18 @@ from arrt.services.errors import ServiceError
 FRAME = "uuid:8e7b6c2a-1f3d-4e5a-9b0c-2d4e6f8a0b1c"
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
 def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return _services_clock().isoformat(timespec="seconds")
 
 
 def report(*outputs: dict, labels: list[dict] | None = None, at: str | None = None) -> dict:
@@ -77,7 +87,7 @@ def displays_of(store, client_id):
 
 def write_stale(wall_settings, client_id, document):
     """Leave a client's report as one written long enough ago to say nothing about now."""
-    old = (datetime.now(UTC) - timedelta(seconds=STALE_AFTER_SECONDS + 60)).isoformat(timespec="seconds")
+    old = (_services_clock() - timedelta(seconds=STALE_AFTER_SECONDS + 60)).isoformat(timespec="seconds")
     client_heartbeat_path_in(wall_settings.art_root, client_id).write_text(json.dumps({**document, "reported_at": old}))
 
 
@@ -228,7 +238,7 @@ def test_an_hdmi_output_is_keyed_by_place_and_never_moves(clients, store, pi, ma
 
 def _display(display_id: str, identity: str, client_id: str | None, output: str) -> Display:
     return Display(
-        id=display_id, identity=identity, client_id=client_id, output=output, kind="frame", first_seen=datetime.now(UTC)
+        id=display_id, identity=identity, client_id=client_id, output=output, kind="frame", first_seen=_services_clock()
     )
 
 
@@ -473,7 +483,7 @@ def test_a_wall_whose_display_lost_its_client_is_unassigned_on_walls(clients, st
 def test_removing_a_client_whose_display_reported_a_screen_takes_the_sizes_with_it(clients, store, pi, wall_id):
     clients.assign_wall(wall_id, client_id=pi.id, output="hdmi-a-1")
     display_id = store.get_wall(wall_id).display_id
-    store.record_screen(display_id, 3840, 2160, datetime.now(UTC))
+    store.record_screen(display_id, 3840, 2160, _services_clock())
 
     clients.remove_client(pi.id)
 
@@ -487,7 +497,7 @@ def test_a_place_display_with_a_reported_screen_folds_into_the_frame(clients, st
     study = services.display.add_wall(name="Study")
     clients.assign_wall(study.id, client_id=mac.id, output="frame")
     place = store.get_wall(study.id).display_id
-    store.record_screen(place, 3840, 2160, datetime.now(UTC))
+    store.record_screen(place, 3840, 2160, _services_clock())
 
     clients.record_heartbeat(mac.id, report(frame()))
 

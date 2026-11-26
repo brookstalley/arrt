@@ -7,6 +7,7 @@ cosmetic — rewording a description — is a real behavioural change.
 
 import json
 import re
+from datetime import datetime
 from importlib.metadata import version
 
 import pytest
@@ -19,6 +20,21 @@ from arrt.mcp.registry import DESCRIPTION_BUDGET_BYTES
 from arrt.mcp.tools import ART_DISPLAY, ART_PLAYERS, ART_THEME, TOOLS, TOOLS_BY_NAME
 from arrt.persistence.records import FetchStatus, VocabularyKind
 from arrt.services.errors import ServiceError
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 #: A regression here silently renames the entire MCP tool surface for every
 #: client. Tool names are a frozen contract: never renamed, never removed.
@@ -691,14 +707,13 @@ def test_a_tool_name_holding_a_retired_word_is_not_refused():
 async def test_the_spend_history_over_mcp_is_get_api_spend(server_url, services):
     """`art_spend(action='history')` against `GET /api/spend`, whole, with a known and an unknown-cost call this month."""
     import json
-    from datetime import UTC, datetime
     from decimal import Decimal
 
     import httpx
 
     from arrt.persistence.discovery_records import CostStatus, InitiatedBy, SpendCategory
 
-    now = datetime.now(UTC)
+    now = _now()
     run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.MCP_CLIENT)
     for cost, status in ((Decimal("0.0213"), CostStatus.KNOWN), (Decimal(0), CostStatus.UNKNOWN)):
         services.discovery.record_spend(

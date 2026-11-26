@@ -22,6 +22,21 @@ from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcqu
 from arrt.services import health as health_module
 from arrt.services.health import HealthService, failed_fetches
 
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 START = datetime(2026, 11, 19, 9, 0, tzinfo=UTC)
 
 
@@ -303,7 +318,7 @@ def test_through_the_route_every_recorded_failure_is_aged_whatever_it_said(outco
     old = work("Before the column")
     store.set_queued_acquisition(QueuedAcquisition(artwork_id=old, failures=GIVE_UP_AFTER, detail="a 404.", failed_at=None))
     # After the server's queue was made, so a fault recorded now is under this load.
-    at = datetime.now(UTC)
+    at = _now()
     fetcher = Saying({work(f"Said {outcome}"): outcome}, otherwise=outcome)
     AcquisitionQueue(store, service, fetcher, NeverPrepared(), clock=lambda: at).run()
 
@@ -311,7 +326,7 @@ def test_through_the_route_every_recorded_failure_is_aged_whatever_it_said(outco
 
     assert (found["count"], found["age_unknown"]) == (2 + len(fetcher.others), 1)
     assert datetime.fromisoformat(found["newest_failed_at"]) == at
-    assert found["newest_age_seconds"] == pytest.approx((datetime.now(UTC) - at).total_seconds(), abs=30)
+    assert found["newest_age_seconds"] == pytest.approx((_now() - at).total_seconds(), abs=30)
 
 
 def test_through_the_route_only_the_row_from_before_the_column_is_unaged(server_url, store, service, work):

@@ -9,7 +9,7 @@ import dataclasses
 import json
 import logging
 import threading
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 import pytest
@@ -23,6 +23,21 @@ from arrt.library.services.watches import WatchRefusal
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, Verdict
 from arrt.programming.feeds import SCHEDULED
 from arrt.services.container import RECONCILE_EVERY_PASSES, FeedsJob
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 WORDS = "new abstract expressionist paintings in museum collections"
 UNATTENDED_MODEL = "some-lab/a-cheaper-model"
@@ -61,7 +76,7 @@ def tried_ago(services, watch_id: str, ago: timedelta) -> None:
     """Move a Watch's last attempt into the past, and when it was written with it, as time passing would."""
     store = services.watches._store
     watch = store.get_watch(watch_id)
-    then = datetime.now(UTC) - ago
+    then = _now() - ago
     store.update_watch(
         dataclasses.replace(
             watch, last_attempt_at=then, created_at=min(watch.created_at, then), updated_at=min(watch.updated_at, then)

@@ -30,6 +30,20 @@ from arrt.persistence.discovery_records import CostStatus, InitiatedBy, RunStatu
 from arrt.services.errors import ServiceError
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 def start(runner: DiscoveryRunner, intent: str = "Surrealist paintings with strong blues"):
     return runner.start(intent_text=intent, initiated_by=InitiatedBy.MCP_CLIENT)
 
@@ -604,7 +618,7 @@ def test_a_re_search_s_unknown_call_counts_in_its_parent_s_total(runner, service
 
 def test_spend_with_nothing_named_reports_the_current_utc_month(runner):
     """UTC, matching the boundary the provider's own credit limit resets on."""
-    now = datetime.now(UTC)
+    now = _now()
 
     report = runner.spend_report()
 

@@ -33,6 +33,21 @@ from arrt.library.sources.reading import FetchLocator
 from arrt.persistence.discovery_records import SearchOutcome, SourceSearch
 from arrt.persistence.records import AcquisitionMethod, FetchOutcome, QueuedAcquisition, RightsStatus, SourceClass
 
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 #: How many works a run goes through here: enough that "one at a time" and
 #: "one per work" cannot be mistaken for each other.
 WORKS = 8
@@ -323,7 +338,7 @@ def test_while_the_source_still_owes_an_answer_the_queue_neither_passes_again_an
 ):
     """The refused work is due by the clock, but no pass can ask it until the owed call ends."""
     work = accepted(service, slow, "Fetched")
-    row = a_due_retry(store, work, now=datetime.now(UTC)) if tried_before else None
+    row = a_due_retry(store, work, now=_now()) if tried_before else None
     ask_about_every_work(a_run(sources), slow, works=1)
     queue = services.acquisition_queue
 
@@ -345,7 +360,7 @@ def test_a_work_a_pass_did_not_ask_because_its_source_owed_an_answer_is_tried_as
     """Through the queue's own loop: it sleeps after the refused pass, and the owed call's end is what wakes it."""
     work = accepted(service, slow, "Fetched")
     if tried_before:
-        a_due_retry(store, work, now=datetime.now(UTC))
+        a_due_retry(store, work, now=_now())
     ask_about_every_work(a_run(sources), slow, works=1)
     queue = services.acquisition_queue
     # Acceptance nudged the queue; taken here, so the loop's second pass is the

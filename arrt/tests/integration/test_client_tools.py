@@ -18,7 +18,7 @@ here carries the fields `GET /api/clients` does.
 
 import json
 from dataclasses import fields
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -35,6 +35,21 @@ from arrt.programming import clients as clients_module
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
 from arrt.services.health import WallsNow
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 _REPORT = {
     "reported_at": "2026-10-02T14:00:05+00:00",
@@ -117,9 +132,7 @@ async def test_the_listing_carries_what_the_client_reported_in_the_browsers_fiel
     # A token and a report, so the Player is `reporting`; a settings page address
     # the contract's pattern passes, so `settings_url` is a value and not the null default.
     await ok(server_url, "issue_client_token", client_id=hall)
-    _report(
-        settings, hall, {**_REPORT, "reported_at": datetime.now(UTC).isoformat(), "settings_url": "http://player.example:8080/"}
-    )
+    _report(settings, hall, {**_REPORT, "reported_at": _now().isoformat(), "settings_url": "http://player.example:8080/"})
 
     [client] = (await ok(server_url, "clients"))["clients"]
     [browser] = (await request("GET", f"{server_url}/api/clients")).json()["clients"]
@@ -312,7 +325,7 @@ async def test_the_walls_read_carries_each_walls_display_state_in_the_browsers_s
     heartbeat_path_in(settings.art_root, wall).write_text(
         json.dumps(
             {
-                "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "reported_at": _now().isoformat(timespec="seconds"),
                 "current_work_id": "w-dali-1",
                 "schema": {"major": 1, "minor": 3},
                 "display_state": {"state": "in_use", "work_id": None, "since": "2026-10-08T20:15:00-06:00"},
@@ -355,7 +368,7 @@ _FRAME = "uuid:8e7b6c2a-1f3d-4e5a-9b0c-2d4e6f8a0b1c"
 
 def _frame_report() -> dict:
     return {
-        "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "reported_at": _now().isoformat(timespec="seconds"),
         "outputs": [{"name": "frame", "kind": "frame", "connected": True, "screen": None, "identity": _FRAME}],
         "label_outputs": [{"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 480]}],
     }
@@ -463,7 +476,7 @@ async def test_the_status_carries_the_health_models_readings_value_for_value(
     and the wall it shows (one trouble), a wall no Player shows and a Player with
     no token (two setup steps), and a work whose picture failed to fetch.
     """
-    stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+    stale = (_now() - timedelta(hours=3)).isoformat()
     await ok(server_url, "issue_client_token", client_id=hall)
     _report(settings, hall, {**_REPORT, "reported_at": stale})
     await ok(server_url, "assign_wall", wall_id=wall, client_id=hall, output="hdmi-a-1")
@@ -481,7 +494,7 @@ async def test_the_status_carries_the_health_models_readings_value_for_value(
         is_primary=True,
     )
     store.set_queued_acquisition(
-        QueuedAcquisition(artwork_id=work.id, failures=2, next_try_at=datetime.now(UTC) + timedelta(hours=20), detail="a 404.")
+        QueuedAcquisition(artwork_id=work.id, failures=2, next_try_at=_now() + timedelta(hours=20), detail="a 404.")
     )
 
     reading = services.health.observe()
@@ -637,7 +650,7 @@ async def _answer_about(server_url: str, surface: str, wall: str, name: str) -> 
 
 
 def _wall_report(work_id: str, majors: list[int] | None = None) -> str:
-    document: dict = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "current_work_id": work_id}
+    document: dict = {"reported_at": _now().isoformat(timespec="seconds"), "current_work_id": work_id}
     if majors is not None:
         document["capabilities"] = {"backend": "frame", "label_modes": ["none"], "manifest_majors": majors}
     return json.dumps(document)
@@ -824,7 +837,7 @@ async def test_a_walls_or_health_answer_reads_each_report_file_once_however_many
     players = [services.clients.add_client(name=name).id for name in ("Study Pi", "Landing Pi")]
     for each in players:
         services.access.issue(each)
-        _report(settings, each, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+        _report(settings, each, {**_REPORT, "reported_at": _now().isoformat()})
     services.clients.assign_wall(walls[0], client_id=players[0], output="hdmi-a-1")
     services.clients.assign_wall(walls[1], client_id=players[0], output="hdmi-a-2")
     services.clients.assign_wall(walls[2], client_id=players[1], output="hdmi-a-1")
@@ -902,7 +915,7 @@ class _PlayerHousehold:
         self.name = f"Player {step}"
         self.wall = services.display.add_wall(name=f"Wall {step}").id
         self.player = services.clients.add_client(name=self.name).id
-        services.clients.record_heartbeat(self.player, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+        services.clients.record_heartbeat(self.player, {**_REPORT, "reported_at": _now().isoformat()})
 
     def assign(self) -> None:
         self.services.clients.assign_wall(self.wall, client_id=self.player, output="hdmi-a-1")
@@ -973,7 +986,7 @@ async def test_a_players_answer_reads_each_players_report_once_and_no_walls(serv
     players = [services.clients.add_client(name=name).id for name in ("Study Pi", "Landing Pi", "Attic Pi")]
     for each in players:
         services.access.issue(each)
-        _report(settings, each, {**_REPORT, "reported_at": datetime.now(UTC).isoformat()})
+        _report(settings, each, {**_REPORT, "reported_at": _now().isoformat()})
     for wall, player in zip(walls, players, strict=True):
         services.clients.assign_wall(wall, client_id=player, output="hdmi-a-1")
     every_wall = [view.wall.id for view in services.display.survey_walls()]
@@ -1011,9 +1024,7 @@ async def test_a_players_answer_names_every_output_it_reported_several_labels_an
     door = services.clients.add_client(name="Door Pi").id
     services.access.issue(door)
     labels = [{"name": name, "kind": "epaper", "connected": True, "size": [800, 480]} for name in ("epd-0", "epd-1")]
-    services.clients.record_heartbeat(
-        door, {"reported_at": datetime.now(UTC).isoformat(), "outputs": [], "label_outputs": labels}
-    )
+    services.clients.record_heartbeat(door, {"reported_at": _now().isoformat(), "outputs": [], "label_outputs": labels})
 
     [tool] = [each for each in (await ok(server_url, "clients"))["clients"] if each["client_id"] == door]
     listed = (await request("GET", f"{server_url}/api/clients")).json()["clients"]

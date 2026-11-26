@@ -38,6 +38,20 @@ from arrt.persistence.records import (
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 def _contextual_and_destination_screens() -> set[str]:
     """The screens whose address is a bare path, read off `app.js`'s route table.
 
@@ -107,7 +121,7 @@ def shown_by_a_reporting_player(shown_by_a_player, services, settings):
             {"name": f"hdmi-a-{index}", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}
             for index in range(1, len(wall_ids) + 1)
         ]
-        report = {"reported_at": datetime.now(UTC).isoformat(), "outputs": outputs}
+        report = {"reported_at": _now().isoformat(), "outputs": outputs}
         client_heartbeat_path_in(settings.art_root, player).write_text(json.dumps(report), encoding="utf-8")
         return player
 
@@ -504,7 +518,7 @@ class TestHealth:
         second = http.post("/api/walls", json={"name": "The study"}).json()
         shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": datetime.now(UTC).isoformat()}),
+            json.dumps({"reported_at": _now().isoformat()}),
             encoding="utf-8",
         )
 
@@ -522,7 +536,7 @@ class TestHealth:
         """
         shown_by_a_player(wall["wall_id"])
         settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
+            json.dumps({"reported_at": (_now() - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
         )
 
         assert http.get("/api/health").json()["description"] == "'The wall' last reported 2 minutes ago."
@@ -535,11 +549,9 @@ class TestHealth:
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
         shown_by_a_player(wall["wall_id"], second["wall_id"])
-        settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
-        )
+        settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": _now().isoformat()}), encoding="utf-8")
         settings.heartbeat_path(second["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
+            json.dumps({"reported_at": (_now() - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
         )
 
         assert http.get("/api/health").json()["description"] == (
@@ -556,11 +568,9 @@ class TestHealth:
         """
         second = http.post("/api/walls", json={"name": "The study"}).json()
         shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
-        settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
-        )
+        settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": _now().isoformat()}), encoding="utf-8")
         settings.heartbeat_path(second["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(days=4)).isoformat()}), encoding="utf-8"
+            json.dumps({"reported_at": (_now() - timedelta(days=4)).isoformat()}), encoding="utf-8"
         )
 
         health = http.get("/api/health").json()
@@ -593,13 +603,11 @@ class TestHealth:
         second = http.post("/api/walls", json={"name": "The study"}).json()
         third = http.post("/api/walls", json={"name": "The landing"}).json()
         shown_by_a_reporting_player(wall["wall_id"], second["wall_id"])
-        settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
-        )
+        settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": _now().isoformat()}), encoding="utf-8")
 
         silent = http.get("/api/health").json()["description"]
         settings.heartbeat_path(second["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
+            json.dumps({"reported_at": (_now() - timedelta(minutes=2)).isoformat()}), encoding="utf-8"
         )
         reported = http.get("/api/health").json()["description"]
 
@@ -614,11 +622,11 @@ class TestHealth:
             json.dumps(
                 {
                     "schema": {"major": 1, "minor": 3},
-                    "reported_at": datetime.now(UTC).isoformat(),
+                    "reported_at": _now().isoformat(),
                     "television_reachable": True,
                     "television_showing_art": True,
                     "current_work_id": "w-dali",
-                    "display_state": {"state": "dark", "work_id": None, "since": datetime.now(UTC).isoformat()},
+                    "display_state": {"state": "dark", "work_id": None, "since": _now().isoformat()},
                 }
             ),
             encoding="utf-8",
@@ -639,7 +647,7 @@ class TestHealth:
         for client_id in (waiting, quiet):
             assert http.post(f"/api/clients/{client_id}/token").status_code == 200
         client_heartbeat_path_in(settings.art_root, quiet).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(hours=3)).isoformat(), "outputs": []}),
+            json.dumps({"reported_at": (_now() - timedelta(hours=3)).isoformat(), "outputs": []}),
             encoding="utf-8",
         )
 
@@ -658,7 +666,7 @@ class TestHealth:
         reports are as old. The study Pi reports now and shows the landing,
         which has never reported: that silence is the landing's own.
         """
-        stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        stale = (_now() - timedelta(hours=3)).isoformat()
         hall = http.post("/api/clients", json={"name": "The hall Pi"}).json()["client_id"]
         study = http.post("/api/clients", json={"name": "The study Pi"}).json()["client_id"]
         second = http.post("/api/walls", json={"name": "The study"}).json()
@@ -666,7 +674,7 @@ class TestHealth:
         for client_id, reported_at, outputs in ((hall, stale, ("hdmi-a-1", "hdmi-a-2")), (study, None, ("hdmi-a-1",))):
             assert http.post(f"/api/clients/{client_id}/token").status_code == 200
             report = {
-                "reported_at": reported_at or datetime.now(UTC).isoformat(),
+                "reported_at": reported_at or _now().isoformat(),
                 "outputs": [{"name": name, "kind": "framebuffer", "connected": True, "screen": [1920, 1080]} for name in outputs],
             }
             client_heartbeat_path_in(settings.art_root, client_id).write_text(json.dumps(report), encoding="utf-8")
@@ -841,9 +849,9 @@ class TestHealth:
         no_token = read()
         assert http.post(f"/api/clients/{player}/token").status_code == 200
         awaiting = read()
-        report(datetime.now(UTC))
+        report(_now())
         reporting = read()
-        report(datetime.now(UTC) - timedelta(hours=3))
+        report(_now() - timedelta(hours=3))
         quiet = read()
 
         assert no_token == ("silent", "no_token", [("player", "no_token")], [])
@@ -866,7 +874,7 @@ class TestHealth:
         """
         player = shown_by_a_player(wall["wall_id"])
         assert http.post(f"/api/clients/{player}/token").status_code == 200
-        stale = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        stale = (_now() - timedelta(hours=3)).isoformat()
         settings.heartbeat_path(wall["wall_id"]).write_text(json.dumps({"reported_at": stale}), encoding="utf-8")
 
         health = http.get("/api/health").json()
@@ -902,7 +910,7 @@ class TestHealth:
         assert http.get("/api/health").json()["failed_fetches"] is None
         assert not [t for t in http.get("/api/health").json()["troubles"] if t["about"] == "failed_fetches"]
 
-        now = datetime.now(UTC)
+        now = _now()
         for title, failed_ago in (("Nighthawks", timedelta(hours=2)), ("Automat", timedelta(hours=5))):
             store.set_queued_acquisition(
                 QueuedAcquisition(
@@ -953,7 +961,7 @@ class TestHealth:
         bound = feeds_module.FEED_MAX_BYTES
         monkeypatch.setattr(feeds_module, "FEED_MAX_BYTES", 1024, raising=False)
 
-        beat = {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None}
+        beat = {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat(), "current_work_id": None}
         services.display.record_heartbeat(wall_id, beat)
 
         assert path.read_bytes() == aged, "the roll was not refused, so nothing is held back"
@@ -1007,7 +1015,7 @@ class TestHealth:
                     # gets built against a document that never arrives. The two
                     # planes cannot import each other, so what holds them together
                     # is each holding its key to the contract's `instant_key`.
-                    "reported_at": datetime.now(UTC).isoformat(),
+                    "reported_at": _now().isoformat(),
                     "television_reachable": False,
                     "last_error": "the television refused the pairing token",
                     # And one key no writer emits, because pass-through of the
@@ -1034,7 +1042,7 @@ class TestHealth:
         exists to catch — a plane that has been down since Tuesday.
         """
         settings.heartbeat_path(wall["wall_id"]).write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(days=4)).isoformat()}),
+            json.dumps({"reported_at": (_now() - timedelta(days=4)).isoformat()}),
             encoding="utf-8",
         )
         assert "4 days ago" in http.get("/api/health").json()["walls"][0]["heartbeat"]["description"]

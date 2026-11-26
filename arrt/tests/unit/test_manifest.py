@@ -9,7 +9,7 @@ a theme and never reach the wall with nothing saying so.
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 
@@ -26,6 +26,20 @@ from arrt.programming.manifest import builder
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR, read_published
 from arrt.services.errors import ServiceError
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
 
 
 @pytest.fixture
@@ -607,13 +621,13 @@ class TestOneFeedPerWall:
         theme = theme_of(first, second)
         display.activate_theme(theme.id, wall_id=living_room)
         display.activate_theme(theme.id, wall_id=study)
-        on_the_study = feed(study).on_the_wall(datetime.now(UTC))
+        on_the_study = feed(study).on_the_wall(_now())
 
         with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
             display.show_work_now(living_room, second.id)
 
         assert feed(living_room).slots[0].work_id == second.id
-        kept = feed(study).on_the_wall(datetime.now(UTC))
+        kept = feed(study).on_the_wall(_now())
         assert (kept.work_id, kept.start) == (on_the_study.work_id, on_the_study.start)
         assert any("The study" in r.getMessage() and "rebuilt beside" in r.getMessage() for r in caplog.records)
 
@@ -624,7 +638,7 @@ class TestOneFeedPerWall:
         display.activate_theme(theme.id, wall_id=living_room)
         display.activate_theme(theme.id, wall_id=study)
         # Not the study's work now: showing that would be a clash nothing could avoid, and is named.
-        on_the_study = feed(study).on_the_wall(datetime.now(UTC)).work_id
+        on_the_study = feed(study).on_the_wall(_now()).work_id
         shown = next(work.id for work in (first, second, third) if work.id != on_the_study)
 
         display.show_work_now(living_room, shown)

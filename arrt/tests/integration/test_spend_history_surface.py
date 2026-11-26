@@ -1,6 +1,6 @@
 """The Spend page's read, over real HTTP: the months, and the sentence the server says each in."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
 import httpx
@@ -10,6 +10,20 @@ from arrt.library.services.discovery import SpendTotal
 from arrt.persistence.discovery_records import CostStatus, InitiatedBy, SpendCategory
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 @pytest.fixture
 def http(server_url):
     with httpx.Client(base_url=server_url, timeout=30.0) as client:
@@ -17,7 +31,7 @@ def http(server_url):
 
 
 def test_the_months_answer_in_the_servers_own_sentences(http, services):
-    now = datetime.now(UTC)
+    now = _now()
     run = services.discovery.start_discovery_run(intent_text="Dalí", initiated_by=InitiatedBy.WEB_UI)
     services.discovery.record_spend(
         category=SpendCategory.DISCOVERY_TOKENS, cost_usd=Decimal("0.0213"), discovery_run_id=run.id, model_id="the-model", at=now

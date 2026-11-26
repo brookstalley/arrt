@@ -308,6 +308,7 @@ def _beat(width: int, height: int) -> dict:
 
 def test_a_heartbeat_is_one_instant_for_the_screen_it_keeps_and_the_scenes_it_settles(stack, store, hung, wall_id):
     client = stack.clients.add_client(name="Pi")
+    stack.access.issue(client.id)
     placed = stack.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
     _fresh(stack.clocks["reports"])
 
@@ -425,25 +426,67 @@ def _reads_exclusions(callee: ast.expr) -> bool:
     return isinstance(callee, ast.Attribute) and callee.attr == "list_exclusions"
 
 
-def _reads_the_machine(callee: ast.expr) -> bool:
-    """`datetime.now(...)` or `uuid.uuid4(...)` / `uuid4(...)`, however the module is named."""
-    if isinstance(callee, ast.Attribute):
-        return (callee.attr, getattr(callee.value, "id", None)) in {("now", "datetime"), ("uuid4", "uuid")}
-    return isinstance(callee, ast.Name) and callee.id == "uuid4"
+#: What a call reads from the machine, by the qualified name its callee resolves to.
+_MACHINE_READS = frozenset(
+    {
+        "datetime.datetime.now",
+        "datetime.datetime.utcnow",
+        "datetime.datetime.today",
+        "datetime.date.today",
+        "time.time",
+        "time.time_ns",
+        "uuid.uuid1",
+        "uuid.uuid4",
+    }
+)
 
 
-def _found(root: Path, matches) -> list[str]:
-    """`path:line` of every matching call under `root`, the owner's own file excluded."""
+def _imported(tree: ast.Module) -> dict[str, str]:
+    """Each name the module binds by an import, anywhere in it, to the dotted name it stands for."""
+    names: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                names[alias.asname or top] = alias.name if alias.asname else top
+        elif isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
+            for alias in node.names:
+                names[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return names
+
+
+def _qualified(callee: ast.expr, imported: dict[str, str]) -> str | None:
+    """The dotted name a callee stands for, resolved through the module's imports; None when it names no import."""
+    attributes: list[str] = []
+    while isinstance(callee, ast.Attribute):
+        attributes.append(callee.attr)
+        callee = callee.value
+    if not isinstance(callee, ast.Name) or callee.id not in imported:
+        return None
+    return ".".join([imported[callee.id], *reversed(attributes)])
+
+
+def _machine_reads(source: str) -> list[int]:
+    """The line of every call reading the machine's clock or a random id, however the module imported or named it."""
+    tree = ast.parse(source)
+    imported = _imported(tree)
+    return [
+        node.lineno for node in ast.walk(tree) if isinstance(node, ast.Call) and _qualified(node.func, imported) in _MACHINE_READS
+    ]
+
+
+def _found(root: Path, lines) -> list[str]:
+    """`path:line` of every line `lines` finds in a module under `root`, the owner's own file excluded."""
     return sorted(
         f"{path.relative_to(root)}:{line}"
         for path in root.rglob("*.py")
         if path != _OWNER
-        for line in _calls(path.read_text(encoding="utf-8"), matches)
+        for line in lines(path.read_text(encoding="utf-8"))
     )
 
 
 def test_only_the_owner_reads_the_exclusions():
-    assert _found(_SRC, _reads_exclusions) == []
+    assert _found(_SRC, lambda source: _calls(source, _reads_exclusions)) == []
     assert _calls(
         _OWNER.read_text(encoding="utf-8"), _reads_exclusions
     ), "the owner no longer reads them: the guard guards nothing"
@@ -464,9 +507,9 @@ def test_a_second_reader_of_the_exclusions_is_seen(second_reader):
 
 def test_programming_reads_the_machines_clock_and_uuid_only_in_its_two_defaults():
     programming = _SRC / "programming"
-    assert _found(programming, _reads_the_machine) == []
+    assert _found(programming, _machine_reads) == []
     owner = _OWNER.read_text(encoding="utf-8")
-    assert len(_calls(owner, _reads_the_machine)) == 2, "the defaults moved: the guard's one exemption is wrong"
+    assert len(_machine_reads(owner)) == 2, "the defaults moved: the guard's one exemption is wrong"
 
 
 @pytest.mark.parametrize(
@@ -475,8 +518,36 @@ def test_programming_reads_the_machines_clock_and_uuid_only_in_its_two_defaults(
         "import uuid\ndef make():\n    return uuid.uuid4()\n",
         "from uuid import uuid4\ndef make():\n    return uuid4()\n",
         "from datetime import UTC, datetime\ndef make():\n    return datetime.now(UTC)\n",
+        "import datetime as _dt\ndef make():\n    return _dt.datetime.now(_dt.UTC)\n",
+        "import datetime\ndef make():\n    return datetime.datetime.now(datetime.UTC)\n",
+        "from datetime import datetime as moment\ndef make():\n    return moment.now()\n",
+        "import uuid as _u\ndef make():\n    return _u.uuid4()\n",
+        "from uuid import uuid4 as fresh\ndef make():\n    return fresh()\n",
     ],
-    ids=["uuid module", "uuid4 imported", "datetime now"],
+    ids=[
+        "uuid module",
+        "uuid4 imported",
+        "datetime now",
+        "datetime module aliased",
+        "datetime module by its name",
+        "datetime class aliased",
+        "uuid module aliased",
+        "uuid4 aliased",
+    ],
 )
 def test_a_direct_read_of_the_machine_is_seen(direct):
-    assert _calls(direct, _reads_the_machine) == [3]
+    assert _machine_reads(direct) == [3]
+
+
+@pytest.mark.parametrize(
+    "innocent",
+    [
+        "from datetime import datetime\ndef make(text):\n    return datetime.fromisoformat(text)\n",
+        "import time\ndef make():\n    return time.monotonic()\n",
+        "def make(self):\n    return self._now(), self.now(), self._mint_id()\n",
+        "def make(datetime):\n    return datetime.today\n",
+    ],
+    ids=["an instant parsed", "a duration's clock", "an injected clock and id source", "an attribute never called"],
+)
+def test_what_reads_no_machine_is_not_seen(innocent):
+    assert _machine_reads(innocent) == []

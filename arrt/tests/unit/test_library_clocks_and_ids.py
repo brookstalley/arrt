@@ -460,6 +460,8 @@ CASES: dict[str, tuple[Callable[[Library], Act], bool, bool]] = {
     "discovery.cancel_run": (_cancel_run, True, True),
     "discovery.decline_run": (_decline_run, True, True),
     "discovery.reconcile": (_reconcile, True, True),
+    # A reading, not a writer: what "this month" is for the ledger, by the clock it is stamped with.
+    "discovery.now": (lambda lib: lib.discovery.now, False, False),
 }
 
 

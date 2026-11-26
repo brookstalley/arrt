@@ -12,7 +12,7 @@ test here publishes is also checked against the contract as it is built
 import ast
 import json
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -78,8 +78,18 @@ def two_walls(display, mastered, wall_id):
     return wall_id, study
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
 def _now():
-    return datetime.now(UTC)
+    return _services_clock()
 
 
 # -- a draft stages ---------------------------------------------------------------------

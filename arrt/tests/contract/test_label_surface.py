@@ -9,13 +9,28 @@ below reads both and compares them.
 
 import hashlib
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import httpx
 import pytest
 from arrt_contract import root, routes, validator
 
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, heartbeat_path_in
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 CONTRACT = root()
 ROUTES = routes()
@@ -70,7 +85,7 @@ def work(ready_work):
 
 def _write_heartbeat(wall_settings, wall_id, document, *, age=timedelta(seconds=2)):
     """What the wall's controller last wrote, as the file the server reads."""
-    stamped = {**document, "reported_at": _instant(datetime.now(UTC) - age)}
+    stamped = {**document, "reported_at": _instant(_now() - age)}
     heartbeat_path_in(wall_settings.art_root, wall_id).write_text(json.dumps(stamped), encoding="utf-8")
 
 
