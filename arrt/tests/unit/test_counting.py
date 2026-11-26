@@ -102,6 +102,17 @@ class TestTheHelper:
     def test_counted_says_the_number_and_the_noun(self, count: int, expected: str):
         assert counted(count, "work") == expected
 
+    @pytest.mark.parametrize(
+        ("count", "expected"),
+        [(999, "999 works"), (1000, "1,000 works"), (2000, "2,000 works"), (1_234_567, "1,234,567 works"), (1001, "1,001 works")],
+    )
+    def test_counted_groups_digits_from_a_thousand(self, count: int, expected: str):
+        """A count of thousands reads one way wherever it is said: 1,000 and not 1000."""
+        assert counted(count, "work") == expected
+
+    def test_a_count_of_one_thousand_takes_the_plural_noun(self):
+        assert counted(1000, "entry", "entries") == "1,000 entries"
+
     @pytest.mark.parametrize(("count", "expected"), [(0, "are"), (1, "is"), (2, "are")])
     def test_the_verb_agrees(self, count: int, expected: str):
         assert agree(count, "is", "are") == expected
