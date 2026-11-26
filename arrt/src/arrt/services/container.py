@@ -292,6 +292,10 @@ class Services:
     #: (`FeedsJob`). Started by the app's lifespan when it is asked to schedule,
     #: as the topic sweep is.
     scheduler: Scheduler
+    #: The clock every service here was built over (`bind`'s `now`), for a
+    #: composition across them that needs an instant of its own: the Library's
+    #: *Last shown* narrowing (`works_filter.narrowing`).
+    now: Callable[[], datetime] = machine_now
 
     @classmethod
     def bind(
@@ -379,7 +383,7 @@ class Services:
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
         settings = SettingsService(
-            discovery, environment=settings_environment, limits=Limits(monthly_budget_usd=monthly_budget_usd)
+            discovery, environment=settings_environment, limits=Limits(monthly_budget_usd=monthly_budget_usd), now=now
         )
         library = LibraryFacade(catalogue_service, discovery_service, label_units=lambda: settings.value(LABEL_UNITS))
         # A key is what `key_status` exists for: None is the keyless deployment.
@@ -392,6 +396,7 @@ class Services:
             unattended,
             working_on=lambda run_id: runner_service.is_working_on(run_id),  # noqa: PLW0108 -- runner_service is assigned below
             now=now,
+            mint_id=mint_id,
         )
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
@@ -574,6 +579,7 @@ class Services:
                     FeedsJob(display_service),
                 ]
             ),
+            now=now,
         )
 
     def reconcile(self) -> None:

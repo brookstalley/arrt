@@ -286,13 +286,12 @@ class Themes:
         one. This method arrived active-if-none-else-is, which was the same
         automatic promotion `reconcile` did and is dropped for the same reason.
         """
-        theme = Theme(
-            id=self._mint_id(),
-            name=require_text(name, field="name"),
-            created_at=self._now(),
-            description=description,
-        )
-        store_write(self._store.add_theme, theme)
+        chosen = require_text(name, field="name")
+        # The instant is read under the store's lock, so themes added at once are
+        # stamped in the order they were written.
+        with self._store.transaction():
+            theme = Theme(id=self._mint_id(), name=chosen, created_at=self._now(), description=description)
+            store_write(self._store.add_theme, theme)
         return theme
 
     def make_default(self, theme_id: str) -> Theme:
@@ -463,12 +462,13 @@ class Themes:
         chosen = list(dict.fromkeys(artwork_ids))
         if not chosen:
             raise ServiceError("A selection needs at least one work to hang.")
-        now = self._now()
         theme_id = self._mint_id()
         # One act, the wall and what it replaces read inside it, as `activate_theme`
         # says, and the Library asked there too, in the order the refusals have
-        # always come in, as the build inside the act asks it.
+        # always come in, as the build inside the act asks it. Its instant too, so
+        # a hang that waited on another is stamped after it.
         with self._feeds.publishing():
+            now = self._now()
             wall = self._lookups.get_wall(wall_id)
             # One question for every work, as the manifest build asks it: the facade
             # is written as if remote.
@@ -716,9 +716,10 @@ class Themes:
         joined, once, as `add_to_theme` says.
         """
         chosen = list(dict.fromkeys(artwork_ids))
-        now = self._now()
-        # The theme read inside, as `add_to_theme` says.
+        # The theme read inside, as `add_to_theme` says, and the instant the works
+        # join at, so they join after whatever the act waited on.
         with self._feeds.publishing():
+            now = self._now()
             self.get_listed_theme(theme_id)
             for answer in self._library.playable(chosen).values():
                 if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:

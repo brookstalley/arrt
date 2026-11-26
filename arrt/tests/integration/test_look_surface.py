@@ -131,6 +131,8 @@ def services(
     met,
     artic,
     clock,
+    shared_clock,
+    shared_ids,
 ):
     """The plane with three image sources wired, a registry, and the look's clock in the test's hand."""
     return Services.bind(
@@ -145,6 +147,8 @@ def services(
         registry=registry,
         kept=kept,
         look_now=clock,
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
 

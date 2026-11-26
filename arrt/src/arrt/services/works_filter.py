@@ -20,7 +20,7 @@ offered as enabled cannot lead to an empty grid.
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final
 
 from arrt.library.services.survey import FIT_BANDS
@@ -139,7 +139,7 @@ def narrowing(
     bands = services.survey.fit_bands(base)
     on_walls = services.display.work_ids_on_walls()
     last_shown = services.display.last_shown_by_work()
-    now = datetime.now(UTC)
+    now = services.now()
     return Narrowing(
         base=base,
         # An unknown theme is refused here, by name, as the listing always has.

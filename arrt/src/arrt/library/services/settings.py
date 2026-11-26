@@ -22,7 +22,7 @@ tracing a surprise; it decides nothing.
 
 import logging
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -110,9 +110,16 @@ class SettingsService:
     """Reads and changes the settings in `SETTINGS`."""
 
     def __init__(
-        self, store: DiscoveryStore, *, environment: Mapping[str, str] | None = None, limits: Limits | None = None
+        self,
+        store: DiscoveryStore,
+        *,
+        environment: Mapping[str, str] | None = None,
+        limits: Limits | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._store = store
+        #: The instant a change is stamped at: the machine's, or the one `Services.bind` builds every service over.
+        self._now = now
         self._limits = limits or Limits()
         # Each set-aside stored value is logged once, not at every read: a value
         # is read at every label build and every pass, and a warning repeated
@@ -159,7 +166,7 @@ class SettingsService:
         stored = StoredSetting(
             key=key,
             value=setting.render(parsed),
-            updated_at=datetime.now(UTC),
+            updated_at=self._now(),
             updated_by=require_member(surface, enum=InitiatedBy, field="surface"),
         )
         store_write(self._store.put_setting, stored)

@@ -13,7 +13,7 @@ leave them, at instants either side of each period's edge.
 """
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -36,9 +36,12 @@ OURS = "Shown"
 
 
 @pytest.fixture
-def shown(services, seeded_service, store):
-    """The five works, the four that were shown each with one showing on a wall since removed."""
-    now = datetime.now(UTC)
+def shown(services, seeded_service, store, shared_clock):
+    """The five works, the four that were shown each with one showing on a wall since removed.
+
+    Aged from the services' clock, which the narrowing counts each period back from.
+    """
+    now = shared_clock()
     works = {}
     for title, age in AGES.items():
         works[title] = seeded_service.add_artwork(title=title)

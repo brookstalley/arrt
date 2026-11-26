@@ -269,8 +269,11 @@ class Walls:
         second wall was a thing an operator could record and be told would not
         light up.
         """
-        wall = Wall(id=self._mint_id(), name=require_text(name, field="name"), created_at=self._now())
+        chosen = require_text(name, field="name")
+        # The instant is read under the store's lock, so walls added at once are
+        # stamped in the order they were written.
         with self._store.transaction():
+            wall = Wall(id=self._mint_id(), name=chosen, created_at=self._now())
             self._refuse_a_taken_name(wall)
             store_write(self._store.add_wall, wall)
         return wall

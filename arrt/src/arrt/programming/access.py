@@ -115,10 +115,12 @@ class PlayerAccess:
         and shown.
         """
         token = secrets.token_urlsafe(32)
-        issued_at = self._now()
         # Read where it is written: the whole row goes back, and a client read
         # before a rename landed would put the old name back with the new token.
+        # The instant too: read before the lock, a rotation that waited on another
+        # would be stamped earlier than the one it replaced.
         with self._store.transaction():
+            issued_at = self._now()
             client = self._store.get_client(client_id)
             if client is None:
                 raise NotFound(f"No client with id {client_id!r} is recorded.")

@@ -1559,6 +1559,7 @@ _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
     "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
     "feeds_over_bound": "each such wall is a `feed` entry of `troubles`, as on GET /api/health, which has no field of it",
+    "read_at": "the instant the reading was gathered at, which each trouble's age is counted to: not a signal of its own",
 }
 
 

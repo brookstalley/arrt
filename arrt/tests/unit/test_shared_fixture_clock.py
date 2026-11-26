@@ -12,6 +12,7 @@ by one); and a deployment, which passes neither, still gets the machine's.
 
 import builtins
 import datetime as _dt
+import json
 import sys
 import threading
 import time
@@ -28,8 +29,10 @@ from report_guard import NO_PLAYER_REPORTS_MARKER, ReportsForNoPlayer
 
 import arrt
 from arrt.library.services import spend_history
+from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, COMPLETED_AT_KEY
 from arrt.persistence.discovery_records import InitiatedBy
 from arrt.programming.clients import ClientService
+from arrt.services import works_filter
 from arrt.services.container import Services
 
 _SRC = Path(arrt.__file__).parent
@@ -118,8 +121,10 @@ def _wall_report(at: datetime) -> dict:
 # -- no service the fixture builds reads the machine ------------------------------------------
 
 
-def _the_household_at_work(services: Services, wall_id: str, ready_work, shared_clock) -> None:
+def _the_household_at_work(services: Services, wall_id: str, ready_work, shared_clock, art_root: Path) -> None:
     """One act or reading on every service `Services.bind` hands a clock or an id source to."""
+    # A backup copied once, so the reading has a receipt's age to count.
+    (art_root / BACKUP_RECEIPT_FILENAME).write_text(json.dumps({COMPLETED_AT_KEY: shared_clock().isoformat()}), encoding="utf-8")
     catalogue = services.catalogue
     artist = catalogue.add_artist(name="Edward Hopper")
     work = ready_work("Nighthawks", artist_id=artist.id)
@@ -137,8 +142,13 @@ def _the_household_at_work(services: Services, wall_id: str, ready_work, shared_
     services.display.record_heartbeat(wall_id, _wall_report(shared_clock()))
     services.display.read_walls()
     services.clients.list_clients()
-    services.health.observe()
+    services.health.observe().troubles()
     services.health.observe_walls()
+    services.settings.set("label_units", "imperial", surface=InitiatedBy.WEB_UI)
+    services.watches.create(intent_text="Hopper at night", surface=InitiatedBy.WEB_UI)
+    works_filter.narrowing(
+        services, status=None, q=None, facets={}, artist_id=None, theme=None, fit=(), not_on_wall=False, shown="month"
+    )
     services.acquisition_queue.failed_states()
     services.unattended.standing()
     services.watches.reading()
@@ -148,10 +158,10 @@ def _the_household_at_work(services: Services, wall_id: str, ready_work, shared_
 
 
 def test_no_service_the_shared_fixture_builds_reads_the_machines_clock_or_a_random_id(
-    services, wall_id, ready_work, shared_clock
+    services, wall_id, ready_work, shared_clock, settings
 ):
     with machine_reads() as found:
-        _the_household_at_work(services, wall_id, ready_work, shared_clock)
+        _the_household_at_work(services, wall_id, ready_work, shared_clock, Path(settings.art_root))
 
     assert found == []
 
@@ -374,3 +384,33 @@ def test_the_guard_does_not_count_a_report_refused(services, wall_id, reports_on
         services.display.record_heartbeat(wall_id, {"reported_at": "never"})
 
     assert reports_only_where_a_player_shows.kept == []
+
+
+def test_what_the_services_stamp_and_age_is_on_their_clock_and_their_ids(services, discovery_store, settings, shared_clock):
+    """A setting's change, a Watch's id, the health reading's instant and the backup's age, and *Last shown*'s instant.
+
+    Each is read back against the fixture's clock and ids, which a machine read cannot match:
+    the clock starts years from today and the ids are counted.
+    """
+    copied = shared_clock()
+    (Path(settings.art_root) / BACKUP_RECEIPT_FILENAME).write_text(
+        json.dumps({COMPLETED_AT_KEY: copied.isoformat()}), encoding="utf-8"
+    )
+    before = shared_clock()
+
+    services.settings.set("label_units", "imperial", surface=InitiatedBy.WEB_UI)
+    watch = services.watches.create(intent_text="Hopper at night", surface=InitiatedBy.WEB_UI)
+    reading = services.health.observe()
+    narrowed = works_filter.narrowing(
+        services, status=None, q=None, facets={}, artist_id=None, theme=None, fit=(), not_on_wall=False, shown="month"
+    )
+
+    after = shared_clock()
+    assert before < discovery_store.get_setting("label_units").updated_at < after
+    assert before < watch.created_at < after
+    # Counted, as `fakes.counted_ids` shapes them; `uuid4` would not give this middle.
+    assert "-0000-4000-8000-" in watch.id, f"the Watch's id was drawn at random: {watch.id}"
+    assert reading.read_at is not None
+    assert before < reading.read_at < after
+    assert reading.backup.age_seconds == (reading.read_at - copied).total_seconds()
+    assert before < narrowed.now < after
