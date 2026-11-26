@@ -19,14 +19,29 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from payloads import a_searched_source
 from playwright.sync_api import expect
 
 #: Every column, left to right, by the class the client gives it.
-COLUMNS = ["source", "state", "offered", "chosen", "only-here", "median", "faults", "last-fault"]
+COLUMNS = [
+    "source",
+    "state",
+    "offered",
+    "chosen",
+    "only-here",
+    "searches",
+    "hit-rate",
+    "latency",
+    "median",
+    "faults",
+    "last-fault",
+]
 #: Never dropped.
 KEPT = {"source", "state", "offered", "chosen"}
-#: The order they leave in as the width narrows (owner, 2026-10-08).
-DROP_ORDER = ["median", "last-fault", "only-here", "faults"]
+#: The order they leave in as the width narrows: the owner's for median,
+#: last-fault, only-here and faults (2026-10-08), with the search record's three
+#: placed among them, Hit rate kept longest.
+DROP_ORDER = ["median", "searches", "last-fault", "latency", "only-here", "hit-rate", "faults"]
 
 
 def _yields(*rows):
@@ -37,13 +52,18 @@ def _yields(*rows):
 
 @pytest.fixture
 def three_sources(ui, a_health_reading, a_source_reading):
-    """A source that faulted, one with the longest built-in museum name, and one declined with a setting's name."""
+    """A source that faulted, one with the longest built-in museum name, and one declined with a setting's name.
+
+    The first two searched: the Art Institute answered 80 of its last 100 works,
+    60 with an image, at a median of 2.35 s; the National Gallery 3 of 4, 2 with
+    an image, and late, at a median of 95 s. The declined one was never searched.
+    """
     ui.serve(
         "**/api/health",
         a_health_reading(
             sources=[
-                a_source_reading(name="artic", faults=2),
-                a_source_reading(name="nga"),
+                a_searched_source("artic", searched=100, answered=80, with_images=60, median_latency_seconds=2.35, faults=2),
+                a_searched_source("nga", searched=4, answered=3, with_images=2, median_latency_seconds=95.0),
                 a_source_reading(name="commons", state="declined", reason="WIKIDATA_USER_AGENT is unset"),
             ]
         ),
@@ -81,6 +101,13 @@ def test_each_source_is_one_row_with_its_state_in_words_and_what_it_has_given(ui
         ("0", "0", "0"),
     ]
     assert [row["median"] for row in rows] == ["4,096 px", "3,001 px", "—"]
+    # The search record's three: a rate over what it answered, a median in the
+    # unit a person reads, and "—" for a source that answered nothing.
+    assert [(row["searches"], row["hit-rate"], row["latency"]) for row in rows] == [
+        ("100", "75%", "2.4 s"),
+        ("4", "67%", "2 minutes"),
+        ("0", "—", "—"),
+    ]
     assert [row["faults"] for row in rows] == ["2", "0", "—"]
     assert rows[0]["last-fault"] == "12 seconds ago: KeyError: 'x'"
     assert rows[1]["last-fault"] == "—"
@@ -160,3 +187,40 @@ def test_status_says_nothing_of_a_television_or_its_geometry(ui):
     expect(ui.view).not_to_contain_text("television", use_inner_text=True, ignore_case=True)
     expect(ui.view).not_to_contain_text("geometry", use_inner_text=True, ignore_case=True)
     expect(ui.view).not_to_contain_text("artwork box", use_inner_text=True, ignore_case=True)
+
+
+@pytest.mark.parametrize(
+    ("searched", "answered", "with_images", "median", "said"),
+    [
+        (5, 4, 3, 4.0, ("5", "75%", "4 s")),
+        (1_240, 1_000, 0, 0.84, ("1,240", "0%", "0.8 s")),
+        (3, 3, 3, 35.4, ("3", "100%", "35 s")),
+        (2, 0, 0, None, ("2", "—", "—")),
+    ],
+    ids=["three-of-four", "answered-without-images", "every-answer-an-image", "answered-none"],
+)
+def test_the_three_search_columns_read_what_the_record_says(ui, a_health_reading, searched, answered, with_images, median, said):
+    """Searches, Hit rate and Median latency, as `GET /api/health` carries them for each source.
+
+    "0%" is a source that answered and never had an image; "—" is one that
+    answered nothing, so has no rate to state.
+    """
+    source = a_searched_source(
+        "artic",
+        searched=searched,
+        answered=answered,
+        with_images=with_images,
+        median_latency_seconds=median,
+        owed=searched - answered,
+    )
+    ui.serve("**/api/health", a_health_reading(sources=[source]))
+    ui.serve("**/api/sources/yields", _yields(("artic", 10, 1, 0, 4096)))
+    ui.page.set_viewport_size({"width": 1600, "height": 900})
+    ui.open("#health")
+    ui.page.wait_for_selector(".source-table tbody tr")
+
+    (row,) = _rows(ui)
+    assert (row["searches"], row["hit-rate"], row["latency"]) == said
+    # Each under its own heading, in words.
+    for name, heading in (("searches", "Searches"), ("hit-rate", "Hit rate"), ("latency", "Median latency")):
+        expect(ui.page.locator(f".source-table thead th.col-{name}")).to_have_text(heading)
