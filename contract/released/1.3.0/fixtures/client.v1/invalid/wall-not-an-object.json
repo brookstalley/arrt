@@ -1,0 +1,12 @@
+{
+  "client_id": "c-pi-hall",
+  "name": "The Pi in the hall",
+  "walls": [
+    12345,
+    {
+      "wall_id": "w-living",
+      "name": "Living room",
+      "output": "frame"
+    }
+  ]
+}
