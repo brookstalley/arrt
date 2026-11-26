@@ -70,6 +70,7 @@ from arrt.programming.display import (
     SceneWall,
     SizeJudgement,
     ThemePlacement,
+    ThemesSeen,
     WallView,
     feed_notice,
 )
@@ -552,9 +553,8 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # is what this listing is read to answer — and a caller that had to ask per
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
-    placements = services.display.survey_themes()
-    survey = services.clients.placements.survey()
-    return ok(themes=[_placement_fields(services, placement, survey) for placement in placements], count=len(placements))
+    seen = services.display.read_themes()
+    return ok(themes=[_placement_fields(services, placement, seen) for placement in seen.themes], count=len(seen.themes))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -2357,11 +2357,15 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
     }
 
 
-def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None = None) -> dict[str, Any]:
+def _wall_fields(
+    services: Services, wall: Wall, survey: PlacementSurvey | None = None, sizes: SizeJudgement | None = None
+) -> dict[str, Any]:
     """One wall as a caller sees it: a place and a name, the display it is on and its labels.
 
     Field names match `WallOut` on the browser surface. `survey` is who shows
-    what, read once for an answer naming several walls and taken here for one.
+    what, read once for an answer naming several walls and taken here for one;
+    `sizes` is the wall's size judgement from the same reading, judged here
+    when none is given.
     """
     survey = services.clients.placements.survey() if survey is None else survey
     placement = survey.placement_of(wall)
@@ -2385,7 +2389,7 @@ def _wall_fields(services: Services, wall: Wall, survey: PlacementSurvey | None 
         "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
         "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
         "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
-        **_size_fields(services.display.judge_sizes_of(wall)),
+        **_size_fields(services.display.judge_sizes_of(wall) if sizes is None else sizes),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {
@@ -2499,11 +2503,11 @@ def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
     }
 
 
-def _placement_fields(services: Services, placement: ThemePlacement, survey: PlacementSurvey) -> dict[str, Any]:
-    """One theme and every wall showing it, who shows each read once for the listing (`survey`)."""
+def _placement_fields(services: Services, placement: ThemePlacement, seen: ThemesSeen) -> dict[str, Any]:
+    """One theme and every wall showing it, each wall said from the listing's one reading (`seen`)."""
     return {
         **_theme_fields(placement.theme),
-        "hanging_on": [_wall_fields(services, wall, survey) for wall in placement.walls],
+        "hanging_on": [_wall_fields(services, wall, seen.survey, seen.sizes[wall.id]) for wall in placement.walls],
     }
 
 

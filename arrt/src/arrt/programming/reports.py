@@ -22,7 +22,7 @@ from arrt.persistence.records import (
     Wall,
 )
 from arrt.programming import adequacy, showings
-from arrt.programming.clients import WallsReading
+from arrt.programming.clients import PlacementSurvey, WallsReading
 from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
 from arrt.programming.lookups import Clock, Lookups, machine_now
@@ -32,7 +32,7 @@ from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.programming.scenes import Scenes
 from arrt.programming.settings import DisplaySettings
 from arrt.programming.store import ProgrammingStore
-from arrt.programming.themes import Themes
+from arrt.programming.themes import ThemePlacement, Themes
 from arrt.programming.walls import Walls
 from arrt.services.errors import ServiceError
 from arrt.services.store import store_write
@@ -66,6 +66,24 @@ class SizeJudgement:
     screen: tuple[int, int] | None
     too_small: frozenset[str]
     unjudged: Unjudged | None
+
+
+@dataclass(frozen=True, slots=True)
+class ThemesSeen:
+    """Every theme with the walls hanging it, who shows each wall and each such wall's sizes, from one reading.
+
+    **One answer, one reading**, as `WallsReading` is for walls. A themes
+    listing says of each wall hanging a theme its display, who shows it and
+    its sizes; the walls read apart from who shows them let one listing name
+    a wall on a display beside that display holding no wall, when the wall
+    moved between the two reads. Built by `Reports.read_themes`.
+    """
+
+    themes: Sequence[ThemePlacement]
+    #: Who shows what, read in the same store scope as `themes`.
+    survey: PlacementSurvey
+    #: Each wall hanging a theme, by id, judged by the row `themes` holds.
+    sizes: Mapping[str, SizeJudgement]
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,6 +222,21 @@ class Reports:
         self._scenes = scenes
 
     # -- reads: what each wall's Player says about itself -----------------------
+
+    def read_themes(self) -> ThemesSeen:
+        """Every theme with the walls hanging it, who shows each and each one's sizes: one store scope (`ThemesSeen`).
+
+        The scope keeps this process's writers out while the themes, the hangs,
+        the walls, who shows each and each wall's recent screens are read, so
+        all of them are one instant's. Who shows what is the walls reading's
+        own (`Walls.read_wall_reports`), asked for no wall's report: a themes
+        listing says no wall's state.
+        """
+        with self._store.reading():
+            themes = self._themes.survey_themes()
+            survey = self._walls.read_wall_reports(frozenset()).survey
+            sizes = {wall.id: self.judge_sizes_of(wall) for placement in themes for wall in placement.walls}
+        return ThemesSeen(themes=themes, survey=survey, sizes=sizes)
 
     def survey_wall_status(self) -> Sequence[WallHeartbeat]:
         """Every wall with whatever the display serving it last said.

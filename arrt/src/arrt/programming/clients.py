@@ -386,10 +386,26 @@ class Placements:
             survey=survey, reports={wall.id: heartbeat.read(heartbeat_path_in(self._art_root, wall.id)) for wall in walls}
         )
 
-    def wall_state(self, wall: Wall) -> WallState:
-        """The wall's display state, the one answer Walls, the MCP walls read and every label give."""
-        reading = heartbeat.read(heartbeat_path_in(self._art_root, wall.id))
-        return WallState(state=self.survey().wall_state(wall, reading), reading=reading)
+    def captioned_wall(self, label_id: str) -> tuple[Wall, WallState] | None:
+        """The wall a label output captions and that wall's display state, or None while it captions none.
+
+        What a label's document says, and only that reads it. **One store
+        scope for the label's row, the wall's, who shows the wall and the
+        wall's report**, as `read_walls` takes the walls answers': a wall's row
+        read apart from who shows it let a document judge the wall by a row a
+        write had since replaced, and caption a wall as showing after it was
+        taken off its screen and Walls said unassigned. The state is judged as
+        `WallsReading.state_of` judges every wall's.
+        """
+        with self._store.reading():
+            label = self._store.get_label_output(label_id)
+            if label is None or label.wall_id is None:
+                return None
+            reading = self.read_walls(frozenset({label.wall_id}))
+        if not reading.walls:
+            return None
+        [wall] = reading.walls
+        return wall, WallState(state=reading.state_of(wall), reading=reading.reports[wall.id])
 
 
 def is_current(reading: ClientHeartbeatReading) -> bool:
@@ -596,20 +612,17 @@ class ClientService:
         """What `GET /labels/{label_id}` answers, as the bytes the ETag hashes; None while it captions no wall.
 
         `contract/schemas/label.v1.schema.json` is the shape. The state is the
-        wall's, from `Placements.wall_state`, the one answer Walls gives too. The
+        wall's, read with the label's row in one reading (`Placements.captioned_wall`). The
         label text is the work's, read through the Library facade: the work on
         screen with `showing_art`; with `silent` the work the last report showed;
         with `unreachable` the work the heartbeat last named; otherwise none, and
         none for a picture this wall did not put there. The renderer runs the
         label rule over it (`contract/vectors/label-rule.json`).
         """
-        label = self._store.get_label_output(label_id)
-        if label is None or label.wall_id is None:
+        captioned = self.placements.captioned_wall(label_id)
+        if captioned is None:
             return None
-        wall = self._store.get_wall(label.wall_id)
-        if wall is None:
-            return None
-        found = self.placements.wall_state(wall)
+        wall, found = captioned
         shown = found.state
         work_id = _captioned_work(found)
         text = None if work_id is None else self._library.labels([work_id]).get(work_id)

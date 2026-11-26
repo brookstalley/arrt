@@ -67,6 +67,7 @@ from arrt.programming.reports import (
     SCREEN_REFRESH,
     Reports,
     SizeJudgement,
+    ThemesSeen,
     Unjudged,
     WallHeartbeat,
     describe_wall_status,
@@ -114,6 +115,7 @@ __all__ = [
     "SizeJudgement",
     "ThemeCount",
     "ThemePlacement",
+    "ThemesSeen",
     "Unjudged",
     "Unset",
     "WallHeartbeat",
@@ -208,6 +210,10 @@ class DisplayService:
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it."""
         return self._themes.survey_themes()
+
+    def read_themes(self) -> ThemesSeen:
+        """Every theme, the walls hanging it, who shows each and its sizes, from one reading (`Reports.read_themes`)."""
+        return self._reports.read_themes()
 
     def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
         """Every theme, by name, with how many of `work_ids` it holds."""

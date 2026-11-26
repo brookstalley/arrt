@@ -131,12 +131,14 @@ BEFORE = {
 #: delegation like the rest, so `BEFORE` stays the record of what the move had to
 #: keep. The walls answers' one reading of the reports and placements per walls
 #: answer, with the views (`read_walls`) and without them, for the health
-#: answer (`read_wall_reports`), and a wall's sizes judged by the row that
-#: reading read (`judge_sizes_of`).
+#: answer (`read_wall_reports`), a wall's sizes judged by the row that
+#: reading read (`judge_sizes_of`), and the themes listing's one reading of the
+#: themes, who shows each wall hanging one and its sizes (`read_themes`).
 ADDED = {
     "feeds_over_bound": "(self) -> 'Mapping[str, int]'",
     "judge_sizes_of": "(self, wall: 'Wall') -> 'SizeJudgement'",
     "read_wall_reports": "(self) -> 'WallsReading'",
+    "read_themes": "(self) -> 'ThemesSeen'",
     "read_walls": "(self, wall_id: 'str | None' = None) -> 'WallsSeen'",
 }
 
