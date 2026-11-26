@@ -206,7 +206,7 @@ def test_a_resolve_run_can_never_reach_the_phase_one_states_it_skipped(discovery
 def test_a_resolve_run_never_proposes_new_works(discovery, propose):
     resolve = _resolve_run(discovery, propose)
 
-    with pytest.raises(ServiceError, match="resolve run"):
+    with pytest.raises(ServiceError, match="only a Get of kind discovery proposes works"):
         discovery.propose_work(
             run_id=resolve.id,
             proposed_title="Something New",

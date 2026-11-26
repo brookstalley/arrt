@@ -586,7 +586,7 @@ def test_a_negative_cost_is_refused(discovery, run):
 
 
 def test_spend_against_a_run_that_does_not_exist_is_refused(discovery):
-    with pytest.raises(ServiceError, match="No discovery run"):
+    with pytest.raises(ServiceError, match="No Get with id"):
         discovery.record_spend(
             category=SpendCategory.DISCOVERY_TOKENS,
             cost_usd=Decimal("0.01"),
