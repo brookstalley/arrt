@@ -36,6 +36,21 @@ from arrt.programming.feeds import FEED_MAX_BYTES, FeedTooLarge, served_size
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
 
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 HOUR = 3600
 
 
@@ -211,7 +226,7 @@ def test_a_roll_over_the_bound_leaves_the_heartbeat_answered_and_the_feed_as_it_
         for _ in range(2):
             display.record_heartbeat(
                 wall_id,
-                {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None},
+                {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat(), "current_work_id": None},
             )
 
     assert path.read_bytes() == aged
@@ -224,7 +239,7 @@ def _feed_troubles(services):
 
 
 def _beat():
-    return {"schema": {"major": 1, "minor": 1}, "reported_at": datetime.now(UTC).isoformat(), "current_work_id": None}
+    return {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat(), "current_work_id": None}
 
 
 def test_a_persons_change_refused_for_its_size_is_said_to_them_and_is_no_trouble_after(
@@ -344,7 +359,7 @@ def test_a_neighbour_over_the_bound_keeps_its_feed_and_the_wall_acted_on_steps_a
     # The hang was the person's and it was done; the study, held back beside it, is Status's to say.
     assert set(display.feeds_over_bound()) == {study}
     assert any("Study" in r.getMessage() and "could not be rebuilt" in r.getMessage() for r in caplog.records)
-    assert _overlaps_after(feed(wall_id), feed(study), datetime.now(UTC)) == []
+    assert _overlaps_after(feed(wall_id), feed(study), _now()) == []
 
 
 def test_a_neighbour_at_the_walls_pace_that_cannot_be_rebuilt_is_stepped_aside_from(
@@ -381,7 +396,7 @@ def test_a_neighbour_at_the_walls_pace_that_cannot_be_rebuilt_is_stepped_aside_f
     assert feed(study).slots == before
     said = [r for r in caplog.records if "Study" in r.getMessage() and "could not be rebuilt" in r.getMessage()]
     assert len(said) == 1, "the study's refusal was said once per run of the pass, not once"
-    assert _overlaps_after(feed(wall_id), feed(study), datetime.now(UTC)) == []
+    assert _overlaps_after(feed(wall_id), feed(study), _now()) == []
 
 
 # -- one instant per act ---------------------------------------------------------------
@@ -397,15 +412,15 @@ def test_a_step_moves_on_from_the_work_on_the_wall_at_the_instant_its_feed_start
     """
     themed(wall_id, "A", "B", "C", name="Alphabet")
     old = feed(wall_id)
-    up = old.on_the_wall(datetime.now(UTC))
-    jump = up.until - datetime.now(UTC) + timedelta(seconds=1)
+    up = old.on_the_wall(_now())
+    jump = up.until - _now() + timedelta(seconds=1)
     readings: list[None] = []
 
     class Jumping(datetime):
         @classmethod
         def now(cls, tz=None):
             readings.append(None)
-            real = datetime.now(tz)
+            real = _now()
             return real if len(readings) == 1 else real + jump
 
     monkeypatch.setattr(display._feeds, "_clock", lambda: Jumping.now(UTC))
@@ -431,7 +446,7 @@ def test_every_wall_of_an_act_has_its_scene_layer_decided_for_the_acts_one_insta
         @classmethod
         def now(cls, tz=None):
             readings.append(None)
-            return datetime.now(tz) + timedelta(seconds=len(readings))
+            return _now() + timedelta(seconds=len(readings))
 
     seen: list[tuple[str, str, datetime]] = []
     pins, build = display._feeds._control_pins, feeds_module.build_schedule

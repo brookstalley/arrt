@@ -22,7 +22,7 @@ Two kinds of test hold the fix:
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -32,6 +32,21 @@ from arrt.programming.display import DisplayService
 from arrt.programming.lookups import no_theme
 from arrt.programming.reports import SCREEN_MEMORY
 from arrt.services.errors import ServiceError
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 #: The store methods that only read. Every other method of the store writes.
 _READ_PREFIXES = ("get_", "list_")
@@ -110,7 +125,7 @@ def on_a_display(services, wall_id):
 def _beat_with_screen(width: int, height: int) -> dict:
     return {
         "schema": {"major": 1, "minor": 2},
-        "reported_at": datetime.now(UTC).isoformat(),
+        "reported_at": _now().isoformat(),
         "current_work_id": None,
         "capabilities": {
             "screen": {"width_px": width, "height_px": height},
@@ -363,7 +378,7 @@ def test_a_description_written_while_a_theme_is_renamed_is_kept(display, store, 
 
 def test_a_size_reported_again_while_old_sizes_are_forgotten_is_kept(display, store, wall_id, on_a_display, monkeypatch):
     """`_record_screen` read the known sizes, then forgot the old ones: a size refreshed between them was forgotten."""
-    long_ago = datetime.now(UTC) - SCREEN_MEMORY - timedelta(hours=1)
+    long_ago = _now() - SCREEN_MEMORY - timedelta(hours=1)
     store.record_screen(on_a_display, 1920, 1080, long_ago)
     finish = _another_act_at(
         monkeypatch, store, "reported_screens", lambda: display.record_heartbeat(wall_id, _beat_with_screen(1920, 1080))

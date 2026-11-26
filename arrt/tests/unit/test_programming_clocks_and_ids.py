@@ -308,6 +308,7 @@ def _beat(width: int, height: int) -> dict:
 
 def test_a_heartbeat_is_one_instant_for_the_screen_it_keeps_and_the_scenes_it_settles(stack, store, hung, wall_id):
     client = stack.clients.add_client(name="Pi")
+    stack.access.issue(client.id)
     placed = stack.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
     _fresh(stack.clocks["reports"])
 

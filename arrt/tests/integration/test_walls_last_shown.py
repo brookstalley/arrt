@@ -8,7 +8,7 @@ schedule is the one hanging a theme publishes.
 """
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import httpx
 import pytest
@@ -17,6 +17,21 @@ from mcp.client.streamable_http import streamable_http_client
 from unit.test_surface_parity import WALL_RENAMES, check_renamed, in_http_names
 
 from arrt.programming.manifest.v2 import read_published
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 #: Not a multiple of the schedule's slot, so no step lands on a boundary.
 MINUTE = timedelta(seconds=61)
@@ -81,7 +96,7 @@ def _report(at, state, work_id=None, since=None):
 
 async def test_a_dark_wall_says_what_it_showed_last_and_until_when(server_url, services, hung, wall_id, a_player_shows_the_wall):
     first, second, _ = hung
-    now = datetime.now(UTC)
+    now = _now()
     services.display.record_heartbeat(wall_id, _report(now - 3 * MINUTE, "showing_art", first.id))
     services.display.record_heartbeat(wall_id, _report(now - 2 * MINUTE, "showing_art", second.id))
     services.display.record_heartbeat(wall_id, _report(now - MINUTE, "showing_art", second.id, since=now - 2 * MINUTE))
@@ -99,7 +114,7 @@ async def test_a_wall_showing_a_work_now_says_it_until_its_last_report(
     server_url, services, hung, wall_id, a_player_shows_the_wall
 ):
     first, _, _ = hung
-    now = datetime.now(UTC)
+    now = _now()
     services.display.record_heartbeat(wall_id, _report(now - MINUTE, "showing_art", first.id))
     services.display.record_heartbeat(wall_id, _report(now, "showing_art", first.id, since=now - MINUTE))
 
@@ -114,7 +129,7 @@ async def test_a_wall_that_has_shown_nothing_says_so(server_url, hung, wall_id):
 
 async def test_the_next_three_are_the_schedules_slots_after_the_one_on_the_wall(server_url, hung, wall_settings, wall_id):
     published = read_published(wall_settings.manifest_v2_path(wall_id))
-    now = datetime.now(UTC)
+    now = _now()
     after = [slot for slot in published.slots if slot.start > now][:3]
 
     upcoming = await _both(server_url, wall_id, "upcoming")
@@ -129,7 +144,7 @@ async def test_the_next_three_are_the_schedules_slots_after_the_one_on_the_wall(
 async def test_a_schedule_with_fewer_than_three_slots_left_says_only_those(server_url, services, hung, wall_settings, wall_id):
     path = wall_settings.manifest_v2_path(wall_id)
     document = json.loads(path.read_text(encoding="utf-8"))
-    now = datetime.now(UTC)
+    now = _now()
     kept = [
         slot for slot in document["schedule"]["slots"] if datetime.fromisoformat(slot["from"]) <= now + timedelta(seconds=SLOT)
     ]
@@ -150,7 +165,7 @@ def test_a_change_to_the_wall_reads_back_the_same_last_shown_and_next_three(
 ):
     """A write answers with the wall read alone (`get_wall_view`), which the listing does not go through."""
     first, _, _ = hung
-    now = datetime.now(UTC)
+    now = _now()
     services.display.record_heartbeat(wall_id, _report(now, "showing_art", first.id))
 
     answered = httpx.put(f"{server_url}/api/walls/{wall_id}/playback", json={"shuffle": False}, timeout=30.0).json()

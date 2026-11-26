@@ -14,7 +14,7 @@ day a sixth tool or a new action arrives with nothing exercising it.
 
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 from fakes import a_museum_holding, a_roster, a_work, a_work_list, stored_awaiting_approval, take_the_picture_away
@@ -27,6 +27,21 @@ from arrt.persistence.discovery_records import RunStatus
 from arrt.persistence.records import RenditionKind
 from arrt.programming.display import feed_notice
 from arrt.services.container import Services
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
 
 #: Every tool, by name, as the registry holds them. Parametrising from this is
 #: what makes a newly-registered tool arrive already covered.
@@ -533,7 +548,7 @@ async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
     services.display.record_heartbeat(
         wall.id,
         {
-            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "reported_at": _now().isoformat(timespec="seconds"),
             "current_work_id": None,
             "schema": {"major": 1, "minor": 2},
             "capabilities": {

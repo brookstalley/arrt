@@ -22,6 +22,21 @@ from arrt.programming.manifest.v2 import read_published
 from arrt.programming.showings import advance
 from arrt.services.errors import ServiceError
 
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
+def _now() -> datetime:
+    return _services_clock()
+
+
 WALL = "wall-hall"
 T0 = datetime(2026, 10, 15, 20, 0, tzinfo=UTC)
 #: Not a multiple of anything under test, so a step can't land on a boundary by luck.
@@ -270,7 +285,7 @@ def _minor_1(at, work_id):
 
 def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wall_id, a_player_shows_the_wall):
     first, second = hung
-    now = datetime.now(UTC)
+    now = _now()
 
     display.record_heartbeat(wall_id, _heartbeat(now - 3 * MINUTE, work_id=first.id, since=now - 4 * MINUTE))
     display.record_heartbeat(wall_id, _heartbeat(now - 2 * MINUTE, work_id=first.id, since=now - 4 * MINUTE))
@@ -285,7 +300,7 @@ def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wal
 
 def test_a_player_before_minor_3_is_kept_from_its_current_work(display, hung, wall_id, a_player_shows_the_wall):
     first, _ = hung
-    now = datetime.now(UTC)
+    now = _now()
 
     display.record_heartbeat(wall_id, _minor_1(now - MINUTE, first.id))
     display.record_heartbeat(wall_id, _minor_1(now, first.id))
@@ -297,7 +312,7 @@ def test_a_work_the_walls_feed_does_not_carry_is_not_recorded_and_is_logged(
     display, hung, ready_work, wall_id, caplog, a_player_shows_the_wall
 ):
     stranger = ready_work("Ernst")
-    now = datetime.now(UTC)
+    now = _now()
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
         display.record_heartbeat(wall_id, _heartbeat(now, work_id=stranger.id))
@@ -316,7 +331,7 @@ def test_a_wall_with_nothing_published_records_nothing_and_blames_no_feed(
     display, ready_work, wall_id, caplog, a_player_shows_the_wall
 ):
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
-        display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=ready_work().id))
+        display.record_heartbeat(wall_id, _heartbeat(_now(), work_id=ready_work().id))
 
     assert display.last_showing(wall_id) is None
     assert _not_in_feed(caplog) == []
@@ -326,7 +341,7 @@ def test_a_work_the_feed_carries_is_not_logged_as_a_stranger(display, hung, wall
     first, _ = hung
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
-        display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=first.id))
+        display.record_heartbeat(wall_id, _heartbeat(_now(), work_id=first.id))
 
     assert _not_in_feed(caplog) == []
 
@@ -334,7 +349,7 @@ def test_a_work_the_feed_carries_is_not_logged_as_a_stranger(display, hung, wall
 def test_a_superseded_report_of_a_stranger_is_not_logged(display, hung, ready_work, wall_id, caplog, a_player_shows_the_wall):
     first, _ = hung
     stranger = ready_work("Ernst")
-    now = datetime.now(UTC)
+    now = _now()
     display.record_heartbeat(wall_id, _heartbeat(now, work_id=first.id))
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
@@ -360,7 +375,7 @@ def test_a_record_that_cannot_be_written_is_logged_and_the_heartbeat_still_kept(
 
     monkeypatch.setattr(store, "save_showing", refuse)
     with caplog.at_level(logging.ERROR, logger="arrt.programming.display"):
-        display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=first.id))
+        display.record_heartbeat(wall_id, _heartbeat(_now(), work_id=first.id))
 
     assert wall_settings.heartbeat_path(wall_id).exists()
     (line,) = [record for record in caplog.records if getattr(record, "event", None) == "showings.not_recorded"]
@@ -388,6 +403,6 @@ def test_a_record_that_cannot_be_written_still_lets_the_horizon_roll(
         raise RuntimeError("anything at all")
 
     monkeypatch.setattr(store, "save_showing", broken)
-    display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=first.id))
+    display.record_heartbeat(wall_id, _heartbeat(_now(), work_id=first.id))
 
-    assert read_published(path).horizon_until - datetime.now(UTC) > timedelta(days=2)
+    assert read_published(path).horizon_until - _now() > timedelta(days=2)

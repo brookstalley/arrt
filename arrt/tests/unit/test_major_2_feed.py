@@ -11,7 +11,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from feed_guard import problems
@@ -23,7 +23,6 @@ from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming import feeds as feeds_module
-from arrt.programming import lookups as lookups_module
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.builder import KeptOff
 from arrt.programming.manifest.v2 import read_published
@@ -72,8 +71,18 @@ def feed(wall_settings):
     return _feed
 
 
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
+
+
 def _now():
-    return datetime.now(UTC)
+    """The services' clock (`shared_clock`), which every instant a test writes or compares beside theirs reads."""
+    return _services_clock()
 
 
 # -- sync: hanging a theme, re-hanging it, hanging a selection --------------------------
@@ -500,8 +509,8 @@ def test_a_tallest_bound_alone_leaves_off_only_the_taller_work(display, three_sh
 
 
 @pytest.fixture
-def clock(monkeypatch):
-    """The clock the display service publishes by, which a test can move on a whole second.
+def clock(shared_clock):
+    """The clock the display service publishes by (`shared_clock`), which a test can move on a whole second.
 
     A feed's slots start on whole seconds, so two publishes inside one second
     cannot tell a kept slot from one started afresh at *now*. A test about which
@@ -510,21 +519,10 @@ def clock(monkeypatch):
     """
 
     class Clock:
-        offset = timedelta(0)
-
         def advance(self, seconds=1):
-            self.offset += timedelta(seconds=seconds)
+            shared_clock.advance(timedelta(seconds=seconds))
 
-    held = Clock()
-
-    class Moved(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.now(tz) + held.offset
-
-    # The machine's clock every Programming collaborator reads when it was handed none (`lookups.machine_now`).
-    monkeypatch.setattr(lookups_module, "datetime", Moved)
-    return held
+    return Clock()
 
 
 def test_new_shapes_republish_at_once_and_any_puts_the_work_back(display, three_shapes, theme_of, wall_id, feed, clock):
@@ -954,7 +952,7 @@ def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_eac
     assert sorted(writes) == sorted([wall_id, study])
 
 
-def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered, theme_of, wall_id, monkeypatch):
+def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered, theme_of, wall_id, monkeypatch, shared_clock):
     """The study, rebuilt beside the hall, is built from the hall's *now*, however slowly the pass runs.
 
     Read again for the study, *now* could fall past one of its slot boundaries
@@ -970,11 +968,9 @@ def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered,
     display.activate_theme(theme.id, wall_id=wall_id)
     readings = []
 
-    class Slow(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            readings.append(None)
-            return datetime.now(tz) + timedelta(seconds=len(readings))
+    def slow():
+        readings.append(None)
+        return shared_clock() + timedelta(seconds=len(readings))
 
     builds = []
     build = feeds_module.build_schedule
@@ -983,7 +979,7 @@ def test_every_wall_of_one_pass_is_scheduled_from_one_instant(display, mastered,
         builds.append((arguments["wall_id"], arguments["now"]))
         return build(**arguments)
 
-    monkeypatch.setattr(display._feeds, "_clock", lambda: Slow.now(UTC))
+    monkeypatch.setattr(display._feeds, "_clock", slow)
     monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
 
     display.show_work_now(wall_id, a.id)
@@ -1350,7 +1346,7 @@ def test_a_later_smaller_report_does_not_clear_the_judgement_within_the_window(
 def test_a_screen_last_reported_beyond_the_window_no_longer_counts_and_is_forgotten(
     store, display, mastered, theme_of, wall_id, shown_by_a_client
 ):
-    store.record_screen(shown_by_a_client.display_id, 3840, 2160, datetime.now(UTC) - timedelta(days=8))
+    store.record_screen(shown_by_a_client.display_id, 3840, 2160, _now() - timedelta(days=8))
 
     display.record_heartbeat(wall_id, _beat_with_screen(1920, 1080))
 
@@ -1370,6 +1366,7 @@ def test_judging_a_work_too_small_takes_nothing_off_the_schedule(display, master
     assert tiny.id in feed(wall_id).works
 
 
+@pytest.mark.reports_for_a_wall_no_player_shows("the state a report meets after the race it is about: no display")
 def test_a_wall_unassigned_between_the_route_and_the_transaction_keeps_no_screen_and_the_report_still_lands(
     display, mastered, theme_of, wall_id, store
 ):
@@ -1402,7 +1399,7 @@ def test_the_largest_screen_is_by_area_whatever_order_the_store_returns(display,
 
 
 def test_a_stale_size_does_not_count_even_before_a_heartbeat_forgets_it(store, display, wall_id, shown_by_a_client):
-    store.record_screen(shown_by_a_client.display_id, 3840, 2160, datetime.now(UTC) - timedelta(days=8))
+    store.record_screen(shown_by_a_client.display_id, 3840, 2160, _now() - timedelta(days=8))
 
     assert display.largest_screen(wall_id) is None
 
@@ -1486,7 +1483,7 @@ def test_the_same_size_reported_within_the_hour_writes_nothing(store, display, w
 
 
 def test_the_same_size_reported_after_the_hour_refreshes_its_time(store, display, wall_id, shown_by_a_client):
-    two_hours_ago = datetime.now(UTC) - timedelta(hours=2)
+    two_hours_ago = _now() - timedelta(hours=2)
     store.record_screen(shown_by_a_client.display_id, 3840, 2160, two_hours_ago)
 
     display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))

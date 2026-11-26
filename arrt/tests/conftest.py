@@ -7,20 +7,21 @@ the mounted MCP server work. A test that skipped it would pass against an
 application that fails every request in production.
 """
 
+import functools
 import logging
 import random
 import struct
 import threading
 import time
-import uuid
 from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Final
+from pathlib import Path
+from typing import Any, Final
 
 import player_e2e_header
 import pytest
-from fakes import FakeEngine, FakeReader, open_catalogue
+from fakes import FakeEngine, FakeReader, Ticking, counted_ids, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
@@ -63,7 +64,7 @@ from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
-from arrt.library.services.catalogue import CatalogueService
+from arrt.library.services.catalogue import CatalogueService, machine_now
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.look import LOOK_THREAD_NAME
 from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
@@ -91,6 +92,7 @@ from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming import feeds as feeds_module
 from arrt.programming.display import DisplayService, DisplaySettings
+from arrt.programming.reports import Reports
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
@@ -108,6 +110,11 @@ def pytest_configure(config: pytest.Config) -> None:
     """
     bound_the_suites_requests()
     config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
+    config.addinivalue_line(
+        "markers",
+        f"{NO_PLAYER_REPORTS_MARKER}(why): the test keeps a wall's report while no Player shows the wall, on purpose "
+        "(`reports_only_where_a_player_shows`)",
+    )
 
 
 # -- the real-Player test, said by name on every run (`player_e2e_header.py`) --------------
@@ -206,10 +213,44 @@ def seeded_titles() -> tuple[str, ...]:
     return _SEEDED_TITLES
 
 
+#: The browser suite's tests, which keep the machine's clock (`shared_clock`).
+_BROWSER_TESTS: Final = Path(__file__).parent / "browser"
+
+
 @pytest.fixture
-def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
+def shared_clock(request: pytest.FixtureRequest) -> Callable[[], datetime]:
+    """The one clock every service the shared fixtures build reads: `fakes.Ticking`, from a fixed instant.
+
+    A test that reads no other clock then reads the same instants on every run,
+    and the test runner can reuse its result. A test that writes what a service
+    compares with its own clock (a report's `reported_at`, a moment something
+    happened) takes this fixture and reads it, never `datetime.now()`; one that
+    needs time to pass calls `advance` on it.
+
+    **The browser suite keeps the machine's clock.** Its page reads the browser's
+    own (`Date.now`) against the server's instants, so a fixed day would put every
+    age a screen shows months out; its seeds move with the clock or not at all.
+    """
+    if request.path.is_relative_to(_BROWSER_TESTS):
+        return machine_now
+    return Ticking()
+
+
+@pytest.fixture
+def shared_ids() -> Callable[[], str]:
+    """The one source of every id a test's catalogue file and services mint: counted, so no two of them repeat.
+
+    One source rather than one each: a wall the file is opened with, a theme, a
+    Player and a staging file named for an id all draw from it, so no two records,
+    and no two files named after one, can be given the same id.
+    """
+    return counted_ids()
+
+
+@pytest.fixture
+def catalogue_file(tmp_path, shared_ids: Callable[[], str]) -> Iterator[SqliteDurableStore]:
     """An empty catalogue file, with every table both adapters read."""
-    opened = open_catalogue(tmp_path / "catalogue.sqlite")
+    opened = open_catalogue(tmp_path / "catalogue.sqlite", new_id=shared_ids)
     yield opened
     opened.close()
 
@@ -291,7 +332,7 @@ def wall_id(store: SqliteCatalogue) -> str:
 
 
 @pytest.fixture
-def a_player_shows_the_wall(services: Services, wall_id: str):
+def a_player_shows_the_wall(services: Services, wall_id: str, shared_clock: Callable[[], datetime]):
     """A Player, with a token, on the catalogue's wall: what a test needs before it writes a report for that wall.
 
     A report for a wall is what the wall's Player sends, and a Player reports only with a token
@@ -307,7 +348,7 @@ def a_player_shows_the_wall(services: Services, wall_id: str):
     services.clients.record_heartbeat(
         client.id,
         {
-            "reported_at": datetime.now(UTC).isoformat(),
+            "reported_at": shared_clock().isoformat(),
             "outputs": [{"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]}],
         },
     )
@@ -424,7 +465,7 @@ def kept(settings: Settings, kept_clock: Callable[[], float]) -> Iterator[KeptAn
 
 
 @pytest.fixture
-def sources() -> SourceRoster:
+def sources(shared_clock: Callable[[], datetime]) -> SourceRoster:
     """The plugins the services are built over: the Art Institute's reader, with its real claims.
 
     A museum source records the object's page; the tile fetcher needs the image
@@ -434,7 +475,7 @@ def sources() -> SourceRoster:
     and without it every such fetch is a deployment fault before it reaches the
     code the test is about. A test that needs other plugins overrides this fixture.
     """
-    return SourceRoster.of(readers={"artic": (artic_claims, FakeReader())})
+    return SourceRoster.of(readers={"artic": (artic_claims, FakeReader())}, now=shared_clock)
 
 
 @pytest.fixture
@@ -450,8 +491,10 @@ def services(
     open_stream: StreamOpener | None,
     sources: SourceRoster,
     key_status: Callable[[], KeyStatus] | None,
+    shared_clock: Callable[[], datetime],
+    shared_ids: Callable[[], str],
 ) -> Services:
-    """Every service, wired the way the entry point wires them."""
+    """Every service, wired the way the entry point wires them, over the one clock and id source (`shared_clock`)."""
     return Services.bind(
         catalogue=store,
         discovery=discovery_store,
@@ -481,6 +524,8 @@ def services(
         sources=sources,
         key_status=key_status,
         monthly_budget_usd=settings.monthly_budget_usd,
+        now=shared_clock,
+        mint_id=shared_ids,
     )
 
 
@@ -741,13 +786,13 @@ def propose(discovery: DiscoveryService, run: DiscoveryRun):
 
 
 @pytest.fixture
-def add_image(discovery: DiscoveryService):
+def add_image(discovery: DiscoveryService, shared_ids: Callable[[], str]):
     """Record one image instance for a work, defaulting everything the test does not name."""
 
     def _add(work, *, url=None, confidence=0.9, **fields):
         return discovery.record_image(
             candidate_work_id=work.id,
-            url=url or f"https://museum.example/{uuid.uuid4()}",
+            url=url or f"https://museum.example/{shared_ids()}",
             provider="artic",
             source_class=SourceClass.INSTITUTIONAL,
             acquisition_method=AcquisitionMethod.DEZOOMIFY,
@@ -1247,3 +1292,84 @@ def _museum_names_reset():
     names.declare_museums({})
     yield
     names.declare_museums({})
+
+
+# -- reports only for walls a Player shows ------------------------------------------------
+
+#: The marker a test carries when it keeps a wall's report for a wall no Player
+#: shows on purpose (a test of that impossible state), with its reason.
+NO_PLAYER_REPORTS_MARKER: Final = "reports_for_a_wall_no_player_shows"
+
+#: The writers of a wall's report: a heartbeat kept, and a report kept as a showing.
+_REPORT_WRITERS: Final = ("record_heartbeat", "keep_showing")
+
+
+def _a_player_shows(reports: Reports, wall_id: str) -> bool:
+    """Whether a Player with a token is placed on this wall, read from the store alone (no clock, no file)."""
+    store: Any = reports._store
+    with store.reading():
+        wall = store.get_wall(wall_id)
+        display = None if wall is None or wall.display_id is None else store.get_display(wall.display_id)
+        client = None if display is None or display.client_id is None else store.get_client(display.client_id)
+    return client is not None and client.token_verifier is not None
+
+
+class ReportsForNoPlayer:
+    """Every report a test kept for a wall no Player showed, by writer and wall, while attached."""
+
+    def __init__(self) -> None:
+        self.kept: list[tuple[str, str]] = []
+        self._lock = threading.Lock()
+
+    def watching(self, writer: str, real: Callable[..., Any]) -> Callable[..., Any]:
+        # Wrapped, so whatever asks the writer its signature gets the real one.
+        @functools.wraps(real)
+        def kept(reports: Reports, wall_id: str, *args: Any, **kwargs: Any) -> Any:
+            shown = _a_player_shows(reports, wall_id)
+            answer = real(reports, wall_id, *args, **kwargs)
+            # After the call, so a report refused (and so never written) is not one.
+            if not shown:
+                with self._lock:
+                    self.kept.append((writer, wall_id))
+            return answer
+
+        return kept
+
+    def complaint(self) -> str | None:
+        if not self.kept:
+            return None
+        named = ", ".join(sorted({f"{writer} for wall {wall_id}" for writer, wall_id in self.kept}))
+        return (
+            f"The test kept a wall's report while no Player showed the wall ({named}). A report is what the wall's "
+            "Player sends, and only a Player with a token reports, so ask for `a_player_shows_the_wall` (or place one) "
+            f"first; a test of that impossible state says so with @pytest.mark.{NO_PLAYER_REPORTS_MARKER}(why)."
+        )
+
+
+@pytest.fixture(autouse=True)
+def reports_only_where_a_player_shows(request: pytest.FixtureRequest) -> Iterator[ReportsForNoPlayer]:
+    """Fail a test that keeps a wall's report for a wall no Player shows, unless it is marked as meaning to.
+
+    Wraps both writers of a wall's report on `Reports`, so a report kept through
+    the facade, a route, a tool or the server in its thread is seen alike. **Its
+    patches are its own**, as the feed guard's are, and a writer renamed fails
+    here, at the patch, rather than leaving a guard that watches nothing.
+
+    **Not over the browser suite yet**, as the shared clock is not: its seeds
+    are its own, and four of its tests (`test_the_walls.py`'s card tests) keep a
+    report for a wall no Player shows. They move when its seeds do.
+    """
+    found = ReportsForNoPlayer()
+    if request.path.is_relative_to(_BROWSER_TESTS):
+        yield found
+        return
+    patches = pytest.MonkeyPatch()
+    for writer in _REPORT_WRITERS:
+        patches.setattr(Reports, writer, found.watching(writer, getattr(Reports, writer)))
+    try:
+        yield found
+    finally:
+        patches.undo()
+    complaint = found.complaint()
+    if complaint is not None and request.node.get_closest_marker(NO_PLAYER_REPORTS_MARKER) is None:
+        pytest.fail(complaint, pytrace=False)

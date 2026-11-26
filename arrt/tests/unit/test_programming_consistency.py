@@ -21,7 +21,7 @@ import json
 import logging
 import threading
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 
@@ -30,11 +30,22 @@ from arrt.persistence.records import ThemeAssignment
 from arrt.programming import feeds as feeds_module
 from arrt.services.errors import ServiceError
 
-_OLD_REPORT_AT = "2026-10-02T14:00:05+00:00"
+#: Long before the services' clock starts (`fakes.CLOCK_STARTS_AT`), so a report that says nothing about now.
+_OLD_REPORT_AT = "2025-10-02T14:00:05+00:00"
+
+
+def _services_clock() -> datetime:
+    raise AssertionError("the services' clock is read only inside a test (`_now_is_the_services`)")
+
+
+@pytest.fixture(autouse=True)
+def _now_is_the_services(shared_clock, monkeypatch):
+    """`_now` reads the services' clock (`shared_clock`), so what a test writes beside them is on their time."""
+    monkeypatch.setitem(globals(), "_services_clock", shared_clock)
 
 
 def _now() -> str:
-    return datetime.now(UTC).isoformat()
+    return _services_clock().isoformat()
 
 
 def _frame_report(identity: str, *, at: str) -> dict:
@@ -297,7 +308,7 @@ def test_a_start_republishes_a_feed_of_another_theme_than_the_one_hung(display, 
     display.activate_theme(other.id, wall_id=wall_id)
     # Written around the service: the catalogue names the theme hung before, the
     # feed the one whose commit failed.
-    store.set_assignment(ThemeAssignment(wall_id=wall_id, theme_id=hung.id, assigned_at=datetime.now(UTC)))
+    store.set_assignment(ThemeAssignment(wall_id=wall_id, theme_id=hung.id, assigned_at=_services_clock()))
     study_before = wall_settings.manifest_v2_path(study).read_bytes()
 
     result = display.reconcile()
