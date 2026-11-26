@@ -4,6 +4,27 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-25: how Arrt tells Hearsay (#451)
+
+Three recommendations put to the owner while #451's requirements were written, after
+Hearsay's session had answered the intake questions (size, Wikidata, readers, the
+Art Institute's search). The owner: "yes to all recommendations". As ruled:
+
+1. **One copy point, in the host, and a label per plugin.** The code that loads and
+   calls source plugins hands each one an HTTP layer that copies the text documents
+   it reads into a queue on disk, and records each search where the host calls the
+   plugin. Each plugin declares which of its requests are records and which carry
+   Arrt's own query; an unlabelled request is never told. Chosen over a tell written
+   into each plugin's fetch code, so a new in-tree plugin is covered by the same
+   mechanism. Cost accepted: a third-party plugin that does not use the host's HTTP
+   layer is not told.
+2. **The queue fills before anything is sent.** Sending stays off until the owner has
+   looked at what is queued and turned it on. This is how "the first send takes the
+   owner's approval" is met.
+3. **No backfill in the first plan.** Arrt kept no museum documents, so Hearsay
+   starts with what Arrt fetches from now on. Refetching the Library's records for
+   Hearsay is a backlog item of its own.
+
 ## 2026-11-25: Arrt contributes to Hearsay's knowledge graph
 
 Asked what Arrt should contribute to Hearsay (the owner's attributed claim store),
