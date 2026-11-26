@@ -3749,9 +3749,11 @@ input[type="checkbox"] {
    panel's padding decide how much of the screen it gets. As it narrows the
    columns leave in a fixed order, the owner's for the four ranked on 2026-10-08,
    with the search record's three placed among them (`SOURCE_COLUMNS` says why):
-   Median long edge, Searches, Last fault, Median latency, Only here, Hit rate,
-   then Faults since startup, whose count
-   then moves into the State cell so a fault is on screen at every width.
+   Median long edge, Searches, Last fault, Median latency, Only here, Answers
+   with an image, then Faults since startup, whose count
+   then moves into the State cell so a fault is on screen at every width. What
+   the answers' rate is of goes the same way: a line under the rate while its
+   column shows, then a sentence under the source's name.
    Source, State, Offered and Chosen stay, and on a phone each row stacks into
    a card. Each width leaves the columns still showing room at letter-spacing
    0.25em, because CI's fonts are wider than a Mac's: 0.16em on a Mac
@@ -3767,8 +3769,14 @@ input[type="checkbox"] {
   container-name: source-table;
 }
 
-.source-table .source-reason {
+.source-table .source-reason,
+.source-table .hit-rate-of {
   display: block;
+  font-size: var(--text-xs);
+}
+
+.source-table .source-hits {
+  display: none;
   font-size: var(--text-xs);
 }
 
@@ -3816,6 +3824,10 @@ input[type="checkbox"] {
 @container source-table (max-width: 39rem) {
   .source-table .col-hit-rate {
     display: none;
+  }
+
+  .source-table .source-hits {
+    display: block;
   }
 }
 

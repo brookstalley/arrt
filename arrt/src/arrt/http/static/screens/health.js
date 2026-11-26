@@ -34,7 +34,7 @@
  * replace.
  */
 
-import { number } from "../core/counting.js";
+import { agreePartitive, counted, number } from "../core/counting.js";
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { ago, dated, inWords } from "../core/dates.js";
@@ -423,7 +423,7 @@ function failedFetchesPanel(health) {
  * last, and when it does the count moves into the State cell, so a fault is on
  * screen at every width (owner, 2026-10-08). Of the three read from the search
  * record, Searches goes soonest, being only how many the other two are over,
- * and Hit rate latest, being what says most of a museum's worth: it outlasts
+ * and Answers with an image latest, being what says most of a museum's worth: it outlasts
  * every column but Faults. The class is what the stylesheet and the width test
  * both key on. `num` marks a column of figures, set right-aligned (`app.css`,
  * `.num`). */
@@ -434,7 +434,7 @@ const SOURCE_COLUMNS = [
   { name: "chosen", heading: "Chosen", num: true },
   { name: "only-here", heading: "Only here", drops: 5, num: true },
   { name: "searches", heading: "Searches", drops: 2, num: true },
-  { name: "hit-rate", heading: "Hit rate of answered", drops: 6, num: true },
+  { name: "hit-rate", heading: "Answers with an image", drops: 6, num: true },
   { name: "latency", heading: "Median latency", drops: 4, num: true },
   { name: "median", heading: "Median long edge", drops: 1, num: true },
   { name: "faults", heading: "Faults since startup", drops: 7, num: true },
@@ -444,7 +444,7 @@ const SOURCE_COLUMNS = [
 /* A loaded plugin's faults in words; one that did not load has none to speak
  * of unless it somehow has some. */
 function faultWords(source) {
-  if (source.faults) return `${source.faults} ${source.faults === 1 ? "fault" : "faults"}`;
+  if (source.faults) return counted(source.faults, "fault");
   return source.state === "loaded" ? "no faults" : null;
 }
 
@@ -464,18 +464,32 @@ function hitRate(source) {
   return PERCENT.format(source.searches_with_images / answered);
 }
 
-/* What the rate is over, in words, for whoever reads "75%" beside "Searches 100":
- * the rate is of the searches it answered, not of every search, so the figure says
- * "60 of the 80 searches it answered had an image" and, when some were not
- * answered, how many of all of them those were. Nothing to say for a source
- * never searched. */
-function hitRateWords(source) {
+/* What the rate is of, said on screen for whoever reads "75%" beside "Searches
+ * 100": not 75 of the 100, but 60 of the 80 it answered. Two forms, and the
+ * stylesheet shows one of them at a width, never both: the cell's line under
+ * the rate ("60 of 80 answers"), while the column shows; and, once the table has
+ * narrowed past the column (a phone's cards keep only the four columns that never
+ * leave), a sentence under the source's name, as a fault's count moves into
+ * State. On screen, never in a title, which a touch screen never shows. Nothing
+ * for a source never searched, which has no rate to explain. */
+function hitRateOf(source) {
   const { searched, searches_answered: answered, searches_with_images: withImages } = source;
   if (typeof searched !== "number" || typeof answered !== "number" || searched === 0) return null;
-  if (answered === 0 || typeof withImages !== "number") return `None of its ${number(searched)} searches has been answered, so there is no rate.`;
+  if (answered === 0 || typeof withImages !== "number") return "no answers";
+  return `${number(withImages)} of ${counted(answered, "answer")}`;
+}
+
+function hitRateSentence(source) {
+  const { searched, searches_answered: answered, searches_with_images: withImages } = source;
+  if (typeof searched !== "number" || typeof answered !== "number" || searched === 0) return null;
+  const searches = counted(searched, "search", "searches");
+  if (answered === 0 || typeof withImages !== "number") return `No answers to its ${searches}.`;
   const unanswered = searched - answered;
-  const rest = unanswered > 0 ? `; ${number(unanswered)} of the ${number(searched)} searches were not answered` : "";
-  return `${number(withImages)} of the ${number(answered)} searches it answered had an image${rest}.`;
+  const rest =
+    unanswered > 0
+      ? `; ${number(unanswered)} of its ${searches} ${agreePartitive(unanswered, searched, "was", "were")} not answered`
+      : "";
+  return `${number(withImages)} of its ${counted(answered, "answer")} had an image (${hitRate(source)})${rest}.`;
 }
 
 /* How long its answers took, at their median: "0.8 s", "4 s", "35 s", and in
@@ -497,6 +511,7 @@ function sourceRow(source, yielded) {
     source: [
       el("span", { text: museumName(source.name) }),
       source.state !== "loaded" && source.reason ? el("span", { class: "source-reason muted", text: source.reason }) : null,
+      hitRateSentence(source) ? el("span", { class: "source-hits muted", text: hitRateSentence(source) }) : null,
     ],
     // A word, never a colour. The fault count beside it is shown only once the
     // Faults column has gone (`app.css`), so it is never said twice.
@@ -510,7 +525,10 @@ function sourceRow(source, yielded) {
     // From the search record, which the health reading carries for every
     // source: zero searches for one never searched.
     searches: count(source.searched),
-    "hit-rate": [el("span", { title: hitRateWords(source), text: hitRate(source) })],
+    "hit-rate": [
+      el("span", { text: hitRate(source) }),
+      hitRateOf(source) ? el("span", { class: "hit-rate-of muted", text: hitRateOf(source) }) : null,
+    ],
     latency: latency(source),
     median: yielded && typeof yielded.median_long_edge === "number" ? `${number(yielded.median_long_edge)} px` : "—",
     faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
@@ -551,7 +569,7 @@ function sourcesPanel(health, yields) {
             el("div", { class: "table-scroll" }, [
               el("table", {}, [
                 el("caption", {
-                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for. Searches: the works it was most recently searched for. Hit rate of answered: of the searches it answered, not of all of them, the share it answered with an image. Median latency: how long it took to answer them.",
+                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for. Searches: the works it was most recently searched for. Answers with an image: of the searches it answered, not of all of them, the share it answered with an image. Median latency: how long it took to answer them.",
                 }),
                 el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => el("th", { scope: "col", class: `col-${name}${num ? " num" : ""}`, text: heading })))]),
                 el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),
