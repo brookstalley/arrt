@@ -399,7 +399,7 @@ def test_a_run_that_could_not_reach_the_provider_for_anything_fails(services, en
 
     assert services.discovery.get_run(run_id).status is RunStatus.FAILED
     assert services.discovery.get_run(run_id).end_reason.startswith(
-        "Phase 2 could not reach an image provider for any of this run's 2 works."
+        "Phase 2 could not reach an image provider for any of this Get's 2 works."
     )
     assert all(work.resolution_status is ResolutionStatus.PENDING for work in services.discovery.list_candidate_works(run_id))
 
@@ -414,6 +414,27 @@ def test_a_run_every_work_of_which_one_source_could_not_be_asked_about_names_tha
     reason = services.discovery.get_run(run_id).end_reason
     assert f"Could not ask {museum_name(museum.provider)} (2 works)." in reason, reason
     assert museum.provider not in reason.replace(museum_name(museum.provider), ""), "the plugin id reached the sentence"
+
+
+@pytest.fixture
+def declaring_quill(monkeypatch):
+    """The fake museum, under an id no built-in uses, declaring its own name; asked for before the runner is built."""
+    monkeypatch.setattr(FakeFinder, "provider", property(lambda self: "quill"))
+    monkeypatch.setattr(FakeFinder, "museum", "Quill Gallery", raising=False)
+
+
+def test_a_run_none_of_whose_works_could_be_asked_names_the_museum_the_source_declares(
+    declaring_quill, services, engine, runner, museum
+):
+    """The sentence is the pool's name for the source, read by the runner from the engine it ran, not from `names.py`."""
+    engine.result = a_list("The Elephants", "The Persistence of Memory")
+    museum.unreachable = True
+
+    run_id = start(runner).id
+
+    reason = services.discovery.get_run(run_id).end_reason
+    assert "Could not ask Quill Gallery (2 works)." in reason, reason
+    assert "quill" not in reason.replace("Quill Gallery", ""), "the plugin id reached the sentence"
 
 
 class Late:
@@ -554,7 +575,7 @@ def test_the_failure_log_line_agrees_with_itself_over_a_single_work(services, en
     said = [record.message for record in caplog.records if "could not reach an image provider for any" in record.message]
     assert len(said) == 1, f"the failure sentence was not logged once: {said}"
     notice = said[0]
-    assert "any of this run's 1 work." in notice
+    assert "any of this Get's 1 work." in notice
     assert "whether it exists" in notice
     assert "the work is unchanged" in notice
     # The plural spellings of the same three clauses, so a partial fix fails here

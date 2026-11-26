@@ -74,6 +74,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Final, Protocol
 
+from arrt.counting import agree, noun
 from arrt.library.discovery.images import (
     Finder,
     FoundImage,
@@ -318,6 +319,11 @@ class ImageSourcePool:
         self._searches = searches
         self._now = now
 
+    def museum(self, provider: str) -> str:
+        """What a sentence calls `provider`: the museum the source declares, else what `museum_name` knows it by."""
+        declared = getattr(self._by_name.get(provider), "museum", None)
+        return museum_name(provider, declared if isinstance(declared, str) else None)
+
     @property
     def providers(self) -> tuple[str, ...]:
         """The sources' names, most preferred first."""
@@ -403,10 +409,12 @@ class ImageSourcePool:
             # is down. The pages found are dropped with the answer, and a later
             # search of the work finds them again.
             if unreachable or owed_images:
-                raise SourcesNotAsked(_not_asked(unreachable, owed_images, self._window), sources=[*unreachable, *owed_images])
+                raise SourcesNotAsked(
+                    _not_asked(unreachable, owed_images, self._window, self.museum), sources=[*unreachable, *owed_images]
+                )
             cannot = [
-                *(f"{museum_name(name)} cannot" for name in declined),
-                *(f"{museum_name(name)} finds pages only" for name in pages_only),
+                *(f"{self.museum(name)} cannot" for name in declined),
+                *(f"{self.museum(name)} finds pages only" for name in pages_only),
             ]
             raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
         return PoolAnswer(
@@ -557,7 +565,7 @@ class ImageSourcePool:
 
     def _not_heard(self, source: Finder, *, owed: bool) -> SourceAnswer:
         """A source the run stopped waiting for, as "could not be asked": still owed at the window, or past the deadline."""
-        museum = museum_name(source.provider)
+        museum = self.museum(source.provider)
         return SourceAnswer(
             provider=source.provider,
             outcome=AskOutcome.UNREACHABLE,
@@ -765,7 +773,7 @@ def _journal_unasked(answer: SourceAnswer, query: ImageQuery) -> None:
         log.info(
             "an image source was not asked about a work: it still owes %d earlier %s an answer",
             answer.still_asking,
-            "work" if answer.still_asking == 1 else "works",
+            noun(answer.still_asking, "work"),
             extra={
                 "event": "image_pool.still_asking",
                 "provider": answer.provider,
@@ -794,14 +802,14 @@ def _search_of(work_id: str, said: SourceAnswer, *, asked_at: datetime, answered
     )
 
 
-def _not_asked(unreachable: Sequence[str], owed: Sequence[str], window: float) -> str:
+def _not_asked(unreachable: Sequence[str], owed: Sequence[str], window: float, museum: Callable[[str], str]) -> str:
     """Why no source of images answered, naming the museums: those that could not be asked, and those still owed."""
     said = []
     if unreachable:
-        said.append(f"No image source could be asked: {', '.join(map(museum_name, unreachable))}.")
+        said.append(f"No image source could be asked: {', '.join(map(museum, unreachable))}.")
     if owed:
         said.append(
-            f"{', '.join(map(museum_name, owed))} had not answered within {window:g} seconds; "
-            "the work's next search waits for " + ("it." if len(owed) == 1 else "them.")
+            f"{', '.join(map(museum, owed))} had not answered within {window:g} seconds; "
+            "the work's next search waits for " + agree(len(owed), "it.", "them.")
         )
     return " ".join(said)

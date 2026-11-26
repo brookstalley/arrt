@@ -78,6 +78,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final, NoReturn, TypeVar
 
+from arrt.counting import agree, figure, noun
 from arrt.defaults import DEFAULT_SOURCE_ORDER
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
 from arrt.library.discovery.images import (
@@ -352,6 +353,9 @@ class Route:
     plugin: str | None = None
     reader: Reader | None = None
     unavailable: str | None = None
+    #: The name the plugin declares for itself, where it declares one: what a sentence about
+    #: this route names it by (`museum_name`), because the id is a key and not a name.
+    museum: str | None = None
 
 
 class _InterfaceBreach(Exception):
@@ -385,10 +389,10 @@ class NotAskedThisPass(Exception):
     not asked, writing no search. A caller outside a pass never meets it.
     """
 
-    def __init__(self, plugin: str, after: int) -> None:
+    def __init__(self, plugin: str, after: int, *, museum: str | None = None) -> None:
         self.plugin = plugin
         super().__init__(
-            f"the {museum_name(plugin)} plugin was not asked on this pass: its last {after} answers on it were "
+            f"the {museum_name(plugin, museum)} plugin was not asked on this pass: its last {after} answers on it were "
             "that it could not be asked, and the next pass asks it again"
         )
 
@@ -410,14 +414,21 @@ class StillAsking(NotAskedThisPass):
     none, and says so by answering False.
     """
 
-    def __init__(self, plugin: str, owed: int, *, when_answered: Callable[[Callable[[], None]], None] | None = None) -> None:
+    def __init__(
+        self,
+        plugin: str,
+        owed: int,
+        *,
+        when_answered: Callable[[Callable[[], None]], None] | None = None,
+        museum: str | None = None,
+    ) -> None:
         self.plugin = plugin
         self.owed = owed
         self._when_answered = when_answered
         Exception.__init__(
             self,
-            f"the {museum_name(plugin)} plugin was not asked about this work: it is still answering "
-            f"{'an earlier work' if owed == 1 else f'{owed} earlier works'} whose run did not wait for it, and a later "
+            f"the {museum_name(plugin, museum)} plugin was not asked about this work: it is still answering "
+            f"{agree(owed, 'an earlier work', f'{figure(owed)} earlier works')} whose run did not wait for it, and a later "
             "pass asks it about this one",
         )
 
@@ -456,13 +467,16 @@ class PassHold:
         """How many could-not-be-asked answers in a row hold a plugin back."""
         return self._after
 
-    def ask(self, plugin: str) -> None:
-        """Let a call to `plugin` start, or raise `NotAskedThisPass` and count the work not asked."""
+    def ask(self, plugin: str, *, museum: str | None = None) -> None:
+        """Let a call to `plugin` start, or raise `NotAskedThisPass` and count the work not asked.
+
+        `museum` is the name the plugin declares, for the sentence the refusal carries.
+        """
         with self._lock:
             if self._in_a_row[plugin] < self._after:
                 return
             self._not_asked[plugin] += 1
-        raise NotAskedThisPass(plugin, self._after)
+        raise NotAskedThisPass(plugin, self._after, museum=museum)
 
     def heard(self, plugin: str, *, unasked: bool) -> None:
         """A call to `plugin` ended: in "could not be asked", which counts, or in any other answer, which resets."""
@@ -523,7 +537,7 @@ def one_pass(*, after: int = HOLD_BACK_AFTER) -> Iterator[PassHold]:
                 "row; the next pass asks it again",
                 plugin,
                 count,
-                "work" if count == 1 else "works",
+                noun(count, "work"),
                 after,
                 extra={"event": "source.plugin_held_back", "plugin": plugin, "not_asked": count, "after": after},
             )
@@ -534,11 +548,11 @@ def in_a_pass() -> bool:
     return _PASS.get() is not None
 
 
-def _pass_ask(plugin: str) -> None:
+def _pass_ask(plugin: str, museum: str | None) -> None:
     """Raise `NotAskedThisPass` when the pass the caller is in holds `plugin` back; nothing outside a pass."""
     hold = _PASS.get()
     if hold is not None:
-        hold.ask(plugin)
+        hold.ask(plugin, museum=museum)
 
 
 def _pass_heard(plugin: str, *, unasked: bool) -> None:
@@ -663,8 +677,10 @@ class _Calls:
     back whoever is listening once fewer than the bound are owed.
     """
 
-    def __init__(self, plugin: str, limit: int, wait_for: WaitFor = _wait) -> None:
+    def __init__(self, plugin: str, limit: int, wait_for: WaitFor = _wait, *, museum: str | None = None) -> None:
         self._plugin = plugin
+        #: The name the plugin declares, which every sentence about its calls carries (`museum_name`).
+        self.museum = museum
         self._limit = limit
         self._wait_for = wait_for
         self._lock = threading.Lock()
@@ -725,7 +741,7 @@ class _Calls:
                 self._calls[id(pending)] = pending
                 return pending
             under_way = len(self._calls)
-        refused = StillAsking(self._plugin, owed, when_answered=self.when_none_owed)
+        refused = StillAsking(self._plugin, owed, when_answered=self.when_none_owed, museum=self.museum)
         if pending.stopped_waiting is not None:
             raise refused
         log.info(
@@ -734,7 +750,7 @@ class _Calls:
             self._plugin,
             operation,
             owed,
-            "is" if owed == 1 else "are",
+            agree(owed, "is", "are"),
             extra={
                 "event": "source.plugin_still_asking",
                 "plugin": self._plugin,
@@ -929,9 +945,9 @@ def _locator(answer: object) -> FetchLocator:
     return answer
 
 
-def _past_deadline(plugin: str, operation: str, passed: _DeadlinePassed, tally: _Tally) -> str:
+def _past_deadline(plugin: str, museum: str | None, operation: str, passed: _DeadlinePassed, tally: _Tally) -> str:
     """Record a call past its deadline against the plugin, say so in the journal, and return the words to answer with."""
-    said = f"the {museum_name(plugin)} plugin could not be asked: {passed}"
+    said = f"the {museum_name(plugin, museum)} plugin could not be asked: {passed}"
     tally.unasked(plugin, said)
     log.warning(
         "source plugin %s, during %s: %s; recorded as could not be asked",
@@ -1008,6 +1024,11 @@ class _ContainedFinder:
         return self._plugin
 
     @property
+    def museum(self) -> str | None:
+        """The name the plugin declares for itself, or `None` when it declares none."""
+        return self._calls.museum
+
+    @property
     def deadline_seconds(self) -> float:
         """How long `find_images` is waited for: what the pool's own backstop is set past."""
         return self._deadlines.finder
@@ -1025,7 +1046,7 @@ class _ContainedFinder:
         """
         # Before anything starts, and outside the containment below: a pass not
         # asking the plugin is no answer of the plugin's, and no fault either.
-        _pass_ask(self._plugin)
+        _pass_ask(self._plugin, self._calls.museum)
         heard = _Heard()
         pages_only = not self.offers_images
 
@@ -1044,7 +1065,9 @@ class _ContainedFinder:
             self._calls.run("find_images", self._deadlines.finder, ask, admitted=admitted)
         except _DeadlinePassed as passed:
             _pass_heard(self._plugin, unasked=True)
-            failure: Exception = ImageSearchFailure(_past_deadline(self._plugin, "find_images", passed, self._tally))
+            failure: Exception = ImageSearchFailure(
+                _past_deadline(self._plugin, self._calls.museum, "find_images", passed, self._tally)
+            )
         # The interface's answers that are not a list, passed on as themselves
         # with their message scrubbed. One clause each rather than a tuple,
         # because the formatter writes a bare tuple in a form Python 3.12 cannot
@@ -1062,7 +1085,9 @@ class _ContainedFinder:
             # Neither counts nor resets the pass's count: a fault is fixed by a
             # new release of the plugin, and says nothing of whether it answers.
             self._tally.fault(self._plugin, "find_images", exc)
-            raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+            raise PluginFaulted(
+                f"the {museum_name(self._plugin, self._calls.museum)} plugin faulted: {type(exc).__name__}"
+            ) from exc
         else:
             _pass_heard(self._plugin, unasked=False)
             self._tally.answered(self._plugin)
@@ -1081,7 +1106,7 @@ class _ContainedFinder:
             )
         except _DeadlinePassed as passed:
             # None is the interface's failed preview: a card without its picture.
-            _past_deadline(self._plugin, "fetch_preview", passed, self._tally)
+            _past_deadline(self._plugin, self._calls.museum, "fetch_preview", passed, self._tally)
             return None
         except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- None is the interface's failed preview
             self._tally.fault(self._plugin, "fetch_preview", exc)
@@ -1100,14 +1125,14 @@ class _ContainedReader:
 
     def read(self, url: str) -> FetchLocator:
         # Before anything starts, as the finder's: see `_ContainedFinder.find_images`.
-        _pass_ask(self._plugin)
+        _pass_ask(self._plugin, self._calls.museum)
         # As the finder's: not started while the plugin owes another work an answer.
         admitted = self._calls.admit("read")
         try:
             locator = self._calls.run("read", self._deadlines.reader, lambda: _locator(self._inner.read(url)), admitted=admitted)
         except _DeadlinePassed as passed:
             _pass_heard(self._plugin, unasked=True)
-            raise ImageSearchFailure(_past_deadline(self._plugin, "read", passed, self._tally)) from None
+            raise ImageSearchFailure(_past_deadline(self._plugin, self._calls.museum, "read", passed, self._tally)) from None
         except ImageSearchFailure as exc:
             _pass_heard(self._plugin, unasked=not isinstance(exc, LinkGone))
             # As `_reraise_scrubbed`: itself when clean, else its scrubbed twin `from None`.
@@ -1117,7 +1142,9 @@ class _ContainedReader:
             raise heard from None
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
             self._tally.fault(self._plugin, "read", exc)
-            raise PluginFaulted(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+            raise PluginFaulted(
+                f"the {museum_name(self._plugin, self._calls.museum)} plugin faulted: {type(exc).__name__}"
+            ) from exc
         _pass_heard(self._plugin, unasked=False)
         self._tally.answered(self._plugin)
         return locator
@@ -1143,13 +1170,17 @@ class _ContainedCollection:
                 "browse", self._deadlines.browse, lambda: _groups(self._inner.browse(queries, per_query=per_query))
             )
         except _DeadlinePassed as passed:
-            raise CollectionBrowseFailure(_past_deadline(self._plugin, "browse", passed, self._tally)) from None
+            raise CollectionBrowseFailure(
+                _past_deadline(self._plugin, self._calls.museum, "browse", passed, self._tally)
+            ) from None
         except CollectionBrowseFailure as exc:
             self._tally.unasked(self._plugin, str(exc))
             _reraise_scrubbed(exc, CollectionBrowseFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             self._tally.fault(self._plugin, "browse", exc)
-            raise CollectionBrowseFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+            raise CollectionBrowseFailure(
+                f"the {museum_name(self._plugin, self._calls.museum)} plugin faulted: {type(exc).__name__}"
+            ) from exc
         self._tally.answered(self._plugin)
         return groups
 
@@ -1164,12 +1195,15 @@ class _Containment:
         preview_max_bytes: int,
         *,
         declared: Mapping[str, Deadlines] | None = None,
+        museums: Mapping[str, str] | None = None,
         wait_for: WaitFor = _wait,
     ) -> None:
         self.tally = tally
         self._deadlines = deadlines
         #: Each plugin's own deadlines, where it declared any (`declared_deadlines`).
         self._declared = dict(declared or {})
+        #: The museum each plugin declares (interface 1.4), where it declares one.
+        self._museums = dict(museums or {})
         self._preview_max_bytes = preview_max_bytes
         self._wait_for = wait_for
         #: Per plugin, not per part, so a plugin hung in its reader and its finder
@@ -1177,7 +1211,9 @@ class _Containment:
         self._calls: dict[str, _Calls] = {}
 
     def _calls_of(self, plugin: str) -> _Calls:
-        return self._calls.setdefault(plugin, _Calls(plugin, self._deadlines.stragglers, self._wait_for))
+        return self._calls.setdefault(
+            plugin, _Calls(plugin, self._deadlines.stragglers, self._wait_for, museum=self._museums.get(plugin))
+        )
 
     def _deadlines_of(self, plugin: str) -> Deadlines:
         return self._declared.get(plugin, self._deadlines)
@@ -1201,9 +1237,9 @@ class _Containment:
         return _ContainedCollection(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=deadlines)
 
 
-def _not_loaded(plugin: str, reason: str | None) -> str:
+def _not_loaded(plugin: str, museum: str | None, reason: str | None) -> str:
     """Why a URL this plugin claims cannot be read here, naming the museum rather than the id."""
-    return f"the {museum_name(plugin)} source plugin is installed and not loaded: {reason}"
+    return f"the {museum_name(plugin, museum)} source plugin is installed and not loaded: {reason}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1262,6 +1298,7 @@ class SourceRoster:
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         deadlines: Deadlines = DEFAULT_DEADLINES,
         preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
+        museums: Mapping[str, str] | None = None,
     ) -> SourceRoster:
         """A roster from parts in hand, without entry points: for tests, and for hand-assembled sources.
 
@@ -1273,7 +1310,8 @@ class SourceRoster:
         is, deadlines included.
         """
         tally = _Tally(now)
-        contain = _Containment(tally, deadlines, preview_max_bytes)
+        museums = dict(museums or {})
+        contain = _Containment(tally, deadlines, preview_max_bytes, museums=museums)
         readers = dict(readers or {})
         unavailable = dict(unavailable or {})
         names = [finder.provider for finder in finders]
@@ -1285,7 +1323,10 @@ class SourceRoster:
             collection=None if collection is None else contain.collection(collection, collection.provider),
             claimants=[
                 *(_Claimant(name, claims, contain.reader(reader, name), None) for name, (claims, reader) in readers.items()),
-                *(_Claimant(name, claims, None, _not_loaded(name, reason)) for name, (claims, reason) in unavailable.items()),
+                *(
+                    _Claimant(name, claims, None, _not_loaded(name, museums.get(name), reason))
+                    for name, (claims, reason) in unavailable.items()
+                ),
             ],
             states=[
                 *((name, PluginState.LOADED, None) for name in dict.fromkeys(names)),
@@ -1296,11 +1337,12 @@ class SourceRoster:
             unknowable=unknowable,
             identities={
                 name: PluginIdentity(
+                    museum=museums.get(name),
                     provides=_provides(
                         next((f for f in finders if f.provider == name), None),
                         readers[name][1] if name in readers else None,
                         collection if collection is not None and collection.provider == name else None,
-                    )
+                    ),
                 )
                 for name in dict.fromkeys(names)
             },
@@ -1354,7 +1396,12 @@ class SourceRoster:
             else:
                 self._overlap(chosen.name, claimant.name, url)
         if chosen is not None:
-            return Route(plugin=chosen.name, reader=chosen.reader, unavailable=chosen.unavailable)
+            return Route(
+                plugin=chosen.name,
+                reader=chosen.reader,
+                unavailable=chosen.unavailable,
+                museum=self._identities.get(chosen.name, PluginIdentity()).museum,
+            )
         if provider is not None and provider in self._unknowable:
             return Route(
                 plugin=provider,
@@ -1461,9 +1508,9 @@ def load_sources(
 
     # Each loaded plugin's deadlines: a declaration that could not load has already left it out (`_load_one`).
     declared = {name: own for name in parts if isinstance(own := declared_deadlines(plugins[name], deadlines), Deadlines)}
-    contain = _Containment(tally, deadlines, context.preview_max_bytes, declared=declared, wait_for=wait_for)
     museums = {name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None}
     declare_museums(museums)
+    contain = _Containment(tally, deadlines, context.preview_max_bytes, declared=declared, museums=museums, wait_for=wait_for)
 
     unknown = [name for name in order if name not in states]
     if unknown:
@@ -1490,7 +1537,7 @@ def load_sources(
             name=n,
             claims=claims,
             reader=(contain.reader(reader, n) if n in parts and (reader := parts[n].reader) is not None else None),
-            unavailable=None if n in parts else _not_loaded(n, states[n][1]),
+            unavailable=None if n in parts else _not_loaded(n, museums.get(n), states[n][1]),
         )
         for n in ranked
         if n in plugins and (claims := plugins[n].claims) is not None

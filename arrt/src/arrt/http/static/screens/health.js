@@ -434,7 +434,7 @@ const SOURCE_COLUMNS = [
   { name: "chosen", heading: "Chosen", num: true },
   { name: "only-here", heading: "Only here", drops: 5, num: true },
   { name: "searches", heading: "Searches", drops: 2, num: true },
-  { name: "hit-rate", heading: "Hit rate", drops: 6, num: true },
+  { name: "hit-rate", heading: "Hit rate of answered", drops: 6, num: true },
   { name: "latency", heading: "Median latency", drops: 4, num: true },
   { name: "median", heading: "Median long edge", drops: 1, num: true },
   { name: "faults", heading: "Faults since startup", drops: 7, num: true },
@@ -462,6 +462,20 @@ function hitRate(source) {
   const answered = source.searches_answered;
   if (typeof answered !== "number" || answered === 0 || typeof source.searches_with_images !== "number") return "—";
   return PERCENT.format(source.searches_with_images / answered);
+}
+
+/* What the rate is over, in words, for whoever reads "75%" beside "Searches 100":
+ * the rate is of the searches it answered, not of every search, so the figure says
+ * "60 of the 80 searches it answered had an image" and, when some were not
+ * answered, how many of all of them those were. Nothing to say for a source
+ * never searched. */
+function hitRateWords(source) {
+  const { searched, searches_answered: answered, searches_with_images: withImages } = source;
+  if (typeof searched !== "number" || typeof answered !== "number" || searched === 0) return null;
+  if (answered === 0 || typeof withImages !== "number") return `None of its ${number(searched)} searches has been answered, so there is no rate.`;
+  const unanswered = searched - answered;
+  const rest = unanswered > 0 ? `; ${number(unanswered)} of the ${number(searched)} searches were not answered` : "";
+  return `${number(withImages)} of the ${number(answered)} searches it answered had an image${rest}.`;
 }
 
 /* How long its answers took, at their median: "0.8 s", "4 s", "35 s", and in
@@ -496,7 +510,7 @@ function sourceRow(source, yielded) {
     // From the search record, which the health reading carries for every
     // source: zero searches for one never searched.
     searches: count(source.searched),
-    "hit-rate": hitRate(source),
+    "hit-rate": [el("span", { title: hitRateWords(source), text: hitRate(source) })],
     latency: latency(source),
     median: yielded && typeof yielded.median_long_edge === "number" ? `${number(yielded.median_long_edge)} px` : "—",
     faults: source.state === "loaded" || source.faults ? String(source.faults) : "—",
@@ -537,7 +551,7 @@ function sourcesPanel(health, yields) {
             el("div", { class: "table-scroll" }, [
               el("table", {}, [
                 el("caption", {
-                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for. Searches: the works it was most recently searched for. Hit rate: of those it answered, the share it answered with an image. Median latency: how long it took to answer them.",
+                  text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for. Searches: the works it was most recently searched for. Hit rate of answered: of the searches it answered, not of all of them, the share it answered with an image. Median latency: how long it took to answer them.",
                 }),
                 el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => el("th", { scope: "col", class: `col-${name}${num ? " num" : ""}`, text: heading })))]),
                 el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),

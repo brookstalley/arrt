@@ -21,6 +21,7 @@ from functools import partial
 from pathlib import Path
 from typing import Final, Protocol
 
+from arrt.counting import agree, counted
 from arrt.persistence.backup import finish_migration, take_pre_migration_snapshot
 from arrt.persistence.durable import Migration, SqliteDurableStore
 from arrt.persistence.migrations import (
@@ -216,7 +217,7 @@ def _ways_back(path: Path, directory: Path, recorded: CatalogueOpened, release: 
     forward = f"start Arrt {recorded.release} or a newer release on it"
     if not opens:
         places = " or ".join(sorted({str(directory), str(path.parent)}))
-        others = f" ({refused} {'copy is' if refused == 1 else 'copies are'} there that this release refuses too)"
+        others = f" ({counted(refused, 'copy', 'copies')} {agree(refused, 'is', 'are')} there that this release refuses too)"
         return (
             f"No copy this release opens is in {places}{others if refused else ''}: a pre-migration copy "
             f"({_PRE_MIGRATION_COPIES}) is written only before an open that drops something or raises the shape "

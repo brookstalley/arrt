@@ -113,7 +113,7 @@ _UNEXPECTED: Final[str] = "{phase} failed unexpectedly. The server log has the d
 
 #: What a run records when the error that ended it carried no message. Says so
 #: rather than pointing at the log, which holds the same empty message.
-_NO_REASON: Final[str] = "The run stopped without saying why: the error that ended it carried no message."
+_NO_REASON: Final[str] = "The Get stopped without saying why: the error that ended it carried no message."
 
 #: How many runs one listing may carry. **Nothing else bounds this list**, and it
 #: is the only listing in the product that grows with what people *typed*: a run
@@ -414,14 +414,14 @@ def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple
 RUN_THREAD_NAME: Final = "discovery-run"
 
 
-def _not_asked(unasked: Counter[str] | None) -> str:
+def _not_asked(unasked: Counter[str] | None, museum: Callable[[str], str]) -> str:
     """Which museums could not be asked, and about how many works, as a sentence ending in a space; empty when none is known.
 
     By the museum, never the plugin id: a curator reads it on the run.
     """
     if not unasked:
         return ""
-    named = ", ".join(f"{museum_name(name)} ({counted(count, 'work')})" for name, count in unasked.most_common())
+    named = ", ".join(f"{museum(name)} ({counted(count, 'work')})" for name, count in unasked.most_common())
     return f"Could not ask {named}. "
 
 
@@ -541,9 +541,9 @@ class DiscoveryRunner:
         run = self._discovery.get_run(run_id)
         if run.estimated_cost_usd is None:
             raise ServiceError(
-                f"Run {run_id!r} has no phase-2 estimate yet: it is {run.status}, and the figure is computed "
+                f"Get {run_id!r} has no phase-2 estimate yet: it is {run.status}, and the figure is computed "
                 "when phase 1 finishes and the work count is known. Call estimate with no run_id for the "
-                "phase-1 figure, or status to see where this run has got to."
+                "phase-1 figure, or status to see where this Get has got to."
             )
         return Estimate(phase="phase_2", cost_usd=run.estimated_cost_usd, basis=self._phase_two_basis(run), run_id=run_id)
 
@@ -556,7 +556,7 @@ class DiscoveryRunner:
         held = self._discovery.run_results(run.id).works
         free = "Finding the images asks museum APIs, which are free, and identifies works locally"
         if run.kind is RunKind.RESOLVE:
-            return f"Re-searching the {counted(len(held), 'work')} this run covers. {free}, so this re-search costs nothing."
+            return f"Re-searching the {counted(len(held), 'work')} this Get covers. {free}, so this re-search costs nothing."
         if run.kind is RunKind.GET:
             return f"Getting the {counted(len(held), 'work')} you chose. {free}, so this Get costs nothing."
         # Proposed only: this sentence says what phase 2 will resolve, and a work
@@ -564,7 +564,7 @@ class DiscoveryRunner:
         # resolve. Counting it here described twelve works as proposed that the
         # model never named.
         proposed = sum(1 for work in held if work.provenance is WorkProvenance.PROPOSED)
-        return f"Resolving the {counted(proposed, 'work')} this run proposed. {free}, so this costs nothing further."
+        return f"Resolving the {counted(proposed, 'work')} this Get proposed. {free}, so this costs nothing further."
 
     def spend_report(self, *, run_id: str | None = None, year: int | None = None, month: int | None = None) -> SpendReport:
         """What a run cost, or what a calendar month cost.
@@ -576,8 +576,8 @@ class DiscoveryRunner:
         if run_id is not None:
             if year is not None or month is not None:
                 raise ServiceError(
-                    "spend answers about one run or about one month, not both. Pass run_id on its own for a "
-                    "run's cost, or year and month on their own for a month's."
+                    "spend answers about one Get or about one month, not both. Pass run_id on its own for a "
+                    "Get's cost, or year and month on their own for a month's."
                 )
             cost = self._discovery.run_cost(run_id)
             return SpendReport(
@@ -894,7 +894,7 @@ class DiscoveryRunner:
                 self._discovery.fail_run,
                 "run.failed",
                 f"Phase 1 used {produced.searches_used} web searches against an allowance of {allowance}. "
-                "The run's results are not accepted: the search cap is what makes the pre-run estimate a bound.",
+                "The Get's results are not accepted: the search cap is what makes the estimate made before it started a bound.",
             )
             return
         try:
@@ -1115,7 +1115,7 @@ class DiscoveryRunner:
                 pages[work.discovery_run_id] = self._fetchable_citations(work.discovery_run_id)
             tally[self._resolve_work(work, images, previews, pages=pages[work.discovery_run_id], unasked=unasked)] += 1
         self._supplement(run_id, previews)
-        self._close_phase_two(run_id, tally=tally, works=len(works), unasked=unasked)
+        self._close_phase_two(run_id, tally=tally, works=len(works), unasked=unasked, museum=images.museum)
 
     def _supplement(self, run_id: str, previews: PreviewCache) -> None:
         """Offer works the collection holds by the artists this run could not confirm.
@@ -1398,7 +1398,13 @@ class DiscoveryRunner:
         )
 
     def _close_phase_two(
-        self, run_id: str, *, tally: Counter[WorkOutcome], works: int, unasked: Counter[str] | None = None
+        self,
+        run_id: str,
+        *,
+        tally: Counter[WorkOutcome],
+        works: int,
+        unasked: Counter[str] | None = None,
+        museum: Callable[[str], str] = museum_name,
     ) -> None:
         """End the run on what phase 2 actually managed.
 
@@ -1420,8 +1426,8 @@ class DiscoveryRunner:
                 # site of #113, in a module the fix had already edited and had
                 # already imported `counted` into. Nothing announces a sentence
                 # that only a failure path prints.
-                f"Phase 2 could not reach an image provider for any of this run's {counted(works, 'work')}. "
-                f"{_not_asked(unasked)}"
+                f"Phase 2 could not reach an image provider for any of this Get's {counted(works, 'work')}. "
+                f"{_not_asked(unasked, museum)}"
                 f"Nothing is known about whether {agree(works, 'it exists', 'they exist')}; "
                 f"the {noun(works, 'work')} {agree(works, 'is', 'are')} unchanged and can be re-searched.",
             )

@@ -45,12 +45,30 @@ def noun(count: int, singular: str, plural: str | None = None) -> str:
 
 
 def counted(count: int, singular: str, plural: str | None = None) -> str:
-    """A count and its noun — `1 work`, `12 works`.
+    """A count and its noun — `1 work`, `12 works`, `2,000 works`.
 
     The overwhelmingly common case, and the one worth making shortest: every
     site this was written for says a number immediately followed by its noun.
+
+    **Digits are grouped from a thousand, here and nowhere else.** A sentence
+    that groups its own digits, or leaves them bare, reads differently from the
+    next one for the same number. The grouping belongs to this writer, so a count
+    of thousands reads the same wherever it is said (`test_one_count_writer.py`).
     """
-    return f"{count} {noun(count, singular, plural)}"
+    return f"{figure(count)} {noun(count, singular, plural)}"
+
+
+def figure(count: int) -> str:
+    """A count with no noun after it — `7`, `2,000` — for a sentence whose noun is said elsewhere.
+
+    The same digits `counted` writes, so "2,000 works" and "2,000 of them" agree.
+    """
+    return f"{count:,}"
+
+
+def times(count: int) -> str:
+    """How often, as a phrase — `once`, `3 times`, `2,000 times`; zero takes the plural, as "0 times"."""
+    return "once" if count == 1 else f"{figure(count)} times"
 
 
 def agree(count: int, singular: str, plural: str) -> str:

@@ -26,6 +26,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from arrt.counting import counted
+
 log = logging.getLogger(__name__)
 
 
@@ -150,7 +152,7 @@ def in_words(seconds: float) -> str:
     magnitude = abs(seconds)
     _, divisor, unit = next(entry for entry in _UNITS if magnitude < entry[0])
     count = round(magnitude / divisor)
-    phrase = f"{count} {unit}{'' if count == 1 else 's'}"
+    phrase = counted(count, unit)
     return phrase if seconds >= 0 else f"{phrase} in the future"
 
 

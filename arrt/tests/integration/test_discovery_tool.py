@@ -359,7 +359,7 @@ async def test_spend_refuses_a_run_and_a_month_at_once_rather_than_choosing(serv
     payload, errored = await call(server_url, "art_discovery", action="spend", run_id=run_id, year=2026, month=8)
 
     assert errored is True
-    assert "one run or about one month" in payload["error"]
+    assert "one Get or about one month" in payload["error"]
 
 
 # -- the search cap ---------------------------------------------------------------

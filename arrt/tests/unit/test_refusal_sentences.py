@@ -512,3 +512,101 @@ def test_a_start_up_module_reaches_no_person():
                     if isinstance(each, (ast.Name, ast.Attribute))
                 } | {alias.name for each in ast.walk(other_tree) if isinstance(each, ast.ImportFrom) for alias in each.names}
                 assert cls.name not in named, f"{_module(other, SRC)} names {cls.name}, which {module} raises at start-up"
+
+
+# -- a Get is a Get wherever a person reads it -----------------------------------
+#
+# The owner's ruling of 2026-11-25 (3): MCP keeps "run" in its names (`run_id`, `list_runs`, the
+# action names), and a sentence the server writes that reaches a screen, or a refusal an agent
+# relays to a person, says "Get". The browser calls a first-time search, a re-search and a Get by
+# one word, and a refusal reading "No discovery run with id …" was the one place a person met the
+# other.
+#
+# What it reads: every refusal the source builds, in any module (`ALL`), and every prose string in
+# the two modules that write a Get's own sentences (`GET_MODULES`).
+#
+# What it reads for: "run" used as the noun for a Get, in the forms a Get's sentence takes
+# ("a run", "this run's", "discovery run", "Run '…'", "run in …"). A verb is not read ("nothing
+# runs with nobody watching", "cannot run in this deployment"), and neither is a Watch's own
+# "Last run finished".
+#
+# What it does not read, and says so: a sentence about a Get built in another module. The status
+# notices and the tool descriptions in `mcp/bindings.py` and `mcp/tools.py` still say "this run"
+# for a Get, and the Watches' sentences say "run" for a Watch's pass; neither is in this guard's
+# reach, and the guard cannot see a sentence assembled from parts.
+
+RUN_FOR_A_GET = re.compile(
+    r"\b(?:(?:discovery|resolve) runs?\b"
+    r"|(?:this|the|a|an|one|that|its|each|every|no|originating) runs?\b"
+    r"|Run (?:\{|')"
+    r"|runs? in \{)",
+    re.IGNORECASE,
+)
+
+#: The modules whose every sentence is read for it: where a Get's own sentences are written.
+GET_MODULES = ("library/services/discovery.py", "library/services/runner.py")
+
+
+def run_for_a_get(found: list[Sentence]) -> list[Sentence]:
+    """The sentences that call a Get a run."""
+    return [sentence for sentence in found if RUN_FOR_A_GET.search(sentence.text)]
+
+
+@pytest.mark.parametrize("refusal", [refusal for refusal in ALL if RUN_FOR_A_GET.search(refusal.text)] or [None], ids=str)
+def test_no_refusal_calls_a_get_a_run(refusal):
+    """Parametrised over the refusals that do, so each is named; `None` alone is the pass."""
+    assert refusal is None, f"{refusal.site} ({refusal.raised_as}) says: {refusal.text}"
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    run_for_a_get([each for each in SENTENCES if each.module in GET_MODULES]) or [None],
+    ids=lambda sentence: getattr(sentence, "site", "none"),
+)
+def test_no_sentence_in_the_modules_that_write_a_gets_calls_it_a_run(sentence):
+    assert sentence is None, f"{sentence.site} says: {sentence.text}"
+
+
+def _refusals_in(source: str, tmp_path: Path) -> list[Refusal]:
+    planted_module = tmp_path / "planted.py"
+    planted_module.write_text(source, encoding="utf-8")
+    return list(refusals({planted_module: ast.parse(source)}, root=tmp_path))
+
+
+@pytest.mark.parametrize(
+    "planted",
+    [
+        'raise NotFound(f"No discovery run with id {run_id!r} exists.")',
+        'raise ServiceError(f"Run {run_id!r} is {status}, so it cannot cancel.")',
+        "raise ServiceError(f\"Run '{run_id}' ended.\")",
+        'raise ServiceError("A resolve run needs at least one candidate work.")',
+        'raise ServiceError(f"{doing} needs a run in {expected}.")',
+        'raise ServiceError("Start one per originating run.")',
+        'raise ServiceError("Nothing here: this run\'s works are off.")',
+    ],
+)
+def test_a_planted_refusal_calling_a_get_a_run_is_named(planted, tmp_path):
+    found = _refusals_in(f"def f(run_id, status, doing, expected):\n    {planted}\n", tmp_path)
+    assert [refusal.site for refusal in found if RUN_FOR_A_GET.search(refusal.text)] == ["planted.py:2"]
+
+
+@pytest.mark.parametrize(
+    "innocent",
+    [
+        'raise ServiceError("Unattended work is off, so nothing runs with nobody watching.")',
+        'raise ServiceError("Tiled acquisition cannot run in this deployment.")',
+        'raise ServiceError(f"No Get with id {run_id!r} exists.")',
+        'raise ServiceError("Last run finished; what it found is in To review.")',
+        'raise ServiceError(f"Get {run_id!r} is {status}, so it cannot cancel; that needs a Get in {expected}.")',
+    ],
+)
+def test_what_does_not_call_a_get_a_run_is_not_named(innocent, tmp_path):
+    found = _refusals_in(f"def f(run_id, status, doing, expected):\n    {innocent}\n", tmp_path)
+    assert [refusal.site for refusal in found if RUN_FOR_A_GET.search(refusal.text)] == []
+
+
+def test_the_get_modules_are_modules_that_say_something_a_person_reads():
+    """Falsifiable: each is read, and each says a Get somewhere, so an empty list is not a blind guard."""
+    assert {sentence.module for sentence in SENTENCES} >= set(GET_MODULES)
+    for module in GET_MODULES:
+        assert any(sentence.module == module and "Get" in sentence.text for sentence in SENTENCES), module

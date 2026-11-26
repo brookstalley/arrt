@@ -245,7 +245,7 @@ async def test_every_reason_resolve_images_can_refuse_for_is_named_in_its_tips(s
     # rather than the one below arriving first.
     mixed, errored = await call(server_url, "art_discovery", action="resolve_images", work_ids=[work.id, elsewhere.id])
     assert errored is True
-    assert "one discovery run" in mixed["error"]
+    assert "one Get" in mixed["error"]
     assert "one discovery run" in tips
 
     services.discovery.start_resolve_run(candidate_work_ids=[work.id], initiated_by="web_ui")

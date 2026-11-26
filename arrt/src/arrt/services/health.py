@@ -45,7 +45,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from arrt import observations
-from arrt.counting import counted
+from arrt.counting import agree, counted, figure, times
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, failure_instant
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.watches import WatchesReading
@@ -118,9 +118,8 @@ class SourceHealth:
         if reading.faults == 0:
             said = f"The {museum} plugin is loaded, with no faults since startup."
             return said if not reading.unasked else f"{said[:-1]}; it could not be asked {unasked}."
-        plural = "fault" if reading.faults == 1 else "faults"
         said = (
-            f"The {museum} plugin is loaded, with {reading.faults} {plural} since startup, the last "
+            f"The {museum} plugin is loaded, with {counted(reading.faults, 'fault')} since startup, the last "
             f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
             "source not being reachable, so works it would have answered wait instead of being settled."
         )
@@ -152,9 +151,9 @@ class SourceHealth:
     def _unasked(self) -> str:
         """How many times the plugin could not be asked, when last, and what it said then."""
         reading = self.reading
-        times = "once" if reading.unasked == 1 else f"{reading.unasked} times"
+        how_often = times(reading.unasked)
         age = "" if self.last_unasked_age_seconds is None else f", the last {self.last_unasked_age_seconds:.0f} seconds ago"
-        return f"{times}{age} ({reading.last_unasked})"
+        return f"{how_often}{age} ({reading.last_unasked})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,21 +177,19 @@ class PicturesReading:
 
     def describe(self) -> str:
         """The count in a sentence, with its age, and what could not be read when anything could not."""
-        counted = f"counted {self.age_seconds:.0f} seconds ago"
+        measured = f"counted {self.age_seconds:.0f} seconds ago"
         if self.unreadable:
-            entries = "entry" if self.unreadable == 1 else "entries"
             return (
-                f"The picture store could not be read in full: {self.unreadable:,} {entries} refused, so the "
-                f"{self.pictures_files:,} files and {self.pictures_bytes / 1_000_000:,.1f} MB counted are short by "
-                f"what they hold ({counted}). Cards whose pictures are there go without them until the disk "
+                f"The picture store could not be read in full: {counted(self.unreadable, 'entry', 'entries')} refused, so the "
+                f"{counted(self.pictures_files, 'file')} and {self.pictures_bytes / 1_000_000:,.1f} MB counted are short by "
+                f"what they hold ({measured}). Cards whose pictures are there go without them until the disk "
                 "answers."
             )
         if self.pictures_files == 0:
-            return f"The picture store keeps no pictures yet ({counted})."
-        plural = "file" if self.pictures_files == 1 else "files"
+            return f"The picture store keeps no pictures yet ({measured})."
         return (
-            f"The picture store keeps {self.pictures_files:,} {plural}, {self.pictures_bytes / 1_000_000:,.1f} MB, "
-            f"{counted}. Each picture is two files, one per size kept."
+            f"The picture store keeps {counted(self.pictures_files, 'file')}, {self.pictures_bytes / 1_000_000:,.1f} MB, "
+            f"{measured}. Each picture is two files, one per size kept."
         )
 
 
@@ -225,15 +222,15 @@ class FailedFetches:
 
     def describe(self) -> str:
         """The count in a sentence, with the newest failure's age, or that it is not recorded."""
-        works = "1 work" if self.count == 1 else f"{self.count:,} works"
-        said = f"The queue holds {works} whose picture could not be fetched"
+        said = f"The queue holds {counted(self.count, 'work')} whose picture could not be fetched"
         if self.newest_age_seconds is None:
             return f"{said}; when the newest failed is not recorded."
         aged = observations.ago(self.newest_age_seconds)
         if not self.age_unknown:
             return f"{said}; the newest failed {aged}."
         return (
-            f"{said}; the newest whose time is recorded failed {aged}, and {self.age_unknown:,} failed at a time " "not recorded."
+            f"{said}; the newest whose time is recorded failed {aged}, "
+            f"and {figure(self.age_unknown)} failed at a time not recorded."
         )
 
 
@@ -487,8 +484,7 @@ class HealthReading:
             found.append(Trouble(TroubleKind.WATCH, None, None, "Watches wait: the unattended allowance is spent"))
         if self.failed_fetches is not None:
             count = self.failed_fetches.count
-            works = "1 work" if count == 1 else f"{count:,} works"
-            found.append(Trouble(TroubleKind.FAILED_FETCHES, None, None, f"{works} could not fetch a picture"))
+            found.append(Trouble(TroubleKind.FAILED_FETCHES, None, None, f"{counted(count, 'work')} could not fetch a picture"))
         return tuple(found)
 
     def setup_steps(self) -> tuple[SetupStep, ...]:
@@ -547,7 +543,7 @@ class HealthReading:
             return waits
         # The rest's sentence speaks only of the walls it was given, so the
         # waiting walls are said after it as not among them.
-        return f"{describe_wall_status(rest)} {waits[:-1]}, so {'it is' if len(waiting) == 1 else 'they are'} not counted there."
+        return f"{describe_wall_status(rest)} {waits[:-1]}, so {agree(len(waiting), 'it is', 'they are')} not counted there."
 
 
 def _waits_for(wait: WallWait | None, view: ClientView) -> bool:
@@ -590,24 +586,23 @@ def _player_words(view: ClientView, quiet: Sequence[Wall] = (), *, now: datetime
     said = f"{name} has not been heard from for {observations.in_words(view.heartbeat.age_seconds or 0.0)}"
     if not quiet:
         return said
-    return f"{said}, nor {'has' if len(quiet) == 1 else 'have'} {_listed([wall.name for wall in quiet])}"
+    return f"{said}, nor {agree(len(quiet), 'has', 'have')} {_listed([wall.name for wall in quiet])}"
 
 
 def _setup_words(view: ClientView, walls: Sequence[str] = ()) -> str:
     """A Player being set up, as the top bar says it, naming the walls that wait for it."""
     name = view.client.name
-    one = len(walls) == 1
     if view.player.state is PlayerState.NO_TOKEN:
         said = f"{name} has no token yet"
-        return said if not walls else f"{said}, so {_listed(walls)} {'waits' if one else 'wait'} for it"
+        return said if not walls else f"{said}, so {_listed(walls)} {agree(len(walls), 'waits', 'wait')} for it"
     said = f"{name} is waiting for its first report"
-    return said if not walls else f"{said}, and so {'is' if one else 'are'} {_listed(walls)}"
+    return said if not walls else f"{said}, and so {agree(len(walls), 'is', 'are')} {_listed(walls)}"
 
 
 def _waiting_words(walls: Sequence[str], view: ClientView) -> str:
     """Walls that have not reported because their Player is being set up, as the wall's panel says it."""
     name = view.client.name
-    wait = "waits" if len(walls) == 1 else "wait"
+    wait = agree(len(walls), "waits", "wait")
     if view.player.state is PlayerState.NO_TOKEN:
         return f"{_listed(walls)} {wait} for {name}, which has no token yet"
     return f"{_listed(walls)} {wait} for {name}'s first report"
