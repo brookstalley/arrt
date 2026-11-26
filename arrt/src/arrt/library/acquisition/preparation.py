@@ -30,7 +30,7 @@ remembered to do it.
 
 import logging
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
@@ -40,7 +40,15 @@ from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
-from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PRESETS, MatChoice, MatEngine, below_the_floor, derive
+from arrt.library.acquisition.mat import (
+    MAT_LIGHTNESS_FLOOR,
+    MAT_PRESETS,
+    MatChoice,
+    MatEngine,
+    MatPreset,
+    below_the_floor,
+    derive,
+)
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 from arrt.persistence.discovery_records import CostStatus, SpendCategory
@@ -148,6 +156,18 @@ class MatRequest:
         if otherwise is None:
             raise ServiceError(NO_MAT_NAMED)
         return otherwise
+
+
+@dataclass(frozen=True, slots=True)
+class MatOffer:
+    """A work's mat and the choices a curator has for it, before and after a choice: what the Work page's control shows."""
+
+    #: The mat in force, or None while the work has none.
+    current: MatColor | None
+    presets: Sequence[MatPreset]
+    #: What the derived mat would be, worked out and not recorded; None when the
+    #: work has no readable original to derive it from.
+    derived_hex_rgb: str | None
 
 
 #: Naming no mat over MCP: ask the vision model, which spends.
@@ -395,6 +415,29 @@ class PreparationService:
         mat, and preview it before it is chosen. Free: no model is asked.
         """
         return derive(self._source_for_a_mat(artwork_id), recording=False).hex_rgb
+
+    def mat_offer(self, artwork_id: str) -> MatOffer:
+        """The work's mat, the presets and what deriving would give, recording nothing (`MatOffer`).
+
+        Refused for a work the Library does not hold, rather than answered with
+        an empty control. A work with nothing to derive from (no original
+        recorded, none on disk, or one that will not decode) is offered the
+        presets alone, and why is logged, since a broken image otherwise only
+        loses an option silently.
+        """
+        self._catalogue.get_artwork(artwork_id)
+        current = self._catalogue.current_mat_color(artwork_id)
+        try:
+            derived: str | None = self.derived_mat(artwork_id)
+        except ServiceError as refusal:
+            log.info(
+                "no derived mat offered for %s: %s",
+                artwork_id,
+                refusal,
+                extra={"event": "mat.derivation_unavailable", "artwork_id": artwork_id},
+            )
+            derived = None
+        return MatOffer(current=current, presets=MAT_PRESETS, derived_hex_rgb=derived)
 
     def derive_mat(self, artwork_id: str) -> PreparationResult:
         """Record the mechanical mat, the work's own dominant colour, at a person's request.

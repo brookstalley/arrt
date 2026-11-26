@@ -23,6 +23,7 @@ from arrt.library.acquisition.preparation import ASK_THE_MODEL, MatRequest, MatW
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState, FailureCause, QueueEntry
 from arrt.library.registry import RegistryCreator
 from arrt.library.services import spend_history
+from arrt.library.services.artists import HeldArtist
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import DiscoveryService, SpendTotal, VerdictOutcome
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
@@ -38,6 +39,7 @@ from arrt.library.services.review import (
 )
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.settings import SettingState
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
 from arrt.library.services.watches import WatchService
@@ -58,7 +60,19 @@ from arrt.persistence.discovery_records import (
     Verdict,
     Watch,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import (
+    Artist,
+    Artwork,
+    Client,
+    Display,
+    MatColor,
+    Scene,
+    Showing,
+    Source,
+    Theme,
+    VocabularyKind,
+    Wall,
+)
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import (
@@ -2092,6 +2106,97 @@ def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     return ok(**_republished_fields(arguments["wall_id"], services.display.step_display(arguments["wall_id"])))
 
 
+# -- the reads the browser makes, in its routes' field names ----------------------------------
+
+
+def _list_artists(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/artists`: every artist with a work in circulation, by surname."""
+    return ok(artists=[_held_artist_fields(entry) for entry in services.artists.index(arguments.get("q"))])
+
+
+def _get_artist(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/artists/{artist_id}`: one artist, from the Library alone."""
+    return ok(**_held_artist_fields(services.artists.get(arguments["artist_id"])))
+
+
+def _held_artist_fields(entry: HeldArtist) -> dict[str, Any]:
+    """One artist the Library holds, as `HeldArtistOut` carries it."""
+    return {"artist": _artist_fields(entry.artist), "held": entry.held, "pictured_artwork_id": entry.pictured}
+
+
+def _work_mat(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/works/{artwork_id}/mat`: the mat, the presets and what deriving would give, recording nothing."""
+    offer = services.preparation.mat_offer(arguments["artwork_id"])
+    return ok(
+        current=None if offer.current is None else _mat_color_fields(offer.current),
+        presets=[{"key": preset.key, "label": preset.label, "hex_rgb": preset.hex_rgb} for preset in offer.presets],
+        derived_hex_rgb=offer.derived_hex_rgb,
+    )
+
+
+def _mat_color_fields(mat: MatColor) -> dict[str, Any]:
+    """One mat colour, as `MatColorOut` carries it."""
+    return {
+        "hex_rgb": mat.hex_rgb,
+        "method": str(mat.method),
+        "is_current": mat.is_current,
+        "reason": mat.reason,
+        "chosen_at": mat.chosen_at.isoformat(),
+    }
+
+
+def _work_placements(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/works/{artwork_id}/placements`: the themes holding a held work, the walls hanging each, its exclusion.
+
+    Two calls composed: the Library says whether the work is held, and
+    Programming where it is.
+    """
+    artwork_id = arguments["artwork_id"]
+    services.catalogue.get_artwork(artwork_id)
+    placements = services.display.placements_of(artwork_id)
+    return ok(
+        artwork_id=artwork_id,
+        themes=[
+            {
+                "theme": _theme_fields(placement.theme),
+                "hanging_on": [{"wall_id": wall.id, "name": wall.name} for wall in placement.walls],
+            }
+            for placement in placements.themes
+        ],
+        excluded_at=None if placements.exclusion is None else placements.exclusion.excluded_at.isoformat(),
+    )
+
+
+def _source_yields(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/sources/yields`: what each installed source plugin has given the Library."""
+    return ok(
+        sources=[
+            {
+                "name": each.provider,
+                "offered": each.offered,
+                "chosen": each.chosen,
+                "only_here": each.only_here,
+                "median_long_edge": each.median_long_edge,
+            }
+            for each in services.health.observe_yields()
+        ]
+    )
+
+
+def _budget(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/budget`: what is left of this month's budget, read from the provider's key."""
+    view = services.budget.view()
+    return ok(
+        state=str(view.state),
+        # Decimal strings, as every amount of money on this surface is.
+        remaining_usd=None if view.remaining_usd is None else str(view.remaining_usd),
+        budget_usd=None if view.budget_usd is None else str(view.budget_usd),
+        spent_usd=None if view.spent_usd is None else str(view.spent_usd),
+        note=view.note,
+        tiers={"cents_below_usd": str(CENTS_BELOW), "dimes_below_usd": str(DIMES_BELOW)},
+    )
+
+
 #: Every built action, keyed by tool and action name. A tool absent from here
 #: answers `help` and nothing else, which is what its registry record says.
 BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
@@ -2107,6 +2212,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,
+    ("art_discovery", "source_yields"): _source_yields,
+    ("art_discovery", "budget"): _budget,
     ("art_discovery", "search"): _registry_search,
     ("art_discovery", "find_topics"): _registry_topics,
     ("art_discovery", "artist"): _registry_artist,
@@ -2140,6 +2247,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "topics"): _list_topics,
     ("art_catalogue", "topic"): _get_topic,
     ("art_catalogue", "history"): _history,
+    ("art_catalogue", "artists"): _list_artists,
+    ("art_catalogue", "artist"): _get_artist,
+    ("art_catalogue", "mat"): _work_mat,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
@@ -2149,6 +2259,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "add"): _add_to_theme,
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
+    ("art_theme", "placements"): _work_placements,
     ("art_display", "activate"): _activate_theme,
     ("art_display", "hang_selection"): _hang_selection,
     ("art_display", "not_again"): _not_again,

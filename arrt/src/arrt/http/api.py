@@ -217,7 +217,6 @@ from arrt.http.models import (
     WorkSelection,
     WorksFilter,
 )
-from arrt.library.acquisition.mat import MAT_PRESETS
 from arrt.library.acquisition.preparation import MatRequest
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services import spend_history
@@ -1264,25 +1263,11 @@ def set_work_mat(request: Request, artwork_id: str, body: SetWorkMat) -> WorkMat
 
 
 def _work_mat(services: Services, artwork_id: str) -> WorkMatOut:
-    services.catalogue.get_artwork(artwork_id)
-    current = services.catalogue.current_mat_color(artwork_id)
-    try:
-        derived = services.preparation.derived_mat(artwork_id)
-    except ServiceError as refusal:
-        # Nothing to derive from: no original recorded, none on disk, or one that
-        # will not decode. The control offers the presets alone, and the reason is
-        # logged, since a broken image otherwise only loses an option silently.
-        log.info(
-            "no derived mat offered for %s: %s",
-            artwork_id,
-            refusal,
-            extra={"event": "mat.derivation_unavailable", "artwork_id": artwork_id},
-        )
-        derived = None
+    offer = services.preparation.mat_offer(artwork_id)
     return WorkMatOut(
-        current=_mat_color(current) if current else None,
-        presets=[MatPresetOut(key=preset.key, label=preset.label, hex_rgb=preset.hex_rgb) for preset in MAT_PRESETS],
-        derived_hex_rgb=derived,
+        current=None if offer.current is None else _mat_color(offer.current),
+        presets=[MatPresetOut(key=preset.key, label=preset.label, hex_rgb=preset.hex_rgb) for preset in offer.presets],
+        derived_hex_rgb=offer.derived_hex_rgb,
     )
 
 
