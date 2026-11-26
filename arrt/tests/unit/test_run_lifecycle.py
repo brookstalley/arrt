@@ -225,7 +225,7 @@ def test_a_re_search_covers_one_originating_run_because_that_is_what_its_cost_at
     other_run = discovery.start_discovery_run(intent_text="American realists", initiated_by=InitiatedBy.WEB_UI)
     second = propose("Automat", run_id=other_run.id, dedup_key="automat")
 
-    with pytest.raises(ServiceError, match="one discovery run"):
+    with pytest.raises(ServiceError, match="one Get"):
         discovery.start_resolve_run(candidate_work_ids=[first.id, second.id], initiated_by=InitiatedBy.WEB_UI)
 
 

@@ -563,7 +563,7 @@ def test_spend_refuses_a_run_and_a_month_together_rather_than_silently_picking_o
     with pytest.raises(ServiceError) as refusal:
         runner.spend_report(run_id=run_id, year=2026, month=8)
 
-    assert "one run or about one month" in str(refusal.value)
+    assert "one Get or about one month" in str(refusal.value)
 
 
 def test_spend_refuses_half_a_month(runner):

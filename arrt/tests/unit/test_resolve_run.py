@@ -591,7 +591,7 @@ def test_works_from_two_different_runs_cannot_share_one_re_search(services, runn
     _, first = reviewed("The Elephants")
     _, second = reviewed("Nighthawks")
 
-    with pytest.raises(ServiceError, match="one discovery run"):
+    with pytest.raises(ServiceError, match="one Get"):
         re_search(runner, first["The Elephants"], second["Nighthawks"])
 
 
