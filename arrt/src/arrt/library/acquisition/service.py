@@ -151,10 +151,9 @@ def _journal_deployment_fault(exc: Exception, *, artwork_id: str) -> None:
     the operator, who is not holding the result.
 
     **Emitted here rather than at a surface, so the signal follows the condition
-    and not the route in.** It lived in the MCP binding until 2026-08-05, which
-    was harmless only for as long as MCP was the sole caller: the first browser
-    acquisition route would have inherited the refusal without the journal line
-    and left an operator debugging "nothing acquires" on a full disk against
+    and not the route in.** In the MCP binding it would be harmless only while MCP was the sole caller: a
+    browser acquisition route would inherit the refusal without the journal line
+    and leave an operator debugging "nothing acquires" on a full disk against
     silence — the exact failure this event exists to break. A surface still owns
     the operator-facing *remedy*, which is a different thing and belongs where
     the words are written.

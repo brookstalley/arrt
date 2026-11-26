@@ -6,8 +6,8 @@
  * stored**: a typo cannot pass as an identity. *There is none* says the item does
  * not exist, which stops the matcher looking, and is confirmed first.
  *
- * **At rest it is the identity and one quiet *Edit*** (the owner's ruling on
- * #174): *Edit* reveals the Q… field, *Look up* and *There is none* together,
+ * **At rest it is the identity and one quiet *Edit*** (the owner's ruling):
+ * *Edit* reveals the Q… field, *Look up* and *There is none* together,
  * since changing the item and saying there is none are both corrections a
  * curator makes rarely.
  *

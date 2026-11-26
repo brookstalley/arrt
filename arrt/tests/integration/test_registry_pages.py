@@ -444,7 +444,7 @@ class TestWithNoRegistryConfigured:
 
         assert (work["state"], work["held_artwork_ids"]) == ("not_configured", [kept.id])
         assert (artist["state"], artist["artist_id"]) == ("held", rothko.id)
-        # In the household's words, naming no setting (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        # In the household's words, naming no setting (not WIKIDATA_USER_AGENT).
         assert work["note"] == "Wikidata is not configured on this server."
 
 

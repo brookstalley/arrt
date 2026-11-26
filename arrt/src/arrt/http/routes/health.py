@@ -30,11 +30,11 @@ router = APIRouter(prefix=API_PREFIX)
 def get_health(request: Request) -> HealthOut:
     """Every observation the panel states, read at one instant.
 
-    One service call, not three. This handler used to assemble the panel from a
-    heartbeat here and a geometry there, which made "what signals does the panel
-    make" a decision taken in the binding — and the next signal would have had to
-    be added in two places with nothing to notice if it reached only one. The
-    assembly is `HealthService.observe`'s now, and this is a dispatch again.
+    One service call, not several. Assembling the panel in the handler would make
+    "what signals does the panel make" a decision taken in the binding — and the
+    next signal would have to be added in two places with nothing to notice if it
+    reached only one. The assembly is `HealthService.observe`'s, and this is a
+    dispatch.
     """
     return _health(_services(request).health.observe())
 

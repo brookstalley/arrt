@@ -344,8 +344,8 @@ class DiscoveryService:
     ) -> DiscoveryRun:
         """Close phase 1 and go straight to phase 2.
 
-        **No run stops for approval** (the owner's ruling 3 of 2026-10-07,
-        #290): asking is the approval, and the month's budget and each action's
+        **No run stops for approval** (the owner's ruling 3 of 2026-10-07):
+        asking is the approval, and the month's budget and each action's
         tier are what keep spend in view. A run stored `awaiting_approval`
         before the gate was removed can still be approved or declined
         (`approve_run`, `decline_run`); nothing writes that state now.

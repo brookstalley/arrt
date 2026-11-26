@@ -17,7 +17,7 @@ application turns into the `401` or `403` (`app.py`), so no handler branches on
 the answer. A handler then makes its service call and turns the answer into a
 response. The token check is the access service's, and the refusal log with it.
 
-**Synchronous `def`**, for the reason `api.py` gives: the work is real file and
+**Synchronous `def`**, for the reason `http/api.py` gives: the work is real file and
 database I/O, and Starlette runs a sync handler in a worker thread. The client
 heartbeat and the wall heartbeat are the two `async def`s, because each reads
 the raw body so that a body that is not a JSON object is refused with the same

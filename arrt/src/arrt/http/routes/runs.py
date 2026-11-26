@@ -136,12 +136,11 @@ def list_runs(
 
     The cap is `RunnerService.list_runs`', not this handler's, so this surface
     and the MCP twin cannot come to disagree about how much history exists —
-    which is what the note here used to warn would happen if either were fixed
-    alone. Both now read the same bound and report the same total.
+    which fixing either alone would risk. Both read the same bound and report
+    the same total.
 
-    **There is still no paging parameter**, and that is a smaller gap than the
-    one just closed: `total` says what was left out, and the two filters are how
-    a caller reaches it. A `limit`/`offset` pair would change the contract of a
+    **There is no paging parameter**: `total` says what was left out, and the two
+    filters are how a caller reaches it. A `limit`/`offset` pair would change the contract of a
     shipped surface and earns its own review rather than riding along here.
     """
     services = _services(request)
@@ -215,8 +214,8 @@ def start_resolve_run(request: Request, body: StartResolve) -> RunOut:
     and for the same reason: this takes minutes.
 
     **Where it is registered is not what makes this safe** — the paths
-    do not overlap, since nothing serves `POST /api/runs/{id}`. It sits here
-    because it is the third way a run begins and belongs beside the other two.
+    do not overlap, since nothing serves `POST /api/runs/{id}`. It is the
+    third way a run begins, after `start_run` and `start_get`.
     """
     services = _services(request)
     return _run(

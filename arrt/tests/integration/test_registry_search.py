@@ -183,7 +183,7 @@ class TestWithNoRegistryConfigured:
 
         assert found["state"] == "not_configured"
         # In the household's words, naming no setting: the search results page
-        # shows it (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        # shows it (not WIKIDATA_USER_AGENT).
         assert found["note"] == "Wikidata is not configured on this server, so only your library is searched."
 
 

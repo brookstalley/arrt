@@ -73,7 +73,7 @@ export async function viewArtists(artistId, generation) {
 }
 
 /* Library › Artists' two views, Lidarr's names for them: posters by default,
- * the owner's ruling on #173, and the table it had before. The choice is in
+ * the owner's ruling, and the table it had before. The choice is in
  * the address (`?view=table`), as Artworks' View is, so a reload and a link
  * land on it; the default is left out of the address. */
 const POSTERS = "posters";

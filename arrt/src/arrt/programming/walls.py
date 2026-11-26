@@ -265,9 +265,7 @@ class Walls:
         rather than a gap. Each wall gets its own feed, named by the wall's
         id, from the moment a theme is hung on it, and a client is admitted only
         to the walls assigned to it. Nothing is overwritten and no client can
-        open a wall it does not show; until 2026-08-12 both were false, and a
-        second wall was a thing an operator could record and be told would not
-        light up.
+        open a wall it does not show.
         """
         chosen = require_text(name, field="name")
         # The instant is read under the store's lock, so walls added at once are

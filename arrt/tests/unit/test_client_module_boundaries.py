@@ -88,7 +88,7 @@ def test_no_core_module_imports_a_screen():
 def test_every_screen_module_is_reachable_from_the_route_table():
     """A screen nobody routes to is dead code that still has to be maintained.
 
-    Read off `app.js` because that is where the plan puts the table, and it is
+    Read off `app.js` because that is where the route table lives, and it is
     the one place a screen becomes reachable at all.
     """
     boot = _read(STATIC_DIR / "app.js")

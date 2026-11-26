@@ -632,12 +632,12 @@ function sentence(event, wallNames, titles) {
  *
  * Lidarr's Wanted › Missing, and `ia-proposal.md` § Activity: "Wanted holds works
  * marked Want (no image known, or a Get that found nothing)". One state whether
- * a work never had a scan or had its scan turned down (#168's convergence), so
+ * a work never had a scan or had its scan turned down (Wanted's convergence), so
  * one list, each row saying which.
  *
  * **Getting again is manual and free.** It asks museum and Commons APIs,
  * which cost nothing (`phase2_estimate_usd`), and its tier says so beside the
- * button; a scheduled one waits for the upgrades job (#178), which the
+ * button; a scheduled one waits for the upgrades job, which the
  * scheduler that runs Watches is built to take. Commons is asked only by Wikidata
  * item, so Get again on a work with no item first offers Wikidata's matches to
  * pick from — the curator's pick, never a match by title (`data-model.md`

@@ -24,7 +24,7 @@ class NotFound(ServiceError):
     `ServiceError` (MCP's failure shape, the Ask agent, the scheduler's jobs, a
     service catching a collaborator's refusal) answers exactly as before. Only
     `/api` tells the two apart: a `NotFound` answers 404 there and every other
-    refusal 400 (`app.py`, `http/api.service_error_response`). The Player's
+    refusal 400 (`app.py`, `http/routes/common.py`'s `service_error_response`). The Player's
     routes are the contract's, and keep 400 for both.
 
     A thing that exists in a state that refuses the act (nothing hanging on a

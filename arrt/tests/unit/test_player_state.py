@@ -136,7 +136,7 @@ PLAYER_STATES = vocabulary().get("player_states")
 def test_each_player_states_setup_flag_is_the_one_the_package_states(state):
     """Over the server's states, so it has cases before the package words them; the test below says when it must."""
     if PLAYER_STATES is None:
-        # Before contract 1.3.0: the plan's DECISION is the only statement of
+        # Before contract 1.3.0: the server's own set is the only statement of
         # the flags, and the guard below fails once the package must carry them.
         assert (state in player_state.SETUP) is (state in {"no_token", "awaiting_report"})
         return

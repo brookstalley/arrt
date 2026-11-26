@@ -114,7 +114,7 @@ class ReplyCost:
 
 
 #: Where a reply's cost is written: the spend ledger, so the month's total
-#: includes what Ask spent (the owner, 2026-10-09, #337).
+#: includes what Ask spent (the owner, 2026-10-09).
 RecordCost = Callable[[ReplyCost], None]
 
 

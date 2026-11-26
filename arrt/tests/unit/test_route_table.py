@@ -1,7 +1,7 @@
 """The JSON routes' registration order and shape: what FastAPI matches, by what name, answering with what.
 
 FastAPI tries routes in the order they were registered, and the routes are declared in
-one module per resource and assembled in `arrt.http.api`. Splitting a router across
+one module per resource (`arrt.http.routes`) and assembled in `arrt.http.api`. Splitting a router across
 files is a move that can silently reorder it, change a handler's name (which is its
 operation id) or drop a response model, and every one of those still answers requests.
 This table is what the router answered with when it was one file; a route added,

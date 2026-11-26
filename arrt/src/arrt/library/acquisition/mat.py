@@ -169,9 +169,9 @@ CORPUS_MAX_LIGHTNESS: Final[float] = 50.0
 #: vision model rather than to a second multiplier tuned until a statistic looks
 #: better.
 #:
-#: (Issue #115 records +15.2 for the same 40 pairs. It is not a different
+#: (An earlier note records +15.2 for the same 40 pairs. It is not a different
 #: measurement and neither number is wrong: the sample is even, the two middle gaps
-#: are 13.3 and 15.2, and the issue quoted the upper one where
+#: are 13.3 and 15.2, and that note quoted the upper one where
 #: `tools/mat_masters.py` takes the mean the median is defined as. The tool's is the
 #: figure to quote, because it is the one a reader can reproduce.)
 _DERIVED_LIGHTNESS_CEILING: Final[float] = 45.2

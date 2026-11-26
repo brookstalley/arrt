@@ -482,8 +482,8 @@ class Settings:
 
         **A method taking a wall rather than a field**, because there is no such
         thing as "the manifest path" any more: the file set is indexed by wall,
-        and a settings object holding one path is what let a second wall's theme
-        overwrite the first wall's file until 2026-08-12.
+        and a settings object holding one path is what would let a second wall's theme
+        overwrite the first wall's file.
 
         **Production reaches these paths through `DisplaySettings`, not here, and
         this pair stays anyway.** A review once flagged both as callerless
@@ -530,8 +530,7 @@ class Settings:
 
         Upstream rather than derived: nothing regenerates these. The backup
         carries the catalogue alone, so these are the storage's own snapshots'
-        to keep; a master whose row survives its file is not re-fetched today
-        (#180).
+        to keep; a master whose row survives its file is not re-fetched today.
         """
         return self.art_root / ORIGINALS_DIRNAME
 
@@ -573,13 +572,12 @@ class Settings:
         write the catalogue somewhere unintended and look like it had worked.
 
         **`.env` supplies defaults and the process environment wins**, which is
-        what `load_dotenv()` without `override` means. The inverse was in place
-        until 2026-08-05 and made `ART_ROOT=/tmp/scratch uv run python -m
-        curation` boot against the real catalogue instead: the exported value
-        was ignored rather than refused. Note that dotenv resolves its file
+        what `load_dotenv()` without `override` means. The inverse would make
+        `ART_ROOT=/tmp/scratch uv run python -m arrt` boot against the real
+        catalogue instead: the exported value would be ignored rather than refused. Note that dotenv resolves its file
         upward from *this module's* directory and never from the cwd, so
         `cd`-ing into a scratch tree isolates nothing either way — the
-        environment is the only lever, and it now works.
+        environment is the only lever, and it works.
         """
         load_dotenv()
         art_root = Path(_require("ART_ROOT"))

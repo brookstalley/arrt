@@ -1142,7 +1142,7 @@ def _entry(title: str, state: AcquisitionState, museum_of: Callable[[str], str])
 
     A classified fetch's cause is its outcome's words at its plugin
     (`OUTCOME_CAUSES`), whatever the holder's own words were, so one cause is
-    one group however each holder phrased it (#318). The plugin's museum is
+    one group however each holder phrased it. The plugin's museum is
     `museum_of`'s: the queue's own (`AcquisitionQueue._museum_of`).
     """
     artwork_id = state.artwork_id

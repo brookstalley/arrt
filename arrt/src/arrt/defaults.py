@@ -3,7 +3,7 @@
 **This module imports no other `arrt` module**, so configuration can read a
 default from here without loading the service layer, and the service layer can
 read the same default without reaching up into configuration. Each value has one
-owner, here; the module a value used to live in still names it, as this same
+owner, here; a module a value is also read from names it as this same
 object (`tests/unit/test_config_imports_leaves.py` holds both halves).
 """
 

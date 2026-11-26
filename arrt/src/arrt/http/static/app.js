@@ -59,7 +59,7 @@ import { api } from "./core/api.js";
  * its amendment. A subsystem that gains a UI gets a page in an existing section.
  * Wanted is a section of its own, as in Sonarr, Radarr and Lidarr (the owner's
  * ruling of 2026-10-05): the works the curator wants and holds no acceptable
- * scan of (#168). **Always shown, with its count when non-zero**, as every *arr
+ * scan of. **Always shown, with its count when non-zero**, as every *arr
  * app keeps it (ruling 5 of 2026-10-07); `paintWanted` writes the count. */
 const SECTIONS = [
   { key: "artworks", label: "Artworks", glyph: "▣" },
@@ -163,8 +163,8 @@ const ROUTES = {
   search: { render: viewSearch, opensFrom: "collection", title: "Search results", returnLabel: "Search results", returnParam: "q", returnFor: ["work", "artist", "topic", "theme"] },
   // One topic, browsed like a genre, reached from Library › Topics, the top
   // bar's dropdown, or a search on the Topics page, and returned to Topics by a
-  // bookmark. Its own route rather than an id on `topics`, as the plan
-  // addresses it (`#topic/<qid>`).
+  // bookmark. Its own route rather than an id on `topics`: it is
+  // addressed `#topic/<qid>`.
   topic: { render: viewTopic, detail: true, opensFrom: "topics", title: "Topic", thing: "topic", returnLabel: "Topic", returnFor: ["work", "artist", "topic", "search"] },
   // A Get is listed under Activity, so a bookmark to one returns to Queue. A
   // Get and its Review share that default because they are one Get's two

@@ -2107,7 +2107,7 @@ const SHAPE_CHOICES = [
   ["custom", "Custom", undefined, undefined],
 ];
 
-/* Which shapes of work this wall shows (#370): the tallest and the widest, as
+/* Which shapes of work this wall shows: the tallest and the widest, as
  * width:height. Set by hand and off by default. The screen's own shape is shown
  * beside them as a hint and never applied. A range that leaves nothing is
  * honoured and the wall goes dark, so after Set the panel says the server's own

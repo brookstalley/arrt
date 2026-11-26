@@ -108,7 +108,7 @@ const FOUND_WIDTH = 250;
  *   ○ *Not held* (or `noImage`'s words): no picture.
  *
  * **The image styles are one block in `app.css`** (`.work-pic-held`,
- * `.work-pic-wanted`, `.work-pic-not-held`): the owner's ruling on #172 is to
+ * `.work-pic-wanted`, `.work-pic-not-held`): the owner's ruling is to
  * style the three states as images and iterate on what reads clearest, so
  * they sit side by side to be tuned together. The glyph and the word carry
  * the state whatever the picture does — one that fails to load, or none,

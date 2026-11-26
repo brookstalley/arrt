@@ -97,7 +97,7 @@ def test_two_spellings_of_one_url_are_one_key():
 def test_two_smk_collection_pages_are_two_keys_because_the_object_is_in_the_fragment():
     """`collection.smk.dk` names its object only after the `#` (`smk.py`).
 
-    Dropping the fragment, as the plan first said, gives every such work one key,
+    Dropping the fragment gives every such work one key,
     and the second work's card would be answered with the first work's painting.
     """
     first = picture_key("smk", "https://collection.smk.dk/#/en/detail/KMS8010")

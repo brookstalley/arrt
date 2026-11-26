@@ -246,7 +246,7 @@ class Themes:
         """The ids of every work some wall plays now, through the theme or selection hanging there.
 
         What Artworks' *Not on any wall* facet leaves out (the owner's ruling of
-        2026-10-08 on #288): a work is on a wall when a theme or selection
+        2026-10-08): a work is on a wall when a theme or selection
         hanging on one holds it and it is not kept off every wall. **Not what a
         wall has shown**, which is `last_shown_by_work`'s, from the Players'
         reports. Nor is it readiness: a held work a wall would skip for want of a

@@ -340,7 +340,7 @@ def test_a_get_with_no_registry_is_refused_and_starts_nothing(
     with pytest.raises(ServiceError, match="Wikidata is not configured on this server") as refused:
         bound.get.start([ELEPHANTS], initiated_by=InitiatedBy.MCP_CLIENT)
     # The Get dialog shows this sentence to the household, so it names no setting
-    # (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+    # (not WIKIDATA_USER_AGENT).
     assert "WIKIDATA_USER_AGENT" not in str(refused.value)
     assert bound.discovery.list_runs(kind=RunKind.GET) == []
 

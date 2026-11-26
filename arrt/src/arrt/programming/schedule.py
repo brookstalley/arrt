@@ -57,7 +57,7 @@ three walls or more coupled through shared works it can still clash where some
 schedule would not: each wall is built looking no further ahead than the slot
 now on the walls still to come, so it can take a work a wall built after it
 needed, and that wall's clash is named. Ruling that out needs the walls'
-schedules searched together, not built one at a time (#436).
+schedules searched together, not built one at a time.
 """
 
 import random

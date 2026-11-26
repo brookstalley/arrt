@@ -421,7 +421,7 @@ def test_a_wall_added_here_can_be_put_on_a_screen_and_hung_and_its_feed_is_publi
 ):
     """Add wall…, then its Edit… and its Hanging picker: the new wall's feed, read as
     its Player reads it, carries the work hung. The Player itself is arrt-player's,
-    walked on the real wall by the plan's operator walk."""
+    walked on the real wall by the operator."""
     ui.open("#walls")
     ui.page.get_by_role("button", name="Add wall…").click()
     dialog = ui.page.locator("dialog.panel-dialog")

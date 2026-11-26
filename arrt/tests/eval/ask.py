@@ -136,7 +136,7 @@ def _names_the_held_work(found: Score) -> str | None:
     return None
 
 
-#: At least the four the plan names. The library the eval server holds is
+#: At least these four. The library the eval server holds is
 #: `seeded_service`'s: Dalí's *The Persistence of Memory* among three works.
 REQUESTS: tuple[Request, ...] = (
     Request("early_dali", "Show me Salvador Dalí's early work.", _at_least_three_gettable),

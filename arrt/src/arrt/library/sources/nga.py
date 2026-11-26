@@ -103,7 +103,7 @@ _STATE_FILENAME: Final[str] = "state.json"
 #: What reading the state file raises when it is missing or not JSON. A named
 #: tuple rather than `except OSError, ValueError:` because the root suite's seam
 #: guards parse the server's source on Python 3.12, which cannot read the
-#: unparenthesised form the server's formatter writes (backlog #166).
+#: unparenthesised form the server's formatter writes.
 _UNREADABLE_STATE: Final[tuple[type[Exception], ...]] = (OSError, ValueError)
 
 

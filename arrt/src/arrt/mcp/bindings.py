@@ -372,7 +372,7 @@ def _failures(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     """`GET /api/acquisitions/causes`, or with a cause `/causes/works`, in their names (`test_surface_parity.py`).
 
     Paged as those routes page: the service's default size, sliced from the
-    listing the queue builds whole (`http/api.py`'s `_queue_page`).
+    listing the queue builds whole (`http/routes/acquisitions.py`'s `_queue_page`).
     """
     causes = services.acquisition_queue.listing().causes
     limit = arguments.get("limit", DEFAULT_LIST_LIMIT)
@@ -2569,7 +2569,7 @@ def _wall_view_fields(services: Services, view: WallView, now: WallsNow) -> dict
     """One wall, what hangs on it, and whether its Player reads the feed, every part from `now`.
 
     `now` is `HealthService.observe_walls()`, the one reading `view` was built from, as
-    `GET /api/walls`' is (`http/api.py` `_wall` says why).
+    `GET /api/walls`' is (`http/routes/walls.py` `_wall` says why).
     """
     return {
         **_wall_fields(services, view.wall, now.survey),
@@ -3285,8 +3285,8 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
                 # word. The run did name works for those artists — an agent
                 # reading this result can list them, each carrying an
                 # `unresolved_reason` — so "could not confirm" is contradicted by
-                # the very rows beside it. Issue #95 fixed that on the review
-                # grid; the same sentence lived here and on the run view, and one
+                # the very rows beside it. The review
+                # grid says it the same way; the same sentence lived here and on the run view, and one
                 # surface telling an agent something the other two do not is the
                 # failure `http/models.py` and this module exist to prevent.
                 settled += (

@@ -178,7 +178,7 @@ function isNumberColumn(cells) {
  * catalogue that holds no more. */
 export function shortfallNote(page) {
   if (page.works.length >= page.total) return null;
-  // A sixth surface of #113, on a page the issue never named: a shortfall of
+  // A sixth surface of the same count wording, on a page nobody named: a shortfall of
   // exactly one read "1 more are held". Only the two verbs move — "more" is
   // already count-neutral, so there is no noun here to pluralise and the
   // sentence a curator sees above one is byte-identical to what it was.
@@ -212,7 +212,7 @@ export const REASON_SENTENCES = {
 
 const REASON_WORDS = {
   // Not "not held", which elsewhere means the library does not hold a work
-  // (the owner's ruling on #172). This reason is about the museums.
+  // (the owner's ruling). This reason is about the museums.
   not_held: "in no collection",
   identity_refused: "wrong artist",
   size_unknown: "size unknown",

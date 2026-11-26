@@ -2,7 +2,7 @@
 
 The catalogue is the irreplaceable asset, and the only thing this backs up: the
 image tree is the storage's own snapshots' to keep (a restore carries both,
-`operational-spec.md` § Backup and Restore; #180). So "a backup that
+`operational-spec.md` § Backup and Restore). So "a backup that
 silently stopped succeeding a month ago" is the failure this reading exists to
 make visible, and `operational-spec.md` names surfacing its age on the health
 panel as part of the backup's design rather than as a nicety.
@@ -123,7 +123,7 @@ class CatalogueBackup:
     """Copy the catalogue to the backup directory, keep the newest generations, and record success.
 
     `operational-spec.md` § Backup and Restore is the design: the catalogue
-    alone (the image tree is the storage's snapshots' to keep, #180;
+    alone (the image tree is the storage's snapshots' to keep;
     `kept-answers.sqlite` is disposable),
     with `VACUUM INTO` rather than a file copy, which could capture a torn
     database from under a live writer; several generations, because a

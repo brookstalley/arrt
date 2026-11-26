@@ -28,7 +28,7 @@ THUMBNAIL_CACHE_CONTROL: str = "private, no-cache"
 #: whose content cannot change is the case `immutable` exists for, and it is what
 #: keeps a repaint of a thirty-card grid from asking the server thirty times.
 #:
-#: A row the old sweep reclaimed is not a hole in that: its card is told by the
+#: A row a sweep has reclaimed is not a hole in that: its card is told by the
 #: listing that no picture travels, so it never asks, and a copy still in a
 #: browser cache is never shown.
 PREVIEW_CACHE_CONTROL: str = "private, max-age=86400, immutable"

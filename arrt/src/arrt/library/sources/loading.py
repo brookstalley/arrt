@@ -1071,7 +1071,7 @@ class _ContainedFinder:
         # The interface's answers that are not a list, passed on as themselves
         # with their message scrubbed. One clause each rather than a tuple,
         # because the formatter writes a bare tuple in a form Python 3.12 cannot
-        # parse, and the root suite's guards parse this file under 3.12 (#166).
+        # parse, and the root suite's guards parse this file under 3.12.
         except ImageSearchFailure as exc:
             _pass_heard(self._plugin, unasked=not isinstance(exc, LinkGone))
             failure = _heard_failure(exc, self._plugin, self._tally)

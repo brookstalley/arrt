@@ -4,7 +4,7 @@
 says what it did. There are two: the Watch job, which is here because it is the
 Library's own, and Programming's feed reconcile (`FeedsJob`), which
 `services/container.py` hands in because the scheduler imports nothing of
-Programming. Upgrades (#178) are meant to be a third.
+Programming. Upgrades are meant to be a third.
 
 **A positive line on every pass, empty ones included** (`scheduler.pass`, one per
 job), because a scheduler that stopped is the new "down looks like up"

@@ -614,8 +614,8 @@ class ThemeMembership:
 class Theme:
     """A curator's grouping of works, and the unit a wall rotates through.
 
-    **Global, and hung rather than activated.** This record carried an
-    `is_active` boolean until 2026-08-12, which could only ever mean "active on
+    **Global, and hung rather than activated.** This record carries no
+    `is_active` boolean, which could only ever mean "active on
     the one television" — the single-wall assumption written into the noun. What
     is hanging where is `ThemeAssignment`'s to say, so two walls may hang the
     same theme with nothing duplicated.

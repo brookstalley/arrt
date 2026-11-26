@@ -95,7 +95,7 @@ export async function viewTopics(generation) {
 
 /* One kind's topics, each opening its page, with how many of your works are in
  * it: in columns, by name, so a kind of thirty fits in a few rows at desktop
- * width and still reads as one column on a phone (the owner's ruling on #175). */
+ * width and still reads as one column on a phone (the owner's ruling). */
 function kindSection(group, { libraryEmpty = false } = {}) {
   const words = TOPIC_KINDS[group.kind] || [group.kind, group.kind];
   const id = `topics-${group.kind}`;
