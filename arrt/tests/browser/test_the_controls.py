@@ -109,10 +109,9 @@ def test_an_artist_page_spaces_its_wikidata_line_and_reactions_alike(ui, service
     """The page the owner walked: the Wikidata line, More like this / Not this,
     each a step below what precedes it rather than flush.
 
-    The reactions are acts on the artist, so since 2026-11-19 they stand on the
-    left of the page's one toolbar (chunk 07 of `build-plan-audit-wave-1.md`,
-    audit 6 finding 12) rather than in a row of their own under the Wikidata
-    line, which is where this measured them until then. The identity line is
+    The reactions are acts on the artist, so they stand on the
+    left of the page's one toolbar rather than in a row of their own under the
+    Wikidata line. The identity line is
     still a row; the toolbar holding the reactions is measured as itself."""
     artist = service.add_artist(name="Charles Demuth", born=1883, died=1935)
     service.add_artwork(title="Eggplant and Plums", artist_id=artist.id, date_created="1927")

@@ -585,8 +585,8 @@ def test_the_servers_registry_gives_up_sooner_than_the_matchers():
     from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, TIMEOUT_SECONDS
 
     # `_registry` reads one setting; the rest of `Settings` is the server's.
-    # Since 2026-11-19 it wraps Wikidata in `RememberingRegistry` (chunk 02 of
-    # `build-plan-audit-wave-1.md`); the timeout is the wrapped client's.
+    # It wraps Wikidata in `RememberingRegistry`; the timeout is the wrapped
+    # client's.
     server = _registry(SimpleNamespace(wikidata_user_agent=UA))
     matcher = WikidataRegistry(user_agent=UA)
 

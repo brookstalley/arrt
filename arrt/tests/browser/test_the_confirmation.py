@@ -8,8 +8,8 @@ dismiss unless somebody opts into it. None of that exists outside a browser, so 
 harness that stubbed the element would assert the stub's manners and report green
 about a dialog that could not be escaped from.
 
-The behaviours here are the ones a caller is entitled to rely on. Two chunks are
-being built against this signature at once, so what these tests hold is a
+The behaviours here are the ones a caller is entitled to rely on. Several screens
+call this signature, so what these tests hold is a
 contract between them and not a description of one screen: the question renders
 as it was given, the keyboard starts on the safe answer, dismissal is a "no", a
 misdirected click is not an answer at all, and the page does not accumulate a

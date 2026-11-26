@@ -227,7 +227,7 @@ class TestTheGrid:
         assert http.get(f"/api/candidate-images/{image_id}/preview", params={"size": "huge"}).status_code == 422
 
     def test_a_card_says_which_kind_of_nothing_when_no_image_was_found(self, http, museum):
-        """Chunk 21's whole point has to survive the trip to a card.
+        """What kind of nothing was found has to survive the trip to a card.
 
         A bare `unresolved` cannot tell a title nobody holds from a scan too small
         for the wall, and the two lead to opposite actions.
@@ -615,11 +615,11 @@ class TestWanting:
 
 class TestTheWholeLoop:
     def test_the_whole_loop_closes_onto_the_wall(self, http, hold_master):
-        """Chunk 19B's acceptance criterion, start to finish.
+        """The whole loop, start to finish.
 
         Intent, estimate, review with images, accept, theme, wall — every id
         threaded out of the previous response, and nothing touched but HTTP. The
-        one thing standing in for work this chunk does not own is the master
+        one thing standing in for work this test does not own is the master
         image acquisition would fetch after acceptance; everything else is the
         surface answering for itself.
 
@@ -657,10 +657,10 @@ class TestTheWholeLoop:
 def hold_master(service, settings, decodable_jpeg, services):
     """Give an accepted work the master, render and mat the wall requires.
 
-    Acquisition and preparation are Chunk 18's, and a loop test that stopped at
+    Acquisition and preparation have their own tests, and a loop test that stopped at
     acceptance would leave the last two steps — theme and wall — asserting
-    against a work the manifest correctly excludes. This is the seam where the
-    two chunks meet, standing in for a fetch this test has no business making.
+    against a work the manifest correctly excludes. This is the seam where
+    acquisition and the manifest meet, standing in for a fetch this test has no business making.
     """
     from arrt.persistence.records import (
         AcquisitionMethod,

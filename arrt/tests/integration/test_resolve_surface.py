@@ -72,7 +72,7 @@ async def a_work_needing_a_better_scan(server_url: str, services: Services):
     **The work id comes off the surface**, not out of the service. Reaching past
     the tool for it would leave every test here passing while a real client had
     no way to obtain the one argument `resolve_images` requires — which is
-    exactly the gap that hid for a whole chunk. Rejecting the image still goes
+    exactly the gap that can hide unseen. Rejecting the image still goes
     through the service, because `art_review` owns `reject_image` and is not
     built yet; that one is a stated dependency rather than a hidden hole.
     """

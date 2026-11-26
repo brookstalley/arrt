@@ -902,7 +902,7 @@ def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(u
 
     assert ui.requests_matching("/api/candidate-images/") == []
     expect(ui.view).to_contain_text("No scan was found for this work.", use_inner_text=True)
-    # Chunk 21's point, still standing at the far end of the pipe.
+    # The kind of nothing found, still said at the far end of the pipe.
     expect(ui.view).not_to_contain_text("not_held", use_inner_text=True)
     # In words, and not "not held", which elsewhere says the library lacks a work.
     expect(ui.view).to_contain_text("in no collection", use_inner_text=True)

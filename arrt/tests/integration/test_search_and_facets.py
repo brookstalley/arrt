@@ -2,7 +2,7 @@
 
 `nonfunctional-requirements.md` moved the catalogue target from hundreds of works
 to thousands and made search a requirement rather than an option. What follows
-runs against the seeded corpus at that scale, because the rules this chunk
+runs against the seeded corpus at that scale, because the rules the search
 implements are the ones that look correct at 41 works whatever they do.
 
 **The acceptance criterion has its own class**: *no filter combination the control
@@ -155,7 +155,7 @@ class TestFacetsOverTheSeededCorpus:
 
 
 class TestNoOfferedFilterCanEmptyTheGrid:
-    """The chunk's acceptance criterion, taken at the control's word.
+    """The acceptance criterion, taken at the control's word.
 
     For each starting state, every option the control offers as *enabled* is
     added to the filter and the result must be non-empty. This is the criterion

@@ -12,7 +12,7 @@ the panel says it means. A job that stamped every attempt would report a fresh
 age for a backup that has been failing since Tuesday, and the panel would be
 confidently wrong about the one asset nothing else protects.
 
-**The writer is `CatalogueBackup`, below** (`build-plan-nas.md` Chunk 02), and
+**The writer is `CatalogueBackup`, in this module**, and
 it runs on the server's own schedule when `BACKUP_DIR` is set. Without it the
 panel says *no backup has ever been recorded*, which is a true and useful
 observation on a deployment that has never run one: the panel states

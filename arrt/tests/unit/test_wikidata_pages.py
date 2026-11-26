@@ -2,7 +2,7 @@
 
 `tests/fixtures/wikidata_pages/answers.json` holds the bindings the query service
 returned on 2026-10-03 to the client's own query, for four procurement-corpus
-items (`build-plan-source-plugins.md` Chunk 03): *Drowning Girl* (`Q5308687`),
+items: *Drowning Girl* (`Q5308687`),
 *The Persistence of Memory* (`Q25729`), *Prismes électriques* (`Q60144838`) and
 *Margarethe* (`Q50321310`). Uncut, because what an item carries besides holders'
 pages is part of what these tests are about.

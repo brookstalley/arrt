@@ -1438,8 +1438,8 @@ p.breadcrumb {
    Scoped to `.collection`, and that is not tidiness: `screens/review.js` builds
    its candidate cards out of the same `.card` class, and giving every card on
    that screen a new containing block would change where any absolutely
-   positioned descendant of one resolves against. This chunk owns the collection
-   grid; it does not own Review's. */
+   positioned descendant of one resolves against. This rule is the collection
+   grid's; it is not Review's. */
 .collection .card,
 .tile {
   position: relative;
@@ -1627,7 +1627,7 @@ p.breadcrumb {
 }
 
 /* Two columns of pictures on the narrowest shape. Scoped for the same reason as
-   the rule above: `.grid` is Review's grid too, and this chunk is not the place
+   the rule above: `.grid` is Review's grid too, and this rule is not the place
    a decision about the review grid's breakpoints gets made. */
 @media (max-width: 40rem) {
   .collection .grid,

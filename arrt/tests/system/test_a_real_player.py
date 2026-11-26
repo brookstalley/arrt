@@ -3,7 +3,7 @@
 **Why this exists.** The Player is tested against a hand-written double of this
 server, and this server against fixtures of what a Player sends; each half can
 be green while the pair disagrees (audit-7 C1). Here the server is `python -m
-arrt` (chunk 06's fixture, or the built app image, below) and the Player is
+arrt` (the `arrt_process` fixture, or the built app image) and the Player is
 `python -m arrt_player` from the commit in `player-ref.txt`, installed from git
 into an environment of its own, the way a Pi installs it (`uv sync --frozen
 --no-dev`), never from a checkout on this disk.
@@ -380,7 +380,7 @@ class ServerUnderTest(Protocol):
 
 @pytest.fixture
 def server(arrt_process, settings) -> Iterator[ServerUnderTest]:
-    """Chunk 06's server process, or with `ARRT_SERVER_IMAGE` the built image, over the suite's art root."""
+    """The server process, or with `ARRT_SERVER_IMAGE` the built image, over the suite's art root."""
     image = os.environ.get("ARRT_SERVER_IMAGE")
     if not image:
         yield arrt_process

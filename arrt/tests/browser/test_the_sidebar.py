@@ -381,13 +381,11 @@ def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_readi
     def panel(name):
         return ui.page.locator(".wall-reading", has=ui.page.locator("h2", has_text=re.compile(rf"^\s*{re.escape(name)}\s*$")))
 
-    # "for this wall", not "here". Both wave-1 chunks reworded this sentence and
-    # pinned their own wording; the per-wall one survives the merge, because with
+    # "for this wall", not "here", because with
     # a panel per room "here" has several possible referents and names none of
     # them — the ambiguity that splitting the heartbeat per wall removed.
-    # It said "Nothing has ever written a heartbeat for this wall" until
-    # 2026-11-19, when chunk 06 of `build-plan-audit-wave-1.md` took "heartbeat"
-    # off the household's screens: a Player reports, and the wall is still named.
+    # The household's screens do not say "heartbeat": a Player reports, and
+    # the wall is still named.
     # Of a wall a Player shows, which is the study's case (the fixture's default).
     expect(panel("The study")).to_contain_text("No Player has ever reported for this wall.", use_inner_text=True)
     # A wall no Player shows is a step, in the contract's word, and the sentence
@@ -585,8 +583,8 @@ def test_the_indicator_names_a_reading_that_could_not_be_read(ui, a_health_readi
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
     words = ui.page.locator("#status")
-    # "The study's heartbeat cannot be read" until 2026-11-19: chunk 06 of
-    # `build-plan-audit-wave-1.md` took "heartbeat" off the household's screens.
+    # Not "The study's heartbeat cannot be read": "heartbeat" is not a word of the
+    # household's screens.
     expect(words).to_contain_text("The study's last report cannot be read", use_inner_text=True)
     expect(words).not_to_contain_text("heartbeat", use_inner_text=True)
     expect(words, "an unreadable file was reported as a silent one").not_to_contain_text("has not reported", use_inner_text=True)
@@ -608,8 +606,7 @@ def test_the_indicator_names_a_backup_that_has_never_run(ui, a_health_reading, a
 def test_the_indicator_refuses_to_report_well_from_a_reading_it_did_not_take(ui, a_health_reading):
     """A green dot computed from nothing is this product's characteristic failure in a costume.
 
-    `GET /api/health`'s shape is another chunk's to change — it changed once
-    during this very work — and the indicator has no field name of its own to
+    `GET /api/health`'s shape can change on its own, and the indicator has no field name of its own to
     fall back on. What it must never do is treat an observation it cannot find as
     an observation that was fine.
     """
@@ -1052,8 +1049,8 @@ def test_the_search_is_the_catalogue_s_and_not_this_screen_s(ui, service, seeded
     """The query goes to the server, which searches more than the grid holds.
 
     This screen filtered client-side over title and artist for exactly as long as
-    there was no server-side search to send the query to. `GET /api/works` grew
-    `q` in the same wave as this chunk, and it searches six fields — the medium
+    there was no server-side search to send the query to. `GET /api/works` takes
+    `q`, and it searches six fields — the medium
     among them — over the whole catalogue rather than over whatever one screen
     happened to load.
 

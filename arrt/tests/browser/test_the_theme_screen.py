@@ -9,7 +9,7 @@ facts and a toolbar: *Hang…* (a dialog of walls), *Edit…* (name, description
 default, delete) and *Add works*; the order is a drag handle per row, which the
 keyboard moves too; and every changed assertion below says so.
 
-**Two of these are debts this screen carried into the chunk that owns it.** Its
+**Two of these are debts this screen once carried.** Its
 membership control read "Remove", which promises a *work* is gone when it is
 still catalogued and in every other theme; and its hang button changed a room
 with no question asked, while flow 6 makes activation the one act that gets one.
@@ -497,10 +497,9 @@ class TestHanging:
         a question that reads correctly today only because there is one possible
         target is the last place a mistake could have been caught.
 
-        The wall is given a Player: since 2026-11-19 the question promises
-        "Everyone in the house sees" only of a wall a Player shows (chunk 06 of
-        `build-plan-audit-wave-1.md`, audit 6 finding 19), and the wall with no
-        Player is `test_setting_up_a_wall.py`'s case. The Player has its token
+        The wall is given a Player: the question promises
+        "Everyone in the house sees" only of a wall a Player shows, and the wall
+        with no Player is `test_setting_up_a_wall.py`'s case. The Player has its token
         and has reported: one with no token shows nothing yet, the next test.
         """
         wall = services.display.survey_walls()[0].wall

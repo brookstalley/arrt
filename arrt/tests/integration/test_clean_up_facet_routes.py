@@ -1,6 +1,6 @@
 """Artworks' clean-up facets: *Size* and *Not on any wall* (#288).
 
-`build-plan-lists-settings-and-scale.md` Chunk 06. Both are counted by the
+Both are counted by the
 server like the existing facets — each option's count is what choosing it
 would select given every other filter, its own selection dropped — and both
 compose with the search, the theme and the other facets.

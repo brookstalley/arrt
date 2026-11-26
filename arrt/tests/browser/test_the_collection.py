@@ -239,17 +239,17 @@ PROTOTYPE_SCALE = 2000
 
 
 def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, service, seed_the_served_catalogue):
-    """The chunk's acceptance criterion, against a real catalogue rather than a number.
+    """The acceptance criterion, against a real catalogue rather than a number.
 
     The threshold test above stubs `total` behind one work, which is the right
     shape for pinning a branch and cannot answer this: legibility is a claim about
     two thousand tiles actually laid out by a real browser, and a stub renders
     one. `build_large_catalogue` exists precisely so the claim can be measured.
 
-    **And every work is reachable** (#131, `build-plan-lists-settings-and-scale.md`
-    Chunk 07). Until then the grid walked to `PAGE_CEILING` and stopped at 1,250
-    works, and this test pinned that the stop was *audible* — the heading said
-    how many of how many, and the note how many were not shown. Artworks now
+    **And every work is reachable.** The grid once walked to `PAGE_CEILING` and
+    stopped at 1,250 works, and this test pinned that the stop was *audible* —
+    the heading said how many of how many, and the note how many were not
+    shown. Artworks now
     pages from the server as the curator scrolls, so the claim is the stronger
     one the note stood in for: the heading names the whole catalogue, every work
     arrives by *Show more*, and the shortfall note never appears.
@@ -588,9 +588,8 @@ def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui
     toggles (`aria-pressed`), and the picker, once shown, has a visible name.
 
     The *Select* toggle says which mode the page is in by its label — "Select",
-    then "Stop selecting" — since chunk 05 of `build-plan-lists-settings-and-scale.md`
-    gave every list one selection model; it was an `aria-pressed` toggle that
-    read "Select" in both states. The claim is unchanged: the mode is readable
+    then "Stop selecting" — because every list has one selection model, not an
+    `aria-pressed` toggle reading "Select" in both states. The claim is unchanged: the mode is readable
     from the control.
     """
     theme, works = a_theme_holding_one_work
@@ -876,8 +875,7 @@ def test_a_collection_with_no_themes_offers_select_with_something_behind_it(ui, 
 
     This was "with no theme, no *Select* at all", when adding to an existing
     theme was the only act a selection had. Since one selection model gave it
-    *New theme…* and *Archive* (`build-plan-lists-settings-and-scale.md` Chunk
-    05), a selection always has something to do, so *Select* is offered — and
+    *New theme…* and *Archive*, a selection always has something to do, so *Select* is offered — and
     the claim it kept is that what it offers can act: the picker starts on *New
     theme…* rather than on nothing, and Archive is there.
     """

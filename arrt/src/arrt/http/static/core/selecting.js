@@ -1,8 +1,7 @@
 /* Selecting works on a list, and acting on the selection: one model for every list.
  *
  * Artworks, an Artist's page, the search results and a Topic's page all offer
- * the same thing, Sonarr's *Select* mode (`build-plan-lists-settings-and-scale.md`
- * Chunk 05, #285): a toggle whose label says which mode the page is in, ticks
+ * the same thing, Sonarr's *Select* mode: a toggle whose label says which mode the page is in, ticks
  * on the works only while it is on, and the acts beside the toggle, in the
  * page's toolbar: *Select all* and every act valid for what is ticked. Held works can be added to a theme —
  * including *New theme…*, so a theme is made from a selection without leaving

@@ -1,7 +1,6 @@
 """Whether a cheap model answers what a curator types into Ask, with Ask's tools.
 
-The measurement `build-plan-ask-agent.md` Chunk 02 owes before Chunk 03 builds
-on it: each request in `ask.py`, against the real surface, with the real
+The measurement the agent's limits are set from: each request in `ask.py`, against the real surface, with the real
 registry (Wikidata, asked live) and, when `SEARXNG_URL` is set, web search
 through 3tears beside it. Deselected by default for the reasons the surface
 evaluation next door gives, and because it spends: `-m llm_eval -n0`.

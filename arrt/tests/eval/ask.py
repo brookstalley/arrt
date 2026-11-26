@@ -1,6 +1,6 @@
 """Ask-shaped requests, the agent's scope, and how a run is scored.
 
-`build-plan-ask-agent.md` Chunk 02 measures whether the cheap models Arrt runs
+This measures whether the cheap models Arrt runs
 use the product's tools well enough to answer a curator in words: the requests
 below, offered the tools Ask's agent will be offered, with web search beside
 them when a SearXNG instance is configured. The prompt and the scope are
@@ -26,7 +26,7 @@ from arrt.ask.prompt import ASK_SCOPE, ask_system
 __all__ = ["ASK_SCOPE", "ask_system"]
 
 #: Tool calls a run may make before it is stopped. Generous on purpose: this
-#: chunk measures how many a request takes, and Chunk 03's limit is set from it.
+#: file measures how many a request takes, and the agent's own limit is set from it.
 ASK_BUDGET = 24
 
 _QID = re.compile(r"\bQ[1-9][0-9]*\b")

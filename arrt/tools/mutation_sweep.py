@@ -5,8 +5,8 @@ deliberate defect at a time, runs a chosen slice of the suite, and reports every
 mutation that survived — each survivor being a line you could delete without a
 test objecting.
 
-**Run it on the branches a chunk adds, before believing they are covered.** It
-has found something on every chunk it has been run on: a listing whose rows all
+**Run it on the branches a change adds, before believing they are covered.** It
+has found something on every change it has been run on: a listing whose rows all
 claimed the same picture, an action with no test over the wire at all, guards
 whose only defence was that nothing had tried.
 

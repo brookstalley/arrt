@@ -89,8 +89,7 @@ def test_a_run_completes_when_no_picture_can_be_written(services, engine, settin
 
     The disk is made full at the shared writer every picture goes through
     (`arrt.atomic`). Until 2026-11-19 this patched `Path.write_bytes`, which the
-    picture store called then; chunk 04 of `build-plan-audit-wave-1.md` moved
-    it to `atomic.write_bytes`, which `write_with` is the bottom of, and the
+    picture store called then; the store now writes through `atomic.write_bytes`, which `write_with` is the bottom of, and the
     old patch no longer reached any write.
     """
 

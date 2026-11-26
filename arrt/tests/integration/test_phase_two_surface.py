@@ -141,7 +141,7 @@ async def test_the_work_no_collection_holds_is_named_rather_than_dropped(server_
 
 
 async def test_the_status_notice_no_longer_claims_resolution_is_unwired(server_url):
-    """The sentence this chunk owed a deletion to, checked at the surface that carried it."""
+    """The sentence that was deleted stays deleted, checked at the surface that carried it."""
     started, _ = await call(server_url, "art_discovery", action="start", intent="Dalí, elephants")
     payload = await finished(server_url, started["run_id"])
 

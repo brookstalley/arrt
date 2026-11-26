@@ -552,7 +552,7 @@ class TestTheFileCarriesFacetsWithoutAWrittenMigration:
     does not, and `migrations.py` exists for everything that cannot be inferred
     from comparing two schemas. A new table is neither: `CREATE TABLE IF NOT
     EXISTS` and `CREATE UNIQUE INDEX IF NOT EXISTS` both reach an existing file
-    unchanged. That is the claim under which this chunk wrote no migration, so it
+    unchanged. That is the claim under which the facets' tables need no migration, so it
     is checked rather than assumed.
     """
 

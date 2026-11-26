@@ -2,7 +2,7 @@
 
 `reconcile()` has its own tests, but a repair the entry point never calls is the
 same defect as no repair — and it looks identical from the repair's unit tests.
-That gap is not hypothetical: this chunk's constraint-10 normaliser was fully
+That gap is not hypothetical: a normaliser has been fully
 tested and entirely unwired, and only removing the call and re-running the suite
 showed it. So the call is asserted here, through `main()` itself.
 """

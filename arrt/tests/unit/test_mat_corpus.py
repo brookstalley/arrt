@@ -1,7 +1,7 @@
 """The 41 hand-accepted mats, and what they establish as the bar.
 
 **The corpus is `all.json` itself, and there is no extracted fixture beside it.**
-Chunk 06 deferred copying these colours into `tests/fixtures/mat_corpus.json`;
+Copying these colours into `tests/fixtures/mat_corpus.json` was deferred, and
 this is the decision not to. `all.json` is tracked, is already the canonical
 record `nonfunctional-requirements.md` names, and is read here through the
 product's own `read_index` rather than a second parser. A copy would be a second

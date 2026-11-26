@@ -48,7 +48,7 @@ SETTLED = (
 
 # -- the paging loop --------------------------------------------------------
 #
-# Since `build-plan-lists-settings-and-scale.md` Chunk 07 (#131) Artworks loads
+# Artworks loads
 # one page and then more as the curator scrolls, with *Show more* for the
 # keyboard, instead of walking to `PAGE_CEILING` before it paints. The tests
 # below reach the end through *Show more*, the way a keyboard does, and their

@@ -1,7 +1,6 @@
 """What `DisplayService` guaranteed about the feeds before `FeedPublisher` was cut out of it, held after.
 
-The feed publisher moved from `display.py` to `feeds.py` on 2026-11-19 (audit
-wave 2, Chunk 20). A move keeps what the old arrangement guaranteed only if each
+The feed publisher lives in `feeds.py`, cut out of `display.py`. A move keeps what the old arrangement guaranteed only if each
 guarantee is checked where it now lives:
 
 - **One subscriber reconciles each announcement.** The container subscribes the

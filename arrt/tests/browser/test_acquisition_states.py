@@ -1,7 +1,7 @@
 """Where an accepted work's image stands, in a real browser.
 
 The acquisition queue fetches and prepares every accepted work that holds no
-image, one at a time (`build-plan-after-review.md` Chunks 01-02). Three screens
+image, one at a time. Three screens
 say where a work stands in it, in the same words (`core/acquiring.js`): the Work
 page, a Review card for an accepted work, and Activity › Queue. Each state is
 said as glyph and word; a work the queue owes nothing says none of them.

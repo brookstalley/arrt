@@ -727,8 +727,7 @@ class WikidataRegistry:
         # Two kinds of statement give a page: an external identifier, put into
         # its property's formatter URL (MoMA's P2014 and
         # `https://www.moma.org/collection/works/$1`), and "described at URL"
-        # (P973), which is a URL already. Measured 2026-10-03 on four corpus items
-        # (`build-plan-source-plugins.md` Chunk 03).
+        # (P973), which is a URL already. Measured 2026-10-03 on four corpus items.
         rows = self._select(f"""SELECT ?prop ?value ?formatter ?described WHERE {{
               {{ wd:{item} ?direct ?value .
                  ?prop wikibase:directClaim ?direct ; wikibase:propertyType wikibase:ExternalId ; wdt:P1630 ?formatter . }}

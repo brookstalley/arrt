@@ -852,7 +852,7 @@ def test_a_state_with_no_word_is_said_as_not_known_in_the_badge(ui, services, th
     expect(badge).to_have_text(re.compile(r"^\?\s*Not known\s*$"), use_inner_text=True)
 
 
-# -- the keyboard (Done-when 3 of `build-plan-ui-pass-walls.md` Chunk 03) ------------------
+# -- the keyboard ------------------------------------------------------------------------
 
 
 def _tab_to(ui, name, limit=60):

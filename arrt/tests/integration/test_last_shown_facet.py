@@ -1,6 +1,6 @@
 """Artworks' *Last shown* facet, and the clean-up filters on the tool surface (#316).
 
-`build-plan-shown-record.md` Chunk 03. *Last shown* narrows to the works no wall
+*Last shown* narrows to the works no wall
 has shown, never or not in a period, each period counting the never-shown
 works too (the owner, 2026-10-15). Which works were shown, and when, is
 Programming's log of showings (`last_shown_by_work`); the Library's narrowings

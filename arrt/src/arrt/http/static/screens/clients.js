@@ -380,8 +380,7 @@ async function copyFrom(field) {
  * In a read-only field rather than as text, so it is selected whole and copied
  * whole; focused and selected as the dialog opens, with *Copy* beside it. What
  * to do with it is said in the Player's own words: its settings page has
- * *Token* and *Server address* (audit 2026-11-19, F6; the Player's names since
- * its own audit-wave-1 chunk 07), so those are the names given, not the
+ * *Token* and *Server address* (the Player's own names), so those are the names given, not the
  * environment variables behind them. The address a
  * Player needs is the one this browser reached the server at, which is said as
  * such: a Player on another network may reach it by another name. Then what

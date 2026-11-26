@@ -11,8 +11,7 @@ says afterwards. The server side of a Get is `tests/integration/test_get_surface
 and `tests/integration/test_get_destination.py`'s. Themes are the real server's,
 so a theme the control creates is one the catalogue holds.
 
-Every Get names its destination (`build-plan-topics-and-destinations.md` Chunk
-02), and every Get but a work card's in Ask offers the choice (the owner,
+Every Get names its destination, and every Get but a work card's in Ask offers the choice (the owner,
 2026-10-09; that card is `test_asking.py`'s): *Add to*, the default theme first and selected, which sends no `theme_id`;
 any other theme, which sends its id; or *New theme…*, created by `POST
 /api/themes` before the Get starts. A name that is already a theme joins it.
@@ -602,7 +601,7 @@ def test_a_default_name_that_is_the_default_theme_sends_no_theme_id(ui, all_work
 def test_a_default_name_that_is_no_theme_yet_is_offered_as_a_new_one(ui, services, winter, all_works):
     """The name is its own option, chosen, and Get makes the theme before the Get that names it.
 
-    The owner's review (`build-plan-topics-and-destinations.md` Chunk 06): the
+    The owner's review: the
     default reads as the name, and no field is shown while nothing needs typing.
     *Winter* is here so the option's place, after every theme and before *New
     theme…*, is an order three themes could get wrong."""

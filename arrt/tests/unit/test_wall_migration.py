@@ -86,7 +86,7 @@ def _names(path, kind):
 
 
 def test_the_active_theme_ends_up_hanging_on_the_one_wall(tmp_path):
-    """The assumption the whole chunk rests on: no deployment loses its picture.
+    """The assumption the whole migration rests on: no deployment loses its picture.
 
     A curator whose wall was showing Late night before the upgrade has to find it
     showing Late night after, without hanging anything.

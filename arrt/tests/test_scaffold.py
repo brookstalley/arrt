@@ -34,7 +34,7 @@ def test_the_package_layout_imports():
 
     assert arrt.__all__ == []
     # The module boundaries the architecture makes load-bearing exist as real
-    # packages from the start, so nothing later has to invent them mid-chunk.
+    # packages from the start, so nothing later has to invent them mid-change.
     for module in (
         services,
         persistence,

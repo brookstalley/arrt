@@ -399,10 +399,9 @@ def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_s
     script's focus as one to show (`:focus-visible`), as Safari did. The member
     that keeps the fix honest: the control the next Tab reaches still draws one.
 
-    On a server with a key, as the owner's is: since 2026-11-19 a server with
-    none disables Ask's box and its act, with the reason (chunk 08 of
-    `build-plan-audit-wave-1.md`, audit 6 finding 9), so its page holds nothing
-    a Tab can land on, and this ran on such a server until then.
+    On a server with a key, as the owner's is: a server with none disables Ask's
+    box and its act, with the reason, so its page holds nothing a Tab can land
+    on.
     """
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")

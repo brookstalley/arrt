@@ -44,8 +44,7 @@ export async function api(path, options) {
  * **Artworks no longer does.** `nonfunctional-requirements.md` moved the design
  * target to **thousands** on 2026-08-10 and calls fetching the whole catalogue
  * "indefensible at 4,000", and `PAGE_CEILING` stopped the grid at 1,250 works.
- * Artworks now loads a page at a time as the curator scrolls (`fetchWorksPage`,
- * `build-plan-lists-settings-and-scale.md` Chunk 07), so every work is reachable
+ * Artworks now loads a page at a time as the curator scrolls (`fetchWorksPage`), so every work is reachable
  * and the ceiling does not apply to it. What follows describes the callers that
  * still walk to the end.
  *
@@ -150,8 +149,7 @@ export async function fetchFilterCounts(query = "", chosen = null, { theme = nul
 /* One page of works at `offset`, with the counts that come with every page.
  *
  * For Artworks, which pages from the server as the curator scrolls rather than
- * walking to `PAGE_CEILING` (`build-plan-lists-settings-and-scale.md` Chunk 07,
- * #131): every work is reachable, however many there are. No `limit` is sent,
+ * walking to `PAGE_CEILING`: every work is reachable, however many there are. No `limit` is sent,
  * for the reason `fetchAllWorks` sends none; the page size is read back from
  * the answer's own `limit`. */
 export async function fetchWorksPage(query = "", chosen = null, sort = null, options = {}, offset = 0) {

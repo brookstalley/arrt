@@ -1,6 +1,6 @@
 """The artists the library holds, and what a registry knows about each.
 
-The Artist page's two halves (`build-plan-ia-foundations.md` Chunk 04): what the
+The Artist page's two halves: what the
 library holds, which is always answerable, and what Wikidata knows, which may
 not be. They are separate calls so that a registry that is slow, absent or down
 leaves the first half working and says which of those it was.

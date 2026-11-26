@@ -352,7 +352,7 @@ def test_a_work_whose_provider_could_not_be_reached_is_not_called_unresolved(ser
 
 
 def test_the_completed_notice_does_not_call_an_unreachable_work_unresolved(services, engine, runner, museum):
-    """The distinction the chunk exists to protect has to survive to the sentence.
+    """The distinction between unreachable and unresolved has to survive to the sentence.
 
     A run that completed with some works unreachable used to be described as
     having works "reported as unresolved… the signal a proposed work may not

@@ -1,14 +1,13 @@
 """What `DisplayService` guaranteed before it became a facade over five collaborators, held after.
 
-On 2026-11-19 (audit wave 2, chunks 20 and 21, #382) everything `DisplayService`
-did moved, verbatim, into `FeedPublisher` (`feeds.py`), `Themes` (`themes.py`),
+Everything `DisplayService` did moved, verbatim, into `FeedPublisher` (`feeds.py`), `Themes` (`themes.py`),
 `Walls` (`walls.py`), `Scenes` (`scenes.py`) and `Reports` (`reports.py`), and
 `DisplayService` (`display.py`) became the composition facade every surface
 calls. A move like that keeps every test green while silently changing what
 nobody wrote down, so what it must not change is held here:
 
 - every public name the class had, with its signature (`BEFORE`, taken from the
-  class on chunk 21's base and written in once, so a name dropped or a
+  class before the split and written in once, so a name dropped or a
   parameter renamed fails here rather than at a surface that calls it);
 - each delegation hands every argument, by name, to the collaborator that holds
   the method, and returns what it returns;
@@ -49,7 +48,7 @@ from arrt.programming.display import UNSET, DisplayService
 from arrt.programming.lookups import Lookups
 from arrt.services.errors import NotFound, ServiceError
 
-#: `DisplayService`'s public methods on chunk 21's base (c1915a9e), with their
+#: `DisplayService`'s public methods before the split (commit c1915a9e), with their
 #: signatures as `inspect.signature` spells them, annotations as written and the
 #: `UNSET` default as `UNSET`. Written once from the class itself.
 BEFORE = {
@@ -142,7 +141,7 @@ ADDED = {
     "read_walls": "(self, wall_id: 'str | None' = None) -> 'WallsSeen'",
 }
 
-#: Every public module-level name `display.py` had on chunk 21's base, by the
+#: Every public module-level name `display.py` had before the split, by the
 #: module it lives in now. `DisplayService` stayed; `DisplaySettings` moved to
 #: `settings.py`.
 IMPORTED_FROM_DISPLAY = {

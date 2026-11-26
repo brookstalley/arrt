@@ -1,7 +1,6 @@
 """One selection model on every list: Artworks, an Artist's page, the search results, a Topic.
 
-`build-plan-lists-settings-and-scale.md` Chunk 05 (#285, `ux-review-2026-10.md`
-finding 23): selection worked three ways and offered one action. Now every list
+`ux-review-2026-10.md` finding 23: selection worked three ways and offered one action. Now every list
 has a *Select* toggle whose label says which mode the page is in, ticks only in
 that mode, and a bar at the foot of the window with *Select all* and every act
 valid for what is ticked — Add to theme (with *New theme…*), Archive, Get.
@@ -247,11 +246,8 @@ def test_the_acts_on_a_selection_take_the_toolbar_s_left_side(ui, a_list):
     over how the page is shown, is last on its right. They sat in a bar at the
     window's foot until the rule (ruling 1 of 2026-10-27).
 
-    *(Until 2026-11-19 this asserted *Select* alone on the left with the acts
-    after it. Audit 6 finding 12 found no two list pages agreeing on the
-    toolbar, and chunk 07 of `build-plan-audit-wave-1.md` gave the toolbar one
-    order, `CONTROL_ORDER`, with Select last on the right; the acts on what is
-    selected stay on the left.)*
+    *(The toolbar has one order, `CONTROL_ORDER`, on every list page, with Select
+    last on the right; the acts on what is selected stay on the left.)*
 
     The half with Select off is the one an over-eager toolbar fails: no act on
     a selection is shown, and the toolbar scrolls away with the page."""
@@ -335,9 +331,8 @@ def test_on_a_phone_view_and_sort_step_aside_while_selecting(ui, seeded_service,
     Sort and the filters leave it while *Select* is on, since each repaints the
     list and drops the selection. A wide window has the room, and keeps them.
 
-    *Stop selecting* stays: since 2026-11-19 it stands with them on the right
-    (`core/toolbar.js`, chunk 07 of `build-plan-audit-wave-1.md`), and hiding
-    the whole right side, as this asserted until then, would take the way out
+    *Stop selecting* stays: it stands with them on the right
+    (`core/toolbar.js`), and hiding the whole right side would take the way out
     of the mode with it."""
     ui.page.set_viewport_size({"width": width, "height": 800})
     ui.open("#collection")

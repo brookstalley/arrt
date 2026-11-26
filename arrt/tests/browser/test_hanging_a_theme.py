@@ -5,10 +5,6 @@ client: one "Put on the wall" button, and a badge that said "on the wall" with n
 room to say which. A theme's page now hangs it through *Hang…*, a dialog of
 every wall by name (ruling 9 of 2026-10-27). Neither is expressible as JSON, so neither Python suite runs a
 line of it — this does.
-
-**These tests are here rather than in a screen chunk because the client changed
-in this one.** Chunks 04, 05 and 09 rebuild these screens; until they do, this is
-the only executed coverage the per-wall controls have.
 """
 
 import json
@@ -136,9 +132,8 @@ def test_a_hung_theme_can_be_taken_down_from_the_wall_it_is_on(ui, a_theme, serv
 def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_theme, services, a_player_shows):
     """Two changes, one question naming both walls, and only the changed walls sent.
 
-    Both changed walls are given a Player: since 2026-11-19 the question says
-    "Everyone in the house sees" only of walls a Player shows (chunk 06 of
-    `build-plan-audit-wave-1.md`, audit 6 finding 19). It has its token and has
+    Both changed walls are given a Player: the question says
+    "Everyone in the house sees" only of walls a Player shows. It has its token and has
     reported, since a Player with none shows nothing yet."""
     the_wall = services.display.survey_walls()[0].wall
     study = services.display.add_wall(name="Study")

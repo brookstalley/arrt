@@ -1064,7 +1064,7 @@ class TestHealth:
     def test_a_recorded_backup_is_reported_with_its_age(self, http, settings, shared_clock):
         """The moment a writer lands, this reports real ages with nothing to wire.
 
-        Written against the contract Chunk 20's job will meet — the receipt's
+        Written against the contract the backup job meets — the receipt's
         filename and its `completed_at` key — so a job that spelled either
         differently fails here rather than reporting a fresh backup for ever.
         """
@@ -1148,7 +1148,7 @@ class TestHealth:
 
 class TestTheWholeLoop:
     def test_the_whole_curatorial_loop_runs_over_http(self, http, hold, wall):
-        """Chunk 10B's acceptance criterion, start to finish.
+        """The whole curatorial loop, start to finish.
 
         See the works, build a theme, put it on the wall, and read exactly why a
         work that is in the theme is not on the wall.

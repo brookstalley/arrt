@@ -1,6 +1,6 @@
 """Library › Topics and the Topic page, in a real browser against a real server.
 
-`build-plan-topics-and-destinations.md` Chunk 05. The index lists the topics the
+The index lists the topics the
 library's works are in, by kind, with counts; a Topic page draws the topic and
 *In your library* at once and fills *Representative works* and *Artists* after,
 each saying when Wikidata did not answer, as the Artist page's *Their work* does.
@@ -612,8 +612,7 @@ class TestTheTopicPage:
 def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, held, all_works):
     """The default reads as the topic's name, with no field to fill, and Get makes the theme.
 
-    The owner's review of the screens (`build-plan-topics-and-destinations.md`
-    Chunk 06), on the *winter* page with no theme named *winter*."""
+    The owner's review of the screens, on the *winter* page with no theme named *winter*."""
     bodies = record_gets(ui)
     open_topic(ui)
     works_answered(ui)
