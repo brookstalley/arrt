@@ -60,7 +60,7 @@ from arrt.persistence.records import (
 from arrt.programming.clients import WallsReading
 from arrt.programming.display_state import ReportedState
 from arrt.programming.feeds import FeedPublisher, Reconciliation
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, IdSource, Lookups, machine_now, new_id
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.reports import (
     SCREEN_MEMORY,
@@ -129,21 +129,33 @@ __all__ = [
 class DisplayService:
     """Read and write the themes, memberships, walls, scenes and feeds the walls run on, through its collaborators."""
 
-    def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
+    def __init__(
+        self,
+        store: ProgrammingStore,
+        library: LibraryFacade,
+        settings: DisplaySettings,
+        *,
+        now: Clock = machine_now,
+        mint_id: IdSource = new_id,
+    ) -> None:
         # The store, the Library and the settings are the collaborators'; the
-        # facade keeps none of them, since none of its own rules reads one.
+        # facade keeps none of them, since none of its own rules reads one. Nor
+        # the clock and the id source: each collaborator is handed the same
+        # two, so what one stamps and mints the others stamp and mint alike.
         #: Every collaborator's wall, theme, hang and draft lookup, over the one store (`lookups.py`).
         self._lookups = Lookups(store)
         #: Everything that builds, stages and publishes a wall's feed (`feeds.py`).
-        self._feeds = FeedPublisher(store, library, settings, self._lookups)
+        self._feeds = FeedPublisher(store, library, settings, self._lookups, now=now)
         #: Themes, their membership, what hangs where, and the works kept off every wall (`themes.py`).
-        self._themes = Themes(store, library, self._lookups, self._feeds)
+        self._themes = Themes(store, library, self._lookups, self._feeds, now=now, mint_id=mint_id)
         #: Walls, their settings, and what each shows now (`walls.py`).
-        self._walls = Walls(store, settings, self._lookups, self._feeds, self._themes)
+        self._walls = Walls(store, settings, self._lookups, self._feeds, self._themes, now=now, mint_id=mint_id)
         #: Scenes (`scenes.py`).
-        self._scenes = Scenes(store, library, settings, self._lookups, self._feeds, self._themes, self._walls)
+        self._scenes = Scenes(
+            store, library, settings, self._lookups, self._feeds, self._themes, self._walls, now=now, mint_id=mint_id
+        )
         #: What each wall's Player reports, and what is answered from it (`reports.py`).
-        self._reports = Reports(store, settings, self._lookups, self._feeds, self._themes, self._walls, self._scenes)
+        self._reports = Reports(store, settings, self._lookups, self._feeds, self._themes, self._walls, self._scenes, now=now)
 
     # -- reads: themes --------------------------------------------------------
 

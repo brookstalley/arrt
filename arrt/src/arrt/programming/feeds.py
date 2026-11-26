@@ -23,7 +23,7 @@ import threading
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Final
 
@@ -31,7 +31,7 @@ from arrt import atomic
 from arrt.library.facade import LibraryFacade, PlayableWork, Unplayable
 from arrt.persistence.records import Scene, ScenePin, SceneStatus, Wall
 from arrt.programming import shape
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, Lookups, machine_now
 from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, published_from, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
@@ -220,10 +220,20 @@ class _Control:
 class FeedPublisher:
     """Build, stage and publish each wall's feed, and keep every published feed true to the Library."""
 
-    def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings, lookups: Lookups) -> None:
+    def __init__(
+        self,
+        store: ProgrammingStore,
+        library: LibraryFacade,
+        settings: DisplaySettings,
+        lookups: Lookups,
+        *,
+        now: Clock = machine_now,
+    ) -> None:
         self._store = store
         self._library = library
         self._settings = settings
+        #: The clock every feed is decided and stamped by, read once an act (`_now`).
+        self._clock = now
         #: The facade's one set of lookups, over the same store (`lookups.py`).
         self._lookups = lookups
         #: The open publishing transaction's feeds, decided by wall and written
@@ -317,9 +327,9 @@ class FeedPublisher:
         """
         act = self._act.current()
         if act is None:
-            return datetime.now(UTC)
+            return self._clock()
         if act.now is None:
-            act.now = datetime.now(UTC)
+            act.now = self._clock()
         return act.now
 
     def published(self, wall_id: str) -> Published | None:
@@ -403,7 +413,7 @@ class FeedPublisher:
 
         entries: list[PlayableWork] = []
         exclusions: list[Exclusion] = []
-        kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+        kept_off = self._lookups.kept_off()
         # One question for the whole theme rather than one per work: the facade
         # is written as if it were remote, and so is this call.
         answers = self._library.playable(membership.artwork_id for membership in self._store.list_memberships(theme.id))
@@ -550,7 +560,7 @@ class FeedPublisher:
                 with self._passed_over_if_too_large(own=own):
                     if self._publish_additions(wall_id, theme_id, shown, cause=cause, whole=disowned):
                         republished.append(wall_id)
-            kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+            kept_off = self._lookups.kept_off()
             for wall_id, candidates in returning.items():
                 back = sorted(w for w in candidates if isinstance(answers.get(w), PlayableWork) and w not in kept_off)
                 if back and feeds[wall_id] is not None:
@@ -1178,7 +1188,7 @@ class FeedPublisher:
         act = self._act.current()
         if act is None:
             raise RuntimeError(f"Wall {wall_id}'s feed was published outside `publishing`, where nothing would write it.")
-        document = as_v2_document(feed)
+        document = as_v2_document(feed, generated_at=self._now())
         size = served_size(document)
         if size > FEED_MAX_BYTES:
             raise self._over_the_bound(wall_id, size)
@@ -1238,7 +1248,7 @@ class FeedPublisher:
             return _Control(scene=None, staging=(), works={})
         wanted = sorted(set(staged) | ({pinned[1].work_id} if pinned else set()))
         answers = self._library.playable(wanted)
-        kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+        kept_off = self._lookups.kept_off()
         works = {
             work_id: work_document(answer)
             for work_id, answer in answers.items()

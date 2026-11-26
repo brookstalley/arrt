@@ -12,7 +12,7 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any, Final
 
@@ -25,7 +25,7 @@ from arrt.programming import adequacy, showings
 from arrt.programming.clients import WallsReading
 from arrt.programming.display_state import SETUP, DisplayState, ReportedState, ScreenState, reported_state
 from arrt.programming.feeds import FeedPublisher
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, Lookups, machine_now
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -188,9 +188,13 @@ class Reports:
         themes: Themes,
         walls: Walls,
         scenes: Scenes,
+        *,
+        now: Clock = machine_now,
     ) -> None:
         self._store = store
         self._settings = settings
+        #: The clock a report is judged and kept by (read once an act): which screens are recent, what a heartbeat records.
+        self._now = now
         #: The facade's one set of lookups (`lookups.py`).
         self._lookups = lookups
         self._feeds = feeds
@@ -231,16 +235,19 @@ class Reports:
         problem = heartbeat.problem_with(document)
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this server can read: {problem}")
+        # The act's one instant: the screen it records and the previews it
+        # settles are decided for the same moment.
+        now = self._now()
         write_atomically(self._settings.heartbeat_path(wall_id), document)
         self._record_showing(wall_id, document)
-        self._record_screen(wall_id, document)
+        self._record_screen(wall_id, document, now)
         # A live wall's heartbeat is the clock a preview's end is noticed by,
         # as it is for the horizon's roll. Behind a bulkhead, as the showings
         # record is: this is the store's account of what the Player already did,
         # and must never cost the wall its roll.
         try:
             with self._store.transaction():
-                ended = self._scenes.settle_scenes()
+                ended = self._scenes.settle_scenes(now)
             self._scenes.record_ended(ended)
         except Exception:  # prawduct:allow prawduct/broad-except -- expiry bookkeeping never stops a heartbeat
             log.exception(
@@ -327,7 +334,7 @@ class Reports:
     def _largest_screen_of(self, wall: Wall) -> tuple[int, int] | None:
         if wall.display_id is None:
             return None
-        since = datetime.now(UTC) - SCREEN_MEMORY
+        since = self._now() - SCREEN_MEMORY
         recent = [(w, h) for w, h, at in self._store.reported_screens(wall.display_id) if at >= since]
         return max(recent, key=lambda size: size[0] * size[1], default=None)
 
@@ -379,7 +386,7 @@ class Reports:
                 found.setdefault(work_id, []).append(name)
         return {work_id: sorted(names) for work_id, names in found.items()}
 
-    def _record_screen(self, wall_id: str, document: Mapping[str, Any]) -> None:
+    def _record_screen(self, wall_id: str, document: Mapping[str, Any], now: datetime | None = None) -> None:
         """Keep the screen size a minor 2 heartbeat reports, and forget sizes too old to count.
 
         A heartbeat with no capabilities (before minor 2), or with capabilities
@@ -393,7 +400,8 @@ class Reports:
         width, height = screen.get("width_px"), screen.get("height_px")
         if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
             return
-        now = datetime.now(UTC)
+        # `now` is the heartbeat's own instant; a caller with none reads the clock once, here.
+        now = self._now() if now is None else now
         # The wall's display and the sizes it knows are read inside the
         # transaction that writes and forgets: a heartbeat landing between a read
         # and the forgetting refreshed a size this one then forgot, and a wall

@@ -26,11 +26,10 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 import json
 import logging
 import threading
-import uuid
 import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -39,7 +38,7 @@ from arrt.persistence.records import Client, Display, LabelOutput, Wall
 from arrt.programming import client_heartbeat
 from arrt.programming.client_heartbeat import ClientHeartbeatReading
 from arrt.programming.display_state import DisplayState, ScreenState, display_state_of
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, IdSource, Lookups, machine_now, new_id
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import write_atomically
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading, heartbeat_path_in
@@ -500,10 +499,21 @@ class LabelAssignment:
 class ClientService:
     """Record clients, keep their displays and label outputs, and place walls and labels on them."""
 
-    def __init__(self, store: ProgrammingStore, settings: DisplaySettings, library: LibraryFacade) -> None:
+    def __init__(
+        self,
+        store: ProgrammingStore,
+        settings: DisplaySettings,
+        library: LibraryFacade,
+        *,
+        now: Clock = machine_now,
+        mint_id: IdSource = new_id,
+    ) -> None:
         self._store = store
         self._settings = settings
         self._library = library
+        #: The clock a Player, a display or a refusal is recorded by (read once an act), and the source of their ids.
+        self._now = now
+        self._mint_id = mint_id
         self.placements = Placements(store, settings.art_root)
         self._refused = refused_reports_of(store)
         #: Identities whose fault has been said in the journal this episode, so
@@ -623,7 +633,7 @@ class ClientService:
 
     def add_client(self, *, name: str) -> Client:
         """Record a client. It has no token until one is issued, and drives no wall."""
-        client = Client(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
+        client = Client(id=self._mint_id(), name=require_text(name, field="name"), created_at=self._now())
         store_write(self._store.add_client, client)
         log.info("Recorded client %r.", client.name)
         return client
@@ -687,7 +697,7 @@ class ClientService:
             wall = self._require_wall(wall_id)
             client = self.get_client(client_id)
             output = self._require_output(client, wall, output)
-            display = self._display_on(client.id, output) or self._record_place(client, output)
+            display = self._display_on(client.id, output) or self._record_place(client, output, seen_at=self._now())
             placed = self._place(wall, display, client)
         log.info("Wall %r is now shown by client %r on output %r.", wall.name, client.name, output)
         return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client))
@@ -729,7 +739,7 @@ class ClientService:
         with self._store.transaction():
             label = self._label_output_on(client.id, output)
             if label is None:
-                label = LabelOutput(id=str(uuid.uuid4()), client_id=client.id, output=output)
+                label = LabelOutput(id=self._mint_id(), client_id=client.id, output=output)
                 store_write(self._store.add_label_output, label)
             if label.wall_id not in (None, wall.id):
                 other = self._store.get_wall(label.wall_id) if label.wall_id is not None else None
@@ -783,14 +793,15 @@ class ClientService:
         report = cast("dict[str, Any]", document)
         write_atomically(self._heartbeat_path(client_id), report)
         self._refused.clear(client.id)
+        seen_at = self._now()
         with self._store.transaction():
             for output in report["outputs"]:
-                self._reconcile_display(client, output["name"], output["kind"], output.get("identity"))
+                self._reconcile_display(client, output["name"], output["kind"], output.get("identity"), seen_at)
             for label in report.get("label_outputs", []):
                 if self._label_output_on(client.id, label["name"]) is None:
                     store_write(
                         self._store.add_label_output,
-                        LabelOutput(id=str(uuid.uuid4()), client_id=client.id, output=label["name"]),
+                        LabelOutput(id=self._mint_id(), client_id=client.id, output=label["name"]),
                     )
 
     def refused(self, client_id: str, problem: str) -> None:
@@ -801,7 +812,7 @@ class ClientService:
         report every cycle writes one line, not one a cycle; a different problem
         starts a new run and writes again.
         """
-        if self._refused.note(client_id, problem, datetime.now(UTC)):
+        if self._refused.note(client_id, problem, self._now()):
             log.warning(
                 "A report from client %s was refused; it reads as unreadable until one is accepted: %s",
                 client_id,
@@ -811,7 +822,7 @@ class ClientService:
 
     # -- helpers --------------------------------------------------------------
 
-    def _reconcile_display(self, client: Client, output: str, kind: str, identity: str | None) -> None:
+    def _reconcile_display(self, client: Client, output: str, kind: str, identity: str | None, seen_at: datetime) -> None:
         """Make the display this client reports on `output` the one recorded there.
 
         - **No identity** (an HDMI connector, or a Frame that could not be asked
@@ -830,13 +841,13 @@ class ClientService:
         here = self._display_on(client.id, output)
         if identity is None:
             if here is None:
-                self._record_place(client, output, kind=kind)
+                self._record_place(client, output, seen_at=seen_at, kind=kind)
             elif here.kind != kind:
                 store_write(self._store.update_display, replace(here, kind=kind))
             return
         known = next((display for display in self._store.list_displays() if display.identity == identity), None)
         if known is None:
-            self._first_report(client, output, kind, identity, here)
+            self._first_report(client, output, kind, identity, here, seen_at)
             return
         if known.client_id == client.id and known.output == output:
             self._faults_said.discard(identity)
@@ -884,7 +895,9 @@ class ClientService:
             },
         )
 
-    def _first_report(self, client: Client, output: str, kind: str, identity: str, here: Display | None) -> None:
+    def _first_report(
+        self, client: Client, output: str, kind: str, identity: str, here: Display | None, seen_at: datetime
+    ) -> None:
         """An identity the server has not seen, reported on `output`: name the display there, or record it."""
         if here is not None and here.identity == place_identity(client.id, output):
             store_write(self._store.update_display, replace(here, identity=identity, kind=kind))
@@ -895,12 +908,12 @@ class ClientService:
         store_write(
             self._store.add_display,
             Display(
-                id=str(uuid.uuid4()),
+                id=self._mint_id(),
                 identity=identity,
                 client_id=client.id,
                 output=output,
                 kind=kind,
-                first_seen=datetime.now(UTC),
+                first_seen=seen_at,
             ),
         )
 
@@ -954,7 +967,7 @@ class ClientService:
             holder.name if holder is not None else "another client",
         )
 
-    def _record_place(self, client: Client, output: str, *, kind: str | None = None) -> Display:
+    def _record_place(self, client: Client, output: str, *, seen_at: datetime, kind: str | None = None) -> Display:
         """The display on a client's output that no device has named, recorded by place.
 
         One left with no client under that identity is taken back rather than
@@ -970,12 +983,12 @@ class ClientService:
             store_write(self._store.update_display, restored)
             return restored
         display = Display(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             identity=identity,
             client_id=client.id,
             output=output,
             kind=kind,
-            first_seen=datetime.now(UTC),
+            first_seen=seen_at,
         )
         store_write(self._store.add_display, display)
         return display

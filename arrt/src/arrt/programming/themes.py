@@ -14,11 +14,10 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
 import logging
-import uuid
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from typing import Final
 
@@ -38,7 +37,7 @@ from arrt.persistence.records import (
     WorkExclusion,
 )
 from arrt.programming.feeds import FeedPublisher
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, IdSource, Lookups, machine_now, new_id
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import NotFound, ServiceError
@@ -128,9 +127,21 @@ class NotAgain:
 class Themes:
     """Read and write the themes and their membership, what hangs where, and the works kept off every wall."""
 
-    def __init__(self, store: ProgrammingStore, library: LibraryFacade, lookups: Lookups, feeds: FeedPublisher) -> None:
+    def __init__(
+        self,
+        store: ProgrammingStore,
+        library: LibraryFacade,
+        lookups: Lookups,
+        feeds: FeedPublisher,
+        *,
+        now: Clock = machine_now,
+        mint_id: IdSource = new_id,
+    ) -> None:
         self._store = store
         self._library = library
+        #: The clock every record written here is stamped by (read once an act), and the source of its identities.
+        self._now = now
+        self._mint_id = mint_id
         #: The facade's one set of lookups (`lookups.py`).
         self._lookups = lookups
         #: The facade's one publisher: every act here that changes a feed opens its transaction.
@@ -242,7 +253,7 @@ class Themes:
         """
         with self._store.reading():
             hung = {assignment.theme_id for assignment in self._store.list_assignments()}
-            kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+            kept_off = self._lookups.kept_off()
             playing = {membership.artwork_id for theme_id in hung for membership in self._store.list_memberships(theme_id)}
         return frozenset(playing - kept_off)
 
@@ -271,9 +282,9 @@ class Themes:
         automatic promotion `reconcile` did and is dropped for the same reason.
         """
         theme = Theme(
-            id=str(uuid.uuid4()),
+            id=self._mint_id(),
             name=require_text(name, field="name"),
-            created_at=datetime.now(UTC),
+            created_at=self._now(),
             description=description,
         )
         store_write(self._store.add_theme, theme)
@@ -342,6 +353,7 @@ class Themes:
         joined_by_theme: Counter[str] = Counter()
         vanished: list[tuple[str, str]] = []
         with self._store.transaction():
+            offered_at = self._now()
             default = self._store.get_default_theme()
             offered = self._store.offered_work_ids()
             for work_id in unoffered:
@@ -352,10 +364,10 @@ class Themes:
                 if named is not None and target is None:
                     vanished.append((work_id, named))
                 if target is not None and self._store.get_membership(target.id, work_id) is None:
-                    self._insert(theme_id=target.id, artwork_id=work_id, position=None)
+                    self._insert(theme_id=target.id, artwork_id=work_id, position=None, at=offered_at)
                     joined.append(work_id)
                     joined_by_theme[target.name] += 1
-                store_write(self._store.record_offer, work_id, datetime.now(UTC))
+                store_write(self._store.record_offer, work_id, offered_at)
         for name, count in joined_by_theme.items():
             log.info("Added %d newly accepted work(s) to theme %r.", count, name)
         for work_id, theme_id in vanished:
@@ -415,12 +427,13 @@ class Themes:
         # it replaces are read inside, so a theme deleted meanwhile is refused in
         # this service's words and a hang made meanwhile is the one retired.
         with self._feeds.publishing():
+            assigned_at = self._now()
             self._lookups.get_theme(theme_id)
             self._lookups.get_wall(wall_id)
             replaced = self._store.get_assignment(wall_id)
             store_write(
                 self._store.set_assignment,
-                ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
+                ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=assigned_at),
             )
             build = self._feeds.sync(wall_id)
             self.retire_selection(replaced)
@@ -445,8 +458,8 @@ class Themes:
         chosen = list(dict.fromkeys(artwork_ids))
         if not chosen:
             raise ServiceError("A selection needs at least one work to hang.")
-        now = datetime.now(UTC)
-        theme_id = str(uuid.uuid4())
+        now = self._now()
+        theme_id = self._mint_id()
         # One act, the wall and what it replaces read inside it, as `activate_theme`
         # says, and the Library asked there too, in the order the refusals have
         # always come in, as the build inside the act asks it.
@@ -533,11 +546,12 @@ class Themes:
         # Checked inside the act, so a second *Not this one again* landing
         # meanwhile is told so rather than refused by the file.
         with self._feeds.publishing():
+            excluded_at = self._now()
             self._require_held(artwork_id)
             looking_at = self._lookups.get_wall(wall_id) if wall_id is not None else None
-            if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+            if artwork_id in self._lookups.kept_off():
                 raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
-            exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
+            exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=excluded_at)
             store_write(self._store.add_exclusion, exclusion)
             self._feeds.withdraw(artwork_id, [wall.id for wall in self._store.list_walls()], cause="being kept off every wall")
         self._library.record(
@@ -560,7 +574,7 @@ class Themes:
         # Checked inside the act, so of two allows landing together one allows
         # and the other is told there is nothing to allow.
         with self._feeds.publishing():
-            if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+            if artwork_id not in self._lookups.kept_off():
                 raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
             store_write(self._store.remove_exclusion, artwork_id)
             self._feeds.reconcile([artwork_id], cause="being allowed back")
@@ -568,7 +582,7 @@ class Themes:
 
     def excluded_works(self) -> Sequence[WorkExclusion]:
         """Every work kept off every wall, oldest first."""
-        return self._store.list_exclusions()
+        return self._lookups.exclusions()
 
     def placements_of(self, artwork_id: str) -> WorkPlacements:
         """Every theme holding this work, with the walls hanging each, and whether it is kept off every wall.
@@ -589,7 +603,7 @@ class Themes:
                 for theme in self._store.list_themes()
                 if any(membership.artwork_id == artwork_id for membership in self._store.list_memberships(theme.id))
             ]
-            exclusion = next((kept for kept in self._store.list_exclusions() if kept.artwork_id == artwork_id), None)
+            exclusion = self._lookups.exclusion_of(artwork_id)
         return WorkPlacements(themes=themes, exclusion=exclusion)
 
     def clear_wall(self, wall_id: str) -> None:
@@ -659,16 +673,17 @@ class Themes:
         # The theme read inside the act that adds to it, so a theme deleted
         # meanwhile is refused in this service's words, not the file's.
         with self._feeds.publishing():
+            added_at = self._now()
             self.get_listed_theme(theme_id)
             self._require_held(artwork_id)
             target = self._require_position(position)
-            membership = self._insert(theme_id=theme_id, artwork_id=artwork_id, position=target)
+            membership = self._insert(theme_id=theme_id, artwork_id=artwork_id, position=target, at=added_at)
             self._feeds.reconcile([artwork_id], cause="joining its theme")
         return membership
 
-    def _insert(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
-        """Write the membership at `position` (the end for None), renumbering what it displaces. Publishes nothing."""
-        membership = ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=datetime.now(UTC), position=None)
+    def _insert(self, *, theme_id: str, artwork_id: str, position: int | None, at: datetime) -> ThemeMembership:
+        """Write the membership at `position` (the end for None), added at `at`; renumbers what it displaces; no publish."""
+        membership = ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=at, position=None)
         with self._store.transaction():
             others = list(self._store.list_memberships(theme_id))
             index = len(others) if position is None else min(position, len(others))
@@ -696,7 +711,7 @@ class Themes:
         joined, once, as `add_to_theme` says.
         """
         chosen = list(dict.fromkeys(artwork_ids))
-        now = datetime.now(UTC)
+        now = self._now()
         # The theme read inside, as `add_to_theme` says.
         with self._feeds.publishing():
             self.get_listed_theme(theme_id)
@@ -976,7 +991,7 @@ class Themes:
         answer = self._require_held(artwork_id)
         if not isinstance(answer, PlayableWork):
             raise ServiceError(f"Artwork {artwork_id!r} cannot be shown on the wall: {answer.detail}")
-        if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
+        if artwork_id in self._lookups.kept_off():
             raise ServiceError(f"Artwork {answer.title!r} is kept off every wall. Allow it again from its page first.")
         return answer
 

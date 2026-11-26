@@ -13,10 +13,9 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
 import logging
-import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from typing import Final
 
@@ -30,7 +29,7 @@ from arrt.programming import shape
 from arrt.programming.clients import Placements, WallsReading
 from arrt.programming.display_state import DisplayState
 from arrt.programming.feeds import FeedPublisher, log_published
-from arrt.programming.lookups import Lookups
+from arrt.programming.lookups import Clock, IdSource, Lookups, machine_now, new_id
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.schedule import Slot
@@ -147,10 +146,21 @@ class Walls:
     """Read and write the walls, their settings, and what each shows now."""
 
     def __init__(
-        self, store: ProgrammingStore, settings: DisplaySettings, lookups: Lookups, feeds: FeedPublisher, themes: Themes
+        self,
+        store: ProgrammingStore,
+        settings: DisplaySettings,
+        lookups: Lookups,
+        feeds: FeedPublisher,
+        themes: Themes,
+        *,
+        now: Clock = machine_now,
+        mint_id: IdSource = new_id,
     ) -> None:
         self._store = store
         self._settings = settings
+        #: The clock a wall is stamped by and its upcoming slots are counted from (read once an answer), and its ids' source.
+        self._now = now
+        self._mint_id = mint_id
         self._placements = Placements(store, settings.art_root)
         #: The facade's one set of lookups (`lookups.py`).
         self._lookups = lookups
@@ -200,7 +210,8 @@ class Walls:
             reading = self.read_wall_reports(None if wall_id is None else frozenset({wall_id}))
             themes = {theme.id: theme for theme in self._store.list_themes()}
             hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
-            return WallsSeen(views=[self._view(wall, themes, hanging, reading) for wall in reading.walls], reading=reading)
+            now = self._now()
+            return WallsSeen(views=[self._view(wall, themes, hanging, reading, now) for wall in reading.walls], reading=reading)
 
     def read_wall_reports(self, wall_ids: frozenset[str] | None = None) -> WallsReading:
         """Every wall's report, or those named, and who shows each: one survey and one read of each file, in one store scope.
@@ -214,15 +225,16 @@ class Walls:
         with self._store.reading():
             return self._placements.read_walls(wall_ids)
 
-    def _upcoming(self, wall_id: str) -> Sequence[Slot]:
+    def _upcoming(self, wall_id: str, now: datetime) -> Sequence[Slot]:
         """The published schedule's next slots, starting after now: the one on the wall now is not among them."""
         published = self._feeds.published(wall_id)
         if published is None:
             return ()
-        now = datetime.now(UTC)
         return tuple(slot for slot in published.slots if slot.start > now)[:UPCOMING]
 
-    def _view(self, wall: Wall, themes: Mapping[str, Theme], hanging: Mapping[str, str], reading: WallsReading) -> WallView:
+    def _view(
+        self, wall: Wall, themes: Mapping[str, Theme], hanging: Mapping[str, str], reading: WallsReading, now: datetime
+    ) -> WallView:
         theme_id = hanging.get(wall.id)
         report = reading.reports[wall.id]
         return WallView(
@@ -233,7 +245,7 @@ class Walls:
             # read its state is: None while there is no such report.
             reads_feed=None if report.contents is None else heartbeat.reads_major(report.contents, MANIFEST_MAJOR),
             last_shown=self._store.latest_showing(wall.id),
-            upcoming=self._upcoming(wall.id),
+            upcoming=self._upcoming(wall.id, now),
         )
 
     # -- writes: walls --------------------------------------------------------
@@ -255,7 +267,7 @@ class Walls:
         second wall was a thing an operator could record and be told would not
         light up.
         """
-        wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
+        wall = Wall(id=self._mint_id(), name=require_text(name, field="name"), created_at=self._now())
         with self._store.transaction():
             self._refuse_a_taken_name(wall)
             store_write(self._store.add_wall, wall)
