@@ -87,6 +87,7 @@ from arrt.persistence.records import (
     RightsStatus,
     SourceClass,
     VocabularyKind,
+    WorkFacet,
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
@@ -94,6 +95,7 @@ from arrt.programming import feeds as feeds_module
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.programming.reports import Reports
 from arrt.services.container import Services
+from arrt.services.fields import require_text
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
 
@@ -1048,22 +1050,49 @@ def build_large_catalogue(
         # collection reliably carries. That split is the corpus's job here: a
         # fixture where every row said `inferred` could not tell a surface that
         # marks the rare sourced value from one that marks nothing.
-        for kind, value, derivation in (
+        claims = [
             (VocabularyKind.MOVEMENT, movement, FacetDerivation.INFERRED),
             (VocabularyKind.ERA, _century(year), FacetDerivation.INFERRED),
             (VocabularyKind.SUBJECT, subject, FacetDerivation.INFERRED),
             (VocabularyKind.MEDIUM, medium, FacetDerivation.SOURCED),
-        ):
-            service.record_facet(artwork_id=work.id, kind=kind, value=value, derivation=derivation)
+        ]
         if artist is not None:
-            service.record_facet(
-                artwork_id=work.id,
-                kind=VocabularyKind.ARTIST,
-                value=artist.name,
-                derivation=FacetDerivation.SOURCED,
-            )
+            claims.append((VocabularyKind.ARTIST, artist.name, FacetDerivation.SOURCED))
+        for kind, value, derivation in claims:
+            _record_facet_of_a_new_work(service, work.id, kind, value, derivation)
         works.append(work)
     return works
+
+
+def _record_facet_of_a_new_work(
+    service: CatalogueService, artwork_id: str, kind: VocabularyKind, value: str, derivation: FacetDerivation
+) -> None:
+    """`service.record_facet` for a work this fixture just added, without the two reads that make it safe for any work.
+
+    `record_facet` reads the work, to refuse one that is not there, and its facets,
+    to make a claim made twice a no-op: 40,000 reads here, more than half of what
+    the 4,000-work build cost. Neither can find anything for a work added a line
+    before, with one value of each kind. **What it keeps is what the service
+    writes**: the value stripped and non-empty, the service's own clock read once
+    and its id source drawn once per row, in `record_facet`'s order, so the
+    instants and ids a test's shared clock and id counter hand out are the same
+    as they were. `test_large_corpus.py` holds the rows' shape.
+    """
+    # Private names of the service: a rename fails here, loudly, as an AttributeError.
+    store = service._store
+    at = service._now()
+    store.add_facet(
+        WorkFacet(
+            id=service._mint_id(),
+            artwork_id=artwork_id,
+            kind=kind,
+            value=require_text(value, field="value"),
+            derivation=derivation,
+            created_at=at,
+            source_note=None,
+            value_qid=None,
+        )
+    )
 
 
 def _century(year: int) -> str:
